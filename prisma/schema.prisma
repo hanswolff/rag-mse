@@ -1,0 +1,150 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+enum VoteType {
+  JA
+  NEIN
+  VIELLEICHT
+}
+
+enum Role {
+  ADMIN
+  MEMBER
+}
+
+enum OutgoingEmailStatus {
+  QUEUED
+  PROCESSING
+  RETRYING
+  SENT
+  FAILED
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  name      String?
+  address   String?
+  phone     String?
+  role      Role     @default(MEMBER)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  votes Vote[]
+  invitationsSent Invitation[] @relation("InvitedBy")
+  eventsCreated Event[]
+}
+
+model Event {
+  id          String   @id @default(cuid())
+  date        DateTime
+  timeFrom    String
+  timeTo      String
+  location    String
+  description String
+  latitude    Float?
+  longitude   Float?
+  type        String?
+  visible     Boolean  @default(true)
+  createdById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  createdBy User? @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  votes Vote[]
+}
+
+model ShootingRange {
+  id         String   @id @default(cuid())
+  name       String   @unique
+  street     String?
+  postalCode String?
+  city       String?
+  latitude   Float
+  longitude  Float
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model Vote {
+  id        String   @id @default(cuid())
+  userId    String
+  eventId   String
+  vote      VoteType
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, eventId])
+}
+
+model News {
+  id        String   @id @default(cuid())
+  title     String
+  content   String
+  published Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Invitation {
+  id          String   @id @default(cuid())
+  email       String
+  tokenHash   String   @unique
+  role        Role     @default(MEMBER)
+  expiresAt   DateTime
+  usedAt      DateTime?
+  invitedById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  invitedBy User? @relation("InvitedBy", fields: [invitedById], references: [id], onDelete: SetNull)
+
+  @@index([email, usedAt])
+  @@index([email])
+}
+
+model PasswordReset {
+  id        String   @id @default(cuid())
+  email     String
+  tokenHash String   @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([email])
+}
+
+model OutgoingEmail {
+  id           String              @id @default(cuid())
+  template     String
+  toRecipients String
+  subject      String
+  textBody     String
+  htmlBody     String
+  status       OutgoingEmailStatus @default(QUEUED)
+  attemptCount Int                 @default(0)
+  firstQueuedAt DateTime           @default(now())
+  nextAttemptAt DateTime           @default(now())
+  lastAttemptAt DateTime?
+  lastError    String?
+  lockedUntil  DateTime?
+  sentAt       DateTime?
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+
+  @@index([status, nextAttemptAt])
+  @@index([status, lockedUntil])
+}

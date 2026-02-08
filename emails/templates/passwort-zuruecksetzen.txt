@@ -1,0 +1,15 @@
+Subject: Passwort zurücksetzen für {{appName}}
+
+Hallo,
+
+Sie haben angefordert, Ihr Passwort für {{appName}} zurückzusetzen.
+Bitte nutzen Sie den folgenden Link, um ein neues Passwort zu erstellen:
+
+{{resetUrl}}
+
+Der Link ist 24 Stunden gültig.
+
+Falls Sie diese E-Mail nicht angefordert haben, können Sie sie ignorieren.
+
+Mit freundlichen Grüßen
+{{appName}}

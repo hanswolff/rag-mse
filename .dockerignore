@@ -1,0 +1,11 @@
+*
+!.next/standalone/**
+!.next/static/**
+!public/**
+!emails/**
+!lib/**
+!scripts/**
+!prisma/**
+!prisma.config.ts
+!docker-entrypoint.sh
+!Dockerfile

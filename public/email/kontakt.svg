@@ -1,0 +1,7 @@
+<svg width="300" height="28" viewBox="0 0 300 28" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="E-Mail-Adresse">
+  <rect width="300" height="28" fill="transparent" />
+  <text x="2" y="19" font-family="Arial, sans-serif" font-size="16" fill="#1f2937">
+    <tspan font-weight="700">E-Mail:</tspan>
+    <tspan xml:space="preserve"> kontakt@rag-mse.de</tspan>
+  </text>
+</svg>

@@ -1,0 +1,106 @@
+# HAProxy Konfigurationsbeispiel für RAG MSE
+# Kopieren Sie diese Datei nach /etc/haproxy/haproxy.cfg und passen Sie die Werte an.
+
+global
+    # Maximale Anzahl an gleichzeitigen Verbindungen
+    maxconn 10000
+
+    # SSL/TLS Einstellungen
+    tune.ssl.default-dh-param 2048
+
+    # Logging
+    log /dev/log local0
+    log /dev/log local1 notice
+    chroot /var/lib/haproxy
+    stats socket /run/haproxy/admin.sock mode 660 level admin
+    stats timeout 30s
+    user haproxy
+    group haproxy
+    daemon
+
+defaults
+    log     global
+    mode    http
+    option  httplog
+    option  dontlognull
+    timeout connect 5000
+    timeout client  50000
+    timeout server  50000
+    errorfile 400 /etc/haproxy/errors/400.http
+    errorfile 403 /etc/haproxy/errors/403.http
+    errorfile 408 /etc/haproxy/errors/408.http
+    errorfile 500 /etc/haproxy/errors/500.http
+    errorfile 502 /etc/haproxy/errors/502.http
+    errorfile 503 /etc/haproxy/errors/503.http
+    errorfile 504 /etc/haproxy/errors/504.http
+
+# Frontend für HTTP (Port 80) - Umleitung zu HTTPS
+frontend http-in
+    bind *:80
+    mode http
+    option httplog
+
+    # Umleitung aller HTTP-Anfragen zu HTTPS
+    redirect scheme https code 301 if !{ ssl_fc }
+
+# Frontend für HTTPS (Port 443)
+frontend https-in
+    bind *:443 ssl crt /etc/ssl/haproxy/rag-mse.pem
+    mode http
+    option httplog
+
+    # HSTS Header
+    http-response set-header Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+
+    # X-Frame-Options (Clickjacking-Schutz)
+    http-response set-header X-Frame-Options "SAMEORIGIN"
+
+    # X-Content-Type-Options
+    http-response set-header X-Content-Type-Options "nosniff"
+
+    # X-XSS-Protection
+    http-response set-header X-XSS-Protection "1; mode=block"
+
+    # Referrer-Policy
+    http-response set-header Referrer-Policy "strict-origin-when-cross-origin"
+
+    # Forwarded Headers (für NextAuth und HTTPS-Erkennung)
+    http-request set-header X-Forwarded-Proto https if { ssl_fc }
+    http-request set-header X-Forwarded-Proto http if !{ ssl_fc }
+    http-request set-header X-Forwarded-Host %[req.hdr(Host)]
+
+    # ACL für WebSocket-Verbindungen
+    acl is_websocket hdr(Upgrade) -i websocket
+
+    # Backend-Auswahl
+    use_backend rag-mse-app if is_websocket
+    default_backend rag-mse-app
+
+# Backend für die RAG MSE Anwendung
+backend rag-mse-app
+    mode http
+    option httplog
+    option forwardfor
+
+    # Health Check - pingt die Health-Endpoint an
+    option httpchk GET /api/health
+    http-check expect status 200
+
+    # Server-Konfiguration (Next.js Container)
+    # Hinweis: IP muss an Ihre Docker-Netzwerkkonfiguration angepasst werden
+    # Bei Docker Compose kann der Container-Name als Host verwendet werden
+    server app1 127.0.0.1:3000 check inter 5s rise 2 fall 3
+
+    # Sticky Sessions (für NextAuth Sessions, falls benötigt)
+    # cookie SERVERID insert indirect nocache
+
+# Statistik-Seite (optional, für Monitoring)
+listen stats
+    bind *:8404
+    mode http
+    stats enable
+    stats uri /stats
+    stats realm HAProxy\ Statistics
+    stats auth admin:CHANGEME_PASSWORD
+    stats refresh 30s
+    stats show-legends

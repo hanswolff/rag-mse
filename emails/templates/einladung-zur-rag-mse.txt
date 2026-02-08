@@ -1,0 +1,15 @@
+Subject: Einladung zur RAG MSE
+
+Hallo,
+
+Sie wurden eingeladen, ein Mitgliedskonto bei {{appName}} zu erstellen.
+Bitte nutzen Sie den folgenden Link, um Ihre Einladung anzunehmen:
+
+{{inviteUrl}}
+
+Der Link ist {{inviteValidityDays}} Tage gültig.
+
+Falls Sie diese E-Mail nicht erwarten, können Sie sie ignorieren.
+
+Mit freundlichen Grüßen
+{{appName}}

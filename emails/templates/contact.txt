@@ -1,0 +1,7 @@
+Subject: Kontaktformular: Nachricht von {{name}}
+
+Name: {{name}}
+E-Mail: {{email}}
+
+Nachricht:
+{{message}}
