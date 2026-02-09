@@ -23,13 +23,13 @@ export const POST = withApiErrorHandling(async (
   const { vote } = body;
 
   if (!vote || !validateVote(vote)) {
-    logValidationFailure('/api/events/[id]/vote', 'POST', 'Ungültige Abstimmung. Erlaubt sind: JA, NEIN, VIELLEICHT', {
+    logValidationFailure('/api/events/[id]/vote', 'POST', 'Ungültige Teilnahmeanmeldung. Erlaubt sind: JA, NEIN, VIELLEICHT', {
       userId: user.id,
       eventId,
       vote,
     });
     return NextResponse.json(
-      { error: "Ungültige Abstimmung. Erlaubt sind: JA, NEIN, VIELLEICHT" },
+      { error: "Ungültige Teilnahmeanmeldung. Erlaubt sind: JA, NEIN, VIELLEICHT" },
       { status: 400 }
     );
   }
@@ -52,13 +52,13 @@ export const POST = withApiErrorHandling(async (
   }
 
   if (isEventInPast(event.date)) {
-    logValidationFailure('/api/events/[id]/vote', 'POST', 'Abstimmung für vergangene Termine nicht möglich', {
+    logValidationFailure('/api/events/[id]/vote', 'POST', 'Teilnahmeanmeldung für vergangene Termine nicht möglich', {
       userId: user.id,
       eventId,
       eventDate: event.date,
     });
     return NextResponse.json(
-      { error: "Abstimmung für vergangene Termine nicht möglich" },
+      { error: "Teilnahmeanmeldung für vergangene Termine nicht möglich" },
       { status: 400 }
     );
   }
@@ -145,13 +145,13 @@ export const DELETE = withApiErrorHandling(async (
   }
 
   if (isEventInPast(event.date)) {
-    logValidationFailure('/api/events/[id]/vote', 'DELETE', 'Abstimmung für vergangene Termine nicht änderbar', {
+    logValidationFailure('/api/events/[id]/vote', 'DELETE', 'Teilnahmeanmeldung für vergangene Termine nicht änderbar', {
       userId: user.id,
       eventId,
       eventDate: event.date,
     });
     return NextResponse.json(
-      { error: "Abstimmung für vergangene Termine nicht änderbar" },
+      { error: "Teilnahmeanmeldung für vergangene Termine nicht änderbar" },
       { status: 400 }
     );
   }
@@ -184,7 +184,7 @@ export const DELETE = withApiErrorHandling(async (
       eventId,
     });
     return NextResponse.json(
-      { error: "Abstimmung nicht gefunden" },
+      { error: "Teilnahmeanmeldung nicht gefunden" },
       { status: 404 }
     );
   }

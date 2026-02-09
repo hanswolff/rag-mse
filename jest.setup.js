@@ -1,6 +1,7 @@
 import "@testing-library/jest-dom";
 
 jest.mock("ioredis", () => {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
   const IORedisMock = require("ioredis-mock");
   return IORedisMock;
 });

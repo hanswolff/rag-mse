@@ -42,10 +42,18 @@ describe("Footer", () => {
 
     const currentYear = new Date().getFullYear().toString();
     const copyrightText = screen.getByText((content) =>
-      content.includes(currentYear)
+      content.includes(`© ${currentYear} RAG Schießsport MSE`)
     );
     expect(copyrightText).toBeInTheDocument();
-    expect(copyrightText).toHaveTextContent(/RAG Schießsport/);
+    expect(copyrightText).toHaveClass("text-gray-400");
+  });
+
+  it("renders version and build date", () => {
+    render(<Footer />);
+
+    const versionText = screen.getByText(/v\d+\.\d+\.\d+/);
+    expect(versionText).toBeInTheDocument();
+    expect(versionText).toHaveTextContent(/Build-Datum:/);
   });
 
   it("has consistent spacing across all section headings", () => {
@@ -55,7 +63,7 @@ describe("Footer", () => {
     expect(headings).toHaveLength(3);
 
     headings.forEach((heading) => {
-      expect(heading).toHaveClass("mb-3", "sm:mb-4");
+      expect(heading).toHaveClass("mb-2", "sm:mb-2.5");
     });
   });
 });

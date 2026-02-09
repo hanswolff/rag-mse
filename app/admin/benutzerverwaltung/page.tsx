@@ -8,6 +8,7 @@ import { buildLoginUrlWithReturnUrl, getCurrentPathWithSearch } from "@/lib/retu
 import { useUserManagement } from "@/lib/use-user-management";
 import { formatDate } from "@/lib/date-utils";
 import { UserFormModal } from "@/components/user-form-modal";
+import { LoadingButton } from "@/components/loading-button";
 import { BackLink } from "@/components/back-link";
 import type { User } from "@/types";
 
@@ -33,13 +34,14 @@ function InviteForm({ email, setEmail, onSubmit, isSubmitting }: { email: string
             autoFocus
           />
         </div>
-        <button
+        <LoadingButton
           type="submit"
-          disabled={isSubmitting}
+          loading={isSubmitting}
+          loadingText="Wird versendet..."
           className="w-full btn-primary py-2.5 sm:py-2 text-base sm:text-base touch-manipulation"
         >
-          {isSubmitting ? "Wird versendet..." : "Einladung senden"}
-        </button>
+          Einladung senden
+        </LoadingButton>
       </form>
     </div>
   );
@@ -70,9 +72,11 @@ function UserList({ users, onEdit, onDelete, canDeleteUser }: { users: User[]; o
                 <p className="text-base text-gray-600">{user.email}</p>
                 {user.address && <p className="text-base text-gray-500">{user.address}</p>}
                 {user.phone && <p className="text-base text-gray-500">{user.phone}</p>}
-                <p className="text-base text-gray-400 mt-1">
-                  Erstellt: {formatDate(user.createdAt)}
-                </p>
+                <div className="text-base text-gray-400 mt-1 space-y-0.5">
+                  <p>Erstellt: {formatDate(user.createdAt)}</p>
+                  <p>Letzter Login: {user.lastLoginAt ? formatDate(user.lastLoginAt) : "Nie"}</p>
+                  <p>Letzte Kennwort-Änderung: {user.passwordUpdatedAt ? formatDate(user.passwordUpdatedAt) : "-"}</p>
+                </div>
               </div>
               <div className="flex gap-2">
                 <button

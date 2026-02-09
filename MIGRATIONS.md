@@ -17,7 +17,7 @@ sqlite3 ./data/dev.db < create_admin.sql
    keine weiteren Änderungen mehr vornehmen):
 
 ```bash
-npm run db:migrate
+pnpm run db:migrate
 ```
 
 ## Schema ändern (Entwicklung)
@@ -27,18 +27,18 @@ npm run db:migrate
 3. Migration anwenden:
 
 ```bash
-npm run db:migrate
+pnpm run db:migrate
 ```
 
 4. Optional lokale Entwicklungs-DB mit Prisma synchronisieren:
 
 ```bash
-npm run db:push
+pnpm run db:push
 ```
 
 ## Produktion
 
-- Beim Containerstart wird automatisch `npm run db:migrate` ausgeführt.
+- Beim Containerstart wird automatisch `pnpm run db:migrate` ausgeführt.
 - Migrationen sind versionsgeführt und werden nur einmal angewendet.
 - Bereits angewendete Migrationen mit verändertem Inhalt werden erkannt und
   brechen mit Fehler ab, um Dateninkonsistenzen zu verhindern.

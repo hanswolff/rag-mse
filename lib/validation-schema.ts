@@ -416,10 +416,12 @@ export const passwordChangeValidationConfig: Record<string, FieldValidationConfi
 export const profileValidationConfig: Record<string, FieldValidationConfig> = {
   name: {
     rules: {
+      required: true,
       pattern: nameRegex,
       maxLength: 100,
     },
     errorMessages: {
+      required: "Name ist erforderlich",
       pattern: "Name enthält ungültige Zeichen",
       maxLength: "Name darf maximal 100 Zeichen haben",
     },
@@ -448,6 +450,53 @@ export const profileValidationConfig: Record<string, FieldValidationConfig> = {
     },
     errorMessages: {
       pattern: "Telefonnummer hat ungültiges Format",
+    },
+  },
+  dateOfBirth: {
+    rules: {
+      customValidator: (value: string) => {
+        const trimmed = value.trim();
+        if (!trimmed) return null;
+        if (!validateDateString(trimmed)) return "Ungültiges Geburtsdatum";
+        const date = new Date(trimmed);
+        const now = new Date();
+        const minDate = new Date(now.getFullYear() - 120, now.getMonth(), now.getDate());
+        if (date > now) return "Geburtsdatum darf nicht in der Zukunft liegen";
+        if (date < minDate) return "Ungültiges Geburtsdatum";
+        return null;
+      },
+    },
+    errorMessages: {
+      custom: "Ungültiges Geburtsdatum",
+    },
+  },
+  rank: {
+    rules: {
+      maxLength: 30,
+    },
+    errorMessages: {
+      maxLength: "Dienstgrad darf maximal 30 Zeichen haben",
+    },
+  },
+  pk: {
+    rules: {
+      maxLength: 20,
+    },
+    errorMessages: {
+      maxLength: "PK darf maximal 20 Zeichen haben",
+    },
+  },
+  memberSince: {
+    rules: {
+      customValidator: (value: string) => {
+        const trimmed = value.trim();
+        if (!trimmed) return null;
+        if (!validateDateString(trimmed)) return "Ungültiges Datum";
+        return null;
+      },
+    },
+    errorMessages: {
+      custom: "Ungültiges Datum",
     },
   },
 };

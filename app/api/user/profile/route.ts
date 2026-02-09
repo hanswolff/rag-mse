@@ -13,6 +13,13 @@ const USER_SELECT_FIELDS = {
   address: true,
   phone: true,
   role: true,
+  lastLoginAt: true,
+  passwordUpdatedAt: true,
+  memberSince: true,
+  dateOfBirth: true,
+  rank: true,
+  pk: true,
+  hasPossessionCard: true,
 } as const;
 
 function handleApiError(error: unknown, method: "GET" | "PUT") {
@@ -39,6 +46,11 @@ const updateProfileSchema = {
   name: { type: 'string' as const, optional: true },
   address: { type: 'string' as const, optional: true },
   phone: { type: 'string' as const, optional: true },
+  memberSince: { type: 'string' as const, optional: true },
+  dateOfBirth: { type: 'string' as const, optional: true },
+  rank: { type: 'string' as const, optional: true },
+  pk: { type: 'string' as const, optional: true },
+  hasPossessionCard: { type: 'boolean' as const, optional: true },
 } as const;
 
 export async function PUT(request: NextRequest) {
@@ -65,18 +77,24 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    const { name, address, phone, email } = body;
+    const { name, address, phone, email, memberSince, dateOfBirth, rank, pk, hasPossessionCard } = body;
     const normalizedEmail =
       email !== undefined ? String(email).trim().toLowerCase() : undefined;
 
+    const updateData: Record<string, unknown> = {};
+    if (name !== undefined) updateData.name = String(name).trim() || null;
+    if (address !== undefined) updateData.address = String(address).trim() || null;
+    if (phone !== undefined) updateData.phone = String(phone).trim() || null;
+    if (normalizedEmail !== undefined) updateData.email = normalizedEmail;
+    if (memberSince !== undefined) updateData.memberSince = memberSince.trim() ? new Date(memberSince) : null;
+    if (dateOfBirth !== undefined) updateData.dateOfBirth = dateOfBirth.trim() ? new Date(dateOfBirth) : null;
+    if (rank !== undefined) updateData.rank = String(rank).trim() || null;
+    if (pk !== undefined) updateData.pk = String(pk).trim() || null;
+    if (hasPossessionCard !== undefined) updateData.hasPossessionCard = hasPossessionCard;
+
     const updatedUser = await prisma.user.update({
       where: { id: user.id },
-      data: {
-        ...(name !== undefined && { name: String(name).trim() }),
-        ...(address !== undefined && { address: String(address).trim() }),
-        ...(phone !== undefined && { phone: String(phone).trim() }),
-        ...(normalizedEmail !== undefined && { email: normalizedEmail }),
-      },
+      data: updateData,
       select: USER_SELECT_FIELDS,
     });
 
@@ -85,6 +103,11 @@ export async function PUT(request: NextRequest) {
     if (address !== undefined) changedFields.push('address');
     if (phone !== undefined) changedFields.push('phone');
     if (email !== undefined) changedFields.push('email');
+    if (memberSince !== undefined) changedFields.push('memberSince');
+    if (dateOfBirth !== undefined) changedFields.push('dateOfBirth');
+    if (rank !== undefined) changedFields.push('rank');
+    if (pk !== undefined) changedFields.push('pk');
+    if (hasPossessionCard !== undefined) changedFields.push('hasPossessionCard');
 
     logInfo('profile_updated', 'User profile updated', {
       userId: user.id,

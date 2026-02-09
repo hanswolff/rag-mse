@@ -10,6 +10,7 @@ import { MenuIcon, XIcon, UserIcon } from "./icons";
 
 const NAV_ITEMS = [
   { href: "/", label: "Startseite" },
+  { href: "/ueber-uns", label: "Über uns" },
   { href: "/news", label: "News" },
   { href: "/termine", label: "Termine" },
   { href: "/kontakt", label: "Kontakt" },

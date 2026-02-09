@@ -31,6 +31,11 @@ describe("BenutzerverwaltungPage", () => {
       address: "Admin Street",
       phone: "123456",
       createdAt: "2024-01-01T00:00:00Z",
+      memberSince: "2023-01-01T00:00:00Z",
+      dateOfBirth: "1990-01-01T00:00:00Z",
+      rank: "Oberleutnant",
+      pk: "12345",
+      hasPossessionCard: true,
     },
     {
       id: "2",
@@ -40,6 +45,11 @@ describe("BenutzerverwaltungPage", () => {
       address: null,
       phone: null,
       createdAt: "2024-01-02T00:00:00Z",
+      memberSince: null,
+      dateOfBirth: null,
+      rank: null,
+      pk: null,
+      hasPossessionCard: false,
     },
   ];
 
@@ -58,6 +68,11 @@ describe("BenutzerverwaltungPage", () => {
       address: "",
       phone: "",
       role: Role.MEMBER,
+      memberSince: "",
+      dateOfBirth: "",
+      rank: "",
+      pk: "",
+      hasPossessionCard: false,
     },
     isModalOpen: false,
     editingUser: null,
@@ -218,6 +233,11 @@ describe("BenutzerverwaltungPage", () => {
           address: "",
           phone: "",
           role: Role.MEMBER,
+          memberSince: "",
+          dateOfBirth: "",
+          rank: "",
+          pk: "",
+          hasPossessionCard: false,
         },
       });
 
@@ -377,6 +397,11 @@ describe("BenutzerverwaltungPage", () => {
         address: "Edit Address",
         phone: "123456",
         createdAt: "2024-01-01T00:00:00Z",
+        memberSince: "2023-01-01T00:00:00Z",
+        dateOfBirth: "1990-01-01T00:00:00Z",
+        rank: "Oberleutnant",
+        pk: "12345",
+        hasPossessionCard: true,
       };
 
       (useUserManagement as jest.Mock).mockReturnValue({
@@ -411,6 +436,11 @@ describe("BenutzerverwaltungPage", () => {
         address: "Edit Address",
         phone: "123456",
         createdAt: "2024-01-01T00:00:00Z",
+        memberSince: "2023-01-01T00:00:00Z",
+        dateOfBirth: "1990-01-01T00:00:00Z",
+        rank: "Oberleutnant",
+        pk: "12345",
+        hasPossessionCard: true,
       };
 
       (useUserManagement as jest.Mock).mockReturnValue({
@@ -462,6 +492,11 @@ describe("BenutzerverwaltungPage", () => {
         address: "Edit Address",
         phone: "123456",
         createdAt: "2024-01-01T00:00:00Z",
+        memberSince: "2023-01-01T00:00:00Z",
+        dateOfBirth: "1990-01-01T00:00:00Z",
+        rank: "Oberleutnant",
+        pk: "12345",
+        hasPossessionCard: true,
       };
 
       (useUserManagement as jest.Mock).mockReturnValue({

@@ -26,6 +26,7 @@ export function useNewsManagement() {
   const [isLoading, setIsLoading] = useState(true);
   const [isCreatingNews, setIsCreatingNews] = useState(false);
   const [isEditingNews, setIsEditingNews] = useState(false);
+  const [publishingNewsId, setPublishingNewsId] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [editingNews, setEditingNews] = useState<News | null>(null);
@@ -142,14 +143,19 @@ export function useNewsManagement() {
 
   const handlePublishNews = useCallback(async (newsId: string, published: boolean) => {
     const publish = createPublishHandler(setSuccess, setError, fetchNews);
-    await publish(
-      `/api/admin/news/${newsId}`,
-      { published },
-      {
-        success: published ? PUBLISH_MESSAGES.news.published : PUBLISH_MESSAGES.news.unpublished,
-        error: PUBLISH_MESSAGES.news.error,
-      }
-    );
+    setPublishingNewsId(newsId);
+    try {
+      await publish(
+        `/api/admin/news/${newsId}`,
+        { published },
+        {
+          success: published ? PUBLISH_MESSAGES.news.published : PUBLISH_MESSAGES.news.unpublished,
+          error: PUBLISH_MESSAGES.news.error,
+        }
+      );
+    } finally {
+      setPublishingNewsId(null);
+    }
   }, [createPublishHandler, fetchNews]);
 
   return {
@@ -157,6 +163,7 @@ export function useNewsManagement() {
     isLoading,
     isCreatingNews,
     isEditingNews,
+    publishingNewsId,
     error,
     success,
     modalNewsData,

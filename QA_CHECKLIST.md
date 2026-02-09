@@ -5,15 +5,15 @@ Dieses Dokument enthält eine detaillierte Checkliste für das manuelle Testen d
 ## Vorbereitung
 
 ### Testumgebung einrichten
-- [ ] Frische Datenbank mit Seed-Script initialisieren: `npm run db:seed`
-- [ ] Anwendung starten: `npm run dev` oder `docker-compose up`
+- [ ] Frische Datenbank mit Seed-Script initialisieren: `pnpm run db:seed`
+- [ ] Anwendung starten: `pnpm run dev` oder `docker-compose up`
 - [ ] Browser-Cache leeren
 - [ ] Test-Browser vorbereiten (Chrome/Firefox/Safari)
 
 ### Test-Benutzer vorbereiten
 Standard-Admin-Credentials nach Seed:
 - Email: `admin@rag-mse.de`
-- Passwort: `admin123`
+- Passwort: `AdminPass123`
 
 Für Tests zusätzliches Mitglied erstellen.
 

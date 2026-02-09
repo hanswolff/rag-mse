@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { BackLink } from "@/components/back-link";
+import { LoadingButton } from "@/components/loading-button";
 import type { ContactFormData } from "@/lib/contact-validation";
 import { useFormFieldValidation } from "@/lib/useFormFieldValidation";
 import { contactValidationConfig } from "@/lib/validation-schema";
@@ -215,13 +216,15 @@ export default function ContactPage() {
             </div>
 
             <div className="flex justify-end">
-              <button
+              <LoadingButton
                 type="submit"
-                disabled={isLoading || success}
+                loading={isLoading}
+                disabled={success}
+                loadingText="Wird gesendet..."
                 className="btn-primary py-2.5 sm:py-2 text-base sm:text-base touch-manipulation"
               >
-                {isLoading ? "Wird gesendet..." : "Nachricht senden"}
-              </button>
+                Nachricht senden
+              </LoadingButton>
             </div>
           </form>
         </div>

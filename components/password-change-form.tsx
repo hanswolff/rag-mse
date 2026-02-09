@@ -4,6 +4,7 @@ import { useMemo } from "react";
 import { getPasswordRequirements } from "@/lib/password-validation";
 import { useFormFieldValidation } from "@/lib/useFormFieldValidation";
 import { passwordChangeValidationConfig } from "@/lib/validation-schema";
+import { LoadingButton } from "./loading-button";
 
 interface PasswordChangeFormProps {
   isChangingPassword: boolean;
@@ -206,13 +207,14 @@ export function PasswordChangeForm({
           )}
         </div>
 
-        <button
+        <LoadingButton
           type="submit"
-          disabled={isChangingPassword}
+          loading={isChangingPassword}
+          loadingText="Wird geändert..."
           className="btn-primary py-2.5 sm:py-2 text-base sm:text-base touch-manipulation"
         >
-          {isChangingPassword ? "Wird geändert..." : "Passwort ändern"}
-        </button>
+          Passwort ändern
+        </LoadingButton>
       </form>
 
       <div className="mt-4 text-base sm:text-base text-gray-600">

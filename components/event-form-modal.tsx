@@ -6,6 +6,7 @@ import { GermanDatePicker } from "./german-date-picker";
 import { GermanTimePicker } from "./german-time-picker";
 import { RichTextEditor } from "./rich-text-editor";
 import { ShootingRangePicker, ShootingRange } from "./shooting-range-picker";
+import { LoadingButton } from "./loading-button";
 import { useFormFieldValidation } from "@/lib/useFormFieldValidation";
 import { eventValidationConfig } from "@/lib/validation-schema";
 import { MAX_EVENT_DESCRIPTION_BYTES } from "@/lib/event-description";
@@ -379,17 +380,16 @@ export function EventFormModal({
           >
             Abbrechen
           </button>
-          <button
+          <LoadingButton
             type="submit"
-            disabled={isSubmitting}
+            loading={isSubmitting}
+            loadingText="Wird gespeichert..."
             className="flex-1 btn-primary py-2.5 text-base touch-manipulation"
           >
-            {isSubmitting
-              ? "Wird gespeichert..."
-              : isEditing
+            {isEditing
               ? "Aktualisieren"
               : "Erstellen"}
-          </button>
+          </LoadingButton>
         </div>
       </form>
     </Modal>

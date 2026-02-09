@@ -9,10 +9,9 @@ coverage/
 .next/cache/
 
 # Logs
-npm-debug.log*
+pnpm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-pnpm-debug.log*
 
 # Env files
 .env
@@ -36,6 +35,9 @@ Thumbs.db
 *.swp
 *.swo
 *.tsbuildinfo
-.npm-cache/
+.pnpm-store/
 
 /lib/generated/prisma
+/lib/version-info.ts
+
+public/photos/

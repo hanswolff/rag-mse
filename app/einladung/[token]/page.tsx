@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, use } from "react";
 import { useRouter } from "next/navigation";
 import { signIn } from "next-auth/react";
 import { getPasswordRequirements } from "@/lib/password-validation";
+import { LoadingButton } from "@/components/loading-button";
 
 interface InvitationStatus {
   email: string;
@@ -11,6 +12,10 @@ interface InvitationStatus {
   name: string;
   address: string;
   phone: string;
+  dateOfBirth: string;
+  rank: string;
+  pk: string;
+  hasPossessionCard: boolean;
 }
 
 export default function InvitationPage({ params }: { params: Promise<{ token: string }> }) {
@@ -28,6 +33,10 @@ export default function InvitationPage({ params }: { params: Promise<{ token: st
     address: "",
     phone: "",
     password: "",
+    dateOfBirth: "",
+    rank: "",
+    pk: "",
+    hasPossessionCard: false,
   });
 
   const passwordRequirements = useMemo(() => getPasswordRequirements(), []);
@@ -47,6 +56,10 @@ export default function InvitationPage({ params }: { params: Promise<{ token: st
           name: typeof data.name === "string" ? data.name : "",
           address: typeof data.address === "string" ? data.address : "",
           phone: typeof data.phone === "string" ? data.phone : "",
+          dateOfBirth: typeof data.dateOfBirth === "string" ? data.dateOfBirth : "",
+          rank: typeof data.rank === "string" ? data.rank : "",
+          pk: typeof data.pk === "string" ? data.pk : "",
+          hasPossessionCard: typeof data.hasPossessionCard === "boolean" ? data.hasPossessionCard : false,
         }));
       } catch {
         setError("Einladung konnte nicht geladen werden");
@@ -175,6 +188,95 @@ export default function InvitationPage({ params }: { params: Promise<{ token: st
                 />
               </div>
 
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label htmlFor="phone" className="form-label">
+                    Telefon
+                  </label>
+                  <input
+                    id="phone"
+                    name="phone"
+                    type="tel"
+                    value={formData.phone}
+                    onChange={(event) => setFormData({ ...formData, phone: event.target.value })}
+                    maxLength={30}
+                    className="form-input"
+                    placeholder="0123 456789"
+                    autoComplete="tel"
+                    disabled={isSubmitting}
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor="dateOfBirth" className="form-label">
+                    Geburtsdatum
+                  </label>
+                  <input
+                    id="dateOfBirth"
+                    name="dateOfBirth"
+                    type="date"
+                    value={formData.dateOfBirth}
+                    onChange={(event) => setFormData({ ...formData, dateOfBirth: event.target.value })}
+                    className="form-input"
+                    disabled={isSubmitting}
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label htmlFor="rank" className="form-label">
+                    Dienstgrad
+                  </label>
+                  <input
+                    id="rank"
+                    name="rank"
+                    type="text"
+                    value={formData.rank}
+                    onChange={(event) => setFormData({ ...formData, rank: event.target.value })}
+                    maxLength={30}
+                    className="form-input"
+                    placeholder="z.B. Oberleutnant"
+                    disabled={isSubmitting}
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor="pk" className="form-label">
+                    PK
+                  </label>
+                  <input
+                    id="pk"
+                    name="pk"
+                    type="text"
+                    value={formData.pk}
+                    onChange={(event) => setFormData({ ...formData, pk: event.target.value })}
+                    maxLength={20}
+                    className="form-input"
+                    placeholder="z.B. 12345"
+                    disabled={isSubmitting}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="form-label">Waffenbesitzkarte</label>
+                <div className="flex items-center gap-3">
+                  <input
+                    id="hasPossessionCard"
+                    name="hasPossessionCard"
+                    type="checkbox"
+                    checked={formData.hasPossessionCard}
+                    onChange={(event) => setFormData({ ...formData, hasPossessionCard: event.target.checked })}
+                    className="w-5 h-5 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+                    disabled={isSubmitting}
+                  />
+                  <label htmlFor="hasPossessionCard" className="text-gray-700 cursor-pointer">
+                    Ich besitze eine eigene Waffenbesitzkarte
+                  </label>
+                </div>
+              </div>
+
               <div>
                 <label htmlFor="address" className="form-label">
                   Adresse
@@ -189,24 +291,6 @@ export default function InvitationPage({ params }: { params: Promise<{ token: st
                   className="form-input"
                   placeholder="Musterstraße 1, 12345 Musterstadt"
                   autoComplete="street-address"
-                  disabled={isSubmitting}
-                />
-              </div>
-
-              <div>
-                <label htmlFor="phone" className="form-label">
-                  Telefon
-                </label>
-                <input
-                  id="phone"
-                  name="phone"
-                  type="tel"
-                  value={formData.phone}
-                  onChange={(event) => setFormData({ ...formData, phone: event.target.value })}
-                  maxLength={30}
-                  className="form-input"
-                  placeholder="0123 456789"
-                  autoComplete="tel"
                   disabled={isSubmitting}
                 />
               </div>
@@ -234,13 +318,14 @@ export default function InvitationPage({ params }: { params: Promise<{ token: st
                 </ul>
               </div>
 
-              <button
+              <LoadingButton
                 type="submit"
-                disabled={isSubmitting}
+                loading={isSubmitting}
+                loadingText="Wird erstellt..."
                 className="w-full btn-primary py-2"
               >
-                {isSubmitting ? "Wird erstellt..." : "Konto erstellen"}
-              </button>
+                Konto erstellen
+              </LoadingButton>
             </form>
           )}
         </div>

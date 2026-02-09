@@ -122,6 +122,10 @@ async function authorizeUser(credentials?: { email?: string; password?: string }
   }
 
   await recordSuccessfulLogin(clientIp, user.email);
+  await prisma.user.update({
+    where: { id: user.id },
+    data: { lastLoginAt: new Date() },
+  });
   logInfo('login_success', 'User logged in successfully', { email: maskEmail(user.email), userId: user.id, role: user.role, clientIp });
   return mapUserToAuthUser(user);
 }

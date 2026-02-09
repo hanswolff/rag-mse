@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
 import { isAdmin } from "@/lib/role-utils";
 import { sanitizeReturnUrl } from "@/lib/return-url";
+import { LoadingButton } from "@/components/loading-button";
 
 interface UseLoginFormResult {
   email: string;
@@ -88,10 +89,17 @@ function useLoginForm(): UseLoginFormResult {
           redirect: false,
         });
 
+        console.log("NextAuth signIn result:", result);
+
         if (result?.error) {
+          console.error("NextAuth error:", result.error);
           setError("Ungültige E-Mail oder Passwort");
         } else if (result?.ok) {
+          console.log("NextAuth ok, setting redirect");
           setShouldRedirect(true);
+        } else {
+          console.warn("NextAuth unexpected result:", result);
+          setError("Ein Fehler ist aufgetreten. Bitte versuchen Sie es später erneut.");
         }
       } else {
         setError(data.error || "Ein Fehler ist aufgetreten. Bitte versuchen Sie es später erneut.");
@@ -168,13 +176,14 @@ export default function LoginPage() {
               />
             </div>
 
-            <button
+            <LoadingButton
               type="submit"
-              disabled={isLoading}
+              loading={isLoading}
+              loadingText="Anmeldung..."
               className="w-full btn-primary py-2.5 sm:py-2 text-base sm:text-base touch-manipulation"
             >
-              {isLoading ? "Anmeldung..." : "Anmelden"}
-            </button>
+              Anmelden
+            </LoadingButton>
           </form>
 
           <div className="mt-4 text-center text-base">

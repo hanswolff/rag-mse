@@ -36,7 +36,7 @@ describe("VotingResults", () => {
       <VotingResults votes={mockVotes} voteCounts={mockVoteCounts} isAdmin={false} />
     );
 
-    expect(screen.getByText("Ergebnisse (10 Stimmen)")).toBeInTheDocument();
+    expect(screen.getByText("Anmeldestand (10 Anmeldungen)")).toBeInTheDocument();
   });
 
   it("does not render vote count numbers (removed feature)", () => {
@@ -53,7 +53,7 @@ describe("VotingResults", () => {
       <VotingResults votes={mockVotes} voteCounts={mockVoteCounts} isAdmin={false} />
     );
 
-    expect(screen.queryByText("Abgestimmt haben:")).not.toBeInTheDocument();
+    expect(screen.queryByText("Angemeldet sind:")).not.toBeInTheDocument();
     expect(screen.queryByText("User 1")).not.toBeInTheDocument();
     expect(screen.queryByText("User 2")).not.toBeInTheDocument();
     expect(screen.queryByText("User 3")).not.toBeInTheDocument();
@@ -64,7 +64,7 @@ describe("VotingResults", () => {
       <VotingResults votes={mockVotes} voteCounts={mockVoteCounts} isAdmin={true} />
     );
 
-    expect(screen.getByText("Abgestimmt haben:")).toBeInTheDocument();
+    expect(screen.getByText("Angemeldet sind:")).toBeInTheDocument();
     expect(screen.getByText("User 1")).toBeInTheDocument();
     expect(screen.getByText("User 2")).toBeInTheDocument();
     expect(screen.getByText("User 3")).toBeInTheDocument();
@@ -86,7 +86,7 @@ describe("VotingResults", () => {
       <VotingResults votes={[]} voteCounts={{ JA: 0, NEIN: 0, VIELLEICHT: 0 }} isAdmin={true} />
     );
 
-    expect(screen.queryByText("Abgestimmt haben:")).not.toBeInTheDocument();
+    expect(screen.queryByText("Angemeldet sind:")).not.toBeInTheDocument();
   });
 
   it("renders pie chart even when no votes", () => {
@@ -97,7 +97,7 @@ describe("VotingResults", () => {
     expect(screen.getByTestId("voting-pie-chart")).toBeInTheDocument();
   });
 
-  it("shows 'Keine Stimmen' for vote types with no votes (admin view)", () => {
+  it("shows 'Keine Anmeldungen' for vote types with no votes (admin view)", () => {
     const votesWithSomeOptions = [
       { id: "v1", vote: "JA" as const, user: { id: "u1", name: "User 1" } },
     ];
@@ -106,7 +106,7 @@ describe("VotingResults", () => {
       <VotingResults votes={votesWithSomeOptions} voteCounts={{ JA: 1, NEIN: 0, VIELLEICHT: 0 }} isAdmin={true} />
     );
 
-    expect(screen.getAllByText("Keine Stimmen")).toHaveLength(2);
+    expect(screen.getAllByText("Keine Anmeldungen")).toHaveLength(2);
   });
 
   it("renders multiple voters for same vote type correctly", () => {

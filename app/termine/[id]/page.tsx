@@ -11,8 +11,10 @@ import { isAdmin } from "@/lib/role-utils";
 import { VOTE_OPTIONS } from "@/lib/vote-utils";
 import { BackLink } from "@/components/back-link";
 import { ExternalLinkIcon } from "@/components/icons";
+import { LoadingButton } from "@/components/loading-button";
 import { useEventManagement } from "@/lib/use-event-management";
 import { formatEventDescriptionForDisplay } from "@/lib/event-description";
+import { buildLoginUrlWithReturnUrl } from "@/lib/return-url";
 import type { Event } from "@/types";
 
 interface EventWithVotes extends Event {
@@ -33,11 +35,17 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
   const [event, setEvent] = useState<EventWithVotes | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isVoting, setIsVoting] = useState(false);
+  const [pendingVote, setPendingVote] = useState<VoteType | null>(null);
   const [error, setError] = useState("");
   const [voteError, setVoteError] = useState("");
   const { data: session } = useSession();
   const isAdminUser = session ? isAdmin(session.user) : false;
   const eventManagement = useEventManagement({ enforceAdminRedirect: false, enabled: isAdminUser });
+
+  // Get login URL with current event as return URL
+  const loginUrl = typeof window !== "undefined" 
+    ? buildLoginUrlWithReturnUrl(window.location.pathname)
+    : "/login";
 
   useEffect(() => {
     fetchEvent(id);
@@ -79,6 +87,7 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
     if (!event || !session?.user?.id) return;
 
     setIsVoting(true);
+    setPendingVote(vote);
     setVoteError("");
 
     try {
@@ -92,9 +101,9 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
 
       if (!response.ok) {
         if (response.status === 401) {
-          setVoteError("Bitte einloggen um abzustimmen");
+          setVoteError("Bitte einloggen, um deine Teilnahme anzumelden");
         } else {
-          throw new Error("Fehler beim Abstimmen");
+          throw new Error("Fehler bei der Teilnahmeanmeldung");
         }
         return;
       }
@@ -104,6 +113,7 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
       setVoteError(err instanceof Error ? err.message : "Ein Fehler ist aufgetreten");
     } finally {
       setIsVoting(false);
+      setPendingVote(null);
     }
   }
 
@@ -119,7 +129,7 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
       });
 
       if (!response.ok) {
-        throw new Error("Fehler beim Löschen der Abstimmung");
+        throw new Error("Fehler beim Zurückziehen der Anmeldung");
         return;
       }
 
@@ -239,16 +249,32 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
               </div>
             </article>
 
+            {!session && (
+              <section className="card">
+                <div className="p-6 text-center">
+                  <h2 className="text-2xl font-bold text-gray-900 mb-4">
+                    Teilnahmeanmeldung
+                  </h2>
+                  <p className="text-gray-600 mb-4 text-base sm:text-base">
+                    Bitte einloggen, um deine Teilnahme anzumelden
+                  </p>
+                  <a href={loginUrl} className="btn-primary text-base font-semibold inline-block">
+                    Zur Anmeldung bitte Einloggen
+                  </a>
+                </div>
+              </section>
+            )}
+
             {session && (
               <section className="card">
                 <div className="p-0">
                   <h2 className="text-2xl font-bold text-gray-900 mb-6">
-                    Teilnahmeabstimmung
+                    Teilnahmeanmeldung
                   </h2>
 
                   {isPast && (
                     <div className="bg-blue-50 border border-blue-200 text-blue-700 px-4 py-3 rounded mb-4">
-                      Dieser Termin ist bereits vorbei. Abstimmungen sind nicht mehr möglich.
+                      Dieser Termin ist bereits vorbei. Teilnahmeanmeldungen sind nicht mehr möglich.
                     </div>
                   )}
 
@@ -256,19 +282,21 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
                     <p className="text-gray-600 mb-3 sm:mb-4 text-base sm:text-base">
                       {isPast
                         ? currentUserVote
-                          ? "Du hast für diesen Termin abgestimmt:"
-                          : "Keine Stimme vorhanden"
+                          ? "Du hast dich für diesen Termin angemeldet:"
+                          : "Keine Anmeldung vorhanden"
                         : currentUserVote
-                          ? "Du hast bereits abgestimmt:"
-                          : "Nimm an der Abstimmung teil:"}
+                          ? "Du hast dich bereits angemeldet:"
+                          : "Melde deine Teilnahme an:"}
                     </p>
 
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3">
                       {VOTE_OPTIONS.map((option) => (
-                        <button
+                        <LoadingButton
                           key={option.value}
                           onClick={() => handleVote(option.value)}
-                          disabled={isVoting || isPast}
+                          disabled={isPast}
+                          loading={isVoting && pendingVote === option.value}
+                          loadingText={option.label}
                           className={`px-4 sm:px-6 py-3 rounded-lg font-medium border-2 transition-all text-base sm:text-base touch-manipulation ${
                             currentUserVote?.vote === option.value
                               ? `${option.color} border-current`
@@ -276,7 +304,7 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
                           } disabled:opacity-50 disabled:cursor-not-allowed`}
                         >
                           {option.label}
-                        </button>
+                        </LoadingButton>
                       ))}
                     </div>
 
@@ -286,7 +314,7 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
                         disabled={isVoting}
                         className="mt-3 sm:mt-4 text-base sm:text-base text-gray-500 hover:text-brand-red-700 underline disabled:opacity-50 disabled:cursor-not-allowed"
                       >
-                        Stimme zurücknehmen
+                        Anmeldung zurückziehen
                       </button>
                     )}
                   </div>

@@ -36,7 +36,7 @@ export function VotingResults({ votes, voteCounts, isAdmin = false }: VotingResu
     <>
       <div>
         <h3 className="text-base sm:text-lg font-semibold text-gray-900 mb-4">
-          Ergebnisse ({totalVotes} {pluralize(totalVotes, "Stimme", "Stimmen")})
+          Anmeldestand ({totalVotes} {pluralize(totalVotes, "Anmeldung", "Anmeldungen")})
         </h3>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -47,7 +47,7 @@ export function VotingResults({ votes, voteCounts, isAdmin = false }: VotingResu
           {isAdmin && votes && votes.length > 0 && (
             <div className="bg-white rounded-2xl shadow-md p-4 sm:p-6">
               <h3 className="text-base sm:text-lg font-semibold text-gray-900 mb-3 sm:mb-4">
-                Abgestimmt haben:
+                Angemeldet sind:
               </h3>
               <div className="space-y-4">
                 {votesByOption.map((option) => (
@@ -66,7 +66,7 @@ export function VotingResults({ votes, voteCounts, isAdmin = false }: VotingResu
                       ))}
                       {option.votes.length === 0 && (
                         <li className="text-gray-400 text-sm italic">
-                          Keine Stimmen
+                          Keine Anmeldungen
                         </li>
                       )}
                     </ul>

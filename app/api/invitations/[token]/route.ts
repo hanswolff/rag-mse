@@ -8,6 +8,7 @@ import { logInfo, logValidationFailure, logResourceNotFound, maskToken } from "@
 import { Role } from "@prisma/client";
 import { checkTokenRateLimit, recordSuccessfulTokenUsage } from "@/lib/rate-limiter";
 import { normalizeOptionalField, validateAddress, validateName, validatePhone } from "@/lib/user-validation";
+import { validateDateString } from "@/lib/validation-schema";
 
 const BCRYPT_SALT_ROUNDS = 10;
 
@@ -30,6 +31,10 @@ interface InviteAcceptanceRequest {
   address: string;
   phone: string;
   password: string;
+  dateOfBirth?: string;
+  rank?: string;
+  pk?: string;
+  hasPossessionCard?: boolean;
 }
 
 const inviteAcceptanceSchema = {
@@ -37,6 +42,10 @@ const inviteAcceptanceSchema = {
   address: { type: 'string' as const, optional: true },
   phone: { type: 'string' as const, optional: true },
   password: { type: 'string' as const },
+  dateOfBirth: { type: 'string' as const, optional: true },
+  rank: { type: 'string' as const, optional: true },
+  pk: { type: 'string' as const, optional: true },
+  hasPossessionCard: { type: 'boolean' as const, optional: true },
 } as const;
 
 function normalizeName(value: string): string {
@@ -69,7 +78,11 @@ async function redeemInvitationForExistingUser(
   name: string,
   address: string,
   phone: string,
-  password: string
+  password: string,
+  dateOfBirth?: string,
+  rank?: string,
+  pk?: string,
+  hasPossessionCard?: boolean
 ): Promise<RedemptionResult> {
   const user = await tx.user.update({
     where: { id: userId },
@@ -78,6 +91,10 @@ async function redeemInvitationForExistingUser(
       address: address || null,
       phone: phone || null,
       password: await hash(password, BCRYPT_SALT_ROUNDS),
+      dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : null,
+      rank: rank || null,
+      pk: pk || null,
+      hasPossessionCard: hasPossessionCard || false,
     },
     select: { id: true, email: true, name: true },
   });
@@ -96,7 +113,11 @@ async function createUserWithInvitation(
   name: string,
   address: string,
   phone: string,
-  password: string
+  password: string,
+  dateOfBirth?: string,
+  rank?: string,
+  pk?: string,
+  hasPossessionCard?: boolean
 ): Promise<RedemptionResult> {
   const hashedPassword = await hash(password, BCRYPT_SALT_ROUNDS);
   const normalizedName = normalizeName(name);
@@ -109,6 +130,10 @@ async function createUserWithInvitation(
       phone: phone || null,
       password: hashedPassword,
       role: invitation.role,
+      dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : null,
+      rank: rank || null,
+      pk: pk || null,
+      hasPossessionCard: hasPossessionCard || false,
     },
     select: { id: true, email: true, name: true },
   });
@@ -214,6 +239,10 @@ export async function GET(
         name: true,
         address: true,
         phone: true,
+        dateOfBirth: true,
+        rank: true,
+        pk: true,
+        hasPossessionCard: true,
       },
     });
 
@@ -223,6 +252,10 @@ export async function GET(
       name: existingUser?.name ?? "",
       address: existingUser?.address ?? "",
       phone: existingUser?.phone ?? "",
+      dateOfBirth: existingUser?.dateOfBirth ?? "",
+      rank: existingUser?.rank ?? "",
+      pk: existingUser?.pk ?? "",
+      hasPossessionCard: existingUser?.hasPossessionCard ?? false,
     });
   } catch (error) {
     logApiError(error, {
@@ -276,6 +309,10 @@ export async function POST(
     const address = normalizeOptionalField(body.address);
     const phone = normalizeOptionalField(body.phone);
     const password = typeof body.password === "string" ? body.password : "";
+    const dateOfBirth = typeof body.dateOfBirth === "string" ? body.dateOfBirth : undefined;
+    const rank = typeof body.rank === "string" ? body.rank : undefined;
+    const pk = typeof body.pk === "string" ? body.pk : undefined;
+    const hasPossessionCard = typeof body.hasPossessionCard === "boolean" ? body.hasPossessionCard : false;
 
     const nameValidation = validateName(name);
     if (!nameValidation.isValid) {
@@ -297,6 +334,26 @@ export async function POST(
         logValidationFailure('/api/invitations/[token]', 'POST', phoneValidation.error || "Ungültige Telefonnummer", { token: maskToken(token) });
         return NextResponse.json({ error: phoneValidation.error || "Ungültige Telefonnummer" }, { status: 400 });
       }
+    }
+
+    // Validate new profile fields
+    if (dateOfBirth !== undefined) {
+      if (typeof dateOfBirth !== "string" || !dateOfBirth.trim()) {
+        // Empty is fine
+      } else if (!validateDateString(dateOfBirth)) {
+        logValidationFailure('/api/invitations/[token]', 'POST', 'Ungültiges Geburtsdatum', { token: maskToken(token) });
+        return NextResponse.json({ error: "Ungültiges Geburtsdatum" }, { status: 400 });
+      }
+    }
+
+    if (rank !== undefined && rank.trim() && rank.trim().length > 30) {
+      logValidationFailure('/api/invitations/[token]', 'POST', 'Dienstgrad darf maximal 30 Zeichen lang sein', { token: maskToken(token) });
+      return NextResponse.json({ error: "Dienstgrad darf maximal 30 Zeichen lang sein" }, { status: 400 });
+    }
+
+    if (pk !== undefined && pk.trim() && pk.trim().length > 20) {
+      logValidationFailure('/api/invitations/[token]', 'POST', 'PK darf maximal 20 Zeichen lang sein', { token: maskToken(token) });
+      return NextResponse.json({ error: "PK darf maximal 20 Zeichen lang sein" }, { status: 400 });
     }
 
     const passwordValidation = validatePassword(password);
@@ -323,10 +380,10 @@ export async function POST(
       });
 
       if (existingUser) {
-        return redeemInvitationForExistingUser(tx, existingUser.id, invitation.id, name, address ?? "", phone ?? "", password);
+        return redeemInvitationForExistingUser(tx, existingUser.id, invitation.id, name, address ?? "", phone ?? "", password, dateOfBirth, rank, pk, hasPossessionCard);
       }
 
-      return createUserWithInvitation(tx, invitation, name, address ?? "", phone ?? "", password);
+      return createUserWithInvitation(tx, invitation, name, address ?? "", phone ?? "", password, dateOfBirth, rank, pk, hasPossessionCard);
     });
 
     await recordSuccessfulTokenUsage(tokenHash, clientIp);

@@ -3,6 +3,7 @@
 import { useEffect, useState, use } from "react";
 import { useRouter } from "next/navigation";
 import { validatePassword, getPasswordRequirements } from "@/lib/password-validation";
+import { LoadingButton } from "@/components/loading-button";
 
 interface UseResetPasswordFormResult {
   password: string;
@@ -271,13 +272,14 @@ export default function ResetPasswordPage({ params }: { params: Promise<{ token:
               />
             </div>
 
-            <button
+            <LoadingButton
               type="submit"
-              disabled={isLoading}
+              loading={isLoading}
+              loadingText="Wird geändert..."
               className="w-full btn-primary py-2.5 sm:py-2 text-base sm:text-base touch-manipulation"
             >
-              {isLoading ? "Wird geändert..." : "Passwort ändern"}
-            </button>
+              Passwort ändern
+            </LoadingButton>
           </form>
 
           <div className="mt-6 text-base text-gray-600">

@@ -14,6 +14,11 @@ describe("UserFormModal", () => {
     address: "Test Address",
     phone: "123456789",
     role: Role.MEMBER,
+    memberSince: "",
+    dateOfBirth: "",
+    rank: "",
+    pk: "",
+    hasPossessionCard: false,
   };
 
   const initialUserData = {
@@ -22,6 +27,11 @@ describe("UserFormModal", () => {
     address: "",
     phone: "",
     role: Role.MEMBER,
+    memberSince: "",
+    dateOfBirth: "",
+    rank: "",
+    pk: "",
+    hasPossessionCard: false,
   };
 
   beforeEach(() => {
@@ -162,6 +172,11 @@ describe("UserFormModal", () => {
       expect(screen.getByLabelText(/Name \*/)).toBeInTheDocument();
       expect(screen.getByLabelText(/Adresse/)).toBeInTheDocument();
       expect(screen.getByLabelText(/Telefon/)).toBeInTheDocument();
+      expect(screen.getByLabelText(/Geburtsdatum/)).toBeInTheDocument();
+      expect(screen.getByLabelText(/Dienstgrad/)).toBeInTheDocument();
+      expect(screen.getByLabelText(/PK/)).toBeInTheDocument();
+      expect(screen.getByLabelText(/Waffenbesitzkarte/)).toBeInTheDocument();
+      expect(screen.getByLabelText(/Mitglied seit/)).toBeInTheDocument();
       expect(screen.getByLabelText(/Rolle \*/)).toBeInTheDocument();
     });
 
@@ -633,6 +648,11 @@ describe("UserFormModal", () => {
             address: "",
             phone: "",
             role: Role.MEMBER,
+            memberSince: "",
+            dateOfBirth: "",
+            rank: "",
+            pk: "",
+            hasPossessionCard: false,
           }}
           setUserData={setUserData}
           isEditing={false}
@@ -691,12 +711,20 @@ describe("UserFormModal", () => {
       const addressInput = screen.getByLabelText(/Adresse/);
       const phoneInput = screen.getByLabelText(/Telefon/);
       const roleSelect = screen.getByLabelText(/Rolle/);
+      const dateOfBirthInput = screen.getByLabelText(/Geburtsdatum/);
+      const rankInput = screen.getByLabelText(/Dienstgrad/);
+      const pkInput = screen.getByLabelText(/PK/);
+      const memberSinceInput = screen.getByLabelText(/Mitglied seit/);
 
       expect(emailInput).toBeDisabled();
       expect(nameInput).toBeDisabled();
       expect(addressInput).toBeDisabled();
       expect(phoneInput).toBeDisabled();
       expect(roleSelect).toBeDisabled();
+      expect(dateOfBirthInput).toBeDisabled();
+      expect(rankInput).toBeDisabled();
+      expect(pkInput).toBeDisabled();
+      expect(memberSinceInput).toBeDisabled();
     });
 
     it("should show 'Wird gespeichert...' text when isSubmitting is true", () => {

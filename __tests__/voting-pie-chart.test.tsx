@@ -11,13 +11,13 @@ describe("VotingPieChart", () => {
   it("renders empty state when no votes", () => {
     render(<VotingPieChart voteCounts={{ JA: 0, NEIN: 0, VIELLEICHT: 0 }} />);
 
-    expect(screen.getByText("Noch keine Stimmen abgegeben")).toBeInTheDocument();
+    expect(screen.getByText("Noch keine Teilnahmeanmeldungen vorhanden")).toBeInTheDocument();
   });
 
   it("renders chart svg when votes exist", () => {
     const { container } = render(<VotingPieChart voteCounts={mockVoteCounts} />);
 
-    expect(screen.queryByText("Noch keine Stimmen abgegeben")).not.toBeInTheDocument();
+    expect(screen.queryByText("Noch keine Teilnahmeanmeldungen vorhanden")).not.toBeInTheDocument();
     expect(container.querySelector("svg")).toBeInTheDocument();
   });
 

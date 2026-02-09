@@ -172,7 +172,7 @@ describe("EventDetailPage", () => {
       expect(screen.queryByText("Laden...")).not.toBeInTheDocument();
     });
 
-    expect(screen.getByText("Teilnahmeabstimmung")).toBeInTheDocument();
+    expect(screen.getByText("Teilnahmeanmeldung")).toBeInTheDocument();
   });
 
   it("displays vote buttons", async () => {
@@ -234,7 +234,7 @@ describe("EventDetailPage", () => {
       expect(screen.queryByText("Laden...")).not.toBeInTheDocument();
     });
 
-    expect(screen.getByText("Ergebnisse (10 Stimmen)")).toBeInTheDocument();
+    expect(screen.getByText("Anmeldestand (10 Anmeldungen)")).toBeInTheDocument();
   });
 
   it("does not display list of voters for non-admin users", async () => {
@@ -267,7 +267,7 @@ describe("EventDetailPage", () => {
       expect(screen.queryByText("Laden...")).not.toBeInTheDocument();
     });
 
-    expect(screen.queryByText("Abgestimmt haben:")).not.toBeInTheDocument();
+    expect(screen.queryByText("Angemeldet sind:")).not.toBeInTheDocument();
     expect(screen.queryByText("User 1")).not.toBeInTheDocument();
     expect(screen.queryByText("User 2")).not.toBeInTheDocument();
   });
@@ -320,7 +320,7 @@ describe("EventDetailPage", () => {
     });
 
     expect(
-      screen.getByText("Dieser Termin ist bereits vorbei. Abstimmungen sind nicht mehr möglich.")
+      screen.getByText("Dieser Termin ist bereits vorbei. Teilnahmeanmeldungen sind nicht mehr möglich.")
     ).toBeInTheDocument();
   });
 
@@ -355,7 +355,7 @@ describe("EventDetailPage", () => {
     });
 
     expect(
-      screen.queryByText("Dieser Termin ist bereits vorbei. Abstimmungen sind nicht mehr möglich.")
+      screen.queryByText("Dieser Termin ist bereits vorbei. Teilnahmeanmeldungen sind nicht mehr möglich.")
     ).not.toBeInTheDocument();
   });
 
@@ -475,7 +475,7 @@ describe("EventDetailPage", () => {
       expect(screen.queryByText("Laden...")).not.toBeInTheDocument();
     });
 
-    expect(screen.queryByText("Stimme zurücknehmen")).not.toBeInTheDocument();
+    expect(screen.queryByText("Anmeldung zurückziehen")).not.toBeInTheDocument();
   });
 
   it("shows delete vote button for future events when user has voted", async () => {
@@ -514,10 +514,10 @@ describe("EventDetailPage", () => {
       expect(screen.queryByText("Laden...")).not.toBeInTheDocument();
     });
 
-    expect(screen.getByText("Stimme zurücknehmen")).toBeInTheDocument();
+    expect(screen.getByText("Anmeldung zurückziehen")).toBeInTheDocument();
   });
 
-  it("displays 'Keine Stimme vorhanden' for past events without user vote", async () => {
+  it("displays 'Keine Anmeldung vorhanden' for past events without user vote", async () => {
     const pastDate = new Date();
     pastDate.setDate(pastDate.getDate() - 1);
 
@@ -547,10 +547,10 @@ describe("EventDetailPage", () => {
       expect(screen.queryByText("Laden...")).not.toBeInTheDocument();
     });
 
-    expect(screen.getByText("Keine Stimme vorhanden")).toBeInTheDocument();
+    expect(screen.getByText("Keine Anmeldung vorhanden")).toBeInTheDocument();
   });
 
-  it("displays 'Du hast für diesen Termin abgestimmt:' for past events with user vote", async () => {
+  it("displays 'Du hast dich für diesen Termin angemeldet:' for past events with user vote", async () => {
     const pastDate = new Date();
     pastDate.setDate(pastDate.getDate() - 1);
 
@@ -586,7 +586,7 @@ describe("EventDetailPage", () => {
       expect(screen.queryByText("Laden...")).not.toBeInTheDocument();
     });
 
-    expect(screen.getByText("Du hast für diesen Termin abgestimmt:")).toBeInTheDocument();
+    expect(screen.getByText("Du hast dich für diesen Termin angemeldet:")).toBeInTheDocument();
   });
 
   it("displays OpenStreetMap link when event has coordinates", async () => {

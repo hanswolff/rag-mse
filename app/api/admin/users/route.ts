@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { hash } from "bcryptjs";
 import { validateEmail, normalizeOptionalField, validateAddress, validatePhone, validateName } from "@/lib/user-validation";
-import { validateRole } from "@/lib/validation-schema";
+import { validateRole, validateDateString } from "@/lib/validation-schema";
 import { requireAdmin } from "@/lib/auth-utils";
 import { Role } from "@prisma/client";
 import { parseJsonBody, BadRequestError, withApiErrorHandling, validateRequestBody, validateCsrfHeaders } from "@/lib/api-utils";
@@ -25,6 +25,11 @@ interface CreateUserRequest {
   role?: Role;
   address?: string;
   phone?: string;
+  memberSince?: string;
+  dateOfBirth?: string;
+  rank?: string;
+  pk?: string;
+  hasPossessionCard?: boolean;
 }
 
 const createUserSchema = {
@@ -33,6 +38,11 @@ const createUserSchema = {
   role: { type: 'string' as const, optional: true },
   address: { type: 'string' as const, optional: true },
   phone: { type: 'string' as const, optional: true },
+  memberSince: { type: 'string' as const, optional: true },
+  dateOfBirth: { type: 'string' as const, optional: true },
+  rank: { type: 'string' as const, optional: true },
+  pk: { type: 'string' as const, optional: true },
+  hasPossessionCard: { type: 'boolean' as const, optional: true },
 } as const;
 
 export const POST = withApiErrorHandling(async (request: NextRequest) => {
@@ -52,6 +62,11 @@ export const POST = withApiErrorHandling(async (request: NextRequest) => {
   const role = body.role || Role.MEMBER;
   const address = normalizeOptionalField(body.address);
   const phone = normalizeOptionalField(body.phone);
+  const memberSince = typeof body.memberSince === "string" ? body.memberSince : undefined;
+  const dateOfBirth = typeof body.dateOfBirth === "string" ? body.dateOfBirth : undefined;
+  const rank = typeof body.rank === "string" ? body.rank : undefined;
+  const pk = typeof body.pk === "string" ? body.pk : undefined;
+  const hasPossessionCard = typeof body.hasPossessionCard === "boolean" ? body.hasPossessionCard : false;
 
   if (!normalizedEmail || !validateEmail(normalizedEmail)) {
     logValidationFailure('/api/admin/users', 'POST', 'E-Mail ist erforderlich und muss gültig sein', {
@@ -105,6 +120,47 @@ export const POST = withApiErrorHandling(async (request: NextRequest) => {
     }
   }
 
+  // Validate new profile fields
+  if (memberSince !== undefined) {
+    if (typeof memberSince !== "string" || !memberSince.trim()) {
+      logValidationFailure('/api/admin/users', 'POST', 'Ungültiges Mitglied-seit-Datum', {
+        email: normalizedEmail,
+      });
+      return NextResponse.json({ error: "Ungültiges Mitglied-seit-Datum" }, { status: 400 });
+    }
+    if (!validateDateString(memberSince)) {
+      logValidationFailure('/api/admin/users', 'POST', 'Ungültiges Mitglied-seit-Datum', {
+        email: normalizedEmail,
+      });
+      return NextResponse.json({ error: "Ungültiges Mitglied-seit-Datum" }, { status: 400 });
+    }
+  }
+
+  if (dateOfBirth !== undefined) {
+    if (typeof dateOfBirth !== "string" || !dateOfBirth.trim()) {
+      // Empty is fine
+    } else if (!validateDateString(dateOfBirth)) {
+      logValidationFailure('/api/admin/users', 'POST', 'Ungültiges Geburtsdatum', {
+        email: normalizedEmail,
+      });
+      return NextResponse.json({ error: "Ungültiges Geburtsdatum" }, { status: 400 });
+    }
+  }
+
+  if (rank !== undefined && rank.trim() && rank.trim().length > 30) {
+    logValidationFailure('/api/admin/users', 'POST', 'Dienstgrad darf maximal 30 Zeichen lang sein', {
+      email: normalizedEmail,
+    });
+    return NextResponse.json({ error: "Dienstgrad darf maximal 30 Zeichen lang sein" }, { status: 400 });
+  }
+
+  if (pk !== undefined && pk.trim() && pk.trim().length > 20) {
+    logValidationFailure('/api/admin/users', 'POST', 'PK darf maximal 20 Zeichen lang sein', {
+      email: normalizedEmail,
+    });
+    return NextResponse.json({ error: "PK darf maximal 20 Zeichen lang sein" }, { status: 400 });
+  }
+
   const existingUser = await prisma.user.findUnique({
     where: { email: normalizedEmail },
   });
@@ -136,6 +192,11 @@ export const POST = withApiErrorHandling(async (request: NextRequest) => {
         role,
         address,
         phone,
+        memberSince: memberSince ? new Date(memberSince) : null,
+        dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : null,
+        rank: rank || null,
+        pk: pk || null,
+        hasPossessionCard: hasPossessionCard || false,
       },
       select: {
         id: true,
@@ -144,6 +205,11 @@ export const POST = withApiErrorHandling(async (request: NextRequest) => {
         role: true,
         address: true,
         phone: true,
+        memberSince: true,
+        dateOfBirth: true,
+        rank: true,
+        pk: true,
+        hasPossessionCard: true,
         createdAt: true,
       },
     });
@@ -199,7 +265,6 @@ export const GET = withApiErrorHandling(async () => {
   const admin = await requireAdmin();
 
   const users = await prisma.user.findMany({
-    orderBy: { createdAt: "desc" },
     select: {
       id: true,
       email: true,
@@ -207,15 +272,32 @@ export const GET = withApiErrorHandling(async () => {
       role: true,
       address: true,
       phone: true,
+      memberSince: true,
+      dateOfBirth: true,
+      rank: true,
+      pk: true,
+      hasPossessionCard: true,
       createdAt: true,
+      lastLoginAt: true,
+      passwordUpdatedAt: true,
     },
+  });
+
+  const sortedUsers = users.sort((a, b) => {
+    if (a.role === b.role) {
+      const nameA = a.name ?? "";
+      const nameB = b.name ?? "";
+
+      return nameA.localeCompare(nameB, "de");
+    }
+    return a.role === Role.MEMBER ? -1 : 1;
   });
 
   logInfo('admin_users_list', 'Admin accessed user list', {
     adminId: admin.id,
     adminEmail: admin.email,
-    userCount: users.length,
+    userCount: sortedUsers.length,
   });
 
-  return NextResponse.json(users);
+  return NextResponse.json(sortedUsers);
 }, { route: "/api/admin/users", method: "GET" });

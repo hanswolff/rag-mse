@@ -2,8 +2,9 @@
 
 import { useMemo } from "react";
 import { Modal } from "./modal";
+import { LoadingButton } from "./loading-button";
 import { useFormFieldValidation } from "@/lib/useFormFieldValidation";
-import { userValidationConfig } from "@/lib/validation-schema";
+import { profileValidationConfig } from "@/lib/validation-schema";
 
 type UserRole = "ADMIN" | "MEMBER";
 
@@ -18,8 +19,13 @@ interface UserFormModalProps {
     address: string;
     phone: string;
     role: UserRole;
+    memberSince: string;
+    dateOfBirth: string;
+    rank: string;
+    pk: string;
+    hasPossessionCard: boolean;
   };
-  setUserData: (data: { email: string; name: string; address: string; phone: string; role: UserRole }) => void;
+  setUserData: (data: { email: string; name: string; address: string; phone: string; role: UserRole; memberSince: string; dateOfBirth: string; rank: string; pk: string; hasPossessionCard: boolean }) => void;
   isEditing: boolean;
   errors?: Record<string, string>;
   initialUserData?: {
@@ -28,6 +34,11 @@ interface UserFormModalProps {
     address: string;
     phone: string;
     role: UserRole;
+    memberSince: string;
+    dateOfBirth: string;
+    rank: string;
+    pk: string;
+    hasPossessionCard: boolean;
   };
 }
 
@@ -37,6 +48,11 @@ const initialNewUser = {
   address: "",
   phone: "",
   role: "MEMBER" as UserRole,
+  memberSince: "",
+  dateOfBirth: "",
+  rank: "",
+  pk: "",
+  hasPossessionCard: false,
 };
 
 export function UserFormModal({
@@ -50,7 +66,7 @@ export function UserFormModal({
   errors = {},
   initialUserData,
 }: UserFormModalProps) {
-  const { errors: validationErrors, validateField, markFieldAsTouched, isFieldValid } = useFormFieldValidation(userValidationConfig);
+  const { errors: validationErrors, validateField, markFieldAsTouched, isFieldValid } = useFormFieldValidation(profileValidationConfig);
 
   // Check for unsaved changes
   const hasUnsavedChanges = useMemo(() => {
@@ -60,7 +76,12 @@ export function UserFormModal({
       userData.name !== base.name ||
       userData.address !== base.address ||
       userData.phone !== base.phone ||
-      userData.role !== base.role
+      userData.role !== base.role ||
+      userData.memberSince !== base.memberSince ||
+      userData.dateOfBirth !== base.dateOfBirth ||
+      userData.rank !== base.rank ||
+      userData.pk !== base.pk ||
+      userData.hasPossessionCard !== base.hasPossessionCard
     );
   }, [userData, initialUserData]);
 
@@ -108,6 +129,11 @@ export function UserFormModal({
       name: userData.name,
       address: userData.address,
       phone: userData.phone,
+      memberSince: userData.memberSince,
+      dateOfBirth: userData.dateOfBirth,
+      rank: userData.rank,
+      pk: userData.pk,
+      hasPossessionCard: userData.hasPossessionCard,
     };
 
     // Mark all fields as touched when submitting to show validation errors
@@ -115,17 +141,29 @@ export function UserFormModal({
     markFieldAsTouched("name");
     markFieldAsTouched("address");
     markFieldAsTouched("phone");
+    markFieldAsTouched("memberSince");
+    markFieldAsTouched("dateOfBirth");
+    markFieldAsTouched("rank");
+    markFieldAsTouched("pk");
 
     validateField("email", values.email);
     validateField("name", values.name);
     validateField("address", values.address);
     validateField("phone", values.phone);
+    validateField("memberSince", values.memberSince);
+    validateField("dateOfBirth", values.dateOfBirth);
+    validateField("rank", values.rank);
+    validateField("pk", values.pk);
 
     const isValid =
       isFieldValid("email", values.email) &&
       isFieldValid("name", values.name) &&
       isFieldValid("address", values.address) &&
-      isFieldValid("phone", values.phone);
+      isFieldValid("phone", values.phone) &&
+      isFieldValid("memberSince", values.memberSince) &&
+      isFieldValid("dateOfBirth", values.dateOfBirth) &&
+      isFieldValid("rank", values.rank) &&
+      isFieldValid("pk", values.pk);
 
     if (!isValid) {
       return;
@@ -197,6 +235,131 @@ export function UserFormModal({
           )}
         </div>
 
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label htmlFor="modal-phone" className="form-label">
+              Telefon
+            </label>
+            <input
+              id="modal-phone"
+              type="tel"
+              value={userData.phone}
+              onChange={(e) => handleChange("phone", e.target.value)}
+              onBlur={(e) => handleBlur("phone", e.target.value)}
+              maxLength={30}
+              className={`form-input ${
+                shouldShowFieldError("phone") ? "border-red-500 focus:border-red-500" : ""
+              }`}
+              placeholder="0123 456789"
+              disabled={isSubmitting}
+              aria-invalid={!!shouldShowFieldError("phone")}
+              aria-describedby={shouldShowFieldError("phone") ? "phone-error" : undefined}
+            />
+            {shouldShowFieldError("phone") && (
+              <p id="phone-error" className="form-help text-red-600">
+                {combinedErrors.phone}
+              </p>
+            )}
+          </div>
+
+          <div>
+            <label htmlFor="modal-dateOfBirth" className="form-label">
+              Geburtsdatum
+            </label>
+            <input
+              id="modal-dateOfBirth"
+              type="date"
+              value={userData.dateOfBirth}
+              onChange={(e) => handleChange("dateOfBirth", e.target.value)}
+              onBlur={(e) => handleBlur("dateOfBirth", e.target.value)}
+              className={`form-input ${
+                shouldShowFieldError("dateOfBirth") ? "border-red-500 focus:border-red-500" : ""
+              }`}
+              disabled={isSubmitting}
+              aria-invalid={!!shouldShowFieldError("dateOfBirth")}
+              aria-describedby={shouldShowFieldError("dateOfBirth") ? "dateOfBirth-error" : undefined}
+            />
+            {shouldShowFieldError("dateOfBirth") && (
+              <p id="dateOfBirth-error" className="form-help text-red-600">
+                {combinedErrors.dateOfBirth}
+              </p>
+            )}
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label htmlFor="modal-rank" className="form-label">
+              Dienstgrad
+            </label>
+            <input
+              id="modal-rank"
+              type="text"
+              value={userData.rank}
+              onChange={(e) => handleChange("rank", e.target.value)}
+              onBlur={(e) => handleBlur("rank", e.target.value)}
+              maxLength={30}
+              className={`form-input ${
+                shouldShowFieldError("rank") ? "border-red-500 focus:border-red-500" : ""
+              }`}
+              placeholder="z.B. Oberleutnant"
+              disabled={isSubmitting}
+              aria-invalid={!!shouldShowFieldError("rank")}
+              aria-describedby={shouldShowFieldError("rank") ? "rank-error" : undefined}
+            />
+            {shouldShowFieldError("rank") && (
+              <p id="rank-error" className="form-help text-red-600">
+                {combinedErrors.rank}
+              </p>
+            )}
+          </div>
+
+          <div>
+            <label htmlFor="modal-pk" className="form-label">
+              PK
+            </label>
+            <input
+              id="modal-pk"
+              type="text"
+              value={userData.pk}
+              onChange={(e) => handleChange("pk", e.target.value)}
+              onBlur={(e) => handleBlur("pk", e.target.value)}
+              maxLength={20}
+              className={`form-input ${
+                shouldShowFieldError("pk") ? "border-red-500 focus:border-red-500" : ""
+              }`}
+              placeholder="z.B. 12345"
+              disabled={isSubmitting}
+              aria-invalid={!!shouldShowFieldError("pk")}
+              aria-describedby={shouldShowFieldError("pk") ? "pk-error" : undefined}
+            />
+            {shouldShowFieldError("pk") && (
+              <p id="pk-error" className="form-help text-red-600">
+                {combinedErrors.pk}
+              </p>
+            )}
+          </div>
+        </div>
+
+        <div>
+          <label htmlFor="modal-hasPossessionCard" className="form-label">
+            Waffenbesitzkarte
+          </label>
+          <div className="flex items-center gap-3">
+            <input
+              id="modal-hasPossessionCard"
+              type="checkbox"
+              checked={userData.hasPossessionCard}
+              onChange={(e) => setUserData({ ...userData, hasPossessionCard: e.target.checked })}
+              className="w-5 h-5 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+              disabled={isSubmitting}
+            />
+            <label htmlFor="modal-hasPossessionCard" className="text-gray-700 cursor-pointer">
+              Benutzer besitzt eigene Waffenbesitzkarte
+            </label>
+          </div>
+        </div>
+
         <div>
           <label htmlFor="modal-address" className="form-label">
             Adresse
@@ -224,27 +387,25 @@ export function UserFormModal({
         </div>
 
         <div>
-          <label htmlFor="modal-phone" className="form-label">
-            Telefon
+          <label htmlFor="modal-memberSince" className="form-label">
+            Mitglied seit
           </label>
           <input
-            id="modal-phone"
-            type="tel"
-            value={userData.phone}
-            onChange={(e) => handleChange("phone", e.target.value)}
-            onBlur={(e) => handleBlur("phone", e.target.value)}
-            maxLength={30}
+            id="modal-memberSince"
+            type="date"
+            value={userData.memberSince}
+            onChange={(e) => handleChange("memberSince", e.target.value)}
+            onBlur={(e) => handleBlur("memberSince", e.target.value)}
             className={`form-input ${
-              shouldShowFieldError("phone") ? "border-red-500 focus:border-red-500" : ""
+              shouldShowFieldError("memberSince") ? "border-red-500 focus:border-red-500" : ""
             }`}
-            placeholder="0123 456789"
             disabled={isSubmitting}
-            aria-invalid={!!shouldShowFieldError("phone")}
-            aria-describedby={shouldShowFieldError("phone") ? "phone-error" : undefined}
+            aria-invalid={!!shouldShowFieldError("memberSince")}
+            aria-describedby={shouldShowFieldError("memberSince") ? "memberSince-error" : undefined}
           />
-          {shouldShowFieldError("phone") && (
-            <p id="phone-error" className="form-help text-red-600">
-              {combinedErrors.phone}
+          {shouldShowFieldError("memberSince") && (
+            <p id="memberSince-error" className="form-help text-red-600">
+              {combinedErrors.memberSince}
             </p>
           )}
         </div>
@@ -275,17 +436,16 @@ export function UserFormModal({
           >
             Abbrechen
           </button>
-          <button
+          <LoadingButton
             type="submit"
-            disabled={isSubmitting}
+            loading={isSubmitting}
+            loadingText="Wird gespeichert..."
             className="flex-1 btn-primary py-2.5 text-base touch-manipulation"
           >
-            {isSubmitting
-              ? "Wird gespeichert..."
-              : isEditing
+            {isEditing
               ? "Aktualisieren"
               : "Erstellen"}
-          </button>
+          </LoadingButton>
         </div>
       </form>
     </Modal>

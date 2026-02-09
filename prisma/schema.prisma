@@ -29,15 +29,22 @@ enum OutgoingEmailStatus {
 }
 
 model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  password  String
-  name      String?
-  address   String?
-  phone     String?
-  role      Role     @default(MEMBER)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id                String    @id @default(cuid())
+  email             String    @unique
+  password          String
+  name              String?
+  address           String?
+  phone             String?
+  role              Role      @default(MEMBER)
+  lastLoginAt       DateTime?
+  passwordUpdatedAt DateTime?
+  memberSince       DateTime?
+  dateOfBirth       DateTime?
+  rank              String?
+  pk                String?
+  hasPossessionCard Boolean   @default(false)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
   votes Vote[]
   invitationsSent Invitation[] @relation("InvitedBy")

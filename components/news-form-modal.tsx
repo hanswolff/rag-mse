@@ -2,6 +2,7 @@
 
 import { useMemo } from "react";
 import { Modal } from "./modal";
+import { LoadingButton } from "./loading-button";
 import { useFormFieldValidation } from "@/lib/useFormFieldValidation";
 import { newsValidationConfig } from "@/lib/validation-schema";
 
@@ -203,17 +204,16 @@ export function NewsFormModal({
           >
             Abbrechen
           </button>
-          <button
+          <LoadingButton
             type="submit"
-            disabled={isSubmitting}
+            loading={isSubmitting}
+            loadingText="Wird gespeichert..."
             className="flex-1 btn-primary py-2.5 text-base touch-manipulation"
           >
-            {isSubmitting
-              ? "Wird gespeichert..."
-              : isEditing
+            {isEditing
               ? "Aktualisieren"
               : "Erstellen"}
-          </button>
+          </LoadingButton>
         </div>
       </form>
     </Modal>

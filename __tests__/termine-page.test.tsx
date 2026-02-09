@@ -147,7 +147,7 @@ describe("TerminePage", () => {
       expect(screen.queryByText("Laden...")).not.toBeInTheDocument();
     });
 
-    expect(screen.queryByText("5 Stimmen")).not.toBeInTheDocument();
+    expect(screen.queryByText("5 Anmeldungen")).not.toBeInTheDocument();
     expect(mockFetch).toHaveBeenCalledTimes(1);
   });
 
@@ -189,7 +189,7 @@ describe("TerminePage", () => {
       expect(screen.queryByText("Laden...")).not.toBeInTheDocument();
     });
 
-    expect(screen.getByText("5 Stimmen")).toBeInTheDocument();
+    expect(screen.getByText("5 Anmeldungen")).toBeInTheDocument();
     expect(mockFetch).toHaveBeenCalledTimes(1);
   });
 

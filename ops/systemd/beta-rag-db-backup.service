@@ -1,0 +1,13 @@
+[Unit]
+Description=Backup beta-rag-mse SQLite database
+Wants=local-fs.target
+After=local-fs.target
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+Environment=DB_PATH=/zfs/git/beta-rag-mse/data/prod.db
+Environment=BACKUP_DIR=/zfs/backups/beta-rag-mse
+ExecStart=/zfs/git/beta-rag-mse/scripts/backup-sqlite.sh
+

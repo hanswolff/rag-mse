@@ -10,11 +10,29 @@ node scripts/validate-config.js
 
 # Run idempotent SQL migrations for existing databases
 echo "Running database migrations..."
-node scripts/run-db-migrations.js
+node scripts-dist/run-db-migrations.js
+
+# Resolve database file path from DATABASE_URL (SQLite file URL expected)
+DB_URL="${DATABASE_URL:-file:./data/dev.db}"
+case "$DB_URL" in
+  file:/*)
+    DB_FILE="${DB_URL#file:}"
+    ;;
+  file:./*)
+    DB_FILE="/app/${DB_URL#file:./}"
+    ;;
+  file:*)
+    DB_FILE="/app/${DB_URL#file:}"
+    ;;
+  *)
+    DB_FILE="/app/data/dev.db"
+    ;;
+esac
 
 # Check if database exists, if not create it
-if [ ! -f /app/data/dev.db ]; then
+if [ ! -f "$DB_FILE" ]; then
   echo "Database not found, creating..."
+  mkdir -p "$(dirname "$DB_FILE")"
 
   # In production, require explicit flags for database operations
   if [ "${NODE_ENV}" = "production" ] && [ "${DEVELOPMENT_DEPLOYMENT}" != "true" ]; then
@@ -35,7 +53,7 @@ if [ ! -f /app/data/dev.db ]; then
   # Check for explicit flags
   if [ "${ALLOW_DB_PUSH}" = "true" ]; then
     echo "ALLOW_DB_PUSH is set to true. Running prisma db push..."
-    npx prisma db push
+    pnpm exec prisma db push
     echo "Database schema pushed successfully"
   else
     echo "ALLOW_DB_PUSH is not set or set to false. Skipping prisma db push."
@@ -47,7 +65,7 @@ if [ ! -f /app/data/dev.db ]; then
 
   if [ "${ALLOW_DB_SEED}" = "true" ]; then
     echo "ALLOW_DB_SEED is set to true. Running database seed..."
-    npm run db:seed
+    pnpm run db:seed
     echo "Database seeded successfully"
   else
     echo "ALLOW_DB_SEED is not set or set to false. Skipping database seeding."

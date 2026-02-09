@@ -2,7 +2,7 @@ import nodemailer from "nodemailer";
 import { OutgoingEmail, OutgoingEmailStatus } from "@prisma/client";
 import { prisma } from "./prisma";
 import { renderEmailTemplate } from "./email-templates";
-import { logError, logInfo, logWarn } from "./logger";
+import { logError, logInfo } from "./logger";
 
 interface SmtpConfig {
   host: string;

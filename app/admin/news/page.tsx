@@ -8,10 +8,23 @@ import { buildLoginUrlWithReturnUrl, getCurrentPathWithSearch } from "@/lib/retu
 import { useNewsManagement } from "@/lib/use-news-management";
 import { formatDate } from "@/lib/date-utils";
 import { NewsFormModal } from "@/components/news-form-modal";
+import { LoadingButton } from "@/components/loading-button";
 import { BackLink } from "@/components/back-link";
 import type { News } from "@/types";
 
-function NewsList({ news, onEdit, onDelete, onPublish }: { news: News[]; onEdit: (n: News) => void; onDelete: (id: string) => void; onPublish: (id: string, published: boolean) => void }) {
+function NewsList({
+  news,
+  onEdit,
+  onDelete,
+  onPublish,
+  publishingNewsId,
+}: {
+  news: News[];
+  onEdit: (n: News) => void;
+  onDelete: (id: string) => void;
+  onPublish: (id: string, published: boolean) => void;
+  publishingNewsId: string | null;
+}) {
   if (news.length === 0) return <p className="text-gray-500">Keine News gefunden</p>;
   return (
     <div className="space-y-3">
@@ -40,12 +53,14 @@ function NewsList({ news, onEdit, onDelete, onPublish }: { news: News[]; onEdit:
                 Bearbeiten
               </button>
               {!newsItem.published && (
-                <button
+                <LoadingButton
                   onClick={() => onPublish(newsItem.id, true)}
-                  className="px-3 py-2 sm:py-1 text-base bg-green-100 text-green-700 rounded hover:bg-green-200 focus:outline-none focus:ring-2 focus:ring-green-500 touch-manipulation"
+                  loading={publishingNewsId === newsItem.id}
+                  loadingText="Veröffentlichen"
+                  className="px-3 py-2 sm:py-1 text-base bg-green-100 text-green-700 rounded hover:bg-green-200 focus:outline-none focus:ring-2 focus:ring-green-500 touch-manipulation disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   Veröffentlichen
-                </button>
+                </LoadingButton>
               )}
               <button
                 onClick={() => onDelete(newsItem.id)}
@@ -133,6 +148,7 @@ export default function NewsPage() {
               onEdit={newsManagement.startEditingNews}
               onDelete={newsManagement.handleDeleteNews}
               onPublish={newsManagement.handlePublishNews}
+              publishingNewsId={newsManagement.publishingNewsId}
             />
           </div>
         </div>

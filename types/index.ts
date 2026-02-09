@@ -74,7 +74,14 @@ export interface User {
   role: Role;
   address?: string | null;
   phone?: string | null;
+  memberSince?: string | null;
+  dateOfBirth?: string | null;
+  rank?: string | null;
+  pk?: string | null;
+  hasPossessionCard?: boolean;
   createdAt: string;
+  lastLoginAt?: string | null;
+  passwordUpdatedAt?: string | null;
 }
 
 /**
@@ -87,4 +94,9 @@ export interface NewUser {
   address: string;
   phone: string;
   role: Role;
+  memberSince: string;
+  dateOfBirth: string;
+  rank: string;
+  pk: string;
+  hasPossessionCard: boolean;
 }

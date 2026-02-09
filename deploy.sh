@@ -4,6 +4,11 @@ set -euo pipefail
 
 trap 'echo "Deployment failed." >&2' ERR
 
+# Load nvm and use Node 22
+export NVM_DIR="$HOME/.nvm"
+[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+nvm use 22
+
 LOG_FILE="$(mktemp -t rag-mse-deploy-XXXXXX.log)"
 cleanup() {
   rm -f "$LOG_FILE"
@@ -11,13 +16,15 @@ cleanup() {
 trap cleanup EXIT
 
 echo "Installing dependencies on host..."
-npm ci --include=dev --no-audit --no-fund
+corepack enable
+corepack prepare pnpm@10.0.0 --activate
+pnpm install --frozen-lockfile
 
 echo "Generating Prisma client..."
-npx prisma generate
+pnpm exec prisma generate
 
 echo "Building Next.js app on host..."
-npm run build
+pnpm run build
 
 echo "Building and starting containers..."
 set +e

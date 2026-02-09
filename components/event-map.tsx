@@ -73,7 +73,7 @@ export function EventMap({ latitude, longitude, location }: EventMapProps) {
   }
 
   return (
-    <div className="w-full h-60 sm:h-72 md:h-80 rounded-lg overflow-hidden border border-gray-300">
+    <div className="w-full h-60 sm:h-72 md:h-80 rounded-lg overflow-hidden border border-gray-300 relative">
       <MapContainer
         center={[latitude, longitude]}
         zoom={MAP_DEFAULT_ZOOM}

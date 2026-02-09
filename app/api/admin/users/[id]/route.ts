@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/auth-utils";
 import { parseJsonBody, withApiErrorHandling, validateCsrfHeaders, validateRequestBody } from "@/lib/api-utils";
 import { validateEmail, normalizeOptionalField, validateAddress, validatePhone, validateName } from "@/lib/user-validation";
-import { validateRole } from "@/lib/validation-schema";
+import { validateRole, validateDateString } from "@/lib/validation-schema";
 import { Role } from "@prisma/client";
 import { logResourceNotFound, logInfo, logValidationFailure } from "@/lib/logger";
 
@@ -13,6 +13,24 @@ interface UpdateUserRequest {
   address?: string | null;
   phone?: string | null;
   role?: Role;
+  memberSince?: string;
+  dateOfBirth?: string;
+  rank?: string;
+  pk?: string;
+  hasPossessionCard?: boolean;
+}
+
+interface UpdateUserData {
+  email?: string;
+  name?: string;
+  address?: string | null;
+  phone?: string | null;
+  role?: Role;
+  memberSince?: Date | null;
+  dateOfBirth?: Date | null;
+  rank?: string | null;
+  pk?: string | null;
+  hasPossessionCard?: boolean;
 }
 
 const updateUserSchema = {
@@ -21,6 +39,11 @@ const updateUserSchema = {
   address: { type: 'string' as const, optional: true },
   phone: { type: 'string' as const, optional: true },
   role: { type: 'string' as const, optional: true },
+  memberSince: { type: 'string' as const, optional: true },
+  dateOfBirth: { type: 'string' as const, optional: true },
+  rank: { type: 'string' as const, optional: true },
+  pk: { type: 'string' as const, optional: true },
+  hasPossessionCard: { type: 'boolean' as const, optional: true },
 } as const;
 
 export const PATCH = withApiErrorHandling(async (
@@ -55,7 +78,7 @@ export const PATCH = withApiErrorHandling(async (
     );
   }
 
-  const updates: Partial<UpdateUserRequest> = {};
+  const updates: UpdateUserData = {};
 
   if (body.email !== undefined) {
     const normalizedEmail = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
@@ -135,6 +158,57 @@ export const PATCH = withApiErrorHandling(async (
     updates.role = body.role;
   }
 
+  const memberSince = typeof body.memberSince === "string" ? body.memberSince : undefined;
+  const dateOfBirth = typeof body.dateOfBirth === "string" ? body.dateOfBirth : undefined;
+  const rank = typeof body.rank === "string" ? body.rank : undefined;
+  const pk = typeof body.pk === "string" ? body.pk : undefined;
+  const hasPossessionCard = typeof body.hasPossessionCard === "boolean" ? body.hasPossessionCard : undefined;
+
+  // Validate new profile fields
+  if (memberSince !== undefined) {
+    if (typeof memberSince !== "string" || !memberSince.trim()) {
+      // Empty is fine
+    } else if (!validateDateString(memberSince)) {
+      logValidationFailure('/api/admin/users/[id]', 'PATCH', 'Ungültiges Mitglied-seit-Datum', { userId: id });
+      return NextResponse.json({ error: "Ungültiges Mitglied-seit-Datum" }, { status: 400 });
+    }
+  }
+
+  if (dateOfBirth !== undefined) {
+    if (typeof dateOfBirth !== "string" || !dateOfBirth.trim()) {
+      // Empty is fine
+    } else if (!validateDateString(dateOfBirth)) {
+      logValidationFailure('/api/admin/users/[id]', 'PATCH', 'Ungültiges Geburtsdatum', { userId: id });
+      return NextResponse.json({ error: "Ungültiges Geburtsdatum" }, { status: 400 });
+    }
+  }
+
+  if (rank !== undefined && rank.trim() && rank.trim().length > 30) {
+    logValidationFailure('/api/admin/users/[id]', 'PATCH', 'Dienstgrad darf maximal 30 Zeichen lang sein', { userId: id });
+    return NextResponse.json({ error: "Dienstgrad darf maximal 30 Zeichen lang sein" }, { status: 400 });
+  }
+
+  if (pk !== undefined && pk.trim() && pk.trim().length > 20) {
+    logValidationFailure('/api/admin/users/[id]', 'PATCH', 'PK darf maximal 20 Zeichen lang sein', { userId: id });
+    return NextResponse.json({ error: "PK darf maximal 20 Zeichen lang sein" }, { status: 400 });
+  }
+
+  if (memberSince !== undefined) {
+    updates.memberSince = memberSince.trim() ? new Date(memberSince) : null;
+  }
+  if (dateOfBirth !== undefined) {
+    updates.dateOfBirth = dateOfBirth.trim() ? new Date(dateOfBirth) : null;
+  }
+  if (rank !== undefined) {
+    updates.rank = rank.trim() || null;
+  }
+  if (pk !== undefined) {
+    updates.pk = pk.trim() || null;
+  }
+  if (hasPossessionCard !== undefined) {
+    updates.hasPossessionCard = hasPossessionCard;
+  }
+
   const updateSelect = {
     id: true,
     email: true,
@@ -142,6 +216,11 @@ export const PATCH = withApiErrorHandling(async (
     role: true,
     address: true,
     phone: true,
+    memberSince: true,
+    dateOfBirth: true,
+    rank: true,
+    pk: true,
+    hasPossessionCard: true,
     createdAt: true,
   } as const;
 
@@ -154,6 +233,11 @@ export const PATCH = withApiErrorHandling(async (
     role: Role;
     address: string | null;
     phone: string | null;
+    memberSince: Date | null;
+    dateOfBirth: Date | null;
+    rank: string | null;
+    pk: string | null;
+    hasPossessionCard: boolean;
     createdAt: Date;
   };
   try {

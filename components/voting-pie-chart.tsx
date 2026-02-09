@@ -24,7 +24,7 @@ export function VotingPieChart({ voteCounts }: VotingPieChartProps) {
     return (
       <div className="h-72 flex items-center justify-center bg-gradient-to-br from-gray-50 via-white to-gray-50 rounded-2xl border-2 border-dashed border-gray-200 shadow-inner">
         <div className="text-center">
-          <p className="text-gray-500 font-medium text-base">Noch keine Stimmen abgegeben</p>
+          <p className="text-gray-500 font-medium text-base">Noch keine Teilnahmeanmeldungen vorhanden</p>
         </div>
       </div>
     );

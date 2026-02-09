@@ -55,6 +55,7 @@ jest.mock("@/lib/user-validation", () => ({
 
 jest.mock("@/lib/validation-schema", () => ({
   validateRole: jest.fn(() => true),
+  validateDateString: jest.fn(() => true),
 }));
 
 jest.mock("@/lib/logger", () => ({
@@ -91,6 +92,11 @@ describe("POST /api/admin/users - User creation with transaction", () => {
     address: null,
     phone: null,
     createdAt: new Date("2024-01-01T00:00:00Z"),
+    memberSince: null,
+    dateOfBirth: null,
+    rank: null,
+    pk: null,
+    hasPossessionCard: false,
   };
 
   beforeEach(() => {
@@ -186,6 +192,11 @@ describe("POST /api/admin/users - User creation with transaction", () => {
         role: "MEMBER",
         address: null,
         phone: null,
+        memberSince: null,
+        dateOfBirth: null,
+        rank: null,
+        pk: null,
+        hasPossessionCard: false,
       },
       select: {
         id: true,
@@ -194,6 +205,11 @@ describe("POST /api/admin/users - User creation with transaction", () => {
         role: true,
         address: true,
         phone: true,
+        memberSince: true,
+        dateOfBirth: true,
+        rank: true,
+        pk: true,
+        hasPossessionCard: true,
         createdAt: true,
       },
     });

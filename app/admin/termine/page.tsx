@@ -9,11 +9,24 @@ import { useEventManagement } from "@/lib/use-event-management";
 import { formatDate, formatTime } from "@/lib/date-utils";
 import { getEventDescriptionPreview } from "@/lib/event-description";
 import { EventFormModal } from "@/components/event-form-modal";
+import { LoadingButton } from "@/components/loading-button";
 import { BackLink } from "@/components/back-link";
 import { Pagination } from "@/components/pagination";
 import type { Event } from "@/types";
 
-function EventList({ events, onEdit, onDelete, onPublish }: { events: Event[]; onEdit: (e: Event) => void; onDelete: (id: string) => void; onPublish: (id: string, published: boolean) => void }) {
+function EventList({
+  events,
+  onEdit,
+  onDelete,
+  onPublish,
+  publishingEventId,
+}: {
+  events: Event[];
+  onEdit: (e: Event) => void;
+  onDelete: (id: string) => void;
+  onPublish: (id: string, published: boolean) => void;
+  publishingEventId: string | null;
+}) {
   if (events.length === 0) {
     return (
       <div className="text-center py-12">
@@ -62,7 +75,7 @@ function EventList({ events, onEdit, onDelete, onPublish }: { events: Event[]; o
               </p>
               <p className="text-base text-gray-500 mt-1">{getEventDescriptionPreview(event.description, 220)}</p>
               <p className="text-base text-gray-400 mt-2">
-                Abstimmungen: {event._count?.votes || 0}
+                Anmeldungen: {event._count?.votes || 0}
               </p>
             </div>
             <div className="flex flex-col sm:flex-row gap-2 sm:ml-4">
@@ -73,12 +86,14 @@ function EventList({ events, onEdit, onDelete, onPublish }: { events: Event[]; o
                 Bearbeiten
               </button>
               {!event.visible && (
-                <button
+                <LoadingButton
                   onClick={() => onPublish(event.id, true)}
-                  className="px-3 py-2 sm:py-1 text-base bg-green-100 text-green-700 rounded hover:bg-green-200 focus:outline-none focus:ring-2 focus:ring-green-500 touch-manipulation"
+                  loading={publishingEventId === event.id}
+                  loadingText="Veröffentlichen"
+                  className="px-3 py-2 sm:py-1 text-base bg-green-100 text-green-700 rounded hover:bg-green-200 focus:outline-none focus:ring-2 focus:ring-green-500 touch-manipulation disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   Veröffentlichen
-                </button>
+                </LoadingButton>
               )}
               <button
                 onClick={() => onDelete(event.id)}
@@ -158,6 +173,7 @@ export default function TerminePage() {
             onEdit={eventManagement.startEditingEvent}
             onDelete={eventManagement.handleDeleteEvent}
             onPublish={eventManagement.handlePublishEvent}
+            publishingEventId={eventManagement.publishingEventId}
           />
           <Pagination
             currentPage={eventManagement.currentPage}

@@ -86,7 +86,7 @@ describe("VergangeneTerminePage", () => {
     expect(screen.getByText("Test Location")).toBeInTheDocument();
     expect(screen.getByText("Test Description")).toBeInTheDocument();
     expect(screen.getByText("Training")).toBeInTheDocument();
-    expect(screen.queryByText("3 Stimmen")).not.toBeInTheDocument();
+    expect(screen.queryByText("3 Anmeldungen")).not.toBeInTheDocument();
     expect(mockFetch).toHaveBeenCalledTimes(1);
   });
 
@@ -125,7 +125,7 @@ describe("VergangeneTerminePage", () => {
       expect(screen.queryByText("Laden...")).not.toBeInTheDocument();
     });
 
-    expect(screen.getByText("3 Stimmen")).toBeInTheDocument();
+    expect(screen.getByText("3 Anmeldungen")).toBeInTheDocument();
     expect(mockFetch).toHaveBeenCalledTimes(1);
   });
 
@@ -366,7 +366,7 @@ describe("VergangeneTerminePage", () => {
       expect(screen.queryByText("Laden...")).not.toBeInTheDocument();
     });
 
-    expect(screen.getByText("1 Stimme")).toBeInTheDocument();
+    expect(screen.getByText("1 Anmeldung")).toBeInTheDocument();
   });
 
   describe("Admin button visibility", () => {

@@ -61,6 +61,7 @@ export function useEventManagement(options: UseEventManagementOptions = {}) {
   const [isCreatingEvent, setIsCreatingEvent] = useState(false);
   const [isEditingEvent, setIsEditingEvent] = useState(false);
   const [isGeocoding, setIsGeocoding] = useState(false);
+  const [publishingEventId, setPublishingEventId] = useState<string | null>(null);
   const [geocodeSuccess, setGeocodeSuccess] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
@@ -256,14 +257,19 @@ export function useEventManagement(options: UseEventManagementOptions = {}) {
 
   const handlePublishEvent = useCallback(async (eventId: string, published: boolean) => {
     const publish = createPublishHandler(setSuccess, setError, () => fetchEvents(currentPage));
-    await publish(
-      `/api/admin/events/${eventId}`,
-      { visible: published },
-      {
-        success: published ? PUBLISH_MESSAGES.event.published : PUBLISH_MESSAGES.event.unpublished,
-        error: PUBLISH_MESSAGES.event.error,
-      }
-    );
+    setPublishingEventId(eventId);
+    try {
+      await publish(
+        `/api/admin/events/${eventId}`,
+        { visible: published },
+        {
+          success: published ? PUBLISH_MESSAGES.event.published : PUBLISH_MESSAGES.event.unpublished,
+          error: PUBLISH_MESSAGES.event.error,
+        }
+      );
+    } finally {
+      setPublishingEventId(null);
+    }
   }, [createPublishHandler, currentPage, fetchEvents]);
 
   const handlePageChange = useCallback((page: number) => {
@@ -283,6 +289,7 @@ export function useEventManagement(options: UseEventManagementOptions = {}) {
     isLoading,
     isCreatingEvent,
     isEditingEvent,
+    publishingEventId,
     isGeocoding,
     geocodeSuccess,
     error,

@@ -1,3 +1,5 @@
+#!/usr/bin/env node
+
 import { createHash } from "crypto";
 import { existsSync, readdirSync, readFileSync } from "fs";
 import path from "path";
@@ -14,17 +16,23 @@ function resolveSqlitePath(databaseUrl: string): string {
   return path.isAbsolute(rawPath) ? rawPath : path.resolve(process.cwd(), rawPath);
 }
 
-function listMigrationEntries(): Array<{ name: string; sql: string; checksum: string }> {
+interface MigrationEntry {
+  name: string;
+  sql: string;
+  checksum: string;
+}
+
+function listMigrationEntries(): MigrationEntry[] {
   if (!existsSync(MIGRATIONS_DIR)) {
     return [];
   }
 
   const folders = readdirSync(MIGRATIONS_DIR, { withFileTypes: true })
-    .filter(entry => entry.isDirectory())
-    .map(entry => entry.name)
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => entry.name)
     .sort((a, b) => a.localeCompare(b));
 
-  return folders.map(name => {
+  return folders.map((name) => {
     const migrationPath = path.join(MIGRATIONS_DIR, name, "migration.sql");
     const sql = readFileSync(migrationPath, "utf8");
     const checksum = createHash("sha256").update(sql).digest("hex");
@@ -34,7 +42,7 @@ function listMigrationEntries(): Array<{ name: string; sql: string; checksum: st
 }
 
 function run(): void {
-  const databaseUrl = process.env.DATABASE_URL ?? "file:./data/dev.db";
+  const databaseUrl = process.env.DATABASE_URL || "file:./data/dev.db";
   const dbPath = resolveSqlitePath(databaseUrl);
   const db = new Database(dbPath);
 

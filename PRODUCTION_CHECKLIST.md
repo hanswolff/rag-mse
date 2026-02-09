@@ -50,10 +50,10 @@ Copy `.env.example` to `.env` and update the following values:
 
 **IMPORTANT**: Change the default admin credentials after deployment.
 
-- [ ] Run `npm run db:seed` to create initial admin user
+- [ ] Run `pnpm run db:seed` to create initial admin user
 - [ ] Login with default credentials:
   - Email: `admin@rag-mse.de` (or value from `SEED_ADMIN_EMAIL`)
-  - Password: `admin123` (or value from `SEED_ADMIN_PASSWORD`)
+  - Password: `AdminPass123` (or value from `SEED_ADMIN_PASSWORD`)
 - [ ] **CRITICAL**: Change admin password immediately after first login
 - [ ] Create additional admin accounts if needed
 
@@ -62,7 +62,7 @@ Copy `.env.example` to `.env` and update the following values:
 - [ ] Ensure database file is in persistent volume (Docker)
 - [ ] Verify database directory has correct permissions
 - [ ] Initialize schema: `sqlite3 ./data/dev.db < create_admin.sql`
-- [ ] Create initial admin user: `npm run db:seed`
+- [ ] Create initial admin user: `pnpm run db:seed`
 - [ ] Test database connection
 
 ### 4. Security
@@ -101,9 +101,9 @@ Copy `.env.example` to `.env` and update the following values:
 
 ### 8. Application Build
 
-- [ ] Production build is successful: `npm run build`
-- [ ] All tests pass: `npm test`
-- [ ] No linting errors: `npm run lint`
+- [ ] Production build is successful: `pnpm run build`
+- [ ] All tests pass: `pnpm test`
+- [ ] No linting errors: `pnpm run lint`
 - [ ] Static assets are optimized
 
 ### 9. Legal Pages
@@ -213,7 +213,8 @@ The geocoding endpoint uses in-memory rate limiting (Map-based) which works corr
 
 ### 2. Backup Strategy
 - [ ] Automated database backups are scheduled
-  - Example: `0 2 * * * cp /path/to/data/prod.db /backups/prod.db.$(date +\%Y\%m\%d)`
+  - Recommended: `beta-rag-db-backup.timer` from `ops/systemd/` is enabled and active
+  - Manual run example: `./scripts/backup-sqlite.sh`
 - [ ] Backup retention policy is defined
 - [ ] Restore procedure is tested
 - [ ] Offsite backup is configured (recommended)

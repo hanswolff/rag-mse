@@ -43,7 +43,7 @@ function getValidationError(
   rules: ValidationRule,
   errorMessages: FieldValidationConfig['errorMessages']
 ): string | null {
-  const trimmedValue = value.trim();
+  const trimmedValue = typeof value === "string" ? value.trim() : "";
 
   if (rules.required && !trimmedValue) {
     return errorMessages.required || "";

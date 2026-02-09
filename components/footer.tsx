@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { VERSION_INFO } from "@/lib/version-info";
 
 const LEGAL_LINKS = [
   { href: "/impressum", label: "Impressum" },
@@ -15,20 +16,23 @@ const FOOTER_LINK_CLASS =
 export function Footer() {
   return (
     <footer className="bg-brand-blue-900 text-white mt-auto border-t-4 border-brand-red-600">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-[1fr_0.5fr_0.5fr] gap-4 sm:gap-5">
           <div>
-            <h3 className="text-base sm:text-lg font-semibold mb-3 sm:mb-4 text-brand-gold-400">
+            <h3 className="text-sm sm:text-base font-semibold mb-2 sm:mb-2.5 text-brand-gold-400">
               RAG Schießsport MSE
             </h3>
-            <p className="text-base text-brand-blue-100">
+            <p className="text-sm text-brand-blue-100 mb-1 sm:mb-1.5">
               Untergliederung des Verbandes der Reservisten der Deutschen Bundeswehr e. V.
+            </p>
+            <p className="text-[10px] text-gray-400">
+              &copy; {new Date().getFullYear()} RAG Schießsport MSE &bull; v{VERSION_INFO.version} &bull; Build-Datum: {VERSION_INFO.buildDate}
             </p>
           </div>
 
           <div>
-            <h3 className="text-base sm:text-lg font-semibold mb-3 sm:mb-4 text-brand-gold-400">Links</h3>
-            <ul className="space-y-1 sm:space-y-2 text-base">
+            <h3 className="text-sm sm:text-base font-semibold mb-2 sm:mb-2.5 text-brand-gold-400">Links</h3>
+            <ul className="space-y-0.5 sm:space-y-1 text-sm">
               {EXTERNAL_LINKS.map((link) => (
                 <li key={link.href}>
                   <a
@@ -45,8 +49,8 @@ export function Footer() {
           </div>
 
           <div>
-            <h3 className="text-base sm:text-lg font-semibold mb-3 sm:mb-4 text-brand-gold-400">Rechtliches</h3>
-            <ul className="space-y-1 sm:space-y-2 text-base">
+            <h3 className="text-sm sm:text-base font-semibold mb-2 sm:mb-2.5 text-brand-gold-400">Rechtliches</h3>
+            <ul className="space-y-0.5 sm:space-y-1 text-sm">
               {LEGAL_LINKS.map((link) => (
                 <li key={link.href}>
                   <Link href={link.href} className={FOOTER_LINK_CLASS}>
@@ -56,10 +60,6 @@ export function Footer() {
               ))}
             </ul>
           </div>
-        </div>
-
-        <div className="border-t border-brand-blue-800 mt-6 sm:mt-8 pt-6 sm:pt-8 text-center text-base text-brand-blue-100">
-          <p>&copy; {new Date().getFullYear()} RAG Schießsport MSE</p>
         </div>
       </div>
     </footer>

@@ -28,20 +28,20 @@ const FEATURE_CARDS = [
 export default function Home() {
   return (
     <main className="flex-grow">
-      <section className="bg-gradient-to-b from-brand-blue-900 to-brand-blue-800 text-white py-12 sm:py-16 md:py-20">
+      <section className="bg-gradient-to-b from-brand-blue-900 to-brand-blue-800 text-white py-8 sm:py-10 md:py-12">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold mb-4 sm:mb-6">
+          <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold mb-3 sm:mb-4">
             RAG Schießsport MSE
           </h1>
-          <p className="text-base sm:text-lg md:text-xl lg:text-2xl mb-6 sm:mb-8 md:mb-10 text-brand-blue-100">
+          <p className="text-base sm:text-lg md:text-xl lg:text-2xl mb-4 sm:mb-5 md:mb-6 text-brand-blue-100">
             Willkommen auf der Website der RAG Schießsport MSE
           </p>
           <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center px-4">
             <Link
-              href="/termine"
+              href="/ueber-uns"
               className="btn-outline-inverse px-6 sm:px-8 py-3 text-base sm:text-base touch-manipulation"
             >
-              Aktuelle Termine
+              Über Uns
             </Link>
             <Link
               href="/kontakt"
@@ -55,9 +55,6 @@ export default function Home() {
 
       <section className="py-12 sm:py-16 bg-gray-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <h2 className="text-2xl sm:text-3xl font-bold text-center text-gray-900 mb-8 sm:mb-10 md:mb-12">
-            Unser Angebot
-          </h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 sm:gap-8">
             {FEATURE_CARDS.map((card) => (
               <Link
@@ -76,36 +73,6 @@ export default function Home() {
                 <p className="text-gray-600 text-base sm:text-base">{card.description}</p>
               </Link>
             ))}
-          </div>
-        </div>
-      </section>
-
-      <section className="py-12 sm:py-16 bg-white">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="max-w-3xl mx-auto text-center">
-            <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-4 sm:mb-6 md:mb-8">
-              Über die RAG Schießsport MSE
-            </h2>
-            <p className="text-base sm:text-base md:text-lg text-gray-600 mb-4 sm:mb-6 md:mb-8 leading-relaxed">
-              Die RAG Schießsport MSE ist eine Reservistenarbeitsgemeinschaft im
-              Verband der Reservisten der Deutschen Bundeswehr e. V. in
-              Mecklenburg-Vorpommern. Wir sind ein Zusammenschluss
-              schießsportinteressierter Verbandsmitglieder aus der Region
-              Mecklenburgische Seenplatte.
-            </p>
-            <p className="text-base sm:text-base md:text-lg text-gray-600 mb-4 sm:mb-6 md:mb-8 leading-relaxed">
-              Im Mittelpunkt stehen sportliches Schießen, sichere Waffenhandhabung
-              sowie Training und Wettkämpfe nach der Schießsportordnung des
-              Verbandes und den waffenrechtlichen Vorgaben. Der Schießsport wird
-              dabei als sportlicher Wettbewerb und als Training betrieben;
-              Übungen mit militärischem oder polizeilichem Charakter sind im
-              schießsportlichen Rahmen ausgeschlossen.
-            </p>
-            <p className="text-base sm:text-base md:text-lg text-gray-600 mb-6 sm:mb-8 md:mb-8 leading-relaxed">
-              Wir bieten regelmäßige Schießtermine, Aus- und Fortbildungen sowie
-              kameradschaftliche Treffen. Interessierte sind nach vorheriger
-              Anmeldung willkommen – werden Sie Teil unserer Gemeinschaft!
-            </p>
           </div>
         </div>
       </section>

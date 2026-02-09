@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { BackLink } from "@/components/back-link";
+import { LoadingButton } from "@/components/loading-button";
 import { useFormFieldValidation } from "@/lib/useFormFieldValidation";
 import { profileValidationConfig } from "@/lib/validation-schema";
 import { buildLoginUrlWithReturnUrl, getCurrentPathWithSearch } from "@/lib/return-url";
@@ -15,6 +16,10 @@ interface UserProfile {
   address: string | null;
   phone: string | null;
   role: string;
+  dateOfBirth: string | null;
+  rank: string | null;
+  pk: string | null;
+  hasPossessionCard: boolean;
 }
 
 function useProfile() {
@@ -31,6 +36,10 @@ function useProfile() {
     email: "",
     address: "",
     phone: "",
+    dateOfBirth: "",
+    rank: "",
+    pk: "",
+    hasPossessionCard: false,
   });
 
   const { errors: validationErrors, validateField, markFieldAsTouched, shouldShowError, isFieldValid } = useFormFieldValidation(profileValidationConfig);
@@ -52,6 +61,10 @@ function useProfile() {
         email: data.email,
         address: data.address || "",
         phone: data.phone || "",
+        dateOfBirth: data.dateOfBirth || "",
+        rank: data.rank || "",
+        pk: data.pk || "",
+        hasPossessionCard: data.hasPossessionCard || false,
       });
     } catch (err: unknown) {
       setProfileError(err instanceof Error ? err.message : "Ein Fehler ist aufgetreten");
@@ -83,11 +96,17 @@ function useProfile() {
     validateField("name", formData.name);
     validateField("address", formData.address);
     validateField("phone", formData.phone);
+    validateField("dateOfBirth", formData.dateOfBirth);
+    validateField("rank", formData.rank);
+    validateField("pk", formData.pk);
 
     const isValid =
       isFieldValid("name", formData.name) &&
       isFieldValid("address", formData.address) &&
-      isFieldValid("phone", formData.phone);
+      isFieldValid("phone", formData.phone) &&
+      isFieldValid("dateOfBirth", formData.dateOfBirth) &&
+      isFieldValid("rank", formData.rank) &&
+      isFieldValid("pk", formData.pk);
 
     if (!isValid) {
       setProfileError("Bitte korrigieren Sie die Fehler im Formular");
@@ -97,13 +116,13 @@ function useProfile() {
     setIsSaving(true);
 
     try {
-      const { name, address, phone } = formData;
+      const { name, address, phone, dateOfBirth, rank, pk, hasPossessionCard } = formData;
       const response = await fetch("/api/user/profile", {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ name, address, phone }),
+        body: JSON.stringify({ name, address, phone, dateOfBirth, rank, pk, hasPossessionCard }),
       });
 
       const data = await response.json();
@@ -203,33 +222,7 @@ export default function ProfilePage() {
             </div>
           )}
 
-          <form onSubmit={handleSave} className="space-y-6" noValidate>
-            <div>
-              <label htmlFor="name" className="form-label">
-                Name
-              </label>
-              <input
-                id="name"
-                type="text"
-                value={formData.name}
-                onChange={(e) => handleInputChange("name", e.target.value)}
-                onBlur={(e) => handleBlur("name", e.target.value)}
-                maxLength={100}
-                className={`form-input ${
-                  shouldShowFieldError("name", formData.name) ? "border-red-500 focus:border-red-500" : ""
-                }`}
-                placeholder="Max Mustermann"
-                disabled={isSaving}
-                autoFocus
-                aria-invalid={!!shouldShowFieldError("name", formData.name)}
-              />
-              {shouldShowFieldError("name", formData.name) && (
-                <p className="form-help text-red-600">
-                  {validationErrors.name}
-                </p>
-              )}
-            </div>
-
+          <form onSubmit={handleSave} className="space-y-4" noValidate>
             <div>
               <label htmlFor="email" className="form-label">
                 E-Mail
@@ -242,6 +235,82 @@ export default function ProfilePage() {
                 className="form-input bg-gray-100"
                 placeholder="beispiel@email.de"
               />
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <label htmlFor="name" className="form-label">
+                  Name
+                </label>
+                <input
+                  id="name"
+                  type="text"
+                  value={formData.name}
+                  onChange={(e) => handleInputChange("name", e.target.value)}
+                  onBlur={(e) => handleBlur("name", e.target.value)}
+                  maxLength={100}
+                  className={`form-input ${
+                    shouldShowFieldError("name", formData.name) ? "border-red-500 focus:border-red-500" : ""
+                  }`}
+                  placeholder="Max Mustermann"
+                  disabled={isSaving}
+                  autoFocus
+                  aria-invalid={!!shouldShowFieldError("name", formData.name)}
+                />
+                {shouldShowFieldError("name", formData.name) && (
+                  <p className="form-help text-red-600">
+                    {validationErrors.name}
+                  </p>
+                )}
+              </div>
+
+              <div>
+                <label htmlFor="rank" className="form-label">
+                  Dienstgrad
+                </label>
+                <input
+                  id="rank"
+                  type="text"
+                  value={formData.rank}
+                  onChange={(e) => handleInputChange("rank", e.target.value)}
+                  onBlur={(e) => handleBlur("rank", e.target.value)}
+                  maxLength={30}
+                  className={`form-input ${
+                    shouldShowFieldError("rank", formData.rank) ? "border-red-500 focus:border-red-500" : ""
+                  }`}
+                  placeholder="z.B. Oberleutnant"
+                  disabled={isSaving}
+                  aria-invalid={!!shouldShowFieldError("rank", formData.rank)}
+                />
+                {shouldShowFieldError("rank", formData.rank) && (
+                  <p className="form-help text-red-600">
+                    {validationErrors.rank}
+                  </p>
+                )}
+              </div>
+
+              <div>
+                <label htmlFor="dateOfBirth" className="form-label">
+                  Geburtsdatum
+                </label>
+                <input
+                  id="dateOfBirth"
+                  type="date"
+                  value={formData.dateOfBirth}
+                  onChange={(e) => handleInputChange("dateOfBirth", e.target.value)}
+                  onBlur={(e) => handleBlur("dateOfBirth", e.target.value)}
+                  className={`form-input ${
+                    shouldShowFieldError("dateOfBirth", formData.dateOfBirth) ? "border-red-500 focus:border-red-500" : ""
+                  }`}
+                  disabled={isSaving}
+                  aria-invalid={!!shouldShowFieldError("dateOfBirth", formData.dateOfBirth)}
+                />
+                {shouldShowFieldError("dateOfBirth", formData.dateOfBirth) && (
+                  <p className="form-help text-red-600">
+                    {validationErrors.dateOfBirth}
+                  </p>
+                )}
+              </div>
             </div>
 
             <div>
@@ -269,39 +338,84 @@ export default function ProfilePage() {
               )}
             </div>
 
-            <div>
-              <label htmlFor="phone" className="form-label">
-                Telefon
-              </label>
-              <input
-                id="phone"
-                type="tel"
-                value={formData.phone}
-                onChange={(e) => handleInputChange("phone", e.target.value)}
-                onBlur={(e) => handleBlur("phone", e.target.value)}
-                maxLength={30}
-                className={`form-input ${
-                  shouldShowFieldError("phone", formData.phone) ? "border-red-500 focus:border-red-500" : ""
-                }`}
-                placeholder="+49 123 456789"
-                disabled={isSaving}
-                aria-invalid={!!shouldShowFieldError("phone", formData.phone)}
-              />
-              {shouldShowFieldError("phone", formData.phone) && (
-                <p className="form-help text-red-600">
-                  {validationErrors.phone}
-                </p>
-              )}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label htmlFor="phone" className="form-label">
+                  Telefon
+                </label>
+                <input
+                  id="phone"
+                  type="tel"
+                  value={formData.phone}
+                  onChange={(e) => handleInputChange("phone", e.target.value)}
+                  onBlur={(e) => handleBlur("phone", e.target.value)}
+                  maxLength={30}
+                  className={`form-input ${
+                    shouldShowFieldError("phone", formData.phone) ? "border-red-500 focus:border-red-500" : ""
+                  }`}
+                  placeholder="+49 123 456789"
+                  disabled={isSaving}
+                  aria-invalid={!!shouldShowFieldError("phone", formData.phone)}
+                />
+                {shouldShowFieldError("phone", formData.phone) && (
+                  <p className="form-help text-red-600">
+                    {validationErrors.phone}
+                  </p>
+                )}
+              </div>
+
+              <div>
+                <label htmlFor="pk" className="form-label">
+                  PK
+                </label>
+                <input
+                  id="pk"
+                  type="text"
+                  value={formData.pk}
+                  onChange={(e) => handleInputChange("pk", e.target.value)}
+                  onBlur={(e) => handleBlur("pk", e.target.value)}
+                  maxLength={20}
+                  className={`form-input ${
+                    shouldShowFieldError("pk", formData.pk) ? "border-red-500 focus:border-red-500" : ""
+                  }`}
+                  placeholder="z.B. 12345"
+                  disabled={isSaving}
+                  aria-invalid={!!shouldShowFieldError("pk", formData.pk)}
+                />
+                {shouldShowFieldError("pk", formData.pk) && (
+                  <p className="form-help text-red-600">
+                    {validationErrors.pk}
+                  </p>
+                )}
+              </div>
             </div>
 
             <div>
-              <button
+              <label className="form-label">Waffenbesitzkarte</label>
+              <div className="flex items-center gap-3">
+                <input
+                  id="hasPossessionCard"
+                  type="checkbox"
+                  checked={formData.hasPossessionCard}
+                  onChange={(e) => setFormData({ ...formData, hasPossessionCard: e.target.checked })}
+                  className="w-5 h-5 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+                  disabled={isSaving}
+                />
+                <label htmlFor="hasPossessionCard" className="text-gray-700 cursor-pointer">
+                  Ich besitze eine eigene Waffenbesitzkarte
+                </label>
+              </div>
+            </div>
+
+            <div>
+              <LoadingButton
                 type="submit"
-                disabled={isSaving}
+                loading={isSaving}
+                loadingText="Speichern..."
                 className="btn-primary py-2.5 sm:py-2 text-base sm:text-base touch-manipulation w-auto"
               >
-                {isSaving ? "Speichern..." : "Speichern"}
-              </button>
+                Speichern
+              </LoadingButton>
             </div>
           </form>
 
@@ -309,9 +423,9 @@ export default function ProfilePage() {
             <div className="mt-6 pt-6 border-t border-gray-200">
               <h3 className="text-base font-medium text-gray-500">Account-Informationen</h3>
               <dl className="mt-2 space-y-1">
-                <div className="flex justify-between">
+                <div className="flex">
                   <dt className="text-base text-gray-600">Rolle:</dt>
-                  <dd className="text-base font-medium text-gray-900">
+                  <dd className="text-base font-medium text-gray-900 ml-2">
                     {profile.role === "ADMIN" ? "Administrator" : "Mitglied"}
                   </dd>
                 </div>

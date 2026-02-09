@@ -80,13 +80,13 @@ export default function DatenschutzPage() {
           </section>
 
           <section className="mb-6 sm:mb-8">
-            <h2 className="text-lg sm:text-xl font-semibold mb-3 sm:mb-4 text-gray-900">6. Termine und Abstimmungen</h2>
+            <h2 className="text-lg sm:text-xl font-semibold mb-3 sm:mb-4 text-gray-900">6. Termine und Teilnahmeanmeldungen</h2>
             <p className="mb-4 text-base sm:text-base text-gray-800">
               Wir verarbeiten Terminangaben (Datum, Uhrzeit, Ort, Beschreibung). Mitglieder können ihre Teilnahme
-              (Ja/Nein/Vielleicht) pro Termin abstimmen. Pro Mitglied ist eine Stimme möglich.
+              (Ja/Nein/Vielleicht) pro Termin anmelden. Pro Mitglied ist eine Anmeldung möglich.
             </p>
             <p className="text-base sm:text-base text-gray-800">
-              Admins können die Stimmen mit Namen einsehen, um die Organisation zu ermöglichen. Rechtsgrundlage ist
+              Admins können die Anmeldungen mit Namen einsehen, um die Organisation zu ermöglichen. Rechtsgrundlage ist
               Art. 6 Abs. 1 lit. b DSGVO (Mitgliedschaft/Organisation).
             </p>
           </section>

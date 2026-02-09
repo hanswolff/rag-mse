@@ -19,6 +19,11 @@ export default function AdminDashboardPage() {
     }
   }, [status, session, router]);
 
+  // Force scroll to top on mount to prevent scroll bar jumping to bottom
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, []);
+
   if (status === "loading") {
     return (
       <main className="min-h-screen flex items-center justify-center">

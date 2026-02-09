@@ -1,0 +1,12 @@
+[Unit]
+Description=Daily SQLite backup timer for beta-rag-mse
+
+[Timer]
+OnCalendar=*-*-* 02:10:00
+Persistent=true
+RandomizedDelaySec=10m
+Unit=beta-rag-db-backup.service
+
+[Install]
+WantedBy=timers.target
+

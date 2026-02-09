@@ -7,5 +7,6 @@
 !scripts/**
 !prisma/**
 !prisma.config.ts
+!tsconfig.build.json
 !docker-entrypoint.sh
 !Dockerfile

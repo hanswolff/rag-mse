@@ -7,6 +7,7 @@ import { isAdmin } from "@/lib/role-utils";
 import { buildLoginUrlWithReturnUrl, getCurrentPathWithSearch } from "@/lib/return-url";
 import Link from "next/link";
 import { BackLink } from "@/components/back-link";
+import { LoadingButton } from "@/components/loading-button";
 import type { News, NewNews } from "@/types";
 
 const initialNewNews: NewNews = {
@@ -174,13 +175,14 @@ export default function NewsEditPage({ params }: { params: Promise<{ id: string 
                 </label>
               </div>
               <div className="flex flex-col sm:flex-row gap-3">
-                <button
+                <LoadingButton
                   type="submit"
-                  disabled={isSubmitting}
+                  loading={isSubmitting}
+                  loadingText="Wird gespeichert..."
                   className="flex-1 btn-primary py-2.5 sm:py-2 text-base sm:text-base touch-manipulation"
                 >
-                  {isSubmitting ? "Wird gespeichert..." : "Aktualisieren"}
-                </button>
+                  Aktualisieren
+                </LoadingButton>
                 <Link
                   href={`/news/${id}`}
                   className="w-full sm:w-auto btn-outline py-2.5 sm:py-2 text-base sm:text-base text-center"

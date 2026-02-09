@@ -6,16 +6,16 @@ Website für die RAG Schießsport MSE mit Mitgliederverwaltung, Admin-gestellten
 
 - **Framework**: Next.js 16 (App Router, TypeScript)
 - **Styling**: Tailwind CSS
-- **Database**: SQLite (via Prisma ORM, geplant)
+- **Database**: SQLite (via Prisma ORM)
 - **Testing**: Jest + React Testing Library
-- **Authentication**: NextAuth (geplant)
-- **Deployment**: Docker + Docker Compose (geplant)
+- **Authentication**: NextAuth
+- **Deployment**: Docker + Docker Compose
 
 ## Lokale Entwicklung
 
 ### Voraussetzungen
 
-- Node.js 22 LTS+ und npm
+- Node.js 22 LTS+ und pnpm
 - Docker und Docker Compose (für Datenbank-Container)
 
 ### Installation
@@ -23,7 +23,7 @@ Website für die RAG Schießsport MSE mit Mitgliederverwaltung, Admin-gestellten
 1. Repository klonen und Dependencies installieren:
 
 ```bash
-npm install
+pnpm install
 ```
 
 2. Umgebungsvariablen konfigurieren:
@@ -42,50 +42,98 @@ Die `.env`-Datei enthält alle benötigten Konfigurationen:
 ### Entwicklungserver starten
 
 ```bash
-npm run dev
+pnpm run dev
 ```
 
 Die Anwendung läuft unter `http://localhost:3000`.
 
 ### Verfügbare Skripte
 
-- `npm run dev` - Startet den Entwicklungsserver
-- `npm run build` - Erstellt Produktions-Build
-- `npm run start` - Startet Produktionsserver
-- `npm run lint` - Führt ESLint aus
-- `npm run format` - Formatiert Code mit Prettier
-- `npm test` - Führt alle Tests aus
-- `npm run test:watch` - Führt Tests im Watch-Modus aus
-- `npm run test:coverage` - Führt Tests mit Coverage aus
+- `pnpm run dev` - Startet den Entwicklungsserver
+- `pnpm run build` - Erstellt Produktions-Build
+- `pnpm run start` - Startet Produktionsserver
+- `pnpm run lint` - Führt ESLint aus
+- `pnpm run format` - Formatiert Code mit Prettier
+- `pnpm test` - Führt alle Tests aus
+- `pnpm run test:watch` - Führt Tests im Watch-Modus aus
+- `pnpm run test:coverage` - Führt Tests mit Coverage aus
 
 ### Datenbank-Seed (Initialer Admin-User)
 
 Der Seed-Script erstellt einen initialen Admin-User in der Datenbank:
 
 ```bash
-npm run db:seed
+pnpm run db:seed
 ```
 
-**WICHTIG: Sie MÜSSEN diese Werte in der `.env`-Datei festlegen, bevor Sie den Seed ausführen!**
+**WICHTIG: Umgebung-Variablen werden automatisch aus `.env` geladen**
 
-Die `.env`-Datei muss folgende Umgebungsvariablen enthalten:
+Der Seed-Script verwendet `dotenv`, Umgebungsvariablen werden automatisch aus der `.env`-Datei im Projektverzeichnis geladen. Sie müssen also keine `export`-Befehle verwenden.
 
+Standardwerte (falls SEED_ADMIN_* nicht in `.env` gesetzt sind):
+- Email: `admin@rag-mse.de`
+- Passwort: `AdminPass123` (WARNUNG: Dies ist ein unsicheres Standardpasswort!)
+- Name: `Administrator`
+
+**Empfohlene Vorgehensweise:**
+
+1. Setzen Sie die Seed-Admin-Variablen in Ihrer `.env`-Datei:
 ```bash
-SEED_ADMIN_EMAIL="CHANGE_ME_ADMIN_EMAIL"
-SEED_ADMIN_PASSWORD="CHANGE_ME_STRONG_PASSWORD_MIN_8_CHARS"
+SEED_ADMIN_EMAIL="admin@rag-mse.de"
+SEED_ADMIN_PASSWORD="IhrSicheresPasswort123"
 SEED_ADMIN_NAME="Administrator"
 ```
 
-**SICHERHEITSWARNUNG:**
-- Verwenden Sie NIE die oben gezeigten Platzhalter!
-- Ändern Sie diese Werte immer vor der ersten Verwendung!
-- Verwenden Sie ein starkes Passwort (mindestens 8 Zeichen, besser 12+ Zeichen mit Sonderzeichen)
+2. Führen Sie den Seed-Script aus:
+```bash
+pnpm run db:seed
+```
+
+**WICHERHEITSWARNUNG:**
+- Ändern Sie das Standardpasswort `AdminPass123` immer vor der ersten Verwendung!
+- Verwenden Sie ein starkes Passwort (mindestens 8 Zeichen mit Groß-/Kleinschreibung und Ziffern)
 - Ändern Sie das Passwort nach dem ersten Login sofort!
+
+**Umgebungsvariablen-Loading in verschiedenen Kontexten:**
+
+| Kontext | Wie werden `.env`-Variablen geladen? |
+|---------|-------------------------------------|
+| Lokal mit `pnpm run db:seed` | Automatisch via `dotenv` aus `.env` |
+| Lokal mit `pnpm run dev` | Automatisch via Next.js aus `.env` |
+| Docker Compose | Aus `docker-compose.yml` environment mapping |
+| Direkter `tsx prisma/seed.ts` Aufruf | Automatisch via `dotenv` aus `.env` |
 
 ### Weitere Datenbank-Skripte
 
-- `npm run db:push` - Push Schema Changes direkt zur Datenbank (Entwicklung)
-- `npm run db:studio` - Öffnet Prisma Studio zur Datenbank-Ansicht
+- `pnpm run db:push` - Push Schema Changes direkt zur Datenbank (Entwicklung)
+- `pnpm run db:studio` - Öffnet Prisma Studio zur Datenbank-Ansicht
+
+### Alternative Methode: Manuelle Admin-Erstellung per SQL
+
+Als Alternative zum Seed-Script können Sie einen Admin-Benutzer auch manuell direkt in der Datenbank erstellen:
+
+1. Datenbank mit SQLite öffnen:
+```bash
+sqlite3 ./data/dev.db
+```
+
+2. Passwort-Hash generieren (Node.js):
+```bash
+node -e "console.log(require('bcryptjs').hashSync('IhrPasswort123', 10))"
+```
+
+3. Admin-Benutzer in Datenbank einfügen:
+```sql
+INSERT INTO User (id, email, password, name, role, createdAt, updatedAt)
+VALUES ('admin001', 'admin@rag-mse.de', '<BCRYPT_HASH_AUS_SCHRITT_2>', 'Administrator', 'ADMIN', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
+```
+
+4. Überprüfen:
+```sql
+SELECT id, email, name, role FROM User;
+```
+
+**HINWEIS:** Die Datei `create_admin.sql` enthält eine kommentierte Vorlage für diesen Prozess. Diese Methode ist nur für fortgeschrittene Benutzer gedacht, die volle Kontrolle über die Datenbank benötigen.
 
 ## Datenbank-Setup
 
@@ -101,17 +149,17 @@ in der Produktion standardmäßig deaktiviert.
 **WICHTIG:** In der Produktion werden folgende Umgebungsvariablen benötigt, um Datenbank-Operationen zu aktivieren:
 
 - `ALLOW_DB_PUSH=true` - Aktiviert `prisma db push` (Schema-Änderungen)
-- `ALLOW_DB_SEED=true` - Aktiviert `npm run db:seed` (Initialer Admin-User)
+- `ALLOW_DB_SEED=true` - Aktiviert `pnpm run db:seed` (Initialer Admin-User)
 
 #### Empfohlener Migrations-Pfad für Produktion
 
 1. **Schema-Änderungen:**
    ```bash
    # Auf dem Development-Server Änderungen an prisma/schema.prisma vornehmen
-   npm run db:push
+   pnpm run db:push
 
    # Schema-Änderungen testen
-   npm run test
+   pnpm run test
 
    # Für Produktion: Migrations-Skript erstellen oder manuell anwenden
    ```
@@ -121,15 +169,15 @@ in der Produktion standardmäßig deaktiviert.
    # Container stoppen
    docker-compose down
 
-   # Datenbank sichern (BACKUP!)
-   cp data/dev.db backup/dev.db.$(date +%Y%m%d-%H%M%S)
+   # Datenbank sichern (online-backup, gzip, retention)
+   ./scripts/backup-sqlite.sh
 
    # Nur wenn Schema-Änderungen erforderlich:
    docker-compose up -d
-   docker-compose exec app sh -c "ALLOW_DB_PUSH=true npx prisma db push"
+   docker-compose exec app sh -c "ALLOW_DB_PUSH=true pnpm exec prisma db push"
 
    # Für initiale Daten (nur beim ersten Setup):
-   docker-compose exec app sh -c "ALLOW_DB_SEED=true npm run db:seed"
+   docker-compose exec app sh -c "ALLOW_DB_SEED=true pnpm run db:seed"
 
    # Container neu starten
    docker-compose restart app
@@ -151,7 +199,10 @@ in der Produktion standardmäßig deaktiviert.
 
 ## Docker Compose
 
-Docker Compose wird verwendet, um die SQLite-Datenbank in einem persistenten Volume zu betreiben.
+Docker Compose wird verwendet, um die Anwendung mit allen Abhängigkeiten zu betreiben:
+- **App Container**: Next.js Anwendung
+- **Redis**: Für verteiltes Rate-Limiting
+- **Persistent Volumes**: SQLite-Datenbank und Redis-Daten
 
 ### Mit Docker Compose starten
 
@@ -180,38 +231,40 @@ Starten Sie dann die Anwendung:
 docker-compose up -d
 ```
 
-Hinweis: Der Dockerfile nutzt BuildKit-Cache fuer npm. Falls BuildKit deaktiviert ist, bauen Sie so:
+Hinweis: Der Dockerfile nutzt BuildKit-Cache fuer pnpm. Falls BuildKit deaktiviert ist, bauen Sie so:
 
 ```bash
 DOCKER_BUILDKIT=1 docker-compose up -d --build
 ```
 
-### npm Cache auf dem Host teilen (schnellere Builds)
+### pnpm Store auf dem Host teilen (schnellere Builds)
 
-Standard: `.npm-cache` im Projektverzeichnis (wird in den Build-Kontext aufgenommen). Legen Sie das Verzeichnis einmal an und nutzen Sie es in Builds:
+Standard: `.pnpm-store` im Projektverzeichnis (wird in den Build-Kontext aufgenommen). Legen Sie das Verzeichnis einmal an und nutzen Sie es in Builds:
 
 ```bash
-mkdir -p .npm-cache
-DEPS_STAGE=deps-hostcache NPM_CACHE_DIR=.npm-cache DOCKER_BUILDKIT=1 docker-compose build app
+mkdir -p .pnpm-store
+DEPS_STAGE=deps-hostcache PNPM_STORE_DIR=.pnpm-store DOCKER_BUILDKIT=1 docker-compose build app
 ```
 
 Optional koennen Sie ein eigenes Cache-Verzeichnis verwenden (Docker muss Zugriff auf den Host-Pfad haben):
 
 ```bash
-mkdir -p /pfad/zum/npm-cache
-DEPS_STAGE=deps-hostcache NPM_CACHE_DIR=/pfad/zum/npm-cache DOCKER_BUILDKIT=1 docker-compose build app
+mkdir -p /pfad/zum/pnpm-store
+DEPS_STAGE=deps-hostcache PNPM_STORE_DIR=/pfad/zum/pnpm-store DOCKER_BUILDKIT=1 docker-compose build app
 ```
 
 ### Volume persistenz
 
-Die SQLite-Datenbankdatei wird im lokalen `./data`-Verzeichnis gespeichert, um Datenverluste bei Container-Neustarts zu vermeiden. Dies ermöglicht einfache Backups:
+Die SQLite-Datenbankdatei wird im lokalen `./data`-Verzeichnis gespeichert, um Datenverluste bei Container-Neustarts zu vermeiden.
+Für Backups in Produktion wird das Skript `scripts/backup-sqlite.sh` verwendet (SQLite Online Backup + gzip + Retention).
+Die Betriebsoptionen (systemd/cron/ZFS) sind in `ops/BACKUP_OPTIONS.md` dokumentiert.
 
 ```bash
-# Datenbank-Backup erstellen
-cp data/dev.db backup/dev.db.$(date +%Y%m%d-%H%M%S)
+# Backup jetzt ausfuehren
+./scripts/backup-sqlite.sh
 
-# Datenbank wiederherstellen
-cp backup/dev.db.YYYYMMDD-HHMMSS data/dev.db
+# Restore-Beispiel (Dateiname anpassen)
+gunzip -c /zfs/backups/beta-rag-mse/prod.db.YYYY-MM-DD.sqlite3.gz > data/prod.db
 ```
 
 ### Container stoppen
@@ -456,13 +509,13 @@ Das Projekt verwendet Jest und React Testing Library für Unit- und Integrations
 
 ```bash
 # Alle Tests einmalig ausführen
-npm test
+pnpm test
 
 # Tests im Watch-Modus
-npm run test:watch
+pnpm run test:watch
 
 # Tests mit Coverage
-npm run test:coverage
+pnpm run test:coverage
 ```
 
 ### Teststruktur
@@ -479,10 +532,10 @@ Testdateien befinden sich im `__tests__`-Verzeichnis und folgen der Benennungsko
 
 ```bash
 # Linting prüfen
-npm run lint
+pnpm run lint
 
 # Code formatieren
-npm run format
+pnpm run format
 ```
 
 ## Umgebungsvariablen
@@ -513,6 +566,10 @@ TRUSTED_PROXY_IPS="127.0.0.0/8,10.0.0.0/8,192.168.0.0/16"
 # Redis für verteilte Rate-Limits
 REDIS_URL="redis://localhost:6379"
 
+# Datenbank-Operationen in Produktion (SICHERHEIT!)
+ALLOW_DB_PUSH=false     # Erlaubt prisma db push in Produktion
+ALLOW_DB_SEED=false     # Erlaubt pnpm run db:seed in Produktion
+
 # Anwendungseinstellungen
 APP_NAME="RAG Schießsport MSE"
 APP_URL="http://localhost:3000"
@@ -531,23 +588,43 @@ APP_URL="http://localhost:3000"
 - E-Mail/Passwort-Login
 - Session-Management
 - Rollenbasierte Zugriffskontrolle (Admin vs. Mitglied)
+- Passwort zurücksetzen (via E-Mail)
+- Passwort ändern (für eingeloggte Benutzer)
+- Einladungssystem (Token-basierte Registrierung)
 
 ### Termine
 
 - Admins können Termine erstellen, bearbeiten und löschen
 - Mitglieder können über Teilnahme abstimmen (Ja/Nein/Vielleicht)
-- Eine Stimme pro Mitglied pro Termin
+- Eine Stimme pro Mitglied pro Termin (Admins können auch abstimmen)
+- Stimmen können zurückgezogen werden
+- Event-Typen: Training & Wettkampf
+- Kartenintegration mit OpenStreetMap
+- Vergangene Termine auf separater Seite
+- Abstimmungsergebnisse sichtbar für eingeloggte Benutzer
+- Rich-Text-Beschreibungen mit Tiptap-Editor
+
+### Benutzerverwaltung (Admin)
+
+- Benutzer manuell erstellen
+- Einladungen per E-Mail senden
+- Benutzerdaten bearbeiten
+- Benutzer löschen (mit Schutz für letzten Admin)
+- Rollenverwaltung (Admin/Mitglied)
 
 ### News
 
-- Admins können News-Artikel erstellen
+- Admins können News-Artikel erstellen und bearbeiten
+- Rich-Text-Editor für Inhalte
 - Öffentliche News-Liste und Detailseiten
+- Veröffentlichungsstatus steuern
 
 ### Kontaktformular
 
 - Öffentliches Kontaktformular
 - E-Mail-Versand an Administratoren
-- Konfigurierbare Empfängerliste
+- Rate Limiting gegen Spam
+- Serverseitige Validierung
 
 ### Datenschutz und Rechtliches
 
@@ -555,22 +632,23 @@ APP_URL="http://localhost:3000"
 - Datenschutzerklärung (Inhalte durch Organisation bereitgestellt)
 - Cookie-Banner (falls Cookies verwendet werden)
 
-## Deployment auf VPS (geplant)
+## Deployment
 
 Die Anwendung wird hinter einem Reverse Proxy (z.B. HAProxy) auf einem VPS bereitgestellt.
 
-> Hinweis: Deployment-Konfiguration ist noch nicht implementiert. Siehe TODO.md für den aktuellen Fortschritt.
+> Die Deployment-Konfiguration ist vollständig implementiert und produktiv im Einsatz.
+> Siehe AGENTS.md für die produktive Behandlung der docker-compose.yml.
 
 ### Produktions-Build erstellen
 
 ```bash
-npm run build
+pnpm run build
 ```
 
 ### Produktionsserver starten
 
 ```bash
-npm start
+pnpm start
 ```
 
 ### Wichtige Produktions-Einstellungen
@@ -588,7 +666,7 @@ COOKIE_SECURE="true"
 - Verwenden Sie HTTPS in der Produktion
 - Alle oben genannten Secrets sind PFLICHT für den Produktionsbetrieb
 
-## Backup-Strategie (geplant)
+## Backup-Strategie
 
 Die SQLite-Datenbank wird in einem Docker-Volume gespeichert, das auf ein lokales Verzeichnis gemountet wird. Regelmäßige Backups der Datenbankdatei werden empfohlen.
 

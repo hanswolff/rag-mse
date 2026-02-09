@@ -136,7 +136,7 @@ export default function VergangeneTerminePage() {
                       </div>
                       {session && event._count && (
                         <span className="bg-brand-blue-50 text-brand-blue-800 text-base font-medium px-2.5 py-0.5 rounded">
-                          {event._count.votes} Stimme{event._count.votes !== 1 ? "n" : ""}
+                          {event._count.votes} Anmeldung{event._count.votes !== 1 ? "en" : ""}
                         </span>
                       )}
                     </div>

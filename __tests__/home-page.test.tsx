@@ -18,31 +18,23 @@ describe("Home", () => {
   it("renders call to action buttons", () => {
     render(<Home />);
 
-    expect(screen.getByText("Aktuelle Termine")).toBeInTheDocument();
+    expect(screen.getByText("Über Uns")).toBeInTheDocument();
     expect(screen.getByText("Kontakt aufnehmen")).toBeInTheDocument();
   });
 
   it("renders feature cards section", () => {
     render(<Home />);
 
-    expect(screen.getByText("Unser Angebot")).toBeInTheDocument();
+    expect(screen.queryByText("Unser Angebot")).not.toBeInTheDocument();
     expect(screen.getByText("Termine")).toBeInTheDocument();
     expect(screen.getByText("News")).toBeInTheDocument();
     expect(screen.getByText("Kontakt")).toBeInTheDocument();
   });
 
-  it("renders about section", () => {
+  it("does not render about section on home page", () => {
     render(<Home />);
 
-    expect(
-      screen.getByText("Über die RAG Schießsport MSE")
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText(/Die RAG Schießsport MSE ist eine Reservistenarbeitsgemeinschaft/)
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText(/Im Mittelpunkt stehen sportliches Schießen/)
-    ).toBeInTheDocument();
+    expect(screen.queryByText("Über die RAG Schießsport MSE")).not.toBeInTheDocument();
   });
 
   it("renders feature card descriptions", () => {

@@ -21,6 +21,11 @@ export interface UpdateProfileRequest {
   name?: string;
   address?: string;
   phone?: string;
+  memberSince?: string;
+  dateOfBirth?: string;
+  rank?: string;
+  pk?: string;
+  hasPossessionCard?: boolean;
 }
 
 export interface ChangePasswordRequest {
@@ -166,6 +171,54 @@ export function validateUpdateProfileRequest(request: UpdateProfileRequest) {
         }
       }
     }
+  }
+
+  if (request.memberSince !== undefined) {
+    if (typeof request.memberSince !== "string") {
+      errors.push("Ungültiges Mitglied-seit-Datum");
+    } else if (request.memberSince.trim()) {
+      const date = new Date(request.memberSince);
+      if (isNaN(date.getTime())) {
+        errors.push("Ungültiges Mitglied-seit-Datum");
+      }
+    }
+  }
+
+  if (request.dateOfBirth !== undefined) {
+    if (typeof request.dateOfBirth !== "string") {
+      errors.push("Ungültiges Geburtsdatum");
+    } else if (request.dateOfBirth.trim()) {
+      const date = new Date(request.dateOfBirth);
+      if (isNaN(date.getTime())) {
+        errors.push("Ungültiges Geburtsdatum");
+      }
+    }
+  }
+
+  if (request.rank !== undefined) {
+    if (typeof request.rank !== "string") {
+      errors.push("Ungültiger Dienstgrad");
+    } else if (request.rank.trim()) {
+      const trimmedRank = request.rank.trim();
+      if (trimmedRank.length > 30) {
+        errors.push("Dienstgrad darf maximal 30 Zeichen lang sein");
+      }
+    }
+  }
+
+  if (request.pk !== undefined) {
+    if (typeof request.pk !== "string") {
+      errors.push("Ungültige PK");
+    } else if (request.pk.trim()) {
+      const trimmedPk = request.pk.trim();
+      if (trimmedPk.length > 20) {
+        errors.push("PK darf maximal 20 Zeichen lang sein");
+      }
+    }
+  }
+
+  if (request.hasPossessionCard !== undefined && typeof request.hasPossessionCard !== "boolean") {
+    errors.push("Ungültiger Wert für Waffenbesitzkarte");
   }
 
   return {

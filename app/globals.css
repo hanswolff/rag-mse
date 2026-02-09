@@ -29,6 +29,18 @@
   z-index: var(--z-map-control) !important;
 }
 
+/* Ensure map container has proper stacking context for controls to scroll with map */
+.leaflet-container {
+  position: relative !important;
+  z-index: 1 !important;
+}
+
+/* Ensure controls stay within their parent container and scroll with map */
+.leaflet-top,
+.leaflet-bottom {
+  position: absolute !important;
+}
+
 :root {
   --background: #f6f7f9;
   --foreground: #1b1f23;

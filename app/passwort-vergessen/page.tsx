@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { BackLink } from "@/components/back-link";
+import { LoadingButton } from "@/components/loading-button";
 
 interface UseForgotPasswordFormResult {
   email: string;
@@ -115,13 +116,14 @@ export default function ForgotPasswordPage() {
                 />
               </div>
 
-              <button
+              <LoadingButton
                 type="submit"
-                disabled={isLoading}
+                loading={isLoading}
+                loadingText="Wird gesendet..."
                 className="w-full btn-primary py-2.5 sm:py-2 text-base sm:text-base touch-manipulation"
               >
-                {isLoading ? "Wird gesendet..." : "Link anfordern"}
-              </button>
+                Link anfordern
+              </LoadingButton>
             </form>
           )}
 

@@ -11,6 +11,11 @@ const initialNewUser: NewUser = {
   address: "",
   phone: "",
   role: "MEMBER",
+  memberSince: "",
+  dateOfBirth: "",
+  rank: "",
+  pk: "",
+  hasPossessionCard: false,
 };
 
 export function useUserManagement() {
@@ -143,6 +148,11 @@ export function useUserManagement() {
       address: user.address || "",
       phone: user.phone || "",
       role: user.role,
+      memberSince: user.memberSince || "",
+      dateOfBirth: user.dateOfBirth || "",
+      rank: user.rank || "",
+      pk: user.pk || "",
+      hasPossessionCard: user.hasPossessionCard || false,
     };
     setModalUserData(userData);
     setInitialUserData(userData); // Track initial for unsaved changes
