@@ -28,7 +28,7 @@ describe("Home", () => {
     expect(screen.queryByText("Unser Angebot")).not.toBeInTheDocument();
     expect(screen.getByText("Termine")).toBeInTheDocument();
     expect(screen.getByText("News")).toBeInTheDocument();
-    expect(screen.getByText("Kontakt")).toBeInTheDocument();
+    expect(screen.getByText("Formulare")).toBeInTheDocument();
   });
 
   it("does not render about section on home page", () => {
@@ -49,7 +49,7 @@ describe("Home", () => {
       screen.getByText(/Bleiben Sie auf dem Laufenden/)
     ).toBeInTheDocument();
     expect(
-      screen.getByText(/Haben Sie Fragen\? Schreiben Sie uns/)
+      screen.getByText(/Hier finden Sie alle relevanten Formulare/)
     ).toBeInTheDocument();
   });
 });

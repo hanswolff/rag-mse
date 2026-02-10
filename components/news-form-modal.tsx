@@ -7,12 +7,18 @@ import { useFormFieldValidation } from "@/lib/useFormFieldValidation";
 import { newsValidationConfig } from "@/lib/validation-schema";
 
 export interface NewNews {
+  newsDate: string;
   title: string;
   content: string;
   published: boolean;
 }
 
+function getTodayDateString() {
+  return new Date().toISOString().split("T")[0];
+}
+
 const initialNewNews: NewNews = {
+  newsDate: getTodayDateString(),
   title: "",
   content: "",
   published: true,
@@ -46,6 +52,7 @@ export function NewsFormModal({
   const hasUnsavedChanges = useMemo(() => {
     const base = initialNewsData || initialNewNews;
     return (
+      newsData.newsDate !== base.newsDate ||
       newsData.title !== base.title ||
       newsData.content !== base.content ||
       newsData.published !== base.published
@@ -91,18 +98,24 @@ export function NewsFormModal({
     e.preventDefault();
 
     const values = {
+      newsDate: newsData.newsDate,
       title: newsData.title,
       content: newsData.content,
     };
 
     // Mark all fields as touched when submitting to show validation errors
+    markFieldAsTouched("newsDate");
     markFieldAsTouched("title");
     markFieldAsTouched("content");
 
+    validateField("newsDate", values.newsDate);
     validateField("title", values.title);
     validateField("content", values.content);
 
-    const isValid = isFieldValid("title", values.title) && isFieldValid("content", values.content);
+    const isValid =
+      isFieldValid("newsDate", values.newsDate) &&
+      isFieldValid("title", values.title) &&
+      isFieldValid("content", values.content);
 
     if (!isValid) {
       return;
@@ -126,6 +139,30 @@ export function NewsFormModal({
             {errors.general}
           </div>
         )}
+        <div>
+          <label htmlFor="news-date" className="form-label">
+            Datum *
+          </label>
+          <input
+            id="news-date"
+            type="date"
+            value={newsData.newsDate}
+            onChange={(e) => handleChange("newsDate", e.target.value)}
+            onBlur={(e) => handleBlur("newsDate", e.target.value)}
+            required
+            className={`form-input ${
+              shouldShowFieldError("newsDate") ? "border-red-500 focus:border-red-500" : ""
+            }`}
+            disabled={isSubmitting}
+            aria-invalid={!!shouldShowFieldError("newsDate")}
+            aria-describedby={shouldShowFieldError("newsDate") ? "news-date-error" : undefined}
+          />
+          {shouldShowFieldError("newsDate") && (
+            <p id="news-date-error" className="form-help text-red-600">
+              {combinedErrors.newsDate}
+            </p>
+          )}
+        </div>
         <div>
           <label htmlFor="news-title" className="form-label">
             Titel *

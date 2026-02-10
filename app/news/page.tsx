@@ -101,7 +101,7 @@ export default function NewsPage() {
                     <h2 className="text-base sm:text-xl font-semibold text-gray-900 hover:text-brand-red-600 transition-colors">
                       {newsItem.title}
                     </h2>
-                    <p className="text-base sm:text-base text-gray-500 mt-1">{formatDate(newsItem.createdAt)}</p>
+                    <p className="text-base sm:text-base text-gray-500 mt-1">{formatDate(newsItem.newsDate)}</p>
                     <p className="text-gray-600 mt-3 line-clamp-3 text-base sm:text-base">{newsItem.content}</p>
                   </div>
                 </Link>

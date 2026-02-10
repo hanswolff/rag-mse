@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { CalendarIcon, NewsIcon, MailIcon } from "@/components/icons";
+import { CalendarIcon, NewsIcon, FileDocumentIcon } from "@/components/icons";
 
 const FEATURE_CARDS = [
   {
@@ -17,11 +17,11 @@ const FEATURE_CARDS = [
       "Bleiben Sie auf dem Laufenden mit den aktuellen Neuigkeiten und Meldungen aus unserem Verband.",
   },
   {
-    href: "/kontakt",
-    icon: <MailIcon />,
-    title: "Kontakt",
+    href: "/info/formulare",
+    icon: <FileDocumentIcon />,
+    title: "Formulare",
     description:
-      "Haben Sie Fragen? Schreiben Sie uns über unser Kontaktformular oder kontaktieren Sie uns direkt.",
+      "Hier finden Sie alle relevanten Formulare für den RAG MSE sowie waffenrechtliche Formulare.",
   },
 ] as const;
 

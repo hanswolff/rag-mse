@@ -5,9 +5,11 @@ import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { BackLink } from "@/components/back-link";
 import { LoadingButton } from "@/components/loading-button";
+import { GermanDatePicker } from "@/components/german-date-picker";
 import { useFormFieldValidation } from "@/lib/useFormFieldValidation";
 import { profileValidationConfig } from "@/lib/validation-schema";
 import { buildLoginUrlWithReturnUrl, getCurrentPathWithSearch } from "@/lib/return-url";
+import { normalizeDateInputValue } from "@/lib/date-picker-utils";
 
 interface UserProfile {
   id: string;
@@ -61,7 +63,7 @@ function useProfile() {
         email: data.email,
         address: data.address || "",
         phone: data.phone || "",
-        dateOfBirth: data.dateOfBirth || "",
+        dateOfBirth: normalizeDateInputValue(data.dateOfBirth),
         rank: data.rank || "",
         pk: data.pk || "",
         hasPossessionCard: data.hasPossessionCard || false,
@@ -289,28 +291,15 @@ export default function ProfilePage() {
                 )}
               </div>
 
-              <div>
-                <label htmlFor="dateOfBirth" className="form-label">
-                  Geburtsdatum
-                </label>
-                <input
-                  id="dateOfBirth"
-                  type="date"
-                  value={formData.dateOfBirth}
-                  onChange={(e) => handleInputChange("dateOfBirth", e.target.value)}
-                  onBlur={(e) => handleBlur("dateOfBirth", e.target.value)}
-                  className={`form-input ${
-                    shouldShowFieldError("dateOfBirth", formData.dateOfBirth) ? "border-red-500 focus:border-red-500" : ""
-                  }`}
-                  disabled={isSaving}
-                  aria-invalid={!!shouldShowFieldError("dateOfBirth", formData.dateOfBirth)}
-                />
-                {shouldShowFieldError("dateOfBirth", formData.dateOfBirth) && (
-                  <p className="form-help text-red-600">
-                    {validationErrors.dateOfBirth}
-                  </p>
-                )}
-              </div>
+              <GermanDatePicker
+                id="dateOfBirth"
+                label="Geburtsdatum"
+                value={formData.dateOfBirth}
+                onChange={(date) => handleInputChange("dateOfBirth", date)}
+                onBlur={() => handleBlur("dateOfBirth", formData.dateOfBirth)}
+                disabled={isSaving}
+                error={shouldShowFieldError("dateOfBirth", formData.dateOfBirth)}
+              />
             </div>
 
             <div>

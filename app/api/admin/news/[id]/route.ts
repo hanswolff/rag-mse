@@ -8,8 +8,13 @@ import { logInfo, logResourceNotFound, logValidationFailure } from "@/lib/logger
 const updateNewsSchema = {
   title: { type: 'string' as const, optional: true },
   content: { type: 'string' as const, optional: true },
+  newsDate: { type: 'string' as const, optional: true },
   published: { type: 'boolean' as const, optional: true },
 } as const;
+
+function parseNewsDate(newsDate: string): Date {
+  return new Date(`${newsDate}T00:00:00.000Z`);
+}
 
 export async function GET(
   request: NextRequest,
@@ -97,7 +102,7 @@ export async function PUT(
       );
     }
 
-    const { title, content, published } = body;
+    const { title, content, newsDate, published } = body;
     const publishValue = typeof published === "boolean" ? published : undefined;
 
     const updatedNews = await prisma.news.update({
@@ -105,6 +110,7 @@ export async function PUT(
       data: {
         ...(title !== undefined && { title: String(title).trim() }),
         ...(content !== undefined && { content: String(content).trim() }),
+        ...(newsDate !== undefined && { newsDate: parseNewsDate(newsDate) }),
         ...(publishValue !== undefined && { published: publishValue }),
       },
     });

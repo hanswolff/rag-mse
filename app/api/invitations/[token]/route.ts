@@ -9,6 +9,7 @@ import { Role } from "@prisma/client";
 import { checkTokenRateLimit, recordSuccessfulTokenUsage } from "@/lib/rate-limiter";
 import { normalizeOptionalField, validateAddress, validateName, validatePhone } from "@/lib/user-validation";
 import { validateDateString } from "@/lib/validation-schema";
+import { formatDateInputValue } from "@/lib/date-picker-utils";
 
 const BCRYPT_SALT_ROUNDS = 10;
 
@@ -252,7 +253,7 @@ export async function GET(
       name: existingUser?.name ?? "",
       address: existingUser?.address ?? "",
       phone: existingUser?.phone ?? "",
-      dateOfBirth: existingUser?.dateOfBirth ?? "",
+      dateOfBirth: formatDateInputValue(existingUser?.dateOfBirth) ?? "",
       rank: existingUser?.rank ?? "",
       pk: existingUser?.pk ?? "",
       hasPossessionCard: existingUser?.hasPossessionCard ?? false,

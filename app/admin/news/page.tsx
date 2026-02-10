@@ -42,7 +42,7 @@ function NewsList({
               </div>
               <p className="text-base text-gray-500 mt-1 line-clamp-2">{newsItem.content}</p>
               <p className="text-base text-gray-400 mt-2">
-                Erstellt: {formatDate(newsItem.createdAt)}
+                Datum: {formatDate(newsItem.newsDate)}
               </p>
             </div>
             <div className="flex flex-col sm:flex-row gap-2 sm:ml-4">
@@ -106,6 +106,12 @@ export default function NewsPage() {
           </BackLink>
           <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mt-4">News verwalten</h1>
           <p className="text-base sm:text-base text-gray-600 mt-2">Veröffentlichen und verwalten Sie Neuigkeiten und Ankündigungen</p>
+          <button
+            onClick={newsManagement.openCreateModal}
+            className="mt-4 btn-primary py-2.5 sm:py-2 px-6 text-base sm:text-base touch-manipulation"
+          >
+            Neue News erstellen
+          </button>
         </div>
 
         {newsManagement.error && (
@@ -128,30 +134,19 @@ export default function NewsPage() {
           </div>
         )}
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          <div className="card-compact">
-            <h2 className="text-lg sm:text-xl font-semibold mb-4">News verwalten</h2>
-            <p className="text-base text-gray-600 mb-4">
-              Erstellen, bearbeiten oder löschen Sie News.
-            </p>
-            <button
-              onClick={newsManagement.openCreateModal}
-              className="w-full btn-primary py-2.5 sm:py-2 text-base sm:text-base touch-manipulation"
-            >
-              Neue News erstellen
-            </button>
+        <section className="card-compact">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between mb-4">
+            <h2 className="text-lg sm:text-xl font-semibold">News-Liste</h2>
+            <p className="text-base text-gray-600">{newsManagement.news.length} News</p>
           </div>
-          <div className="card-compact">
-            <h2 className="text-lg sm:text-xl font-semibold mb-4">News-Liste</h2>
-            <NewsList
-              news={newsManagement.news}
-              onEdit={newsManagement.startEditingNews}
-              onDelete={newsManagement.handleDeleteNews}
-              onPublish={newsManagement.handlePublishNews}
-              publishingNewsId={newsManagement.publishingNewsId}
-            />
-          </div>
-        </div>
+          <NewsList
+            news={newsManagement.news}
+            onEdit={newsManagement.startEditingNews}
+            onDelete={newsManagement.handleDeleteNews}
+            onPublish={newsManagement.handlePublishNews}
+            publishingNewsId={newsManagement.publishingNewsId}
+          />
+        </section>
 
         <NewsFormModal
           isOpen={newsManagement.isModalOpen}

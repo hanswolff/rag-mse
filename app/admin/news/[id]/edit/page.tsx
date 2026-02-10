@@ -10,7 +10,16 @@ import { BackLink } from "@/components/back-link";
 import { LoadingButton } from "@/components/loading-button";
 import type { News, NewNews } from "@/types";
 
+function toInputDateString(value: string) {
+  return value.split("T")[0];
+}
+
+function getTodayDateString() {
+  return new Date().toISOString().split("T")[0];
+}
+
 const initialNewNews: NewNews = {
+  newsDate: getTodayDateString(),
   title: "",
   content: "",
   published: true,
@@ -55,6 +64,7 @@ export default function NewsEditPage({ params }: { params: Promise<{ id: string 
       const data: News = await response.json();
       setNewsItem(data);
       setNewNews({
+        newsDate: toInputDateString(data.newsDate),
         title: data.title,
         content: data.content,
         published: data.published,
@@ -133,6 +143,18 @@ export default function NewsEditPage({ params }: { params: Promise<{ id: string 
         {newsItem && (
           <div className="card">
             <form onSubmit={handleSubmit} className="space-y-4">
+              <div>
+                <label htmlFor="newsDate" className="form-label">Datum *</label>
+                <input
+                  id="newsDate"
+                  type="date"
+                  value={newNews.newsDate}
+                  onChange={(e) => setNewNews({ ...newNews, newsDate: e.target.value })}
+                  required
+                  className="form-input"
+                  disabled={isSubmitting}
+                />
+              </div>
               <div>
                 <label htmlFor="newsTitle" className="form-label">Titel *</label>
                 <input

@@ -5,6 +5,7 @@ import { validateUpdateProfileRequest, type UpdateProfileRequest } from "@/lib/u
 import { Prisma } from "@prisma/client";
 import { BadRequestError, logApiError, parseJsonBody, validateRequestBody, validateCsrfHeaders } from "@/lib/api-utils";
 import { logInfo, logValidationFailure, logResourceNotFound } from "@/lib/logger";
+import { formatDateInputValue } from "@/lib/date-picker-utils";
 
 const USER_SELECT_FIELDS = {
   id: true,
@@ -115,7 +116,11 @@ export async function PUT(request: NextRequest) {
       changedFields,
     });
 
-    return NextResponse.json(updatedUser);
+    return NextResponse.json({
+      ...updatedUser,
+      memberSince: formatDateInputValue(updatedUser.memberSince),
+      dateOfBirth: formatDateInputValue(updatedUser.dateOfBirth),
+    });
   } catch (error: unknown) {
     if (error instanceof BadRequestError) {
       return NextResponse.json({ error: error.message }, { status: 400 });
@@ -153,7 +158,11 @@ export async function GET() {
       userEmail: user.email,
     });
 
-    return NextResponse.json(userData);
+    return NextResponse.json({
+      ...userData,
+      memberSince: formatDateInputValue(userData.memberSince),
+      dateOfBirth: formatDateInputValue(userData.dateOfBirth),
+    });
   } catch (error: unknown) {
     return handleApiError(error, "GET");
   }

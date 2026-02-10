@@ -52,6 +52,7 @@ describe("news-validation", () => {
     const validRequest: CreateNewsRequest = {
       title: "Test News",
       content: "Test content for the news article",
+      newsDate: "2026-01-15",
     };
 
     it("returns valid for correct request", () => {
@@ -67,6 +68,26 @@ describe("news-validation", () => {
       };
       const result = validateCreateNewsRequest(request);
       expect(result.isValid).toBe(true);
+    });
+
+    it("returns error for missing date", () => {
+      const request: CreateNewsRequest = {
+        ...validRequest,
+        newsDate: undefined,
+      };
+      const result = validateCreateNewsRequest(request);
+      expect(result.isValid).toBe(false);
+      expect(result.errors).toContain("Datum ist erforderlich");
+    });
+
+    it("returns error for invalid date", () => {
+      const request: CreateNewsRequest = {
+        ...validRequest,
+        newsDate: "2026-15-99",
+      };
+      const result = validateCreateNewsRequest(request);
+      expect(result.isValid).toBe(false);
+      expect(result.errors).toContain("Datum ist ungültig");
     });
 
     it("returns error for missing title", () => {
@@ -178,6 +199,7 @@ describe("news-validation", () => {
       const request: UpdateNewsRequest = {
         title: "Updated Title",
         content: "Updated content",
+        newsDate: "2026-01-30",
         published: false,
       };
       const result = validateUpdateNewsRequest(request);
@@ -249,6 +271,15 @@ describe("news-validation", () => {
       expect(result.errors).toContain(
         "Inhalt muss zwischen 1 und 10000 Zeichen lang sein"
       );
+    });
+
+    it("returns error for invalid date", () => {
+      const request: UpdateNewsRequest = {
+        newsDate: "2026-02-99",
+      };
+      const result = validateUpdateNewsRequest(request);
+      expect(result.isValid).toBe(false);
+      expect(result.errors).toContain("Datum ist ungültig");
     });
 
     it("returns multiple errors for invalid request", () => {

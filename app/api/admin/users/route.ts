@@ -7,6 +7,7 @@ import { requireAdmin } from "@/lib/auth-utils";
 import { Role } from "@prisma/client";
 import { parseJsonBody, BadRequestError, withApiErrorHandling, validateRequestBody, validateCsrfHeaders } from "@/lib/api-utils";
 import { logValidationFailure, logInfo } from "@/lib/logger";
+import { formatDateInputValue } from "@/lib/date-picker-utils";
 import {
   buildInviteUrl,
   generateInvitationToken,
@@ -18,6 +19,14 @@ import { generateRandomPassword } from "@/lib/crypto-utils";
 
 const BCRYPT_SALT_ROUNDS = 10;
 const INVITED_AT_EPOCH = new Date("1970-01-01T00:00:00.000Z");
+
+function serializeUserDateFields<T extends { memberSince: Date | null; dateOfBirth: Date | null }>(user: T) {
+  return {
+    ...user,
+    memberSince: formatDateInputValue(user.memberSince),
+    dateOfBirth: formatDateInputValue(user.dateOfBirth),
+  };
+}
 
 interface CreateUserRequest {
   email: string;
@@ -258,7 +267,7 @@ export const POST = withApiErrorHandling(async (request: NextRequest) => {
     );
   }
 
-  return NextResponse.json(newUser, { status: 201 });
+  return NextResponse.json(serializeUserDateFields(newUser), { status: 201 });
 }, { route: "/api/admin/users", method: "POST" });
 
 export const GET = withApiErrorHandling(async () => {
@@ -299,5 +308,5 @@ export const GET = withApiErrorHandling(async () => {
     userCount: sortedUsers.length,
   });
 
-  return NextResponse.json(sortedUsers);
+  return NextResponse.json(sortedUsers.map((user) => serializeUserDateFields(user)));
 }, { route: "/api/admin/users", method: "GET" });

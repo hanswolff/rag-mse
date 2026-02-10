@@ -77,7 +77,7 @@ export default function NewsDetailPage({ params }: { params: Promise<{ id: strin
                 {newsItem.title}
               </h1>
               <p className="text-base text-gray-500 mb-6">
-                Veröffentlicht am {formatDate(newsItem.createdAt)}
+                Veröffentlicht am {formatDate(newsItem.newsDate)}
                 {newsItem.updatedAt !== newsItem.createdAt &&
                   `, aktualisiert am ${formatDate(newsItem.updatedAt)}`}
               </p>

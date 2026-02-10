@@ -7,6 +7,11 @@ import { logInfo, logValidationFailure } from "@/lib/logger";
 
 const MAX_PAGE_SIZE = 100;
 
+function parseNewsDate(newsDate: string | undefined): Date {
+  if (!newsDate) return new Date();
+  return new Date(`${newsDate}T00:00:00.000Z`);
+}
+
 function parsePageSize(value: string | null, fallback: number) {
   const parsed = Number.parseInt(value || "", 10);
   if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
@@ -29,7 +34,7 @@ export const GET = withApiErrorHandling(async (request: NextRequest) => {
 
   const [news, total] = await Promise.all([
     prisma.news.findMany({
-      orderBy: { createdAt: "desc" },
+      orderBy: [{ newsDate: "desc" }, { createdAt: "desc" }],
       skip,
       take: limit,
     }),
@@ -62,13 +67,14 @@ export const POST = withApiErrorHandling(async (request: NextRequest) => {
     );
   }
 
-  const { title, content, published } = body;
+  const { title, content, published, newsDate } = body;
   const publishValue = typeof published === "boolean" ? published : true;
 
   const newNews = await prisma.news.create({
     data: {
       title,
       content,
+      newsDate: parseNewsDate(newsDate),
       published: publishValue,
     },
   });

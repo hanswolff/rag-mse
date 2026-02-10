@@ -305,6 +305,20 @@ export const eventValidationConfig: Record<string, FieldValidationConfig> = {
 };
 
 export const newsValidationConfig: Record<string, FieldValidationConfig> = {
+  newsDate: {
+    rules: {
+      required: true,
+      customValidator: (value: string) => {
+        if (!value?.trim()) return "Datum ist erforderlich";
+        if (!validateDateString(value)) return "Datum ist ungültig";
+        return null;
+      },
+    },
+    errorMessages: {
+      required: "Datum ist erforderlich",
+      custom: "Datum ist ungültig",
+    },
+  },
   title: {
     rules: {
       required: true,

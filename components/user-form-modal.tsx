@@ -3,6 +3,7 @@
 import { useMemo } from "react";
 import { Modal } from "./modal";
 import { LoadingButton } from "./loading-button";
+import { GermanDatePicker } from "./german-date-picker";
 import { useFormFieldValidation } from "@/lib/useFormFieldValidation";
 import { profileValidationConfig } from "@/lib/validation-schema";
 
@@ -262,29 +263,15 @@ export function UserFormModal({
             )}
           </div>
 
-          <div>
-            <label htmlFor="modal-dateOfBirth" className="form-label">
-              Geburtsdatum
-            </label>
-            <input
-              id="modal-dateOfBirth"
-              type="date"
-              value={userData.dateOfBirth}
-              onChange={(e) => handleChange("dateOfBirth", e.target.value)}
-              onBlur={(e) => handleBlur("dateOfBirth", e.target.value)}
-              className={`form-input ${
-                shouldShowFieldError("dateOfBirth") ? "border-red-500 focus:border-red-500" : ""
-              }`}
-              disabled={isSubmitting}
-              aria-invalid={!!shouldShowFieldError("dateOfBirth")}
-              aria-describedby={shouldShowFieldError("dateOfBirth") ? "dateOfBirth-error" : undefined}
-            />
-            {shouldShowFieldError("dateOfBirth") && (
-              <p id="dateOfBirth-error" className="form-help text-red-600">
-                {combinedErrors.dateOfBirth}
-              </p>
-            )}
-          </div>
+          <GermanDatePicker
+            id="modal-dateOfBirth"
+          label="Geburtsdatum"
+          value={userData.dateOfBirth}
+          onChange={(date) => handleChange("dateOfBirth", date)}
+          onBlur={() => handleBlur("dateOfBirth", userData.dateOfBirth)}
+          disabled={isSubmitting}
+          error={shouldShowFieldError("dateOfBirth")}
+        />
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -386,29 +373,15 @@ export function UserFormModal({
           )}
         </div>
 
-        <div>
-          <label htmlFor="modal-memberSince" className="form-label">
-            Mitglied seit
-          </label>
-          <input
-            id="modal-memberSince"
-            type="date"
-            value={userData.memberSince}
-            onChange={(e) => handleChange("memberSince", e.target.value)}
-            onBlur={(e) => handleBlur("memberSince", e.target.value)}
-            className={`form-input ${
-              shouldShowFieldError("memberSince") ? "border-red-500 focus:border-red-500" : ""
-            }`}
-            disabled={isSubmitting}
-            aria-invalid={!!shouldShowFieldError("memberSince")}
-            aria-describedby={shouldShowFieldError("memberSince") ? "memberSince-error" : undefined}
-          />
-          {shouldShowFieldError("memberSince") && (
-            <p id="memberSince-error" className="form-help text-red-600">
-              {combinedErrors.memberSince}
-            </p>
-          )}
-        </div>
+        <GermanDatePicker
+          id="modal-memberSince"
+          label="Mitglied seit"
+          value={userData.memberSince}
+          onChange={(date) => handleChange("memberSince", date)}
+          onBlur={() => handleBlur("memberSince", userData.memberSince)}
+          disabled={isSubmitting}
+          error={shouldShowFieldError("memberSince")}
+        />
 
         <div>
           <label htmlFor="modal-role" className="form-label">

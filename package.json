@@ -1,13 +1,14 @@
 {
   "name": "site-rag-mse",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "private": true,
   "packageManager": "pnpm@10.0.0",
   "engines": {
-    "node": ">=20.19.0",
+    "node": "22.x",
     "pnpm": ">=10.0.0"
   },
   "scripts": {
+    "preinstall": "node scripts/check-node-version.js",
     "dev": "next dev",
     "build": "tsx scripts/generate-version.ts && next build",
     "build:scripts": "rm -rf scripts-dist && tsc -p tsconfig.build.json",

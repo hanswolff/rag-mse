@@ -3,6 +3,7 @@ import { useRouter } from "next/navigation";
 import { useAdminAuth } from "./use-admin-auth";
 import { useAdminCrud } from "./use-admin-crud";
 import { useSuccessTimer } from "./use-success-timer";
+import { normalizeDateInputValue } from "./date-picker-utils";
 import type { User, NewUser } from "@/types";
 
 const initialNewUser: NewUser = {
@@ -148,8 +149,8 @@ export function useUserManagement() {
       address: user.address || "",
       phone: user.phone || "",
       role: user.role,
-      memberSince: user.memberSince || "",
-      dateOfBirth: user.dateOfBirth || "",
+      memberSince: normalizeDateInputValue(user.memberSince),
+      dateOfBirth: normalizeDateInputValue(user.dateOfBirth),
       rank: user.rank || "",
       pk: user.pk || "",
       hasPossessionCard: user.hasPossessionCard || false,

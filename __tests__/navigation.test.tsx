@@ -40,7 +40,7 @@ describe("Navigation", () => {
     expect(links.length).toBeGreaterThan(0);
 
     expect(screen.getAllByText("Über uns")).toHaveLength(links.length);
-    expect(screen.getAllByText("News")).toHaveLength(links.length);
+    expect(screen.getAllByText("Infos")).toHaveLength(links.length);
     expect(screen.getAllByText("Termine")).toHaveLength(links.length);
     expect(screen.getAllByText("Kontakt")).toHaveLength(links.length);
   });

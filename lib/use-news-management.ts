@@ -4,6 +4,10 @@ import { useAdminCrud } from "./use-admin-crud";
 import { useSuccessTimer } from "./use-success-timer";
 import type { News, NewNews } from "@/types";
 
+function getTodayDateString() {
+  return new Date().toISOString().split("T")[0];
+}
+
 const PUBLISH_MESSAGES = {
   news: {
     published: "News wurde veröffentlicht",
@@ -13,6 +17,7 @@ const PUBLISH_MESSAGES = {
 } as const;
 
 const initialNewNews: NewNews = {
+  newsDate: getTodayDateString(),
   title: "",
   content: "",
   published: true,
@@ -111,6 +116,7 @@ export function useNewsManagement() {
   const startEditingNews = useCallback((newsItem: News) => {
     setEditingNews(newsItem);
     const newsData = {
+      newsDate: newsItem.newsDate.split("T")[0],
       title: newsItem.title,
       content: newsItem.content,
       published: newsItem.published,

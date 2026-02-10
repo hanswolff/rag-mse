@@ -26,6 +26,7 @@ describe("NewsPage (Admin)", () => {
       id: "1",
       title: "Test News 1",
       content: "Test content 1",
+      newsDate: "2024-01-01",
       published: true,
       createdAt: "2024-01-01T00:00:00Z",
       updatedAt: "2024-01-01T00:00:00Z",
@@ -34,6 +35,7 @@ describe("NewsPage (Admin)", () => {
       id: "2",
       title: "Test News 2",
       content: "Test content 2",
+      newsDate: "2024-01-02",
       published: false,
       createdAt: "2024-01-02T00:00:00Z",
       updatedAt: "2024-01-02T00:00:00Z",
@@ -48,6 +50,7 @@ describe("NewsPage (Admin)", () => {
     error: "",
     success: "",
     modalNewsData: {
+      newsDate: "2024-01-01",
       title: "",
       content: "",
       published: true,
@@ -67,6 +70,7 @@ describe("NewsPage (Admin)", () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    window.confirm = jest.fn(() => true);
     (useNewsManagement as jest.Mock).mockReturnValue(defaultMockHook);
   });
 
@@ -93,9 +97,9 @@ describe("NewsPage (Admin)", () => {
       expect(screen.getByText("News-Liste")).toBeInTheDocument();
     });
 
-    it("should render news management section", () => {
+    it("should render create button in header area", () => {
       render(<NewsPage />);
-      expect(screen.getAllByText("News verwalten").length).toBeGreaterThan(0);
+      expect(screen.getByText("Neue News erstellen")).toBeInTheDocument();
     });
 
     it("should render create news button", () => {
@@ -356,6 +360,7 @@ describe("NewsPage (Admin)", () => {
 
     it("should pass initialNewsData to modal when editing", () => {
       const initialData = {
+        newsDate: "2024-01-03",
         title: "Initial Title",
         content: "Initial Content",
         published: true,

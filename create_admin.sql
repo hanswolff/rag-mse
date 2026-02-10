@@ -50,6 +50,7 @@ CREATE TABLE IF NOT EXISTS "News" (
     "id" TEXT NOT NULL PRIMARY KEY,
     "title" TEXT NOT NULL,
     "content" TEXT NOT NULL,
+    "newsDate" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "published" BOOLEAN NOT NULL DEFAULT 1,
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" DATETIME NOT NULL
@@ -121,6 +122,7 @@ CREATE INDEX IF NOT EXISTS "Invitation_email_idx" ON "Invitation"("email");
 CREATE UNIQUE INDEX IF NOT EXISTS "PasswordReset_tokenHash_key" ON "PasswordReset"("tokenHash");
 CREATE INDEX IF NOT EXISTS "PasswordReset_email_idx" ON "PasswordReset"("email");
 CREATE UNIQUE INDEX IF NOT EXISTS "ShootingRange_name_key" ON "ShootingRange"("name");
+CREATE INDEX IF NOT EXISTS "News_newsDate_idx" ON "News"("newsDate");
 CREATE INDEX IF NOT EXISTS "OutgoingEmail_status_nextAttemptAt_idx" ON "OutgoingEmail"("status", "nextAttemptAt");
 CREATE INDEX IF NOT EXISTS "OutgoingEmail_status_lockedUntil_idx" ON "OutgoingEmail"("status", "lockedUntil");
 

@@ -6,6 +6,7 @@ import { validateEmail, normalizeOptionalField, validateAddress, validatePhone, 
 import { validateRole, validateDateString } from "@/lib/validation-schema";
 import { Role } from "@prisma/client";
 import { logResourceNotFound, logInfo, logValidationFailure } from "@/lib/logger";
+import { formatDateInputValue } from "@/lib/date-picker-utils";
 
 interface UpdateUserRequest {
   email?: string;
@@ -297,7 +298,11 @@ export const PATCH = withApiErrorHandling(async (
     updatedBy: 'admin',
   });
 
-  return NextResponse.json(updatedUser);
+  return NextResponse.json({
+    ...updatedUser,
+    memberSince: formatDateInputValue(updatedUser.memberSince),
+    dateOfBirth: formatDateInputValue(updatedUser.dateOfBirth),
+  });
 }, { route: "/api/admin/users/[id]", method: "PATCH" });
 
 export const DELETE = withApiErrorHandling(async (

@@ -49,6 +49,7 @@ export interface News {
   id: string;
   title: string;
   content: string;
+  newsDate: string;
   published: boolean;
   createdAt: string;
   updatedAt: string;
@@ -60,6 +61,7 @@ export interface News {
 export interface NewNews {
   title: string;
   content: string;
+  newsDate: string;
   published: boolean;
 }
 

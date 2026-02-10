@@ -1,6 +1,7 @@
 import {
   validateTitle,
   validateContent,
+  validateDateString,
 } from "./validation-schema";
 
 // Re-export validation functions for backward compatibility with tests
@@ -9,12 +10,14 @@ export { validateTitle, validateContent } from "./validation-schema";
 export interface CreateNewsRequest {
   title: string;
   content: string;
+  newsDate?: string;
   published?: boolean;
 }
 
 export interface UpdateNewsRequest {
   title?: string;
   content?: string;
+  newsDate?: string;
   published?: boolean;
 }
 
@@ -27,7 +30,7 @@ export function validateCreateNewsRequest(
   request: CreateNewsRequest
 ): ValidationResult {
   const errors: string[] = [];
-  const { title, content } = request;
+  const { title, content, newsDate } = request;
 
   if (!title) {
     errors.push("Titel ist erforderlich");
@@ -41,6 +44,12 @@ export function validateCreateNewsRequest(
     errors.push("Inhalt muss zwischen 1 und 10000 Zeichen lang sein");
   }
 
+  if (!newsDate) {
+    errors.push("Datum ist erforderlich");
+  } else if (!validateDateString(newsDate)) {
+    errors.push("Datum ist ungültig");
+  }
+
   return {
     isValid: errors.length === 0,
     errors,
@@ -51,7 +60,7 @@ export function validateUpdateNewsRequest(
   request: UpdateNewsRequest
 ): ValidationResult {
   const errors: string[] = [];
-  const { title, content } = request;
+  const { title, content, newsDate } = request;
 
   if (title !== undefined) {
     if (title === "" || !validateTitle(title)) {
@@ -63,6 +72,10 @@ export function validateUpdateNewsRequest(
     if (content === "" || !validateContent(content)) {
       errors.push("Inhalt muss zwischen 1 und 10000 Zeichen lang sein");
     }
+  }
+
+  if (newsDate !== undefined && !validateDateString(newsDate)) {
+    errors.push("Datum ist ungültig");
   }
 
   return {

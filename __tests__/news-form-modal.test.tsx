@@ -8,12 +8,14 @@ describe("NewsFormModal", () => {
   const mockOnSubmit = jest.fn();
 
   const defaultNewsData: NewNews = {
+    newsDate: "2026-01-15",
     title: "Test News Title",
     content: "This is test news content with enough characters",
     published: true,
   };
 
   const initialNewsData: NewNews = {
+    newsDate: "2026-01-16",
     title: "Initial News Title",
     content: "This is initial news content",
     published: false,
@@ -134,6 +136,7 @@ describe("NewsFormModal", () => {
 
       expect(screen.getByLabelText(/Titel \*/)).toBeInTheDocument();
       expect(screen.getByLabelText(/Inhalt \*/)).toBeInTheDocument();
+      expect(screen.getByLabelText(/Datum \*/)).toBeInTheDocument();
       expect(screen.getByLabelText(/Veröffentlichen/)).toBeInTheDocument();
     });
 

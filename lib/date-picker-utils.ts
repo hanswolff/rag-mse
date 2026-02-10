@@ -13,6 +13,34 @@ export function parseTime(timeString: string): Date | null {
   return isValid(parsed) ? parsed : null;
 }
 
+export function normalizeDateInputValue(value: string | null | undefined): string {
+  if (typeof value !== "string") return "";
+
+  const trimmed = value.trim();
+  if (!trimmed) return "";
+
+  const isoLikeMatch = /^(\d{4}-\d{2}-\d{2})(?:T.*)?$/.exec(trimmed);
+  if (isoLikeMatch) {
+    return isoLikeMatch[1];
+  }
+
+  const germanMatch = /^(\d{2})\.(\d{2})\.(\d{4})$/.exec(trimmed);
+  if (germanMatch) {
+    return `${germanMatch[3]}-${germanMatch[2]}-${germanMatch[1]}`;
+  }
+
+  return "";
+}
+
+export function formatDateInputValue(date: Date | null | undefined): string | null {
+  if (!date) return null;
+
+  const year = date.getUTCFullYear();
+  const month = String(date.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(date.getUTCDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 export function formatDateForStorage(date: Date): string {
   return format(date, 'yyyy-MM-dd');
 }

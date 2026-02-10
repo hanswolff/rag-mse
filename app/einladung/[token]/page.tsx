@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { signIn } from "next-auth/react";
 import { getPasswordRequirements } from "@/lib/password-validation";
 import { LoadingButton } from "@/components/loading-button";
+import { GermanDatePicker } from "@/components/german-date-picker";
+import { normalizeDateInputValue } from "@/lib/date-picker-utils";
 
 interface InvitationStatus {
   email: string;
@@ -56,7 +58,7 @@ export default function InvitationPage({ params }: { params: Promise<{ token: st
           name: typeof data.name === "string" ? data.name : "",
           address: typeof data.address === "string" ? data.address : "",
           phone: typeof data.phone === "string" ? data.phone : "",
-          dateOfBirth: typeof data.dateOfBirth === "string" ? data.dateOfBirth : "",
+          dateOfBirth: normalizeDateInputValue(typeof data.dateOfBirth === "string" ? data.dateOfBirth : ""),
           rank: typeof data.rank === "string" ? data.rank : "",
           pk: typeof data.pk === "string" ? data.pk : "",
           hasPossessionCard: typeof data.hasPossessionCard === "boolean" ? data.hasPossessionCard : false,
@@ -207,20 +209,13 @@ export default function InvitationPage({ params }: { params: Promise<{ token: st
                   />
                 </div>
 
-                <div>
-                  <label htmlFor="dateOfBirth" className="form-label">
-                    Geburtsdatum
-                  </label>
-                  <input
-                    id="dateOfBirth"
-                    name="dateOfBirth"
-                    type="date"
-                    value={formData.dateOfBirth}
-                    onChange={(event) => setFormData({ ...formData, dateOfBirth: event.target.value })}
-                    className="form-input"
-                    disabled={isSubmitting}
-                  />
-                </div>
+                <GermanDatePicker
+                  id="dateOfBirth"
+                  label="Geburtsdatum"
+                  value={formData.dateOfBirth}
+                  onChange={(date) => setFormData({ ...formData, dateOfBirth: date })}
+                  disabled={isSubmitting}
+                />
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

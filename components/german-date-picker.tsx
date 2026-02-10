@@ -11,6 +11,7 @@ interface GermanDatePickerProps {
   id?: string;
   value: string | null;
   onChange: (date: string) => void;
+  onBlur?: () => void;
   error?: string;
   label?: string;
   required?: boolean;
@@ -18,7 +19,7 @@ interface GermanDatePickerProps {
   autoFocus?: boolean;
 }
 
-export function GermanDatePicker({ id, value, onChange, error, label, required, disabled, autoFocus }: GermanDatePickerProps) {
+export function GermanDatePicker({ id, value, onChange, onBlur, error, label, required, disabled, autoFocus }: GermanDatePickerProps) {
   const errorId = error ? `error-${id || 'date'}` : undefined;
   const date = value ? parseISODate(value) : null;
 
@@ -41,6 +42,7 @@ export function GermanDatePicker({ id, value, onChange, error, label, required, 
           key={value}
           selected={date}
           onChange={handleDateChange}
+          onBlur={onBlur}
           locale={de}
           dateFormat="dd.MM.yyyy"
           placeholderText="TT.MM.JJJJ"

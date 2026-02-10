@@ -100,9 +100,12 @@ model News {
   id        String   @id @default(cuid())
   title     String
   content   String
+  newsDate  DateTime @default(now())
   published Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([newsDate])
 }
 
 model Invitation {
