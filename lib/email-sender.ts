@@ -3,6 +3,8 @@ import { OutgoingEmail, OutgoingEmailStatus } from "@prisma/client";
 import { prisma } from "./prisma";
 import { renderEmailTemplate } from "./email-templates";
 import { logError, logInfo } from "./logger";
+import { promises as fs } from "fs";
+import path from "path";
 
 interface SmtpConfig {
   host: string;
@@ -13,11 +15,19 @@ interface SmtpConfig {
   from: string;
 }
 
+type DevLogMethod = "logger" | "file" | "both";
+
+const DEV_MODE_MESSAGE_ID_PREFIX = "dev-mode-";
+
 interface ErrorWithCode extends Error {
   code?: string;
 }
 
 type EmailErrorType = "transient" | "permanent" | "unknown";
+
+function isValidDevLogMethod(value: string): value is DevLogMethod {
+  return value === "logger" || value === "file" || value === "both";
+}
 
 interface ClassifiedEmailError {
   type: EmailErrorType;
@@ -75,6 +85,138 @@ const globalForEmailOutbox = globalThis as typeof globalThis & {
 };
 
 let currentWorkerInstanceId: string | null = null;
+
+function isDevModeEnabled(): boolean {
+  return process.env.EMAIL_DEV_MODE === "true";
+}
+
+function getDevLogMethod(): DevLogMethod {
+  const method = process.env.EMAIL_DEV_LOG_METHOD || "logger";
+  return isValidDevLogMethod(method) ? method : "logger";
+}
+
+function getDevLogDir(): string {
+  return process.env.EMAIL_DEV_LOG_DIR || path.resolve(process.cwd(), "logs", "emails");
+}
+
+async function ensureLogDirectory(): Promise<void> {
+  const logDir = getDevLogDir();
+  try {
+    await fs.mkdir(logDir, { recursive: true });
+  } catch (error) {
+    logError("email_log_dir_failed", "Failed to create email log directory", {
+      logDir,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+}
+
+async function writeEmailToFile(
+  email: ClaimedOutgoingEmail,
+  smtpConfig: SmtpConfig
+): Promise<string> {
+  try {
+    await ensureLogDirectory();
+
+    const logDir = getDevLogDir();
+    const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+    const randomSuffix = Math.random().toString(36).substring(2, 10);
+    const filename = `${timestamp}_${email.id}_${randomSuffix}.eml`;
+    const filePath = path.join(logDir, filename);
+
+    const boundary = `boundary-${email.id}-${randomSuffix}`;
+
+    const emailParts: string[] = [
+      `From: ${smtpConfig.from}`,
+      `To: ${email.toList.join(", ")}`,
+      `Subject: ${email.subject}`,
+      `Date: ${new Date().toUTCString()}`,
+      `MIME-Version: 1.0`,
+      `Content-Type: multipart/alternative; boundary="${boundary}"`,
+      "",
+    ];
+
+    const textPart = [
+      `--${boundary}`,
+      `Content-Type: text/plain; charset=utf-8`,
+      `Content-Transfer-Encoding: 7bit`,
+      "",
+      email.textBody,
+    ].join("\r\n");
+
+    const htmlPart = [
+      "",
+      `--${boundary}`,
+      `Content-Type: text/html; charset=utf-8`,
+      `Content-Transfer-Encoding: 7bit`,
+      "",
+      email.htmlBody,
+      "",
+      `--${boundary}--`,
+    ].join("\r\n");
+
+    emailParts.push(textPart + htmlPart);
+
+    await fs.writeFile(filePath, emailParts.join("\r\n"), "utf8");
+
+    return filePath;
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    logError("email_file_write_failed", "Failed to write email to file", {
+      outboxId: email.id,
+      template: email.template,
+      error: errorMessage,
+    });
+    throw new Error(`Failed to write email to file: ${errorMessage}`);
+  }
+}
+
+async function logEmailToConsole(email: ClaimedOutgoingEmail, smtpConfig: SmtpConfig): Promise<void> {
+  logInfo("email_dev_mode_logged", "[DEV MODE] Email logged instead of sent via SMTP", {
+    outboxId: email.id,
+    template: email.template,
+    to: email.toList.join(", "),
+    from: smtpConfig.from,
+    subject: email.subject,
+    textBody: email.textBody,
+    htmlBody: email.htmlBody,
+  });
+}
+
+async function logEmailInDevMode(
+  email: ClaimedOutgoingEmail,
+  smtpConfig: SmtpConfig
+): Promise<{ filePath?: string }> {
+  const logMethod = getDevLogMethod();
+  const result: { filePath?: string } = {};
+
+  if (logMethod === "logger") {
+    await logEmailToConsole(email, smtpConfig);
+  } else if (logMethod === "file") {
+    result.filePath = await writeEmailToFile(email, smtpConfig);
+    logInfo("email_dev_mode_file_written", "[DEV MODE] Email written to file", {
+      outboxId: email.id,
+      template: email.template,
+      to: email.toRecipients,
+      filePath: result.filePath,
+    });
+  } else if (logMethod === "both") {
+    await Promise.all([
+      logEmailToConsole(email, smtpConfig),
+      writeEmailToFile(email, smtpConfig).then(filePath => {
+        result.filePath = filePath;
+        logInfo("email_dev_mode_file_written", "[DEV MODE] Email written to file", {
+          outboxId: email.id,
+          template: email.template,
+          to: email.toRecipients,
+          filePath,
+        });
+      }),
+    ]);
+  }
+
+  return result;
+}
 
 function getWorkerConfig() {
   return {
@@ -255,8 +397,17 @@ async function claimNextEmail(lockMs: number): Promise<ClaimedOutgoingEmail | nu
   };
 }
 
-async function sendEmailBySmtp(email: ClaimedOutgoingEmail): Promise<{ messageId: string }> {
+async function sendEmailBySmtp(email: ClaimedOutgoingEmail): Promise<{ messageId?: string; filePath?: string }> {
   const smtpConfig = getSmtpConfig();
+
+  if (isDevModeEnabled()) {
+    const logResult = await logEmailInDevMode(email, smtpConfig);
+    return {
+      messageId: `${DEV_MODE_MESSAGE_ID_PREFIX}${email.id}`,
+      ...logResult,
+    };
+  }
+
   const { SMTP_TIMEOUT_MS, SMTP_CONNECTION_TIMEOUT_MS } = getSmtpTimeouts();
 
   const transporter = nodemailer.createTransport({
@@ -303,13 +454,25 @@ async function processSingleEmail(lockMs: number): Promise<boolean> {
       },
     });
 
-    logInfo("email_sent", "Email sent successfully from outbox", {
+    const logContext = {
       outboxId: claimedEmail.id,
       template: claimedEmail.template,
       to: claimedEmail.toRecipients,
-      messageId: result.messageId,
       attemptCount: claimedEmail.attemptCount,
-    });
+    };
+
+    if (isDevModeEnabled()) {
+      logInfo("email_sent_dev_mode", "[DEV MODE] Email logged instead of sent via SMTP", {
+        ...logContext,
+        messageId: result.messageId,
+        filePath: result.filePath,
+      });
+    } else {
+      logInfo("email_sent", "Email sent successfully from outbox", {
+        ...logContext,
+        messageId: result.messageId,
+      });
+    }
 
     return true;
   } catch (error) {

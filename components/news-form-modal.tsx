@@ -3,8 +3,10 @@
 import { useMemo } from "react";
 import { Modal } from "./modal";
 import { LoadingButton } from "./loading-button";
+import { GermanDatePicker } from "./german-date-picker";
 import { useFormFieldValidation } from "@/lib/useFormFieldValidation";
 import { newsValidationConfig } from "@/lib/validation-schema";
+import { getLocalDateString } from "@/lib/date-picker-utils";
 
 export interface NewNews {
   newsDate: string;
@@ -14,7 +16,7 @@ export interface NewNews {
 }
 
 function getTodayDateString() {
-  return new Date().toISOString().split("T")[0];
+  return getLocalDateString();
 }
 
 const initialNewNews: NewNews = {
@@ -140,28 +142,16 @@ export function NewsFormModal({
           </div>
         )}
         <div>
-          <label htmlFor="news-date" className="form-label">
-            Datum *
-          </label>
-          <input
+          <GermanDatePicker
             id="news-date"
-            type="date"
+            label="Datum *"
             value={newsData.newsDate}
-            onChange={(e) => handleChange("newsDate", e.target.value)}
-            onBlur={(e) => handleBlur("newsDate", e.target.value)}
+            onChange={(date) => handleChange("newsDate", date)}
+            onBlur={() => handleBlur("newsDate", newsData.newsDate)}
             required
-            className={`form-input ${
-              shouldShowFieldError("newsDate") ? "border-red-500 focus:border-red-500" : ""
-            }`}
             disabled={isSubmitting}
-            aria-invalid={!!shouldShowFieldError("newsDate")}
-            aria-describedby={shouldShowFieldError("newsDate") ? "news-date-error" : undefined}
+            error={shouldShowFieldError("newsDate")}
           />
-          {shouldShowFieldError("newsDate") && (
-            <p id="news-date-error" className="form-help text-red-600">
-              {combinedErrors.newsDate}
-            </p>
-          )}
         </div>
         <div>
           <label htmlFor="news-title" className="form-label">

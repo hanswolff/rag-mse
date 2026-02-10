@@ -172,6 +172,7 @@ describe("/api/invitations/[token] route", () => {
       address: "123 Main St",
       phone: "123456789",
       password: "SecurePassword123!",
+      confirmPassword: "SecurePassword123!",
     };
 
     it("creates a new user account successfully", async () => {
@@ -196,6 +197,13 @@ describe("/api/invitations/[token] route", () => {
       expect(data.message).toBe("Konto wurde erstellt");
       expect(data.email).toBe("test@example.com");
       expect(logInfo).toHaveBeenCalledWith('invitation_accepted', expect.stringContaining('created'), expect.any(Object));
+      expect(prisma.user.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            passwordUpdatedAt: expect.any(Date),
+          }),
+        })
+      );
     });
 
     it("requires name field", async () => {
@@ -221,6 +229,18 @@ describe("/api/invitations/[token] route", () => {
       expect(data.error).toContain("Passwort");
       expect(logValidationFailure).toHaveBeenCalled();
     });
+
+    it("rejects non-matching password confirmation", async () => {
+      const invalidBody = { ...validRequestBody, confirmPassword: "DifferentPassword123!" };
+
+      const request = createMockRequest(invalidBody);
+      const response = await POST(request, { params: createMockParams("valid-token") });
+      const data = await response.json();
+
+      expect(response.status).toBe(400);
+      expect(data.error).toBe("Passwörter stimmen nicht überein");
+      expect(logValidationFailure).toHaveBeenCalled();
+    });
   });
 
   describe("POST /api/invitations/[token] - existing user flow", () => {
@@ -229,6 +249,7 @@ describe("/api/invitations/[token] route", () => {
       address: "456 New St",
       phone: "987654321",
       password: "NewSecurePassword123!",
+      confirmPassword: "NewSecurePassword123!",
     };
 
     const existingUser = {
@@ -258,6 +279,13 @@ describe("/api/invitations/[token] route", () => {
       expect(data.message).toBe("Konto wurde aktualisiert");
       expect(data.email).toBe("test@example.com");
       expect(logInfo).toHaveBeenCalledWith('invitation_accepted', expect.stringContaining('updated'), expect.any(Object));
+      expect(prisma.user.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            passwordUpdatedAt: expect.any(Date),
+          }),
+        })
+      );
     });
   });
 
@@ -274,6 +302,7 @@ describe("/api/invitations/[token] route", () => {
         address: "123 Main St",
         phone: "123456789",
         password: "SecurePassword123!",
+        confirmPassword: "SecurePassword123!",
       });
       const response = await POST(request, { params: createMockParams("used-token") });
       const data = await response.json();
@@ -295,6 +324,7 @@ describe("/api/invitations/[token] route", () => {
         address: "123 Main St",
         phone: "123456789",
         password: "SecurePassword123!",
+        confirmPassword: "SecurePassword123!",
       });
       const response = await POST(request, { params: createMockParams("expired-token") });
       const data = await response.json();
@@ -316,6 +346,7 @@ describe("/api/invitations/[token] route", () => {
         address: "123 Main St",
         phone: "123456789",
         password: "SecurePassword123!",
+        confirmPassword: "SecurePassword123!",
       });
       const response = await POST(request, { params: createMockParams("deleted-token") });
       const data = await response.json();
@@ -331,6 +362,7 @@ describe("/api/invitations/[token] route", () => {
       const request = createMockRequest({
         name: "John Doe",
         password: "SecurePassword123!",
+        confirmPassword: "SecurePassword123!",
       });
       const response = await POST(request, { params: Promise.resolve({ token: "" }) });
       const data = await response.json();
@@ -345,6 +377,7 @@ describe("/api/invitations/[token] route", () => {
       const request = createMockRequest({
         name: "John Doe",
         password: "SecurePassword123!",
+        confirmPassword: "SecurePassword123!",
       });
       const response = await POST(request, { params: createMockParams("invalid-token") });
       const data = await response.json();
@@ -364,6 +397,7 @@ describe("/api/invitations/[token] route", () => {
       const request = createMockRequest({
         name: "John Doe",
         password: "SecurePassword123!",
+        confirmPassword: "SecurePassword123!",
       });
       const response = await POST(request, { params: createMockParams("expired-token") });
       const data = await response.json();
@@ -383,6 +417,7 @@ describe("/api/invitations/[token] route", () => {
       const request = createMockRequest({
         name: "John Doe",
         password: "SecurePassword123!",
+        confirmPassword: "SecurePassword123!",
       });
       const response = await POST(request, { params: createMockParams("used-token") });
       const data = await response.json();
@@ -398,6 +433,7 @@ describe("/api/invitations/[token] route", () => {
       const request = createMockRequest({
         name: "John Doe",
         password: "SecurePassword123!",
+        confirmPassword: "SecurePassword123!",
       });
       const response = await POST(request, { params: createMockParams("error-token") });
       const data = await response.json();
@@ -426,6 +462,7 @@ describe("/api/invitations/[token] route", () => {
       const request = createMockRequest({
         name: "John Doe",
         password: "SecurePassword123!",
+        confirmPassword: "SecurePassword123!",
       });
       const response = await POST(request, { params: createMockParams("valid-token") });
       const data = await response.json();
@@ -451,6 +488,7 @@ describe("/api/invitations/[token] route", () => {
       const request = createMockRequest({
         name: "  John Doe  ",
         password: "SecurePassword123!",
+        confirmPassword: "SecurePassword123!",
       });
       const response = await POST(request, { params: createMockParams("valid-token") });
 

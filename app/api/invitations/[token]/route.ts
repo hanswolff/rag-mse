@@ -7,7 +7,16 @@ import { hashInvitationToken } from "@/lib/invitations";
 import { logInfo, logValidationFailure, logResourceNotFound, maskToken } from "@/lib/logger";
 import { Role } from "@prisma/client";
 import { checkTokenRateLimit, recordSuccessfulTokenUsage } from "@/lib/rate-limiter";
-import { normalizeOptionalField, validateAddress, validateName, validatePhone } from "@/lib/user-validation";
+import {
+  normalizeOptionalField,
+  validateAddress,
+  validateName,
+  validatePhone,
+  validateRank,
+  validatePk,
+  validateReservistsAssociation,
+  validateAssociationMemberNumber,
+} from "@/lib/user-validation";
 import { validateDateString } from "@/lib/validation-schema";
 import { formatDateInputValue } from "@/lib/date-picker-utils";
 
@@ -22,6 +31,7 @@ const ERROR_MESSAGES = {
   tokenExpired: "Einladung ist abgelaufen",
   tokenAlreadyUsed: "Einladung wurde bereits verwendet",
   nameRequired: "Name ist erforderlich",
+  passwordMismatch: "Passwörter stimmen nicht überein",
   serverError: "Ein Fehler ist aufgetreten",
   accountCreated: "Konto wurde erstellt",
   accountUpdated: "Konto wurde aktualisiert",
@@ -32,9 +42,12 @@ interface InviteAcceptanceRequest {
   address: string;
   phone: string;
   password: string;
+  confirmPassword: string;
   dateOfBirth?: string;
   rank?: string;
   pk?: string;
+  reservistsAssociation?: string;
+  associationMemberNumber?: string;
   hasPossessionCard?: boolean;
 }
 
@@ -43,9 +56,12 @@ const inviteAcceptanceSchema = {
   address: { type: 'string' as const, optional: true },
   phone: { type: 'string' as const, optional: true },
   password: { type: 'string' as const },
+  confirmPassword: { type: 'string' as const },
   dateOfBirth: { type: 'string' as const, optional: true },
   rank: { type: 'string' as const, optional: true },
   pk: { type: 'string' as const, optional: true },
+  reservistsAssociation: { type: 'string' as const, optional: true },
+  associationMemberNumber: { type: 'string' as const, optional: true },
   hasPossessionCard: { type: 'boolean' as const, optional: true },
 } as const;
 
@@ -83,6 +99,8 @@ async function redeemInvitationForExistingUser(
   dateOfBirth?: string,
   rank?: string,
   pk?: string,
+  reservistsAssociation?: string,
+  associationMemberNumber?: string,
   hasPossessionCard?: boolean
 ): Promise<RedemptionResult> {
   const user = await tx.user.update({
@@ -92,9 +110,12 @@ async function redeemInvitationForExistingUser(
       address: address || null,
       phone: phone || null,
       password: await hash(password, BCRYPT_SALT_ROUNDS),
+      passwordUpdatedAt: new Date(),
       dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : null,
       rank: rank || null,
       pk: pk || null,
+      reservistsAssociation: reservistsAssociation || null,
+      associationMemberNumber: associationMemberNumber || null,
       hasPossessionCard: hasPossessionCard || false,
     },
     select: { id: true, email: true, name: true },
@@ -118,6 +139,8 @@ async function createUserWithInvitation(
   dateOfBirth?: string,
   rank?: string,
   pk?: string,
+  reservistsAssociation?: string,
+  associationMemberNumber?: string,
   hasPossessionCard?: boolean
 ): Promise<RedemptionResult> {
   const hashedPassword = await hash(password, BCRYPT_SALT_ROUNDS);
@@ -130,10 +153,13 @@ async function createUserWithInvitation(
       address: address || null,
       phone: phone || null,
       password: hashedPassword,
+      passwordUpdatedAt: new Date(),
       role: invitation.role,
       dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : null,
       rank: rank || null,
       pk: pk || null,
+      reservistsAssociation: reservistsAssociation || null,
+      associationMemberNumber: associationMemberNumber || null,
       hasPossessionCard: hasPossessionCard || false,
     },
     select: { id: true, email: true, name: true },
@@ -240,22 +266,29 @@ export async function GET(
         name: true,
         address: true,
         phone: true,
+        memberSince: true,
         dateOfBirth: true,
         rank: true,
         pk: true,
+        reservistsAssociation: true,
+        associationMemberNumber: true,
         hasPossessionCard: true,
       },
     });
 
     return NextResponse.json({
       email: invitation.email,
+      role: invitation.role,
       expiresAt: invitation.expiresAt,
       name: existingUser?.name ?? "",
       address: existingUser?.address ?? "",
       phone: existingUser?.phone ?? "",
+      memberSince: formatDateInputValue(existingUser?.memberSince) ?? "",
       dateOfBirth: formatDateInputValue(existingUser?.dateOfBirth) ?? "",
       rank: existingUser?.rank ?? "",
       pk: existingUser?.pk ?? "",
+      reservistsAssociation: existingUser?.reservistsAssociation ?? "",
+      associationMemberNumber: existingUser?.associationMemberNumber ?? "",
       hasPossessionCard: existingUser?.hasPossessionCard ?? false,
     });
   } catch (error) {
@@ -310,9 +343,12 @@ export async function POST(
     const address = normalizeOptionalField(body.address);
     const phone = normalizeOptionalField(body.phone);
     const password = typeof body.password === "string" ? body.password : "";
+    const confirmPassword = typeof body.confirmPassword === "string" ? body.confirmPassword : "";
     const dateOfBirth = typeof body.dateOfBirth === "string" ? body.dateOfBirth : undefined;
     const rank = typeof body.rank === "string" ? body.rank : undefined;
     const pk = typeof body.pk === "string" ? body.pk : undefined;
+    const reservistsAssociation = typeof body.reservistsAssociation === "string" ? body.reservistsAssociation : undefined;
+    const associationMemberNumber = typeof body.associationMemberNumber === "string" ? body.associationMemberNumber : undefined;
     const hasPossessionCard = typeof body.hasPossessionCard === "boolean" ? body.hasPossessionCard : false;
 
     const nameValidation = validateName(name);
@@ -347,20 +383,47 @@ export async function POST(
       }
     }
 
-    if (rank !== undefined && rank.trim() && rank.trim().length > 30) {
-      logValidationFailure('/api/invitations/[token]', 'POST', 'Dienstgrad darf maximal 30 Zeichen lang sein', { token: maskToken(token) });
-      return NextResponse.json({ error: "Dienstgrad darf maximal 30 Zeichen lang sein" }, { status: 400 });
+    if (rank !== undefined) {
+      const rankValidation = validateRank(rank);
+      if (!rankValidation.isValid) {
+        logValidationFailure('/api/invitations/[token]', 'POST', rankValidation.error || 'Ungültiger Dienstgrad', { token: maskToken(token) });
+        return NextResponse.json({ error: rankValidation.error }, { status: 400 });
+      }
     }
 
-    if (pk !== undefined && pk.trim() && pk.trim().length > 20) {
-      logValidationFailure('/api/invitations/[token]', 'POST', 'PK darf maximal 20 Zeichen lang sein', { token: maskToken(token) });
-      return NextResponse.json({ error: "PK darf maximal 20 Zeichen lang sein" }, { status: 400 });
+    if (pk !== undefined) {
+      const pkValidation = validatePk(pk);
+      if (!pkValidation.isValid) {
+        logValidationFailure('/api/invitations/[token]', 'POST', pkValidation.error || 'Ungültige PK', { token: maskToken(token) });
+        return NextResponse.json({ error: pkValidation.error }, { status: 400 });
+      }
+    }
+
+    if (reservistsAssociation !== undefined) {
+      const reservistsAssociationValidation = validateReservistsAssociation(reservistsAssociation);
+      if (!reservistsAssociationValidation.isValid) {
+        logValidationFailure('/api/invitations/[token]', 'POST', reservistsAssociationValidation.error || 'Ungültige Reservistenkameradschaft', { token: maskToken(token) });
+        return NextResponse.json({ error: reservistsAssociationValidation.error }, { status: 400 });
+      }
+    }
+
+    if (associationMemberNumber !== undefined) {
+      const associationMemberNumberValidation = validateAssociationMemberNumber(associationMemberNumber);
+      if (!associationMemberNumberValidation.isValid) {
+        logValidationFailure('/api/invitations/[token]', 'POST', associationMemberNumberValidation.error || 'Ungültige Mitgliedsnummer im Verband', { token: maskToken(token) });
+        return NextResponse.json({ error: associationMemberNumberValidation.error }, { status: 400 });
+      }
     }
 
     const passwordValidation = validatePassword(password);
     if (!passwordValidation.isValid) {
       logValidationFailure('/api/invitations/[token]', 'POST', passwordValidation.errors, { token: maskToken(token) });
       return NextResponse.json({ error: passwordValidation.errors.join(". ") }, { status: 400 });
+    }
+
+    if (password !== confirmPassword) {
+      logValidationFailure('/api/invitations/[token]', 'POST', ERROR_MESSAGES.passwordMismatch, { token: maskToken(token) });
+      return NextResponse.json({ error: ERROR_MESSAGES.passwordMismatch }, { status: 400 });
     }
 
     const { invitation, status } = await findValidInvitation(token);
@@ -381,10 +444,37 @@ export async function POST(
       });
 
       if (existingUser) {
-        return redeemInvitationForExistingUser(tx, existingUser.id, invitation.id, name, address ?? "", phone ?? "", password, dateOfBirth, rank, pk, hasPossessionCard);
+        return redeemInvitationForExistingUser(
+          tx,
+          existingUser.id,
+          invitation.id,
+          name,
+          address ?? "",
+          phone ?? "",
+          password,
+          dateOfBirth,
+          rank,
+          pk,
+          reservistsAssociation,
+          associationMemberNumber,
+          hasPossessionCard
+        );
       }
 
-      return createUserWithInvitation(tx, invitation, name, address ?? "", phone ?? "", password, dateOfBirth, rank, pk, hasPossessionCard);
+      return createUserWithInvitation(
+        tx,
+        invitation,
+        name,
+        address ?? "",
+        phone ?? "",
+        password,
+        dateOfBirth,
+        rank,
+        pk,
+        reservistsAssociation,
+        associationMemberNumber,
+        hasPossessionCard
+      );
     });
 
     await recordSuccessfulTokenUsage(tokenHash, clientIp);

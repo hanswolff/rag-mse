@@ -104,6 +104,13 @@ describe("Configuration Validation", () => {
       expect(result.errors.some(e => e.includes("SMTP"))).toBe(true);
     });
 
+    it("should reject EMAIL_DEV_MODE=true in production", () => {
+      setProductionEnv({ EMAIL_DEV_MODE: "true" });
+      const result = validateProductionConfig();
+      expect(result.isValid).toBe(false);
+      expect(result.errors.some(e => e.includes("EMAIL_DEV_MODE"))).toBe(true);
+    });
+
     it("should reject localhost URLs in production", () => {
       setProductionEnv({ APP_URL: "http://localhost:3000" });
       const result = validateProductionConfig();
@@ -162,6 +169,28 @@ describe("Configuration Validation", () => {
       const result = validateProductionConfig();
       expect(result.isValid).toBe(true);
       expect(result.warnings).toHaveLength(0);
+    });
+
+    it("should reject invalid APP_UID values", () => {
+      setProductionEnv({ APP_UID: "abc", APP_GID: "1000" });
+      const result = validateProductionConfig();
+      expect(result.isValid).toBe(false);
+      expect(result.errors.some(e => e.includes("APP_UID") && e.includes("positive Ganzzahl"))).toBe(true);
+    });
+
+    it("should reject invalid APP_GID values", () => {
+      setProductionEnv({ APP_UID: "1000", APP_GID: "0" });
+      const result = validateProductionConfig();
+      expect(result.isValid).toBe(false);
+      expect(result.errors.some(e => e.includes("APP_GID") && e.includes("positive Ganzzahl"))).toBe(true);
+    });
+
+    it("should warn when only APP_UID or APP_GID is set", () => {
+      setProductionEnv({ APP_UID: "1000" });
+      delete process.env.APP_GID;
+      const result = validateProductionConfig();
+      expect(result.isValid).toBe(true);
+      expect(result.warnings.some(w => w.includes("APP_UID und APP_GID"))).toBe(true);
     });
   });
 });

@@ -92,6 +92,8 @@ describe("ProfilePage", () => {
       expect(screen.getByLabelText(/e-mail/i)).toBeInTheDocument();
       expect(screen.getByLabelText(/adresse/i)).toBeInTheDocument();
       expect(screen.getByLabelText(/telefon/i)).toBeInTheDocument();
+      expect(screen.getByLabelText(/reservistenkameradschaft/i)).toBeInTheDocument();
+      expect(screen.getByLabelText(/mitgliedsnummer im verband/i)).toBeInTheDocument();
     });
   });
 

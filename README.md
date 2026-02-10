@@ -573,6 +573,10 @@ ALLOW_DB_SEED=false     # Erlaubt pnpm run db:seed in Produktion
 # Anwendungseinstellungen
 APP_NAME="RAG Schießsport MSE"
 APP_URL="http://localhost:3000"
+
+# Container-User für Docker (muss Schreibrechte auf ./data haben)
+APP_UID="1000"
+APP_GID="1000"
 ```
 
 **WICHTIG:**
@@ -580,6 +584,7 @@ APP_URL="http://localhost:3000"
 - `NEXTAUTH_SECRET` muss mindestens 32 Zeichen lang sein und zufällig sein
 - Verwenden Sie sichere SMTP-Passwörter
 - In der Produktion: Alle Secrets müssen gesetzt werden, andernfalls startet die Anwendung nicht
+- `APP_UID` und `APP_GID` müssen zur Owner-ID des gemounteten `./data`-Verzeichnisses passen
 
 ## Features
 
@@ -659,12 +664,15 @@ In der Produktion folgende Umgebungsvariablen anpassen:
 NEXTAUTH_SECRET="CHANGE_ME_STRONG_SECRET_MIN_32_CHARS_PRODUCTION"
 NEXTAUTH_URL="https://ihr-domain.de"
 COOKIE_SECURE="true"
+APP_UID="1000"
+APP_GID="1000"
 ```
 
 **WICHTIG:**
 - `NEXTAUTH_SECRET` MUSS mit einem starken, zufälligen Wert gesetzt werden (mindestens 32 Zeichen)
 - Verwenden Sie HTTPS in der Produktion
 - Alle oben genannten Secrets sind PFLICHT für den Produktionsbetrieb
+- Prüfen Sie nach dem Start: `docker compose exec -T app id` (muss die erwartete UID:GID anzeigen)
 
 ## Backup-Strategie
 

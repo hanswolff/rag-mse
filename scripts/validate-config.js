@@ -61,6 +61,17 @@ function validateProductionConfig() {
     }
   };
 
+  const validatePositiveIntegerEnvVar = (name) => {
+    const rawValue = process.env[name];
+    if (!rawValue) {
+      return;
+    }
+    if (!/^[1-9]\d*$/.test(rawValue)) {
+      result.isValid = false;
+      result.errors.push(`${name} muss eine positive Ganzzahl sein (aktuell: ${rawValue})`);
+    }
+  };
+
   if (!process.env.NEXTAUTH_SECRET || process.env.NEXTAUTH_SECRET.length < 32) {
     result.errors.push(
       "NEXTAUTH_SECRET muss gesetzt sein und mindestens 32 Zeichen lang sein (in allen Umgebungen)"
@@ -68,7 +79,21 @@ function validateProductionConfig() {
     result.isValid = false;
   }
 
+  validatePositiveIntegerEnvVar("APP_UID");
+  validatePositiveIntegerEnvVar("APP_GID");
+
+  if ((process.env.APP_UID && !process.env.APP_GID) || (!process.env.APP_UID && process.env.APP_GID)) {
+    result.warnings.push(
+      "APP_UID und APP_GID sollten gemeinsam gesetzt werden, damit Build- und Runtime-User konsistent bleiben"
+    );
+  }
+
   if (isProduction) {
+    if (process.env.EMAIL_DEV_MODE === "true") {
+      result.errors.push("EMAIL_DEV_MODE darf in Produktion nicht auf 'true' gesetzt sein");
+      result.isValid = false;
+    }
+
     requireValidUrl("NEXTAUTH_URL", "NextAuth URL", true);
     requireValidUrl("APP_URL", "Anwendungs-URL", true);
 

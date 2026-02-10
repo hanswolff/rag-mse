@@ -25,6 +25,8 @@ export interface UpdateProfileRequest {
   dateOfBirth?: string;
   rank?: string;
   pk?: string;
+  reservistsAssociation?: string;
+  associationMemberNumber?: string;
   hasPossessionCard?: boolean;
 }
 
@@ -84,6 +86,59 @@ export function validateAddress(address: string): { isValid: boolean; error?: st
 export function normalizeOptionalField(value: string | null | undefined): string | null {
   const trimmed = value?.trim();
   return trimmed || null;
+}
+
+export function validateTextMaxLength(
+  value: string,
+  maxLength: number,
+  invalidMessage: string,
+  maxLengthMessage: string
+): { isValid: boolean; error?: string } {
+  if (typeof value !== "string") {
+    return { isValid: false, error: invalidMessage };
+  }
+
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return { isValid: true };
+  }
+
+  if (trimmed.length > maxLength) {
+    return { isValid: false, error: maxLengthMessage };
+  }
+
+  return { isValid: true };
+}
+
+export function validateRank(rank: string): { isValid: boolean; error?: string } {
+  return validateTextMaxLength(
+    rank,
+    30,
+    "Ungültiger Dienstgrad",
+    "Dienstgrad darf maximal 30 Zeichen lang sein"
+  );
+}
+
+export function validatePk(pk: string): { isValid: boolean; error?: string } {
+  return validateTextMaxLength(pk, 20, "Ungültige PK", "PK darf maximal 20 Zeichen lang sein");
+}
+
+export function validateReservistsAssociation(value: string): { isValid: boolean; error?: string } {
+  return validateTextMaxLength(
+    value,
+    30,
+    "Ungültige Reservistenkameradschaft",
+    "Reservistenkameradschaft darf maximal 30 Zeichen lang sein"
+  );
+}
+
+export function validateAssociationMemberNumber(value: string): { isValid: boolean; error?: string } {
+  return validateTextMaxLength(
+    value,
+    30,
+    "Ungültige Mitgliedsnummer im Verband",
+    "Mitgliedsnummer im Verband darf maximal 30 Zeichen lang sein"
+  );
 }
 
 export function validateCreateUserRequest(request: CreateUserRequest) {
@@ -196,24 +251,30 @@ export function validateUpdateProfileRequest(request: UpdateProfileRequest) {
   }
 
   if (request.rank !== undefined) {
-    if (typeof request.rank !== "string") {
-      errors.push("Ungültiger Dienstgrad");
-    } else if (request.rank.trim()) {
-      const trimmedRank = request.rank.trim();
-      if (trimmedRank.length > 30) {
-        errors.push("Dienstgrad darf maximal 30 Zeichen lang sein");
-      }
+    const rankValidation = validateRank(request.rank);
+    if (!rankValidation.isValid) {
+      errors.push(rankValidation.error || "Ungültiger Dienstgrad");
     }
   }
 
   if (request.pk !== undefined) {
-    if (typeof request.pk !== "string") {
-      errors.push("Ungültige PK");
-    } else if (request.pk.trim()) {
-      const trimmedPk = request.pk.trim();
-      if (trimmedPk.length > 20) {
-        errors.push("PK darf maximal 20 Zeichen lang sein");
-      }
+    const pkValidation = validatePk(request.pk);
+    if (!pkValidation.isValid) {
+      errors.push(pkValidation.error || "Ungültige PK");
+    }
+  }
+
+  if (request.reservistsAssociation !== undefined) {
+    const reservistsAssociationValidation = validateReservistsAssociation(request.reservistsAssociation);
+    if (!reservistsAssociationValidation.isValid) {
+      errors.push(reservistsAssociationValidation.error || "Ungültige Reservistenkameradschaft");
+    }
+  }
+
+  if (request.associationMemberNumber !== undefined) {
+    const associationMemberNumberValidation = validateAssociationMemberNumber(request.associationMemberNumber);
+    if (!associationMemberNumberValidation.isValid) {
+      errors.push(associationMemberNumberValidation.error || "Ungültige Mitgliedsnummer im Verband");
     }
   }
 

@@ -124,4 +124,35 @@ describe("validateUpdateProfileRequest", () => {
 
     expect(result.isValid).toBe(true);
   });
+
+  it("should accept optional reservists fields up to 30 chars", () => {
+    const result = validateUpdateProfileRequest({
+      name: "Test User",
+      reservistsAssociation: "A".repeat(30),
+      associationMemberNumber: "1".repeat(30),
+    });
+
+    expect(result.isValid).toBe(true);
+    expect(result.errors).toEqual([]);
+  });
+
+  it("should reject reservists association longer than 30 chars", () => {
+    const result = validateUpdateProfileRequest({
+      name: "Test User",
+      reservistsAssociation: "A".repeat(31),
+    });
+
+    expect(result.isValid).toBe(false);
+    expect(result.errors).toContain("Reservistenkameradschaft darf maximal 30 Zeichen lang sein");
+  });
+
+  it("should reject association member number longer than 30 chars", () => {
+    const result = validateUpdateProfileRequest({
+      name: "Test User",
+      associationMemberNumber: "1".repeat(31),
+    });
+
+    expect(result.isValid).toBe(false);
+    expect(result.errors).toContain("Mitgliedsnummer im Verband darf maximal 30 Zeichen lang sein");
+  });
 });

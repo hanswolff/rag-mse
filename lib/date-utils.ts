@@ -1,8 +1,17 @@
-import { parseISO, format, startOfDay, isBefore } from "date-fns";
+import { parseISO, format, startOfDay, isBefore, isValid } from "date-fns";
 
 export function formatDate(dateString: string): string {
-  const date = parseISO(dateString);
-  return format(date, "dd.MM.yyyy");
+  const match = /^(\d{4})-(\d{2})-(\d{2})(?:T.*)?$/.exec(dateString.trim());
+  if (match) {
+    return `${match[3]}.${match[2]}.${match[1]}`;
+  }
+
+  const parsedDate = parseISO(dateString);
+  if (!isValid(parsedDate)) {
+    return dateString;
+  }
+
+  return format(parsedDate, "dd.MM.yyyy");
 }
 
 export function formatTime(timeString: string): string {

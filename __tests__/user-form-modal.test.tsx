@@ -18,6 +18,8 @@ describe("UserFormModal", () => {
     dateOfBirth: "",
     rank: "",
     pk: "",
+    reservistsAssociation: "",
+    associationMemberNumber: "",
     hasPossessionCard: false,
   };
 
@@ -31,6 +33,8 @@ describe("UserFormModal", () => {
     dateOfBirth: "",
     rank: "",
     pk: "",
+    reservistsAssociation: "",
+    associationMemberNumber: "",
     hasPossessionCard: false,
   };
 
@@ -175,9 +179,31 @@ describe("UserFormModal", () => {
       expect(screen.getByLabelText(/Geburtsdatum/)).toBeInTheDocument();
       expect(screen.getByLabelText(/Dienstgrad/)).toBeInTheDocument();
       expect(screen.getByLabelText(/PK/)).toBeInTheDocument();
+      expect(screen.getByLabelText(/Reservistenkameradschaft/)).toBeInTheDocument();
+      expect(screen.getByLabelText(/Mitgliedsnummer im Verband/)).toBeInTheDocument();
       expect(screen.getByLabelText(/Waffenbesitzkarte/)).toBeInTheDocument();
       expect(screen.getByLabelText(/Mitglied seit/)).toBeInTheDocument();
       expect(screen.getByLabelText(/Rolle \*/)).toBeInTheDocument();
+    });
+
+    it("should place address directly after phone and birth date fields", () => {
+      render(
+        <UserFormModal
+          isOpen={true}
+          onClose={mockOnClose}
+          onSubmit={mockOnSubmit}
+          isSubmitting={false}
+          userData={defaultUserData}
+          setUserData={jest.fn()}
+          isEditing={false}
+          initialUserData={undefined}
+        />
+      );
+
+      const addressInput = screen.getByLabelText(/Adresse/);
+      const rankInput = screen.getByLabelText(/Dienstgrad/);
+
+      expect(addressInput.compareDocumentPosition(rankInput)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
     });
 
     it("should render email input with correct type", () => {
@@ -652,6 +678,8 @@ describe("UserFormModal", () => {
             dateOfBirth: "",
             rank: "",
             pk: "",
+            reservistsAssociation: "",
+            associationMemberNumber: "",
             hasPossessionCard: false,
           }}
           setUserData={setUserData}

@@ -1,5 +1,11 @@
 import { formatDate, formatTime, formatDateTimeRange, isEventInPast } from "@/lib/date-utils";
-import { getStartOfToday, formatDateForStorage, parseDateAndTime } from "@/lib/date-picker-utils";
+import {
+  getStartOfToday,
+  formatDateForStorage,
+  parseDateAndTime,
+  getLocalDateString,
+  parseIsoDateOnlyToUtcDate,
+} from "@/lib/date-picker-utils";
 
 describe("date-utils", () => {
   describe("formatDate", () => {
@@ -23,6 +29,11 @@ describe("date-utils", () => {
       expect(formatted).toContain("2024");
       expect(formatted).toContain("01");
       expect(formatted).toContain("06");
+    });
+
+    it("keeps date-only part stable for UTC timestamps", () => {
+      const date = "2026-01-15T00:00:00.000Z";
+      expect(formatDate(date)).toBe("15.01.2026");
     });
   });
 
@@ -253,6 +264,26 @@ describe("date-picker-utils", () => {
       expect(result.getFullYear()).toBe(2024);
       expect(result.getMonth()).toBe(1);
       expect(result.getDate()).toBe(29);
+    });
+  });
+
+  describe("getLocalDateString", () => {
+    it("returns local yyyy-MM-dd string", () => {
+      const date = new Date(2026, 0, 5, 15, 30, 0, 0);
+      expect(getLocalDateString(date)).toBe("2026-01-05");
+    });
+  });
+
+  describe("parseIsoDateOnlyToUtcDate", () => {
+    it("parses date-only value as UTC midnight", () => {
+      const date = parseIsoDateOnlyToUtcDate("2026-01-15");
+      expect(date.toISOString()).toBe("2026-01-15T00:00:00.000Z");
+    });
+
+    it("throws for invalid date-only value", () => {
+      expect(() => parseIsoDateOnlyToUtcDate("2026-01-15T00:00:00.000Z")).toThrow(
+        "Invalid ISO date-only string: 2026-01-15T00:00:00.000Z"
+      );
     });
   });
 });

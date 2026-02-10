@@ -45,6 +45,25 @@ export function formatDateForStorage(date: Date): string {
   return format(date, 'yyyy-MM-dd');
 }
 
+export function getLocalDateString(date: Date = new Date()): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+export function parseIsoDateOnlyToUtcDate(dateString: string): Date {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateString);
+  if (!match) {
+    throw new Error(`Invalid ISO date-only string: ${dateString}`);
+  }
+
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  return new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
+}
+
 export function getStartOfToday(): Date {
   return startOfDay(new Date());
 }

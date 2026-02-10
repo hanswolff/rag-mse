@@ -3,9 +3,10 @@ import { useAdminAuth } from "./use-admin-auth";
 import { useAdminCrud } from "./use-admin-crud";
 import { useSuccessTimer } from "./use-success-timer";
 import type { News, NewNews } from "@/types";
+import { getLocalDateString } from "./date-picker-utils";
 
 function getTodayDateString() {
-  return new Date().toISOString().split("T")[0];
+  return getLocalDateString();
 }
 
 const PUBLISH_MESSAGES = {

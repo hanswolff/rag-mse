@@ -16,8 +16,11 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        APP_UID: ${APP_UID:-1000}
+        APP_GID: ${APP_GID:-1000}
     container_name: rag-mse-app
-    user: "1001:1001"
+    user: "${APP_UID:-1000}:${APP_GID:-1000}"
     restart: unless-stopped
     dns:
       - 8.8.8.8
@@ -27,7 +30,7 @@ services:
     ports:
       - "3000:3000"
     environment:
-      - NODE_ENV=${NODE_ENV:-development}
+      - NODE_ENV=${NODE_ENV:-production}
       - DEVELOPMENT_DEPLOYMENT=${DEVELOPMENT_DEPLOYMENT:-false}
       - DATABASE_URL=${DATABASE_URL}
       - NEXTAUTH_SECRET=${NEXTAUTH_SECRET}

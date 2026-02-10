@@ -20,6 +20,8 @@ const USER_SELECT_FIELDS = {
   dateOfBirth: true,
   rank: true,
   pk: true,
+  reservistsAssociation: true,
+  associationMemberNumber: true,
   hasPossessionCard: true,
 } as const;
 
@@ -51,6 +53,8 @@ const updateProfileSchema = {
   dateOfBirth: { type: 'string' as const, optional: true },
   rank: { type: 'string' as const, optional: true },
   pk: { type: 'string' as const, optional: true },
+  reservistsAssociation: { type: 'string' as const, optional: true },
+  associationMemberNumber: { type: 'string' as const, optional: true },
   hasPossessionCard: { type: 'boolean' as const, optional: true },
 } as const;
 
@@ -78,7 +82,19 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    const { name, address, phone, email, memberSince, dateOfBirth, rank, pk, hasPossessionCard } = body;
+    const {
+      name,
+      address,
+      phone,
+      email,
+      memberSince,
+      dateOfBirth,
+      rank,
+      pk,
+      reservistsAssociation,
+      associationMemberNumber,
+      hasPossessionCard,
+    } = body;
     const normalizedEmail =
       email !== undefined ? String(email).trim().toLowerCase() : undefined;
 
@@ -91,6 +107,8 @@ export async function PUT(request: NextRequest) {
     if (dateOfBirth !== undefined) updateData.dateOfBirth = dateOfBirth.trim() ? new Date(dateOfBirth) : null;
     if (rank !== undefined) updateData.rank = String(rank).trim() || null;
     if (pk !== undefined) updateData.pk = String(pk).trim() || null;
+    if (reservistsAssociation !== undefined) updateData.reservistsAssociation = String(reservistsAssociation).trim() || null;
+    if (associationMemberNumber !== undefined) updateData.associationMemberNumber = String(associationMemberNumber).trim() || null;
     if (hasPossessionCard !== undefined) updateData.hasPossessionCard = hasPossessionCard;
 
     const updatedUser = await prisma.user.update({
@@ -108,6 +126,8 @@ export async function PUT(request: NextRequest) {
     if (dateOfBirth !== undefined) changedFields.push('dateOfBirth');
     if (rank !== undefined) changedFields.push('rank');
     if (pk !== undefined) changedFields.push('pk');
+    if (reservistsAssociation !== undefined) changedFields.push('reservistsAssociation');
+    if (associationMemberNumber !== undefined) changedFields.push('associationMemberNumber');
     if (hasPossessionCard !== undefined) changedFields.push('hasPossessionCard');
 
     logInfo('profile_updated', 'User profile updated', {

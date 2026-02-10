@@ -1,7 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { hash } from "bcryptjs";
-import { validateEmail, normalizeOptionalField, validateAddress, validatePhone, validateName } from "@/lib/user-validation";
+import {
+  validateEmail,
+  normalizeOptionalField,
+  validateAddress,
+  validatePhone,
+  validateName,
+  validateRank,
+  validatePk,
+  validateReservistsAssociation,
+  validateAssociationMemberNumber,
+} from "@/lib/user-validation";
 import { validateRole, validateDateString } from "@/lib/validation-schema";
 import { requireAdmin } from "@/lib/auth-utils";
 import { Role } from "@prisma/client";
@@ -38,6 +48,8 @@ interface CreateUserRequest {
   dateOfBirth?: string;
   rank?: string;
   pk?: string;
+  reservistsAssociation?: string;
+  associationMemberNumber?: string;
   hasPossessionCard?: boolean;
 }
 
@@ -51,6 +63,8 @@ const createUserSchema = {
   dateOfBirth: { type: 'string' as const, optional: true },
   rank: { type: 'string' as const, optional: true },
   pk: { type: 'string' as const, optional: true },
+  reservistsAssociation: { type: 'string' as const, optional: true },
+  associationMemberNumber: { type: 'string' as const, optional: true },
   hasPossessionCard: { type: 'boolean' as const, optional: true },
 } as const;
 
@@ -75,6 +89,8 @@ export const POST = withApiErrorHandling(async (request: NextRequest) => {
   const dateOfBirth = typeof body.dateOfBirth === "string" ? body.dateOfBirth : undefined;
   const rank = typeof body.rank === "string" ? body.rank : undefined;
   const pk = typeof body.pk === "string" ? body.pk : undefined;
+  const reservistsAssociation = typeof body.reservistsAssociation === "string" ? body.reservistsAssociation : undefined;
+  const associationMemberNumber = typeof body.associationMemberNumber === "string" ? body.associationMemberNumber : undefined;
   const hasPossessionCard = typeof body.hasPossessionCard === "boolean" ? body.hasPossessionCard : false;
 
   if (!normalizedEmail || !validateEmail(normalizedEmail)) {
@@ -156,18 +172,44 @@ export const POST = withApiErrorHandling(async (request: NextRequest) => {
     }
   }
 
-  if (rank !== undefined && rank.trim() && rank.trim().length > 30) {
-    logValidationFailure('/api/admin/users', 'POST', 'Dienstgrad darf maximal 30 Zeichen lang sein', {
-      email: normalizedEmail,
-    });
-    return NextResponse.json({ error: "Dienstgrad darf maximal 30 Zeichen lang sein" }, { status: 400 });
+  if (rank !== undefined) {
+    const rankValidation = validateRank(rank);
+    if (!rankValidation.isValid) {
+      logValidationFailure('/api/admin/users', 'POST', rankValidation.error || 'Ungültiger Dienstgrad', {
+        email: normalizedEmail,
+      });
+      return NextResponse.json({ error: rankValidation.error }, { status: 400 });
+    }
   }
 
-  if (pk !== undefined && pk.trim() && pk.trim().length > 20) {
-    logValidationFailure('/api/admin/users', 'POST', 'PK darf maximal 20 Zeichen lang sein', {
-      email: normalizedEmail,
-    });
-    return NextResponse.json({ error: "PK darf maximal 20 Zeichen lang sein" }, { status: 400 });
+  if (pk !== undefined) {
+    const pkValidation = validatePk(pk);
+    if (!pkValidation.isValid) {
+      logValidationFailure('/api/admin/users', 'POST', pkValidation.error || 'Ungültige PK', {
+        email: normalizedEmail,
+      });
+      return NextResponse.json({ error: pkValidation.error }, { status: 400 });
+    }
+  }
+
+  if (reservistsAssociation !== undefined) {
+    const reservistsAssociationValidation = validateReservistsAssociation(reservistsAssociation);
+    if (!reservistsAssociationValidation.isValid) {
+      logValidationFailure('/api/admin/users', 'POST', reservistsAssociationValidation.error || 'Ungültige Reservistenkameradschaft', {
+        email: normalizedEmail,
+      });
+      return NextResponse.json({ error: reservistsAssociationValidation.error }, { status: 400 });
+    }
+  }
+
+  if (associationMemberNumber !== undefined) {
+    const associationMemberNumberValidation = validateAssociationMemberNumber(associationMemberNumber);
+    if (!associationMemberNumberValidation.isValid) {
+      logValidationFailure('/api/admin/users', 'POST', associationMemberNumberValidation.error || 'Ungültige Mitgliedsnummer im Verband', {
+        email: normalizedEmail,
+      });
+      return NextResponse.json({ error: associationMemberNumberValidation.error }, { status: 400 });
+    }
   }
 
   const existingUser = await prisma.user.findUnique({
@@ -205,6 +247,8 @@ export const POST = withApiErrorHandling(async (request: NextRequest) => {
         dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : null,
         rank: rank || null,
         pk: pk || null,
+        reservistsAssociation: reservistsAssociation || null,
+        associationMemberNumber: associationMemberNumber || null,
         hasPossessionCard: hasPossessionCard || false,
       },
       select: {
@@ -218,6 +262,8 @@ export const POST = withApiErrorHandling(async (request: NextRequest) => {
         dateOfBirth: true,
         rank: true,
         pk: true,
+        reservistsAssociation: true,
+        associationMemberNumber: true,
         hasPossessionCard: true,
         createdAt: true,
       },
@@ -285,6 +331,8 @@ export const GET = withApiErrorHandling(async () => {
       dateOfBirth: true,
       rank: true,
       pk: true,
+      reservistsAssociation: true,
+      associationMemberNumber: true,
       hasPossessionCard: true,
       createdAt: true,
       lastLoginAt: true,

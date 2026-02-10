@@ -35,6 +35,8 @@ describe("BenutzerverwaltungPage", () => {
       dateOfBirth: "1990-01-01T00:00:00Z",
       rank: "Oberleutnant",
       pk: "12345",
+      reservistsAssociation: "RK Neubrandenburg",
+      associationMemberNumber: "V12345",
       hasPossessionCard: true,
     },
     {
@@ -49,6 +51,8 @@ describe("BenutzerverwaltungPage", () => {
       dateOfBirth: null,
       rank: null,
       pk: null,
+      reservistsAssociation: null,
+      associationMemberNumber: null,
       hasPossessionCard: false,
     },
   ];
@@ -72,6 +76,8 @@ describe("BenutzerverwaltungPage", () => {
       dateOfBirth: "",
       rank: "",
       pk: "",
+      reservistsAssociation: "",
+      associationMemberNumber: "",
       hasPossessionCard: false,
     },
     isModalOpen: false,
@@ -237,6 +243,8 @@ describe("BenutzerverwaltungPage", () => {
           dateOfBirth: "",
           rank: "",
           pk: "",
+          reservistsAssociation: "",
+          associationMemberNumber: "",
           hasPossessionCard: false,
         },
       });
@@ -401,6 +409,8 @@ describe("BenutzerverwaltungPage", () => {
         dateOfBirth: "1990-01-01T00:00:00Z",
         rank: "Oberleutnant",
         pk: "12345",
+        reservistsAssociation: "RK Neubrandenburg",
+        associationMemberNumber: "V12345",
         hasPossessionCard: true,
       };
 
@@ -440,6 +450,8 @@ describe("BenutzerverwaltungPage", () => {
         dateOfBirth: "1990-01-01T00:00:00Z",
         rank: "Oberleutnant",
         pk: "12345",
+        reservistsAssociation: "RK Neubrandenburg",
+        associationMemberNumber: "V12345",
         hasPossessionCard: true,
       };
 
@@ -496,6 +508,8 @@ describe("BenutzerverwaltungPage", () => {
         dateOfBirth: "1990-01-01T00:00:00Z",
         rank: "Oberleutnant",
         pk: "12345",
+        reservistsAssociation: "RK Neubrandenburg",
+        associationMemberNumber: "V12345",
         hasPossessionCard: true,
       };
 

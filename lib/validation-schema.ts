@@ -500,6 +500,22 @@ export const profileValidationConfig: Record<string, FieldValidationConfig> = {
       maxLength: "PK darf maximal 20 Zeichen haben",
     },
   },
+  reservistsAssociation: {
+    rules: {
+      maxLength: 30,
+    },
+    errorMessages: {
+      maxLength: "Reservistenkameradschaft darf maximal 30 Zeichen haben",
+    },
+  },
+  associationMemberNumber: {
+    rules: {
+      maxLength: 30,
+    },
+    errorMessages: {
+      maxLength: "Mitgliedsnummer im Verband darf maximal 30 Zeichen haben",
+    },
+  },
   memberSince: {
     rules: {
       customValidator: (value: string) => {

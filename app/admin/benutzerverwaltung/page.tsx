@@ -55,48 +55,50 @@ function UserList({ users, onEdit, onDelete, canDeleteUser }: { users: User[]; o
         const canDelete = canDeleteUser(user.id);
         return (
           <div key={user.id} className="border border-gray-200 rounded-md p-4">
-            <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <h3 className="font-medium text-gray-900">{user.name}</h3>
-                  <span
-                    className={`px-2 py-1 text-base font-medium rounded ${
-                      user.role === "ADMIN"
-                        ? "bg-purple-100 text-purple-800"
-                        : "bg-brand-blue-50 text-brand-blue-800"
+            <div className="flex flex-col gap-2">
+              <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h3 className="font-medium text-gray-900">{user.name}</h3>
+                    <span
+                      className={`px-2 py-1 text-base font-medium rounded ${
+                        user.role === "ADMIN"
+                          ? "bg-purple-100 text-purple-800"
+                          : "bg-brand-blue-50 text-brand-blue-800"
+                      }`}
+                    >
+                      {user.role === "ADMIN" ? "Admin" : "Mitglied"}
+                    </span>
+                  </div>
+                  <p className="text-base text-gray-600">{user.email}</p>
+                  {user.address && <p className="text-base text-gray-500">{user.address}</p>}
+                  {user.phone && <p className="text-base text-gray-500">{user.phone}</p>}
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => onEdit(user)}
+                    className="px-3 py-2 text-base bg-brand-blue-50 text-brand-blue-800 rounded hover:bg-brand-blue-100 focus:outline-none focus:ring-2 focus:ring-brand-red-600/30 touch-manipulation"
+                  >
+                    Bearbeiten
+                  </button>
+                  <button
+                    onClick={() => onDelete(user.id)}
+                    disabled={!canDelete}
+                    title={!canDelete ? "Der letzte Administrator darf nicht gelöscht werden" : undefined}
+                    className={`px-3 py-2 text-base rounded focus:outline-none focus:ring-2 focus:ring-red-500 touch-manipulation ${
+                      canDelete
+                        ? "bg-red-100 text-red-700 hover:bg-red-200"
+                        : "bg-gray-100 text-gray-400 cursor-not-allowed"
                     }`}
                   >
-                    {user.role === "ADMIN" ? "Admin" : "Mitglied"}
-                  </span>
-                </div>
-                <p className="text-base text-gray-600">{user.email}</p>
-                {user.address && <p className="text-base text-gray-500">{user.address}</p>}
-                {user.phone && <p className="text-base text-gray-500">{user.phone}</p>}
-                <div className="text-base text-gray-400 mt-1 space-y-0.5">
-                  <p>Erstellt: {formatDate(user.createdAt)}</p>
-                  <p>Letzter Login: {user.lastLoginAt ? formatDate(user.lastLoginAt) : "Nie"}</p>
-                  <p>Letzte Kennwort-Änderung: {user.passwordUpdatedAt ? formatDate(user.passwordUpdatedAt) : "-"}</p>
+                    Löschen
+                  </button>
                 </div>
               </div>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => onEdit(user)}
-                  className="px-3 py-2 text-base bg-brand-blue-50 text-brand-blue-800 rounded hover:bg-brand-blue-100 focus:outline-none focus:ring-2 focus:ring-brand-red-600/30 touch-manipulation"
-                >
-                  Bearbeiten
-                </button>
-                <button
-                  onClick={() => onDelete(user.id)}
-                  disabled={!canDelete}
-                  title={!canDelete ? "Der letzte Administrator darf nicht gelöscht werden" : undefined}
-                  className={`px-3 py-2 text-base rounded focus:outline-none focus:ring-2 focus:ring-red-500 touch-manipulation ${
-                    canDelete
-                      ? "bg-red-100 text-red-700 hover:bg-red-200"
-                      : "bg-gray-100 text-gray-400 cursor-not-allowed"
-                  }`}
-                >
-                  Löschen
-                </button>
+              <div className="w-full mt-1 text-xs sm:text-sm text-gray-400 text-left whitespace-nowrap overflow-x-auto">
+                <p>
+                  Erstellt: {formatDate(user.createdAt)} &bull; Letzter Login: {user.lastLoginAt ? formatDate(user.lastLoginAt) : "Nie"} &bull; Passwort-Änderung: {user.passwordUpdatedAt ? formatDate(user.passwordUpdatedAt) : "-"}
+                </p>
               </div>
             </div>
           </div>

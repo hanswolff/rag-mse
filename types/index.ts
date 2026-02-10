@@ -80,6 +80,8 @@ export interface User {
   dateOfBirth?: string | null;
   rank?: string | null;
   pk?: string | null;
+  reservistsAssociation?: string | null;
+  associationMemberNumber?: string | null;
   hasPossessionCard?: boolean;
   createdAt: string;
   lastLoginAt?: string | null;
@@ -100,5 +102,7 @@ export interface NewUser {
   dateOfBirth: string;
   rank: string;
   pk: string;
+  reservistsAssociation: string;
+  associationMemberNumber: string;
   hasPossessionCard: boolean;
 }

@@ -33,14 +33,14 @@ export default function UeberUnsPage() {
               Im Mittelpunkt stehen sportliches Schießen, sichere Waffenhandhabung
               sowie Training und Wettkämpfe nach der Schießsportordnung des
               Verbandes und den waffenrechtlichen Vorgaben. Der Schießsport wird
-              dabei als sportlicher Wettbewerb und als Training betrieben;
+              dabei als sportlicher Wettbewerb und als Training betrieben.
               Übungen mit militärischem oder polizeilichem Charakter sind im
               schießsportlichen Rahmen ausgeschlossen.
             </p>
             <p>
-              Wir bieten regelmäßige Schießtermine, Aus- und Fortbildungen sowie
-              kameradschaftliche Treffen. Interessierte sind nach vorheriger
-              Anmeldung willkommen - werden Sie Teil unserer Gemeinschaft!
+              Wir bieten regelmäßige Schießtermine, Aus- und Fortbildungen, Meisterschaften
+              und kameradschaftliche Treffen. Interessierte sind nach vorheriger
+              Anmeldung willkommen - werde Teil unserer Gemeinschaft!
             </p>
           </div>
         </section>

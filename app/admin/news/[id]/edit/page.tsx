@@ -7,15 +7,13 @@ import { isAdmin } from "@/lib/role-utils";
 import { buildLoginUrlWithReturnUrl, getCurrentPathWithSearch } from "@/lib/return-url";
 import Link from "next/link";
 import { BackLink } from "@/components/back-link";
+import { GermanDatePicker } from "@/components/german-date-picker";
 import { LoadingButton } from "@/components/loading-button";
+import { getLocalDateString, normalizeDateInputValue } from "@/lib/date-picker-utils";
 import type { News, NewNews } from "@/types";
 
-function toInputDateString(value: string) {
-  return value.split("T")[0];
-}
-
 function getTodayDateString() {
-  return new Date().toISOString().split("T")[0];
+  return getLocalDateString();
 }
 
 const initialNewNews: NewNews = {
@@ -64,7 +62,7 @@ export default function NewsEditPage({ params }: { params: Promise<{ id: string 
       const data: News = await response.json();
       setNewsItem(data);
       setNewNews({
-        newsDate: toInputDateString(data.newsDate),
+        newsDate: normalizeDateInputValue(data.newsDate),
         title: data.title,
         content: data.content,
         published: data.published,
@@ -144,14 +142,12 @@ export default function NewsEditPage({ params }: { params: Promise<{ id: string 
           <div className="card">
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <label htmlFor="newsDate" className="form-label">Datum *</label>
-                <input
+                <GermanDatePicker
                   id="newsDate"
-                  type="date"
+                  label="Datum *"
                   value={newNews.newsDate}
-                  onChange={(e) => setNewNews({ ...newNews, newsDate: e.target.value })}
+                  onChange={(date) => setNewNews({ ...newNews, newsDate: date })}
                   required
-                  className="form-input"
                   disabled={isSubmitting}
                 />
               </div>

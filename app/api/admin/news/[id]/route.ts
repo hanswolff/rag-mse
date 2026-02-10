@@ -4,6 +4,7 @@ import { requireAdmin } from "@/lib/auth-utils";
 import { validateUpdateNewsRequest, type UpdateNewsRequest } from "@/lib/news-validation";
 import { BadRequestError, logApiError, parseJsonBody, validateRequestBody, validateCsrfHeaders } from "@/lib/api-utils";
 import { logInfo, logResourceNotFound, logValidationFailure } from "@/lib/logger";
+import { parseIsoDateOnlyToUtcDate } from "@/lib/date-picker-utils";
 
 const updateNewsSchema = {
   title: { type: 'string' as const, optional: true },
@@ -13,7 +14,7 @@ const updateNewsSchema = {
 } as const;
 
 function parseNewsDate(newsDate: string): Date {
-  return new Date(`${newsDate}T00:00:00.000Z`);
+  return parseIsoDateOnlyToUtcDate(newsDate);
 }
 
 export async function GET(

@@ -8,6 +8,7 @@ import { buildLoginUrlWithReturnUrl, getCurrentPathWithSearch } from "@/lib/retu
 import { useEventManagement } from "@/lib/use-event-management";
 import { formatDate, formatTime } from "@/lib/date-utils";
 import { getEventDescriptionPreview } from "@/lib/event-description";
+import { pluralize } from "@/lib/pluralization";
 import { EventFormModal } from "@/components/event-form-modal";
 import { LoadingButton } from "@/components/loading-button";
 import { BackLink } from "@/components/back-link";
@@ -139,6 +140,12 @@ export default function TerminePage() {
           </BackLink>
           <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mt-4">Termine verwalten</h1>
           <p className="text-base sm:text-base text-gray-600 mt-2">Erstellen, bearbeiten und verwalten Sie Trainingstermine und Wettkämpfe</p>
+          <button
+            onClick={eventManagement.openCreateModal}
+            className="mt-4 btn-primary py-2.5 sm:py-2 px-6 text-base sm:text-base touch-manipulation"
+          >
+            Neuen Termin erstellen
+          </button>
         </div>
 
         {eventManagement.error && (
@@ -154,19 +161,9 @@ export default function TerminePage() {
         )}
 
         <section className="card-compact">
-          <div className="flex flex-col gap-4 mb-4 sm:flex-row sm:items-center sm:justify-between">
-            <button
-              onClick={eventManagement.openCreateModal}
-              className="btn-primary py-2.5 sm:py-2 px-6 text-base sm:text-base touch-manipulation sm:w-auto"
-            >
-              Neuen Termin erstellen
-            </button>
-            <p className="text-base text-gray-600">
-              {eventManagement.totalEvents} Termine gesamt
-            </p>
-          </div>
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between mb-4">
             <h2 className="text-lg sm:text-xl font-semibold">Terminliste</h2>
+            <p className="text-base text-gray-600">{eventManagement.totalEvents} {pluralize(eventManagement.totalEvents, "Termin", "Termine")} gesamt</p>
           </div>
           <EventList
             events={eventManagement.events}

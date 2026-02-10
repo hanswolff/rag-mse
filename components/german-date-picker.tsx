@@ -1,8 +1,9 @@
 "use client";
 
+import { useMemo, type KeyboardEvent, type MouseEvent } from "react";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
-import { format } from "date-fns";
+import { format, isValid, parse } from "date-fns";
 import { de } from "date-fns/locale";
 import { FiCalendar } from "react-icons/fi";
 import { parseISODate } from "@/lib/date-picker-utils";
@@ -21,13 +22,28 @@ interface GermanDatePickerProps {
 
 export function GermanDatePicker({ id, value, onChange, onBlur, error, label, required, disabled, autoFocus }: GermanDatePickerProps) {
   const errorId = error ? `error-${id || 'date'}` : undefined;
-  const date = value ? parseISODate(value) : null;
+  const date = useMemo(() => (value ? parseISODate(value) : null), [value]);
 
   function handleDateChange(date: Date | null) {
     if (date) {
       onChange(format(date, 'yyyy-MM-dd'));
     } else {
       onChange('');
+    }
+  }
+
+  function handleRawChange(event?: MouseEvent<HTMLElement> | KeyboardEvent<HTMLElement>) {
+    const inputElement = event?.currentTarget as HTMLInputElement | null;
+    const nextValue = inputElement?.value ?? "";
+
+    if (!nextValue.trim()) {
+      onChange("");
+      return;
+    }
+
+    const parsedDate = parse(nextValue, "dd.MM.yyyy", new Date());
+    if (isValid(parsedDate) && format(parsedDate, "dd.MM.yyyy") === nextValue) {
+      onChange(format(parsedDate, "yyyy-MM-dd"));
     }
   }
 
@@ -39,9 +55,9 @@ export function GermanDatePicker({ id, value, onChange, onBlur, error, label, re
       <div className="relative">
         <DatePicker
           id={id}
-          key={value}
           selected={date}
           onChange={handleDateChange}
+          onChangeRaw={handleRawChange}
           onBlur={onBlur}
           locale={de}
           dateFormat="dd.MM.yyyy"

@@ -16,6 +16,8 @@ const initialNewUser: NewUser = {
   dateOfBirth: "",
   rank: "",
   pk: "",
+  reservistsAssociation: "",
+  associationMemberNumber: "",
   hasPossessionCard: false,
 };
 
@@ -153,6 +155,8 @@ export function useUserManagement() {
       dateOfBirth: normalizeDateInputValue(user.dateOfBirth),
       rank: user.rank || "",
       pk: user.pk || "",
+      reservistsAssociation: user.reservistsAssociation || "",
+      associationMemberNumber: user.associationMemberNumber || "",
       hasPossessionCard: user.hasPossessionCard || false,
     };
     setModalUserData(userData);

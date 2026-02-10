@@ -4,12 +4,13 @@ import { requireAdmin } from "@/lib/auth-utils";
 import { validateCreateNewsRequest, type CreateNewsRequest } from "@/lib/news-validation";
 import { parseJsonBody, withApiErrorHandling, validateCsrfHeaders } from "@/lib/api-utils";
 import { logInfo, logValidationFailure } from "@/lib/logger";
+import { parseIsoDateOnlyToUtcDate } from "@/lib/date-picker-utils";
 
 const MAX_PAGE_SIZE = 100;
 
 function parseNewsDate(newsDate: string | undefined): Date {
   if (!newsDate) return new Date();
-  return new Date(`${newsDate}T00:00:00.000Z`);
+  return parseIsoDateOnlyToUtcDate(newsDate);
 }
 
 function parsePageSize(value: string | null, fallback: number) {

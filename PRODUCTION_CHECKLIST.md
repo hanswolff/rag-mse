@@ -11,6 +11,9 @@ Copy `.env.example` to `.env` and update the following values:
 #### Database
 - [ ] `DATABASE_URL` - Ensure path points to production database file
   - Production example: `DATABASE_URL="file:/app/data/prod.db"`
+- [ ] `APP_UID` and `APP_GID` are set explicitly and match the owner of `./data`
+  - Example: `APP_UID="1000"` and `APP_GID="1000"`
+  - Verify owner on host: `stat -c '%u:%g %n' ./data ./data/*.db`
 
 #### Authentication
 - [ ] `NEXTAUTH_SECRET` - **CRITICAL**: Generate a strong, random secret key (minimum 32 characters)
@@ -84,6 +87,9 @@ Copy `.env.example` to `.env` and update the following values:
 ### 6. Docker Configuration
 
 - [ ] `docker-compose.yml` is configured for production
+- [ ] Build args and runtime user use the same IDs (`APP_UID` / `APP_GID`)
+- [ ] App container runs with expected UID:GID
+  - Verify in container: `docker compose exec -T app id`
 - [ ] Volume mounts are correct for data persistence
 - [ ] Database backup strategy is in place
 - [ ] Container restart policies are configured

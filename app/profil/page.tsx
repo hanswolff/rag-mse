@@ -21,6 +21,8 @@ interface UserProfile {
   dateOfBirth: string | null;
   rank: string | null;
   pk: string | null;
+  reservistsAssociation: string | null;
+  associationMemberNumber: string | null;
   hasPossessionCard: boolean;
 }
 
@@ -41,6 +43,8 @@ function useProfile() {
     dateOfBirth: "",
     rank: "",
     pk: "",
+    reservistsAssociation: "",
+    associationMemberNumber: "",
     hasPossessionCard: false,
   });
 
@@ -66,6 +70,8 @@ function useProfile() {
         dateOfBirth: normalizeDateInputValue(data.dateOfBirth),
         rank: data.rank || "",
         pk: data.pk || "",
+        reservistsAssociation: data.reservistsAssociation || "",
+        associationMemberNumber: data.associationMemberNumber || "",
         hasPossessionCard: data.hasPossessionCard || false,
       });
     } catch (err: unknown) {
@@ -101,6 +107,8 @@ function useProfile() {
     validateField("dateOfBirth", formData.dateOfBirth);
     validateField("rank", formData.rank);
     validateField("pk", formData.pk);
+    validateField("reservistsAssociation", formData.reservistsAssociation);
+    validateField("associationMemberNumber", formData.associationMemberNumber);
 
     const isValid =
       isFieldValid("name", formData.name) &&
@@ -108,7 +116,9 @@ function useProfile() {
       isFieldValid("phone", formData.phone) &&
       isFieldValid("dateOfBirth", formData.dateOfBirth) &&
       isFieldValid("rank", formData.rank) &&
-      isFieldValid("pk", formData.pk);
+      isFieldValid("pk", formData.pk) &&
+      isFieldValid("reservistsAssociation", formData.reservistsAssociation) &&
+      isFieldValid("associationMemberNumber", formData.associationMemberNumber);
 
     if (!isValid) {
       setProfileError("Bitte korrigieren Sie die Fehler im Formular");
@@ -118,13 +128,33 @@ function useProfile() {
     setIsSaving(true);
 
     try {
-      const { name, address, phone, dateOfBirth, rank, pk, hasPossessionCard } = formData;
+      const {
+        name,
+        address,
+        phone,
+        dateOfBirth,
+        rank,
+        pk,
+        reservistsAssociation,
+        associationMemberNumber,
+        hasPossessionCard,
+      } = formData;
       const response = await fetch("/api/user/profile", {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ name, address, phone, dateOfBirth, rank, pk, hasPossessionCard }),
+        body: JSON.stringify({
+          name,
+          address,
+          phone,
+          dateOfBirth,
+          rank,
+          pk,
+          reservistsAssociation,
+          associationMemberNumber,
+          hasPossessionCard,
+        }),
       });
 
       const data = await response.json();
@@ -280,7 +310,7 @@ export default function ProfilePage() {
                   className={`form-input ${
                     shouldShowFieldError("rank", formData.rank) ? "border-red-500 focus:border-red-500" : ""
                   }`}
-                  placeholder="z.B. Oberleutnant"
+                  placeholder="z.B. Obergefreiter d.R."
                   disabled={isSaving}
                   aria-invalid={!!shouldShowFieldError("rank", formData.rank)}
                 />
@@ -367,13 +397,69 @@ export default function ProfilePage() {
                   className={`form-input ${
                     shouldShowFieldError("pk", formData.pk) ? "border-red-500 focus:border-red-500" : ""
                   }`}
-                  placeholder="z.B. 12345"
+                  placeholder="z.B. 12345 A 67890"
                   disabled={isSaving}
                   aria-invalid={!!shouldShowFieldError("pk", formData.pk)}
                 />
                 {shouldShowFieldError("pk", formData.pk) && (
                   <p className="form-help text-red-600">
                     {validationErrors.pk}
+                  </p>
+                )}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label htmlFor="reservistsAssociation" className="form-label">
+                  Reservistenkameradschaft
+                </label>
+                <input
+                  id="reservistsAssociation"
+                  type="text"
+                  value={formData.reservistsAssociation}
+                  onChange={(e) => handleInputChange("reservistsAssociation", e.target.value)}
+                  onBlur={(e) => handleBlur("reservistsAssociation", e.target.value)}
+                  maxLength={30}
+                  className={`form-input ${
+                    shouldShowFieldError("reservistsAssociation", formData.reservistsAssociation)
+                      ? "border-red-500 focus:border-red-500"
+                      : ""
+                  }`}
+                  placeholder="z.B. RK MSE"
+                  disabled={isSaving}
+                  aria-invalid={!!shouldShowFieldError("reservistsAssociation", formData.reservistsAssociation)}
+                />
+                {shouldShowFieldError("reservistsAssociation", formData.reservistsAssociation) && (
+                  <p className="form-help text-red-600">
+                    {validationErrors.reservistsAssociation}
+                  </p>
+                )}
+              </div>
+
+              <div>
+                <label htmlFor="associationMemberNumber" className="form-label">
+                  Mitgliedsnummer im Verband
+                </label>
+                <input
+                  id="associationMemberNumber"
+                  type="text"
+                  value={formData.associationMemberNumber}
+                  onChange={(e) => handleInputChange("associationMemberNumber", e.target.value)}
+                  onBlur={(e) => handleBlur("associationMemberNumber", e.target.value)}
+                  maxLength={30}
+                  className={`form-input ${
+                    shouldShowFieldError("associationMemberNumber", formData.associationMemberNumber)
+                      ? "border-red-500 focus:border-red-500"
+                      : ""
+                  }`}
+                  placeholder="z.B. 1234567890"
+                  disabled={isSaving}
+                  aria-invalid={!!shouldShowFieldError("associationMemberNumber", formData.associationMemberNumber)}
+                />
+                {shouldShowFieldError("associationMemberNumber", formData.associationMemberNumber) && (
+                  <p className="form-help text-red-600">
+                    {validationErrors.associationMemberNumber}
                   </p>
                 )}
               </div>
