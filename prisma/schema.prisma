@@ -45,12 +45,15 @@ model User {
   reservistsAssociation String?
   associationMemberNumber String?
   hasPossessionCard Boolean   @default(false)
+  eventReminderEnabled    Boolean @default(true)
+  eventReminderDaysBefore Int     @default(7)
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
 
   votes Vote[]
   invitationsSent Invitation[] @relation("InvitedBy")
   eventsCreated Event[]
+  eventReminderDispatches EventReminderDispatch[]
 }
 
 model Event {
@@ -70,6 +73,7 @@ model Event {
 
   createdBy User? @relation(fields: [createdById], references: [id], onDelete: SetNull)
   votes Vote[]
+  eventReminderDispatches EventReminderDispatch[]
 }
 
 model ShootingRange {
@@ -146,6 +150,7 @@ model OutgoingEmail {
   subject      String
   textBody     String
   htmlBody     String
+  attachmentsJson String?
   status       OutgoingEmailStatus @default(QUEUED)
   attemptCount Int                 @default(0)
   firstQueuedAt DateTime           @default(now())
@@ -159,4 +164,25 @@ model OutgoingEmail {
 
   @@index([status, nextAttemptAt])
   @@index([status, lockedUntil])
+}
+
+model EventReminderDispatch {
+  id                       String   @id @default(cuid())
+  userId                   String
+  eventId                  String
+  daysBefore               Int
+  rsvpTokenHash            String   @unique
+  rsvpTokenExpiresAt       DateTime
+  unsubscribeTokenHash     String   @unique
+  unsubscribeTokenExpiresAt DateTime
+  queuedAt                 DateTime
+  sentAt                   DateTime?
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, eventId])
+  @@index([eventId])
 }

@@ -31,7 +31,7 @@ describe("NewsPage", () => {
     await waitFor(() => {
       expect(screen.getByText("News")).toBeInTheDocument();
       expect(
-        screen.getByText("Aktuelle Neuigkeiten vom RAG Schießsport MSE")
+        screen.getByText("Aktuelle Neuigkeiten von der RAG Schießsport MSE")
       ).toBeInTheDocument();
     });
   });

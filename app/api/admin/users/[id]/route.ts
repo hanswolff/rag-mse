@@ -12,6 +12,7 @@ import {
   validatePk,
   validateReservistsAssociation,
   validateAssociationMemberNumber,
+  validateDateOfBirth,
 } from "@/lib/user-validation";
 import { validateRole, validateDateString } from "@/lib/validation-schema";
 import { Role } from "@prisma/client";
@@ -194,11 +195,10 @@ export const PATCH = withApiErrorHandling(async (
   }
 
   if (dateOfBirth !== undefined) {
-    if (typeof dateOfBirth !== "string" || !dateOfBirth.trim()) {
-      // Empty is fine
-    } else if (!validateDateString(dateOfBirth)) {
-      logValidationFailure('/api/admin/users/[id]', 'PATCH', 'Ungültiges Geburtsdatum', { userId: id });
-      return NextResponse.json({ error: "Ungültiges Geburtsdatum" }, { status: 400 });
+    const dateOfBirthValidation = validateDateOfBirth(dateOfBirth);
+    if (!dateOfBirthValidation.isValid) {
+      logValidationFailure('/api/admin/users/[id]', 'PATCH', dateOfBirthValidation.error || 'Ungültiges Geburtsdatum', { userId: id });
+      return NextResponse.json({ error: dateOfBirthValidation.error || "Ungültiges Geburtsdatum" }, { status: 400 });
     }
   }
 

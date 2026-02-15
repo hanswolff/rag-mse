@@ -72,7 +72,9 @@ describe('Next.js Configuration', () => {
 
     it('should use environment-aware script-src configuration', () => {
       expect(configContent).toContain("const isProduction = process.env.NODE_ENV === \"production\";");
+      expect(configContent).toContain("const allowUnsafeInlineScripts = process.env.CSP_ALLOW_UNSAFE_INLINE_SCRIPTS === \"true\";");
       expect(configContent).toContain("? \"script-src 'self' 'unsafe-inline'\"");
+      expect(configContent).toContain(": \"script-src 'self'\"");
       expect(configContent).toContain(": \"script-src 'self' 'unsafe-inline' 'unsafe-eval' https://unpkg.com\"");
     });
 

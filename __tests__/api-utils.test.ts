@@ -425,19 +425,37 @@ describe("withApiErrorHandling", () => {
       expect(result.errors).toContain("Feld 'age' muss vom Typ number sein, ist aber string");
     });
 
-    it("accepts null and undefined values for optional fields", () => {
+    it("accepts undefined values and missing optional fields", () => {
       const schema = {
         name: { type: 'string' as const, optional: true },
       } as const;
-
-      const result1 = validateRequestBody({ name: null }, schema, { route: '/test', method: 'POST' });
-      expect(result1.isValid).toBe(true);
 
       const result2 = validateRequestBody({ name: undefined }, schema, { route: '/test', method: 'POST' });
       expect(result2.isValid).toBe(true);
 
       const result3 = validateRequestBody({}, schema, { route: '/test', method: 'POST' });
       expect(result3.isValid).toBe(true);
+    });
+
+    it("rejects null values for optional fields", () => {
+      const schema = {
+        name: { type: 'string' as const, optional: true },
+      } as const;
+
+      const result = validateRequestBody({ name: null }, schema, { route: '/test', method: 'POST' });
+      expect(result.isValid).toBe(false);
+      expect(result.errors).toContain("Feld 'name' darf nicht null sein");
+    });
+
+    it("rejects missing required fields", () => {
+      const schema = {
+        name: { type: 'string' as const },
+        email: { type: 'string' as const },
+      } as const;
+
+      const result = validateRequestBody({ name: "John" }, schema, { route: '/test', method: 'POST' });
+      expect(result.isValid).toBe(false);
+      expect(result.errors).toContain("Pflichtfeld fehlt: email");
     });
 
     it("validates array type", () => {
@@ -486,13 +504,14 @@ describe("withApiErrorHandling", () => {
       expect(result.errors).toContain("Feld 'metadata' muss vom Typ object sein, ist aber string");
     });
 
-    it("accepts null for object type (null is not an object in typeof)", () => {
+    it("rejects null for object type", () => {
       const schema = {
         metadata: { type: 'object' as const },
       } as const;
 
       const result = validateRequestBody({ metadata: null }, schema, { route: '/test', method: 'POST' });
-      expect(result.isValid).toBe(true);
+      expect(result.isValid).toBe(false);
+      expect(result.errors).toContain("Feld 'metadata' darf nicht null sein");
     });
 
     it("uses custom validator when provided", () => {

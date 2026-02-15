@@ -8,8 +8,9 @@ import {
   buildResetUrl,
 } from "@/lib/password-reset";
 import { sendTemplateEmail } from "@/lib/email-sender";
-import { logInfo, logValidationFailure, logError } from "@/lib/logger";
+import { logInfo, logValidationFailure, logError, logWarn } from "@/lib/logger";
 import { checkForgotPasswordRateLimit } from "@/lib/rate-limiter";
+import { validateEmail } from "@/lib/validation-schema";
 
 const SUCCESS_MESSAGE =
   "Wenn diese E-Mail registriert ist, erhalten Sie in Kürze einen Link zum Zurücksetzen Ihres Passworts.";
@@ -67,7 +68,7 @@ export async function POST(request: NextRequest) {
 
     const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
 
-    if (!email || !email.includes("@")) {
+    if (!email || !validateEmail(email)) {
       logValidationFailure('/api/auth/forgot-password', 'POST', 'Gültige E-Mail-Adresse erforderlich', { email });
       return NextResponse.json(
         { error: "Gültige E-Mail-Adresse erforderlich" },
@@ -76,7 +77,22 @@ export async function POST(request: NextRequest) {
     }
 
     const clientIp = getClientIp(request);
-    const rateLimitResult = await checkForgotPasswordRateLimit(clientIp, email);
+    let rateLimitResult = { allowed: true, attemptCount: 0 } as {
+      allowed: boolean;
+      blockedUntil?: number;
+      attemptCount: number;
+    };
+    try {
+      rateLimitResult = await checkForgotPasswordRateLimit(clientIp, email);
+    } catch (rateLimitError) {
+      logWarn('forgot_password_rate_limit_unavailable', 'Rate limiter unavailable for forgot-password route, continuing without enforcement', {
+        route: "/api/auth/forgot-password",
+        method: "POST",
+        clientIp,
+        email,
+        error: rateLimitError instanceof Error ? rateLimitError.message : String(rateLimitError),
+      });
+    }
 
     if (!rateLimitResult.allowed) {
       return handleRateLimitBlocked(

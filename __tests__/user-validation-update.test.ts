@@ -22,13 +22,13 @@ describe("validateUpdateProfileRequest", () => {
     expect(result.errors).toEqual([]);
   });
 
-  it("should allow empty string name", () => {
+  it("should reject empty string name (name is required)", () => {
     const result = validateUpdateProfileRequest({
       name: "",
     });
 
-    expect(result.isValid).toBe(true);
-    expect(result.errors).toEqual([]);
+    expect(result.isValid).toBe(false);
+    expect(result.errors).toContain("Name ist erforderlich");
   });
 
   it("should fail with overly long name", () => {
@@ -46,16 +46,16 @@ describe("validateUpdateProfileRequest", () => {
     });
 
     expect(result.isValid).toBe(false);
-    expect(result.errors).toContain("Ungültiges E-Mail-Format");
+    expect(result.errors).toContain("E-Mail hat ungültiges Format");
   });
 
-  it("should accept empty email (no change)", () => {
+  it("should reject empty email (email is required)", () => {
     const result = validateUpdateProfileRequest({
       email: "",
     });
 
     expect(result.isValid).toBe(false);
-    expect(result.errors).toContain("Ungültiges E-Mail-Format");
+    expect(result.errors).toContain("E-Mail ist erforderlich");
   });
 
   it("should allow missing optional fields", () => {
@@ -83,7 +83,7 @@ describe("validateUpdateProfileRequest", () => {
     });
 
     expect(result.isValid).toBe(false);
-    expect(result.errors).toContain("Telefonnummer enthält ungültige Zeichen");
+    expect(result.errors).toContain("Telefonnummer hat ungültiges Format");
   });
 
   it("should allow empty string phone", () => {

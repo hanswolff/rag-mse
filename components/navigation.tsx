@@ -187,6 +187,13 @@ export function Navigation() {
                         Profil
                       </Link>
                       <Link
+                        href="/benachrichtigungen"
+                        onClick={handleUserMenuItemClick}
+                        className="block px-4 py-2 text-base text-gray-700 hover:bg-gray-100 transition-colors"
+                      >
+                        Benachrichtigungen
+                      </Link>
+                      <Link
                         href="/passwort-aendern"
                         onClick={handleUserMenuItemClick}
                         className="block px-4 py-2 text-base text-gray-700 hover:bg-gray-100 transition-colors"
@@ -313,6 +320,13 @@ export function Navigation() {
                 onClick={() => setIsMenuOpen(false)}
               >
                 Profil
+              </Link>
+              <Link
+                href="/benachrichtigungen"
+                className={`${getLinkClasses("/benachrichtigungen", true)} flex items-center gap-2`}
+                onClick={() => setIsMenuOpen(false)}
+              >
+                Benachrichtigungen
               </Link>
               <Link
                 href="/passwort-aendern"

@@ -86,11 +86,55 @@ export async function parseJsonBody<T>(request: Request, maxBodySize = MAX_REQUE
   }
 
   try {
+    const requestWithClone = request as Request & { clone?: () => Request };
+    if (typeof requestWithClone.clone === "function") {
+      const requestToRead = requestWithClone.clone();
+      let bodyText = "";
+
+      if (requestToRead.body && typeof requestToRead.body.getReader === "function") {
+        const reader = requestToRead.body.getReader();
+        const chunks: Uint8Array[] = [];
+        let totalBytes = 0;
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) {
+            break;
+          }
+
+          const chunk = value ?? new Uint8Array();
+          totalBytes += chunk.byteLength;
+          if (totalBytes > maxBodySize) {
+            await reader.cancel();
+            throw new PayloadTooLargeError(`Request body zu groß (maximal ${maxSizeMB} MB)`);
+          }
+          chunks.push(chunk);
+        }
+
+        const merged = new Uint8Array(totalBytes);
+        let offset = 0;
+        for (const chunk of chunks) {
+          merged.set(chunk, offset);
+          offset += chunk.byteLength;
+        }
+        bodyText = new TextDecoder().decode(merged);
+      } else {
+        bodyText = await requestToRead.text();
+        const bodySize = new TextEncoder().encode(bodyText).length;
+        if (bodySize > maxBodySize) {
+          throw new PayloadTooLargeError(`Request body zu groß (maximal ${maxSizeMB} MB)`);
+        }
+      }
+
+      return JSON.parse(bodyText) as T;
+    }
+
     const body = await request.json();
-    const jsonStr = JSON.stringify(body);
-    if (jsonStr.length > maxBodySize) {
+    const bodySize = new TextEncoder().encode(JSON.stringify(body)).length;
+    if (bodySize > maxBodySize) {
       throw new PayloadTooLargeError(`Request body zu groß (maximal ${maxSizeMB} MB)`);
     }
+
     return body as T;
   } catch (error) {
     if (error instanceof PayloadTooLargeError) {
@@ -118,6 +162,13 @@ export function validateRequestBody(
   const errors: string[] = [];
   const allowedFields = new Set(Object.keys(schema));
 
+  for (const [key, fieldDef] of Object.entries(schema)) {
+    if (fieldDef.optional) continue;
+    if (!(key in body)) {
+      errors.push(`Pflichtfeld fehlt: ${key}`);
+    }
+  }
+
   for (const [key, value] of Object.entries(body)) {
     if (!allowedFields.has(key)) {
       errors.push(`Unerwartetes Feld: ${key}`);
@@ -126,7 +177,12 @@ export function validateRequestBody(
 
     const fieldDef = schema[key];
 
-    if (value === undefined || value === null) {
+    if (value === undefined) {
+      continue;
+    }
+
+    if (value === null) {
+      errors.push(`Feld '${key}' darf nicht null sein`);
       continue;
     }
 

@@ -72,6 +72,15 @@ describe("middleware helpers", () => {
       expect(shouldRedirectToLogin("/passwort-aendern", "ADMIN")).toBe(false);
     });
 
+    it("should redirect to login when accessing benachrichtigungen without member role", () => {
+      expect(shouldRedirectToLogin("/benachrichtigungen", undefined)).toBe(true);
+    });
+
+    it("should not redirect to login when accessing benachrichtigungen with member role", () => {
+      expect(shouldRedirectToLogin("/benachrichtigungen", "MEMBER")).toBe(false);
+      expect(shouldRedirectToLogin("/benachrichtigungen", "ADMIN")).toBe(false);
+    });
+
     it("should not redirect to login when accessing termine (public route)", () => {
       expect(shouldRedirectToLogin("/termine", undefined)).toBe(false);
       expect(shouldRedirectToLogin("/termine", "MEMBER")).toBe(false);

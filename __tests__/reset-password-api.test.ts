@@ -449,7 +449,10 @@ describe("/api/auth/reset-password/[token] route - Security Regression Tests", (
       expect(mockedPrisma.$transaction).toHaveBeenCalled();
       expect(mockTx.user.update).toHaveBeenCalledWith({
         where: { id: mockUser.id },
-        data: { password: "hashed-new-password" },
+        data: {
+          password: "hashed-new-password",
+          passwordUpdatedAt: expect.any(Date),
+        },
       });
       expect(mockTx.passwordReset.update).toHaveBeenCalledWith({
         where: { id: mockValidReset.id },

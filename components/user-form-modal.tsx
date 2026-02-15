@@ -1,11 +1,13 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import { Modal } from "./modal";
 import { LoadingButton } from "./loading-button";
 import { GermanDatePicker } from "./german-date-picker";
+import { ValidatedFieldGroup } from "./validated-field-group";
 import { useFormFieldValidation } from "@/lib/useFormFieldValidation";
-import { profileValidationConfig } from "@/lib/validation-schema";
+import { mapServerErrorToField, PROFILE_FIELD_KEYWORDS } from "@/lib/server-error-mapper";
+import { adminUserValidationConfig } from "@/lib/validation-schema";
 
 type UserRole = "ADMIN" | "MEMBER";
 
@@ -73,7 +75,25 @@ export function UserFormModal({
   errors = {},
   initialUserData,
 }: UserFormModalProps) {
-  const { errors: validationErrors, validateField, markFieldAsTouched, isFieldValid } = useFormFieldValidation(profileValidationConfig);
+  const {
+    errors: validationErrors,
+    validateField,
+    validateAllFields,
+    markFieldAsTouched,
+    shouldShowError,
+    isValidAndTouched,
+    reset,
+  } = useFormFieldValidation(adminUserValidationConfig);
+
+  useEffect(() => {
+    if (isOpen) {
+      reset();
+    }
+  }, [isOpen, reset]);
+
+  const inferredGeneralErrors = useMemo(() => {
+    return mapServerErrorToField(errors.general || "", PROFILE_FIELD_KEYWORDS);
+  }, [errors.general]);
 
   // Check for unsaved changes
   const hasUnsavedChanges = useMemo(() => {
@@ -96,8 +116,8 @@ export function UserFormModal({
 
   // Combine server errors with local validation errors
   const combinedErrors = useMemo(() => {
-    return { ...validationErrors, ...errors };
-  }, [validationErrors, errors]);
+    return { ...validationErrors, ...inferredGeneralErrors, ...errors };
+  }, [validationErrors, inferredGeneralErrors, errors]);
 
   const handleChange = (name: string, value: string) => {
     setUserData({ ...userData, [name]: value });
@@ -112,11 +132,11 @@ export function UserFormModal({
     validateField(name, value);
   };
 
-  const shouldShowFieldError = (fieldName: string) => {
-    const isServerError = !!errors[fieldName];
-    if (isServerError) return combinedErrors[fieldName];
-    // Show validation error if it exists, regardless of touched state (important for form submission)
-    if (combinedErrors[fieldName]) return combinedErrors[fieldName];
+  const getFieldError = (fieldName: string): string | undefined => {
+    if (errors[fieldName]) return errors[fieldName];
+    if (combinedErrors[fieldName] && shouldShowError(fieldName, userData[fieldName as keyof typeof userData] as string)) {
+      return combinedErrors[fieldName];
+    }
     return undefined;
   };
 
@@ -133,55 +153,21 @@ export function UserFormModal({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
-    const values = {
+    const fieldValues: Record<string, string> = {
       email: userData.email,
       name: userData.name,
       address: userData.address,
       phone: userData.phone,
+      role: userData.role,
       memberSince: userData.memberSince,
       dateOfBirth: userData.dateOfBirth,
       rank: userData.rank,
       pk: userData.pk,
       reservistsAssociation: userData.reservistsAssociation,
       associationMemberNumber: userData.associationMemberNumber,
-      hasPossessionCard: userData.hasPossessionCard,
     };
 
-    // Mark all fields as touched when submitting to show validation errors
-    markFieldAsTouched("email");
-    markFieldAsTouched("name");
-    markFieldAsTouched("address");
-    markFieldAsTouched("phone");
-    markFieldAsTouched("memberSince");
-    markFieldAsTouched("dateOfBirth");
-    markFieldAsTouched("rank");
-    markFieldAsTouched("pk");
-    markFieldAsTouched("reservistsAssociation");
-    markFieldAsTouched("associationMemberNumber");
-
-    validateField("email", values.email);
-    validateField("name", values.name);
-    validateField("address", values.address);
-    validateField("phone", values.phone);
-    validateField("memberSince", values.memberSince);
-    validateField("dateOfBirth", values.dateOfBirth);
-    validateField("rank", values.rank);
-    validateField("pk", values.pk);
-    validateField("reservistsAssociation", values.reservistsAssociation);
-    validateField("associationMemberNumber", values.associationMemberNumber);
-
-    const isValid =
-      isFieldValid("email", values.email) &&
-      isFieldValid("name", values.name) &&
-      isFieldValid("address", values.address) &&
-      isFieldValid("phone", values.phone) &&
-      isFieldValid("memberSince", values.memberSince) &&
-      isFieldValid("dateOfBirth", values.dateOfBirth) &&
-      isFieldValid("rank", values.rank) &&
-      isFieldValid("pk", values.pk) &&
-      isFieldValid("reservistsAssociation", values.reservistsAssociation) &&
-      isFieldValid("associationMemberNumber", values.associationMemberNumber);
-
+    const isValid = validateAllFields(fieldValues);
     if (!isValid) {
       return;
     }
@@ -198,33 +184,21 @@ export function UserFormModal({
     >
       <form onSubmit={handleSubmit} className="space-y-4" noValidate>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label htmlFor="modal-name" className="form-label">
-              Name *
-            </label>
-            <input
-              id="modal-name"
-              type="text"
-              value={userData.name}
-              onChange={(e) => handleChange("name", e.target.value)}
-              onBlur={(e) => handleBlur("name", e.target.value)}
-              required
-              maxLength={100}
-              className={`form-input ${
-                shouldShowFieldError("name") ? "border-red-500 focus:border-red-500" : ""
-              }`}
-              placeholder="Max Mustermann"
-              disabled={isSubmitting}
-              autoFocus={isEditing}
-              aria-invalid={!!shouldShowFieldError("name")}
-              aria-describedby={shouldShowFieldError("name") ? "name-error" : undefined}
-            />
-            {shouldShowFieldError("name") && (
-              <p id="name-error" className="form-help text-red-600">
-                {combinedErrors.name}
-              </p>
-            )}
-          </div>
+          <ValidatedFieldGroup
+            label="Name"
+            name="name"
+            type="text"
+            value={userData.name}
+            onChange={(e) => handleChange("name", e.target.value)}
+            onBlur={(e) => handleBlur("name", e.target.value)}
+            error={getFieldError("name")}
+            showSuccess={isValidAndTouched("name", userData.name)}
+            required
+            maxLength={100}
+            placeholder="Max Mustermann"
+            disabled={isSubmitting}
+            autoFocus={isEditing}
+          />
 
           <GermanDatePicker
             id="modal-dateOfBirth"
@@ -233,197 +207,113 @@ export function UserFormModal({
             onChange={(date) => handleChange("dateOfBirth", date)}
             onBlur={() => handleBlur("dateOfBirth", userData.dateOfBirth)}
             disabled={isSubmitting}
-            error={shouldShowFieldError("dateOfBirth")}
+            error={getFieldError("dateOfBirth")}
           />
         </div>
 
-        <div>
-          <label htmlFor="modal-address" className="form-label">
-            Adresse
-          </label>
-          <input
-            id="modal-address"
-            type="text"
-            value={userData.address}
-            onChange={(e) => handleChange("address", e.target.value)}
-            onBlur={(e) => handleBlur("address", e.target.value)}
-            maxLength={200}
-            className={`form-input ${
-              shouldShowFieldError("address") ? "border-red-500 focus:border-red-500" : ""
-            }`}
-            placeholder="Musterstraße 1, 12345 Musterstadt"
+        <ValidatedFieldGroup
+          label="Adresse"
+          name="address"
+          type="text"
+          value={userData.address}
+          onChange={(e) => handleChange("address", e.target.value)}
+          onBlur={(e) => handleBlur("address", e.target.value)}
+          error={getFieldError("address")}
+          showSuccess={isValidAndTouched("address", userData.address)}
+          maxLength={200}
+          placeholder="Musterstraße 1, 12345 Musterstadt"
+          disabled={isSubmitting}
+        />
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <ValidatedFieldGroup
+            label="E-Mail"
+            name="email"
+            type="email"
+            value={userData.email}
+            onChange={(e) => handleChange("email", e.target.value)}
+            onBlur={(e) => handleBlur("email", e.target.value)}
+            error={getFieldError("email")}
+            showSuccess={isValidAndTouched("email", userData.email)}
+            required
+            placeholder="beispiel@email.de"
             disabled={isSubmitting}
-            aria-invalid={!!shouldShowFieldError("address")}
-            aria-describedby={shouldShowFieldError("address") ? "address-error" : undefined}
+            autoFocus={!isEditing}
           />
-          {shouldShowFieldError("address") && (
-            <p id="address-error" className="form-help text-red-600">
-              {combinedErrors.address}
-            </p>
-          )}
+
+          <ValidatedFieldGroup
+            label="Telefon"
+            name="phone"
+            type="tel"
+            value={userData.phone}
+            onChange={(e) => handleChange("phone", e.target.value)}
+            onBlur={(e) => handleBlur("phone", e.target.value)}
+            error={getFieldError("phone")}
+            showSuccess={isValidAndTouched("phone", userData.phone)}
+            maxLength={30}
+            placeholder="0123 456789"
+            disabled={isSubmitting}
+          />
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label htmlFor="modal-email" className="form-label">
-              E-Mail *
-            </label>
-            <input
-              id="modal-email"
-              type="email"
-              value={userData.email}
-              onChange={(e) => handleChange("email", e.target.value)}
-              onBlur={(e) => handleBlur("email", e.target.value)}
-              required
-              className={`form-input ${
-                shouldShowFieldError("email") ? "border-red-500 focus:border-red-500" : ""
-              }`}
-              placeholder="beispiel@email.de"
-              disabled={isSubmitting}
-              autoFocus={!isEditing}
-              aria-invalid={!!shouldShowFieldError("email")}
-              aria-describedby={shouldShowFieldError("email") ? "email-error" : undefined}
-            />
-            {shouldShowFieldError("email") && (
-              <p id="email-error" className="form-help text-red-600">
-                {combinedErrors.email}
-              </p>
-            )}
-          </div>
+          <ValidatedFieldGroup
+            label="Dienstgrad"
+            name="rank"
+            type="text"
+            value={userData.rank}
+            onChange={(e) => handleChange("rank", e.target.value)}
+            onBlur={(e) => handleBlur("rank", e.target.value)}
+            error={getFieldError("rank")}
+            showSuccess={isValidAndTouched("rank", userData.rank)}
+            maxLength={30}
+            placeholder="z.B. Obergefreiter d.R."
+            disabled={isSubmitting}
+          />
 
-          <div>
-            <label htmlFor="modal-phone" className="form-label">
-              Telefon
-            </label>
-            <input
-              id="modal-phone"
-              type="tel"
-              value={userData.phone}
-              onChange={(e) => handleChange("phone", e.target.value)}
-              onBlur={(e) => handleBlur("phone", e.target.value)}
-              maxLength={30}
-              className={`form-input ${
-                shouldShowFieldError("phone") ? "border-red-500 focus:border-red-500" : ""
-              }`}
-              placeholder="0123 456789"
-              disabled={isSubmitting}
-              aria-invalid={!!shouldShowFieldError("phone")}
-              aria-describedby={shouldShowFieldError("phone") ? "phone-error" : undefined}
-            />
-            {shouldShowFieldError("phone") && (
-              <p id="phone-error" className="form-help text-red-600">
-                {combinedErrors.phone}
-              </p>
-            )}
-          </div>
+          <ValidatedFieldGroup
+            label="PK"
+            name="pk"
+            type="text"
+            value={userData.pk}
+            onChange={(e) => handleChange("pk", e.target.value)}
+            onBlur={(e) => handleBlur("pk", e.target.value)}
+            error={getFieldError("pk")}
+            showSuccess={isValidAndTouched("pk", userData.pk)}
+            maxLength={20}
+            placeholder="z.B. 12345 A 67890"
+            disabled={isSubmitting}
+          />
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label htmlFor="modal-rank" className="form-label">
-              Dienstgrad
-            </label>
-            <input
-              id="modal-rank"
-              type="text"
-              value={userData.rank}
-              onChange={(e) => handleChange("rank", e.target.value)}
-              onBlur={(e) => handleBlur("rank", e.target.value)}
-              maxLength={30}
-              className={`form-input ${
-                shouldShowFieldError("rank") ? "border-red-500 focus:border-red-500" : ""
-              }`}
-              placeholder="z.B. Obergefreiter d.R."
-              disabled={isSubmitting}
-              aria-invalid={!!shouldShowFieldError("rank")}
-              aria-describedby={shouldShowFieldError("rank") ? "rank-error" : undefined}
-            />
-            {shouldShowFieldError("rank") && (
-              <p id="rank-error" className="form-help text-red-600">
-                {combinedErrors.rank}
-              </p>
-            )}
-          </div>
+          <ValidatedFieldGroup
+            label="Reservistenkameradschaft"
+            name="reservistsAssociation"
+            type="text"
+            value={userData.reservistsAssociation}
+            onChange={(e) => handleChange("reservistsAssociation", e.target.value)}
+            onBlur={(e) => handleBlur("reservistsAssociation", e.target.value)}
+            error={getFieldError("reservistsAssociation")}
+            showSuccess={isValidAndTouched("reservistsAssociation", userData.reservistsAssociation)}
+            maxLength={30}
+            placeholder="z.B. RK MSE"
+            disabled={isSubmitting}
+          />
 
-          <div>
-            <label htmlFor="modal-pk" className="form-label">
-              PK
-            </label>
-            <input
-              id="modal-pk"
-              type="text"
-              value={userData.pk}
-              onChange={(e) => handleChange("pk", e.target.value)}
-              onBlur={(e) => handleBlur("pk", e.target.value)}
-              maxLength={20}
-              className={`form-input ${
-                shouldShowFieldError("pk") ? "border-red-500 focus:border-red-500" : ""
-              }`}
-              placeholder="z.B. 12345 A 67890"
-              disabled={isSubmitting}
-              aria-invalid={!!shouldShowFieldError("pk")}
-              aria-describedby={shouldShowFieldError("pk") ? "pk-error" : undefined}
-            />
-            {shouldShowFieldError("pk") && (
-              <p id="pk-error" className="form-help text-red-600">
-                {combinedErrors.pk}
-              </p>
-            )}
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label htmlFor="modal-reservistsAssociation" className="form-label">
-              Reservistenkameradschaft
-            </label>
-            <input
-              id="modal-reservistsAssociation"
-              type="text"
-              value={userData.reservistsAssociation}
-              onChange={(e) => handleChange("reservistsAssociation", e.target.value)}
-              onBlur={(e) => handleBlur("reservistsAssociation", e.target.value)}
-              maxLength={30}
-              className={`form-input ${
-                shouldShowFieldError("reservistsAssociation") ? "border-red-500 focus:border-red-500" : ""
-              }`}
-              placeholder="z.B. RK MSE"
-              disabled={isSubmitting}
-              aria-invalid={!!shouldShowFieldError("reservistsAssociation")}
-              aria-describedby={shouldShowFieldError("reservistsAssociation") ? "reservistsAssociation-error" : undefined}
-            />
-            {shouldShowFieldError("reservistsAssociation") && (
-              <p id="reservistsAssociation-error" className="form-help text-red-600">
-                {combinedErrors.reservistsAssociation}
-              </p>
-            )}
-          </div>
-
-          <div>
-            <label htmlFor="modal-associationMemberNumber" className="form-label">
-              Mitgliedsnummer im Verband
-            </label>
-            <input
-              id="modal-associationMemberNumber"
-              type="text"
-              value={userData.associationMemberNumber}
-              onChange={(e) => handleChange("associationMemberNumber", e.target.value)}
-              onBlur={(e) => handleBlur("associationMemberNumber", e.target.value)}
-              maxLength={30}
-              className={`form-input ${
-                shouldShowFieldError("associationMemberNumber") ? "border-red-500 focus:border-red-500" : ""
-              }`}
-              placeholder="z.B. 1234567890"
-              disabled={isSubmitting}
-              aria-invalid={!!shouldShowFieldError("associationMemberNumber")}
-              aria-describedby={shouldShowFieldError("associationMemberNumber") ? "associationMemberNumber-error" : undefined}
-            />
-            {shouldShowFieldError("associationMemberNumber") && (
-              <p id="associationMemberNumber-error" className="form-help text-red-600">
-                {combinedErrors.associationMemberNumber}
-              </p>
-            )}
-          </div>
+          <ValidatedFieldGroup
+            label="Mitgliedsnummer im Verband"
+            name="associationMemberNumber"
+            type="text"
+            value={userData.associationMemberNumber}
+            onChange={(e) => handleChange("associationMemberNumber", e.target.value)}
+            onBlur={(e) => handleBlur("associationMemberNumber", e.target.value)}
+            error={getFieldError("associationMemberNumber")}
+            showSuccess={isValidAndTouched("associationMemberNumber", userData.associationMemberNumber)}
+            maxLength={30}
+            placeholder="z.B. 1234567890"
+            disabled={isSubmitting}
+          />
         </div>
 
         <div>
@@ -453,7 +343,7 @@ export function UserFormModal({
             onChange={(date) => handleChange("memberSince", date)}
             onBlur={() => handleBlur("memberSince", userData.memberSince)}
             disabled={isSubmitting}
-            error={shouldShowFieldError("memberSince")}
+            error={getFieldError("memberSince")}
           />
 
           <div>
@@ -464,13 +354,21 @@ export function UserFormModal({
               id="modal-role"
               value={userData.role}
               onChange={(e) => handleChange("role", e.target.value as UserRole)}
+              onBlur={(e) => handleBlur("role", e.target.value)}
               required
-              className="form-input"
+              className={`form-input ${getFieldError("role") ? "border-red-500 focus:border-red-500" : ""}`}
               disabled={isSubmitting}
+              aria-invalid={!!getFieldError("role")}
+              aria-describedby={getFieldError("role") ? "role-error" : undefined}
             >
               <option value="MEMBER">Mitglied</option>
               <option value="ADMIN">Administrator</option>
             </select>
+            {getFieldError("role") && (
+              <p id="role-error" className="form-help text-red-600">
+                {getFieldError("role")}
+              </p>
+            )}
           </div>
         </div>
 

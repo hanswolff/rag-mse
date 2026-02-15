@@ -573,6 +573,11 @@ ALLOW_DB_SEED=false     # Erlaubt pnpm run db:seed in Produktion
 # Anwendungseinstellungen
 APP_NAME="RAG Schießsport MSE"
 APP_URL="http://localhost:3000"
+APP_TIMEZONE="Europe/Berlin"
+
+# Termin-Benachrichtigungen
+EVENT_REMINDER_POLL_INTERVAL_MS="3600000"
+NOTIFICATION_TOKEN_VALIDITY_DAYS="60"
 
 # Container-User für Docker (muss Schreibrechte auf ./data haben)
 APP_UID="1000"
@@ -590,46 +595,54 @@ APP_GID="1000"
 
 ### Authentifizierung
 
-- E-Mail/Passwort-Login
-- Session-Management
+- E-Mail/Passwort-Login mit NextAuth (Credentials)
 - Rollenbasierte Zugriffskontrolle (Admin vs. Mitglied)
-- Passwort zurücksetzen (via E-Mail)
-- Passwort ändern (für eingeloggte Benutzer)
-- Einladungssystem (Token-basierte Registrierung)
+- Passwort zurücksetzen per E-Mail-Token
+- Passwort ändern für eingeloggte Mitglieder
+- Einladungseinlösung über Token-Link (keine öffentliche Registrierung)
+- Schutzmechanismen: Rate Limiting und Origin/Referer-Prüfung für schreibende API-Requests
 
 ### Termine
 
+- Öffentliche Terminliste und öffentliche Termindetailseiten
 - Admins können Termine erstellen, bearbeiten und löschen
-- Mitglieder können über Teilnahme abstimmen (Ja/Nein/Vielleicht)
-- Eine Stimme pro Mitglied pro Termin (Admins können auch abstimmen)
-- Stimmen können zurückgezogen werden
-- Event-Typen: Training & Wettkampf
-- Kartenintegration mit OpenStreetMap
-- Vergangene Termine auf separater Seite
-- Abstimmungsergebnisse sichtbar für eingeloggte Benutzer
 - Rich-Text-Beschreibungen mit Tiptap-Editor
+- Event-Typen: Training und Wettkampf (optional)
+- Standortunterstützung mit OpenStreetMap (Karte auf der Detailseite)
+- Schießstand-Auswahl und Geocoding-Unterstützung im Admin-Formular
+- Vergangene Termine auf separater Seite
+- Abstimmung (Ja/Nein/Vielleicht) nur für eingeloggte Nutzer
+- Eine Stimme pro Mitglied pro Termin, inklusive Rückzug der eigenen Stimme
+- Abstimmungsergebnisse nur für eingeloggte Nutzer sichtbar
 
 ### Benutzerverwaltung (Admin)
 
-- Benutzer manuell erstellen
-- Einladungen per E-Mail senden
-- Benutzerdaten bearbeiten
-- Benutzer löschen (mit Schutz für letzten Admin)
-- Rollenverwaltung (Admin/Mitglied)
+- Benutzer erstellen, bearbeiten und löschen
+- Rollenverwaltung (Admin/Mitglied) inkl. Schutz vor Löschung des letzten Admins
+- Einladungen versenden und erneut versenden
+- Erweiterte Profildaten verwalten (u.a. Adresse, Telefon, Geburtsdatum, Dienstgrad, Verbandsdaten)
 
 ### News
 
-- Admins können News-Artikel erstellen und bearbeiten
-- Rich-Text-Editor für Inhalte
 - Öffentliche News-Liste und Detailseiten
-- Veröffentlichungsstatus steuern
+- Admins können News-Artikel erstellen, bearbeiten und löschen
+- Veröffentlichungsstatus und Veröffentlichungsdatum steuerbar
 
 ### Kontaktformular
 
 - Öffentliches Kontaktformular
-- E-Mail-Versand an Administratoren
+- E-Mail-Versand an konfigurierte Administratoren
 - Rate Limiting gegen Spam
 - Serverseitige Validierung
+
+### Benachrichtigungen
+
+- Mitglieder können persönliche E-Mail-Erinnerungen für offene Terminanmeldungen im Profil konfigurieren
+- Erinnerung erfolgt per Token-Link zur Anmeldung (`/anmeldung/[token]`)
+- Abmeldung von Erinnerungen per Token-Link (`/benachrichtigungen/abmelden/[token]`)
+- RSVP-Links unterstützen direkte Zu-/Absage ohne Login (`/api/notifications/rsvp/[token]`)
+- Adminansicht für Benachrichtigungs-Verlauf der letzten 30 Tage (`/admin/benachrichtigungen`)
+- Outbox-basierter E-Mail-Versand mit Retry-Logik und Admin-Einsicht (`/admin/e-mail-versand`)
 
 ### Datenschutz und Rechtliches
 

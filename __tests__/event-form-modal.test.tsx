@@ -678,5 +678,52 @@ describe("EventFormModal", () => {
       expect(screen.getByText("Ort ist erforderlich")).toBeInTheDocument();
       expect(screen.getByText("Beschreibung ist erforderlich")).toBeInTheDocument();
     });
+
+    it("should clear validation state when modal is reopened", async () => {
+      const user = userEvent.setup();
+      const { rerender } = render(
+        <EventFormModal
+          isOpen={true}
+          onClose={mockOnClose}
+          onSubmit={mockOnSubmit}
+          isSubmitting={false}
+          eventData={{ ...defaultEventData, date: "" }}
+          setEventData={jest.fn()}
+          isEditing={false}
+          initialEventData={undefined}
+        />
+      );
+
+      await user.click(screen.getByRole("button", { name: "Erstellen" }));
+      expect(screen.getByText("Datum ist erforderlich")).toBeInTheDocument();
+
+      rerender(
+        <EventFormModal
+          isOpen={false}
+          onClose={mockOnClose}
+          onSubmit={mockOnSubmit}
+          isSubmitting={false}
+          eventData={{ ...defaultEventData, date: "" }}
+          setEventData={jest.fn()}
+          isEditing={false}
+          initialEventData={undefined}
+        />
+      );
+
+      rerender(
+        <EventFormModal
+          isOpen={true}
+          onClose={mockOnClose}
+          onSubmit={mockOnSubmit}
+          isSubmitting={false}
+          eventData={{ ...defaultEventData, date: "" }}
+          setEventData={jest.fn()}
+          isEditing={false}
+          initialEventData={undefined}
+        />
+      );
+
+      expect(screen.queryByText("Datum ist erforderlich")).not.toBeInTheDocument();
+    });
   });
 });

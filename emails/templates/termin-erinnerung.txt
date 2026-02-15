@@ -1,0 +1,18 @@
+Subject: Erinnerung: Bitte Teilnahme für Termin bestätigen
+
+Hallo,
+
+in {{daysBefore}} Tag(en) findet ein Termin statt, für den noch keine Teilnahme von dir hinterlegt ist.
+
+Datum: {{eventDate}}
+Uhrzeit: {{eventTimeFrom}} - {{eventTimeTo}}
+Ort: {{eventLocation}}
+
+Direkt zur Anmeldung (Ja/Nein/Vielleicht):
+{{rsvpUrl}}
+
+Wenn du diese Erinnerung für zukünftige Termine nicht mehr erhalten möchtest, kannst du sie mit einem Klick deaktivieren:
+{{unsubscribeUrl}}
+
+Viele Grüße
+{{appName}}

@@ -9,6 +9,11 @@ describe("DatenschutzPage", () => {
     expect(heading.tagName).toBe("H1");
   });
 
+  it("renders the last updated date", () => {
+    render(<DatenschutzPage />);
+    expect(screen.getByText("Zuletzt geändert: 15. Februar 2026")).toBeInTheDocument();
+  });
+
   it("renders data protection overview section", () => {
     render(<DatenschutzPage />);
     const heading = screen.getByRole("heading", {

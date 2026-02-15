@@ -3,7 +3,7 @@ import { OutgoingEmail, OutgoingEmailStatus } from "@prisma/client";
 import { prisma } from "./prisma";
 import { renderEmailTemplate } from "./email-templates";
 import { logError, logInfo } from "./logger";
-import { promises as fs } from "fs";
+import { constants as fsConstants, promises as fs } from "fs";
 import path from "path";
 
 interface SmtpConfig {
@@ -37,6 +37,13 @@ interface ClassifiedEmailError {
 
 interface ClaimedOutgoingEmail extends OutgoingEmail {
   toList: string[];
+  attachments: EmailAttachment[];
+}
+
+interface EmailAttachment {
+  filename: string;
+  content: string;
+  contentType?: string;
 }
 
 const PERMANENT_ERROR_PATTERNS = [
@@ -96,19 +103,47 @@ function getDevLogMethod(): DevLogMethod {
 }
 
 function getDevLogDir(): string {
-  return process.env.EMAIL_DEV_LOG_DIR || path.resolve(process.cwd(), "logs", "emails");
+  const configuredLogDir = process.env.EMAIL_DEV_LOG_DIR?.trim();
+  const rawLogDir = configuredLogDir && configuredLogDir.length > 0
+    ? configuredLogDir
+    : path.resolve(process.cwd(), "data", "logs", "emails");
+  return path.isAbsolute(rawLogDir) ? rawLogDir : path.resolve(process.cwd(), rawLogDir);
 }
 
-async function ensureLogDirectory(): Promise<void> {
-  const logDir = getDevLogDir();
-  try {
-    await fs.mkdir(logDir, { recursive: true });
-  } catch (error) {
-    logError("email_log_dir_failed", "Failed to create email log directory", {
-      logDir,
-      error: error instanceof Error ? error.message : String(error),
-    });
+async function ensureWritableLogDirectory(): Promise<string> {
+  const configuredLogDir = getDevLogDir();
+  const fallbackLogDir = path.resolve(process.cwd(), "data", "logs", "emails");
+  const tmpLogDir = path.resolve("/tmp", "rag-mse", "emails");
+  const candidates = [configuredLogDir, fallbackLogDir, tmpLogDir].filter(
+    (candidate, index, all) => all.indexOf(candidate) === index
+  );
+
+  const errors: string[] = [];
+
+  for (const logDir of candidates) {
+    try {
+      await fs.mkdir(logDir, { recursive: true });
+      await fs.access(logDir, fsConstants.W_OK);
+
+      if (logDir !== configuredLogDir) {
+        logInfo("email_log_dir_fallback_used", "Configured email log directory is not writable, using fallback", {
+          configuredLogDir,
+          fallbackLogDir: logDir,
+        });
+      }
+
+      return logDir;
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      errors.push(`${logDir}: ${errorMessage}`);
+      logError("email_log_dir_failed", "Failed to create or access email log directory", {
+        logDir,
+        error: errorMessage,
+      });
+    }
   }
+
+  throw new Error(`No writable email log directory found (${errors.join("; ")})`);
 }
 
 async function writeEmailToFile(
@@ -116,15 +151,14 @@ async function writeEmailToFile(
   smtpConfig: SmtpConfig
 ): Promise<string> {
   try {
-    await ensureLogDirectory();
-
-    const logDir = getDevLogDir();
+    const logDir = await ensureWritableLogDirectory();
     const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
     const randomSuffix = Math.random().toString(36).substring(2, 10);
     const filename = `${timestamp}_${email.id}_${randomSuffix}.eml`;
     const filePath = path.join(logDir, filename);
 
-    const boundary = `boundary-${email.id}-${randomSuffix}`;
+    const outerBoundary = `mixed-${email.id}-${randomSuffix}`;
+    const alternativeBoundary = `alternative-${email.id}-${randomSuffix}`;
 
     const emailParts: string[] = [
       `From: ${smtpConfig.from}`,
@@ -132,12 +166,15 @@ async function writeEmailToFile(
       `Subject: ${email.subject}`,
       `Date: ${new Date().toUTCString()}`,
       `MIME-Version: 1.0`,
-      `Content-Type: multipart/alternative; boundary="${boundary}"`,
+      `Content-Type: multipart/mixed; boundary="${outerBoundary}"`,
       "",
     ];
 
     const textPart = [
-      `--${boundary}`,
+      `--${outerBoundary}`,
+      `Content-Type: multipart/alternative; boundary="${alternativeBoundary}"`,
+      "",
+      `--${alternativeBoundary}`,
       `Content-Type: text/plain; charset=utf-8`,
       `Content-Transfer-Encoding: 7bit`,
       "",
@@ -146,16 +183,32 @@ async function writeEmailToFile(
 
     const htmlPart = [
       "",
-      `--${boundary}`,
+      `--${alternativeBoundary}`,
       `Content-Type: text/html; charset=utf-8`,
       `Content-Transfer-Encoding: 7bit`,
       "",
       email.htmlBody,
       "",
-      `--${boundary}--`,
+      `--${alternativeBoundary}--`,
     ].join("\r\n");
 
     emailParts.push(textPart + htmlPart);
+
+    for (const attachment of email.attachments) {
+      emailParts.push(
+        [
+          `--${outerBoundary}`,
+          `Content-Type: ${attachment.contentType || "application/octet-stream"}`,
+          `Content-Disposition: attachment; filename="${attachment.filename}"`,
+          `Content-Transfer-Encoding: base64`,
+          "",
+          Buffer.from(attachment.content, "utf8").toString("base64"),
+          "",
+        ].join("\r\n")
+      );
+    }
+
+    emailParts.push(`--${outerBoundary}--`, "");
 
     await fs.writeFile(filePath, emailParts.join("\r\n"), "utf8");
 
@@ -233,6 +286,29 @@ function getSmtpTimeouts() {
   };
 }
 
+function getOutgoingSenderName(): string {
+  return (process.env.APP_NAME || "RAG Schießsport MSE").trim() || "RAG Schießsport MSE";
+}
+
+function getSmtpFromAddress(smtpFrom: string): string {
+  const trimmed = smtpFrom.trim();
+  const angleMatch = /<([^>]+)>/.exec(trimmed);
+  if (angleMatch && angleMatch[1]) {
+    return angleMatch[1].trim();
+  }
+  return trimmed;
+}
+
+function escapeDisplayName(value: string): string {
+  return value.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+}
+
+function formatFromHeader(addressOrHeader: string): string {
+  const address = getSmtpFromAddress(addressOrHeader);
+  const displayName = getOutgoingSenderName();
+  return `"${escapeDisplayName(displayName)}" <${address}>`;
+}
+
 function getSmtpConfig(): SmtpConfig {
   const smtpHost = process.env.SMTP_HOST;
   const smtpPort = process.env.SMTP_PORT;
@@ -250,7 +326,7 @@ function getSmtpConfig(): SmtpConfig {
     secure: smtpPort === "465",
     user: smtpUser,
     password: smtpPassword,
-    from: smtpFrom,
+    from: formatFromHeader(smtpFrom),
   };
 }
 
@@ -316,6 +392,56 @@ function parseRecipients(toRecipients: string): string[] {
     .split(",")
     .map(item => item.trim())
     .filter(Boolean);
+}
+
+function normalizeAttachments(attachments: SendTemplateEmailOptions["attachments"]): EmailAttachment[] {
+  if (!attachments || attachments.length === 0) {
+    return [];
+  }
+
+  return attachments
+    .filter((attachment) => attachment && attachment.filename && attachment.content)
+    .map((attachment) => ({
+      filename: attachment.filename.trim(),
+      content: attachment.content,
+      ...(attachment.contentType ? { contentType: attachment.contentType.trim() } : {}),
+    }))
+    .filter((attachment) => attachment.filename.length > 0 && attachment.content.length > 0);
+}
+
+function serializeAttachments(attachments: EmailAttachment[]): string | null {
+  if (attachments.length === 0) {
+    return null;
+  }
+
+  return JSON.stringify(attachments);
+}
+
+function parseStoredAttachments(attachmentsJson: string | null | undefined): EmailAttachment[] {
+  if (!attachmentsJson) {
+    return [];
+  }
+
+  try {
+    const parsed = JSON.parse(attachmentsJson);
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+
+    return parsed
+      .filter((attachment) => attachment && typeof attachment === "object")
+      .map((attachment) => {
+        const record = attachment as Record<string, unknown>;
+        return {
+          filename: typeof record.filename === "string" ? record.filename : "",
+          content: typeof record.content === "string" ? record.content : "",
+          contentType: typeof record.contentType === "string" ? record.contentType : undefined,
+        };
+      })
+      .filter((attachment) => attachment.filename.length > 0 && attachment.content.length > 0);
+  } catch {
+    return [];
+  }
 }
 
 export function getNextRetryTimeForTransientFailure(attemptCount: number, firstQueuedAt: Date, now: Date): Date | null {
@@ -394,6 +520,7 @@ async function claimNextEmail(lockMs: number): Promise<ClaimedOutgoingEmail | nu
   return {
     ...email,
     toList: parseRecipients(email.toRecipients),
+    attachments: parseStoredAttachments(email.attachmentsJson),
   };
 }
 
@@ -429,6 +556,7 @@ async function sendEmailBySmtp(email: ClaimedOutgoingEmail): Promise<{ messageId
     subject: email.subject,
     text: email.textBody,
     html: email.htmlBody,
+    ...(email.attachments.length > 0 ? { attachments: email.attachments } : {}),
   });
 
   return { messageId: result.messageId };
@@ -608,12 +736,18 @@ export interface SendTemplateEmailOptions {
   template: string;
   variables: Record<string, string>;
   to: string | string[];
+  attachments?: Array<{
+    filename: string;
+    content: string;
+    contentType?: string;
+  }>;
 }
 
 export { classifyEmailError };
 
-export async function sendTemplateEmail({ template, variables, to }: SendTemplateEmailOptions) {
+export async function sendTemplateEmail({ template, variables, to, attachments }: SendTemplateEmailOptions) {
   const recipients = normalizeRecipients(to);
+  const normalizedAttachments = normalizeAttachments(attachments);
   const { subject, body } = await renderEmailTemplate(template, variables);
 
   const queuedEmail = await prisma.outgoingEmail.create({
@@ -623,6 +757,7 @@ export async function sendTemplateEmail({ template, variables, to }: SendTemplat
       subject,
       textBody: body,
       htmlBody: buildHtmlFromText(body),
+      attachmentsJson: serializeAttachments(normalizedAttachments),
       status: OutgoingEmailStatus.QUEUED,
       nextAttemptAt: new Date(),
     },
@@ -632,6 +767,7 @@ export async function sendTemplateEmail({ template, variables, to }: SendTemplat
     outboxId: queuedEmail.id,
     template,
     to: queuedEmail.toRecipients,
+    attachmentCount: normalizedAttachments.length,
   });
 
   return {

@@ -16,8 +16,8 @@ import {
   validatePk,
   validateReservistsAssociation,
   validateAssociationMemberNumber,
+  validateDateOfBirth,
 } from "@/lib/user-validation";
-import { validateDateString } from "@/lib/validation-schema";
 import { formatDateInputValue } from "@/lib/date-picker-utils";
 
 const BCRYPT_SALT_ROUNDS = 10;
@@ -375,11 +375,10 @@ export async function POST(
 
     // Validate new profile fields
     if (dateOfBirth !== undefined) {
-      if (typeof dateOfBirth !== "string" || !dateOfBirth.trim()) {
-        // Empty is fine
-      } else if (!validateDateString(dateOfBirth)) {
-        logValidationFailure('/api/invitations/[token]', 'POST', 'Ungültiges Geburtsdatum', { token: maskToken(token) });
-        return NextResponse.json({ error: "Ungültiges Geburtsdatum" }, { status: 400 });
+      const dateOfBirthValidation = validateDateOfBirth(dateOfBirth);
+      if (!dateOfBirthValidation.isValid) {
+        logValidationFailure('/api/invitations/[token]', 'POST', dateOfBirthValidation.error || 'Ungültiges Geburtsdatum', { token: maskToken(token) });
+        return NextResponse.json({ error: dateOfBirthValidation.error || "Ungültiges Geburtsdatum" }, { status: 400 });
       }
     }
 

@@ -83,6 +83,9 @@ export function validateProductionConfig(): ValidationResult {
   validateNextAuthSecret();
   validatePositiveIntegerEnvVar("APP_UID");
   validatePositiveIntegerEnvVar("APP_GID");
+  validatePositiveIntegerEnvVar("NOTIFICATION_TOKEN_VALIDITY_DAYS");
+  validatePositiveIntegerEnvVar("EVENT_REMINDER_POLL_INTERVAL_MS");
+  validateBooleanEnvVar("CSP_ALLOW_UNSAFE_INLINE_SCRIPTS");
 
   if ((process.env.APP_UID && !process.env.APP_GID) || (!process.env.APP_UID && process.env.APP_GID)) {
     result.warnings.push(
@@ -142,6 +145,12 @@ export function validateProductionConfig(): ValidationResult {
 
     validateBooleanEnvVar("ALLOW_DB_PUSH");
     validateBooleanEnvVar("ALLOW_DB_SEED");
+
+    if (process.env.CSP_ALLOW_UNSAFE_INLINE_SCRIPTS === "true") {
+      result.warnings.push(
+        "CSP_ALLOW_UNSAFE_INLINE_SCRIPTS=true reduziert die Wirksamkeit der Content-Security-Policy."
+      );
+    }
   } else {
     if (!process.env.NEXTAUTH_URL) {
       result.warnings.push("NEXTAUTH_URL ist nicht gesetzt, verwendet Default");

@@ -1,4 +1,4 @@
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { PasswordChangeForm } from "@/components/password-change-form";
 
@@ -219,10 +219,13 @@ describe("PasswordChangeForm", () => {
       const submitButton = screen.getByText("Passwort ändern", { selector: "button" });
       await user.click(submitButton);
 
-      // Check that validation errors are shown (may appear in summary list and/or below fields)
-      expect(screen.getAllByText(/Aktuelles Passwort ist erforderlich/i).length).toBeGreaterThan(0);
-      expect(screen.getAllByText(/Neues Passwort ist erforderlich/i).length).toBeGreaterThan(0);
-      expect(screen.getAllByText(/Passwortbestätigung ist erforderlich/i).length).toBeGreaterThan(0);
+      // Wait for validation state to update
+      await waitFor(() => {
+        // Check that validation errors are shown (may appear in summary list and/or below fields)
+        expect(screen.getAllByText(/Aktuelles Passwort ist erforderlich/i).length).toBeGreaterThan(0);
+        expect(screen.getAllByText(/Neues Passwort ist erforderlich/i).length).toBeGreaterThan(0);
+        expect(screen.getAllByText(/Passwortbestätigung ist erforderlich/i).length).toBeGreaterThan(0);
+      });
       expect(mockOnSubmit).not.toHaveBeenCalled();
     });
 

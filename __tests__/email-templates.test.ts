@@ -36,4 +36,23 @@ describe("email templates", () => {
     expect(result.body).toContain("https://example.com/passwort-zuruecksetzen/test-token");
     expect(result.body).toContain("24 Stunden");
   });
+
+  it("renders event reminder template placeholders", async () => {
+    const result = await renderEmailTemplate("termin-erinnerung", {
+      appName: "RAG Schießsport MSE",
+      daysBefore: "7",
+      eventDate: "20.02.2026",
+      eventTimeFrom: "18:00",
+      eventTimeTo: "20:00",
+      eventLocation: "Schießstand Ulm",
+      rsvpUrl: "https://example.com/anmeldung/token",
+      unsubscribeUrl: "https://example.com/benachrichtigungen/abmelden/token",
+    });
+
+    expect(result.subject).toContain("Erinnerung");
+    expect(result.body).toContain("7 Tag");
+    expect(result.body).toContain("20.02.2026");
+    expect(result.body).toContain("https://example.com/anmeldung/token");
+    expect(result.body).toContain("https://example.com/benachrichtigungen/abmelden/token");
+  });
 });

@@ -80,7 +80,20 @@ async function authorizeUser(credentials?: { email?: string; password?: string }
   const trimmedEmail = credentials.email.trim();
   const normalizedEmail = trimmedEmail.toLowerCase();
   const clientIp = getClientIpFromAuthRequest(req);
-  const rateLimitResult = await checkLoginRateLimit(clientIp, normalizedEmail);
+  let rateLimitResult = { allowed: true, attemptCount: 0 } as {
+    allowed: boolean;
+    blockedUntil?: number;
+    attemptCount: number;
+  };
+  try {
+    rateLimitResult = await checkLoginRateLimit(clientIp, normalizedEmail);
+  } catch (error) {
+    logWarn('login_rate_limit_unavailable', 'Rate limiter unavailable during login, continuing without enforcement', {
+      clientIp,
+      email: maskEmail(trimmedEmail),
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
 
   if (!rateLimitResult.allowed) {
     const blockedUntil = rateLimitResult.blockedUntil;
@@ -121,7 +134,15 @@ async function authorizeUser(credentials?: { email?: string; password?: string }
     return null;
   }
 
-  await recordSuccessfulLogin(clientIp, user.email);
+  try {
+    await recordSuccessfulLogin(clientIp, user.email);
+  } catch (error) {
+    logWarn('login_rate_limit_cleanup_failed', 'Failed to clear login rate limit state after successful login', {
+      clientIp,
+      email: maskEmail(user.email),
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
   await prisma.user.update({
     where: { id: user.id },
     data: { lastLoginAt: new Date() },

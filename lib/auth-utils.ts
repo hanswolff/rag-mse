@@ -50,7 +50,14 @@ export function shouldRedirectToLogin(pathname: string, userRole: string | undef
     return true;
   }
 
-  if ((pathname.startsWith("/profil") || pathname.startsWith("/passwort-aendern")) && !hasMemberRole(userRole)) {
+  if (
+    (
+      pathname.startsWith("/profil")
+      || pathname.startsWith("/passwort-aendern")
+      || pathname.startsWith("/benachrichtigungen")
+    )
+    && !hasMemberRole(userRole)
+  ) {
     return true;
   }
 

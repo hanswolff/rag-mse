@@ -34,13 +34,13 @@ describe("proxy-trust", () => {
         },
       });
 
-      expect(getClientIdentifier(request)).toBe("fallback:Mozilla/5.0:en-US");
+      expect(getClientIdentifier(request)).toBe("fallback:unknown-client");
     });
 
     it("handles missing user-agent and accept-language in fallback", () => {
       const request = new NextRequest("http://example.com");
 
-      expect(getClientIdentifier(request)).toBe("fallback:unknown:unknown");
+      expect(getClientIdentifier(request)).toBe("fallback:unknown-client");
     });
 
     it("handles CIDR ranges in trusted proxy config", () => {

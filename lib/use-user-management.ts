@@ -4,6 +4,7 @@ import { useAdminAuth } from "./use-admin-auth";
 import { useAdminCrud } from "./use-admin-crud";
 import { useSuccessTimer } from "./use-success-timer";
 import { normalizeDateInputValue } from "./date-picker-utils";
+import { validateEmail } from "./validation-schema";
 import type { User, NewUser } from "@/types";
 
 const initialNewUser: NewUser = {
@@ -34,6 +35,7 @@ export function useUserManagement() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteError, setInviteError] = useState("");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [modalUserData, setModalUserData] = useState<NewUser>(initialNewUser);
@@ -121,13 +123,35 @@ export function useUserManagement() {
 
   const handleSendInvite = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
+    setInviteError("");
+
+    const normalizedInviteEmail = inviteEmail.trim().toLowerCase();
+    if (!normalizedInviteEmail) {
+      setInviteError("E-Mail ist erforderlich");
+      return;
+    }
+
+    if (!validateEmail(normalizedInviteEmail)) {
+      setInviteError("Bitte geben Sie eine gültige E-Mail-Adresse ein");
+      return;
+    }
 
     const result = await sendInvite();
     if (result.success) {
       setSuccess("Einladung wurde erfolgreich versendet");
       setInviteEmail("");
+      return;
     }
-  }, [sendInvite]);
+    setError("");
+    setInviteError("Einladung konnte nicht versendet werden. Bitte Eingabe prüfen.");
+  }, [sendInvite, inviteEmail]);
+
+  const handleInviteEmailChange = useCallback((value: string) => {
+    setInviteEmail(value);
+    if (inviteError) {
+      setInviteError("");
+    }
+  }, [inviteError]);
 
   const handleDeleteUser = createDeleteHandler(
     deleteUser,
@@ -211,12 +235,13 @@ export function useUserManagement() {
     error,
     success,
     inviteEmail,
+    inviteError,
     modalUserData,
     setModalUserData,
     initialUserData,
     isModalOpen,
     editingUser,
-    setInviteEmail,
+    setInviteEmail: handleInviteEmailChange,
     handleCreateUser,
     handleUpdateUser,
     handleSendInvite,

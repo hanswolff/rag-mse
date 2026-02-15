@@ -73,6 +73,7 @@ describe("Navigation", () => {
     await user.click(button!);
 
     expect(screen.getAllByText("Profil").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Benachrichtigungen").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Abmelden").length).toBeGreaterThan(0);
   });
 
@@ -149,6 +150,7 @@ describe("Navigation", () => {
 
     expect(screen.getAllByText("Test User").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Profil").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Benachrichtigungen").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Abmelden").length).toBeGreaterThan(0);
   });
 

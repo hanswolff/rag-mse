@@ -3,9 +3,12 @@ import { fileURLToPath } from "node:url";
 
 /** @type {import('next').NextConfig} */
 const isProduction = process.env.NODE_ENV === "production";
+const allowUnsafeInlineScripts = process.env.CSP_ALLOW_UNSAFE_INLINE_SCRIPTS === "true";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const scriptSrc = isProduction
-  ? "script-src 'self' 'unsafe-inline'"
+  ? (allowUnsafeInlineScripts
+    ? "script-src 'self' 'unsafe-inline'"
+    : "script-src 'self'")
   : "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://unpkg.com";
 
 const nextConfig = {

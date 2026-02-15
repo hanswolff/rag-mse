@@ -200,7 +200,7 @@ describe("/api/auth/forgot-password/route", () => {
       const data = await response.json();
 
       expect(response.status).toBe(400);
-      expect(data.error).toBe("Gültige E-Mail-Adresse erforderlich");
+      expect(data.error).toBe("Feld 'email' darf nicht null sein");
     });
 
     it("returns error for undefined email", async () => {
@@ -209,7 +209,7 @@ describe("/api/auth/forgot-password/route", () => {
       const data = await response.json();
 
       expect(response.status).toBe(400);
-      expect(data.error).toBe("Gültige E-Mail-Adresse erforderlich");
+      expect(data.error).toBe("Pflichtfeld fehlt: email");
     });
 
     it("normalizes email by trimming and lowercasing", async () => {

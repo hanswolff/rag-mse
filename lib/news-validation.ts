@@ -1,8 +1,4 @@
-import {
-  validateTitle,
-  validateContent,
-  validateDateString,
-} from "./validation-schema";
+import { newsFormSchema } from "./validation-schema";
 
 // Re-export validation functions for backward compatibility with tests
 export { validateTitle, validateContent } from "./validation-schema";
@@ -30,24 +26,28 @@ export function validateCreateNewsRequest(
   request: CreateNewsRequest
 ): ValidationResult {
   const errors: string[] = [];
-  const { title, content, newsDate } = request;
 
-  if (!title) {
-    errors.push("Titel ist erforderlich");
-  } else if (!validateTitle(title)) {
-    errors.push("Titel muss zwischen 1 und 200 Zeichen lang sein");
-  }
-
-  if (!content) {
-    errors.push("Inhalt ist erforderlich");
-  } else if (!validateContent(content)) {
-    errors.push("Inhalt muss zwischen 1 und 10000 Zeichen lang sein");
-  }
-
-  if (!newsDate) {
+  // Check for required newsDate first
+  if (!request.newsDate) {
     errors.push("Datum ist erforderlich");
-  } else if (!validateDateString(newsDate)) {
-    errors.push("Datum ist ungültig");
+  }
+
+  // Validate all fields using Zod schema
+  const data = {
+    newsDate: request.newsDate || "",
+    title: request.title,
+    content: request.content,
+  };
+
+  const result = newsFormSchema.safeParse(data);
+
+  if (!result.success) {
+    // Add Zod errors, avoiding duplicates
+    for (const issue of result.error.issues) {
+      if (!errors.includes(issue.message)) {
+        errors.push(issue.message);
+      }
+    }
   }
 
   return {
@@ -59,27 +59,25 @@ export function validateCreateNewsRequest(
 export function validateUpdateNewsRequest(
   request: UpdateNewsRequest
 ): ValidationResult {
-  const errors: string[] = [];
-  const { title, content, newsDate } = request;
+  const data: Record<string, string> = {};
 
-  if (title !== undefined) {
-    if (title === "" || !validateTitle(title)) {
-      errors.push("Titel muss zwischen 1 und 200 Zeichen lang sein");
-    }
+  if (request.newsDate !== undefined) data.newsDate = request.newsDate;
+  if (request.title !== undefined) data.title = request.title;
+  if (request.content !== undefined) data.content = request.content;
+
+  // If no fields to validate, return success
+  if (Object.keys(data).length === 0) {
+    return { isValid: true, errors: [] };
   }
 
-  if (content !== undefined) {
-    if (content === "" || !validateContent(content)) {
-      errors.push("Inhalt muss zwischen 1 und 10000 Zeichen lang sein");
-    }
-  }
+  const result = newsFormSchema.partial().safeParse(data);
 
-  if (newsDate !== undefined && !validateDateString(newsDate)) {
-    errors.push("Datum ist ungültig");
+  if (result.success) {
+    return { isValid: true, errors: [] };
   }
 
   return {
-    isValid: errors.length === 0,
-    errors,
+    isValid: false,
+    errors: result.error.issues.map((issue) => issue.message),
   };
 }

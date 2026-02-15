@@ -11,6 +11,7 @@ import {
   validatePk,
   validateReservistsAssociation,
   validateAssociationMemberNumber,
+  validateDateOfBirth,
 } from "@/lib/user-validation";
 import { validateRole, validateDateString } from "@/lib/validation-schema";
 import { requireAdmin } from "@/lib/auth-utils";
@@ -36,6 +37,29 @@ function serializeUserDateFields<T extends { memberSince: Date | null; dateOfBir
     memberSince: formatDateInputValue(user.memberSince),
     dateOfBirth: formatDateInputValue(user.dateOfBirth),
   };
+}
+
+async function rollbackProvisionedUser(userId: string, email: string, tokenHash: string): Promise<void> {
+  try {
+    await prisma.$transaction(async (tx: Omit<typeof prisma, "\$connect" | "\$disconnect" | "\$on" | "\$transaction" | "\$extends">) => {
+      await tx.invitation.deleteMany({
+        where: {
+          email,
+          tokenHash,
+        },
+      });
+
+      await tx.user.deleteMany({
+        where: { id: userId },
+      });
+    });
+  } catch (rollbackError) {
+    logInfo("admin_user_create_rollback_failed", "Failed to rollback user provisioning after invitation email error", {
+      userId,
+      email,
+      error: rollbackError instanceof Error ? rollbackError.message : String(rollbackError),
+    });
+  }
 }
 
 interface CreateUserRequest {
@@ -148,12 +172,8 @@ export const POST = withApiErrorHandling(async (request: NextRequest) => {
   // Validate new profile fields
   if (memberSince !== undefined) {
     if (typeof memberSince !== "string" || !memberSince.trim()) {
-      logValidationFailure('/api/admin/users', 'POST', 'Ungültiges Mitglied-seit-Datum', {
-        email: normalizedEmail,
-      });
-      return NextResponse.json({ error: "Ungültiges Mitglied-seit-Datum" }, { status: 400 });
-    }
-    if (!validateDateString(memberSince)) {
+      // Empty is allowed
+    } else if (!validateDateString(memberSince)) {
       logValidationFailure('/api/admin/users', 'POST', 'Ungültiges Mitglied-seit-Datum', {
         email: normalizedEmail,
       });
@@ -162,13 +182,12 @@ export const POST = withApiErrorHandling(async (request: NextRequest) => {
   }
 
   if (dateOfBirth !== undefined) {
-    if (typeof dateOfBirth !== "string" || !dateOfBirth.trim()) {
-      // Empty is fine
-    } else if (!validateDateString(dateOfBirth)) {
-      logValidationFailure('/api/admin/users', 'POST', 'Ungültiges Geburtsdatum', {
+    const dateOfBirthValidation = validateDateOfBirth(dateOfBirth);
+    if (!dateOfBirthValidation.isValid) {
+      logValidationFailure('/api/admin/users', 'POST', dateOfBirthValidation.error || 'Ungültiges Geburtsdatum', {
         email: normalizedEmail,
       });
-      return NextResponse.json({ error: "Ungültiges Geburtsdatum" }, { status: 400 });
+      return NextResponse.json({ error: dateOfBirthValidation.error || "Ungültiges Geburtsdatum" }, { status: 400 });
     }
   }
 
@@ -307,6 +326,7 @@ export const POST = withApiErrorHandling(async (request: NextRequest) => {
   });
 
   if (!emailResult.success) {
+    await rollbackProvisionedUser(newUser.id, normalizedEmail, tokenHash);
     return NextResponse.json(
       { error: "E-Mail konnte nicht gesendet werden. Bitte versuchen Sie es erneut." },
       { status: 500 }

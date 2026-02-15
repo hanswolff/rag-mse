@@ -126,9 +126,7 @@ export function getClientIdentifierFromHeaders(headers: Headers, sourceIp: strin
     return sourceIp;
   }
 
-  const userAgent = headers.get("user-agent") || "unknown";
-  const acceptLanguage = headers.get("accept-language") || "unknown";
-  return `fallback:${userAgent}:${acceptLanguage}`;
+  return "fallback:unknown-client";
 }
 
 export function getDirectIp(request: NextRequest): string | null {

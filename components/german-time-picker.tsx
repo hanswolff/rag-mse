@@ -15,11 +15,14 @@ interface GermanTimePickerProps {
   timeIntervals?: number;
   required?: boolean;
   disabled?: boolean;
+  /** Shows success checkmark when field is valid, touched, and has value */
+  showSuccess?: boolean;
 }
 
-export function GermanTimePicker({ id, value, onChange, error, label, timeIntervals = 15, required, disabled }: GermanTimePickerProps) {
+export function GermanTimePicker({ id, value, onChange, error, label, timeIntervals = 15, required, disabled, showSuccess }: GermanTimePickerProps) {
   const errorId = error ? `error-${id || 'time'}` : undefined;
   const time = value ? parseTime(value) : null;
+  const showCheckmark = showSuccess && !error;
 
   function handleTimeChange(date: Date | null) {
     if (date) {
@@ -34,7 +37,9 @@ export function GermanTimePicker({ id, value, onChange, error, label, timeInterv
   return (
     <div>
       {label && (
-        <label htmlFor={id} className="form-label">{label}</label>
+        <label htmlFor={id} className="form-label">
+          {label} {required && <span className="text-red-500">*</span>}
+        </label>
       )}
       <div className="relative">
         <DatePicker
@@ -49,11 +54,19 @@ export function GermanTimePicker({ id, value, onChange, error, label, timeInterv
           timeCaption="Uhrzeit"
           dateFormat="HH:mm"
           placeholderText="HH:MM"
-          className={`form-input w-full pl-10 ${error ? 'border-red-500' : ''}`}
+          className={`form-input w-full pl-10 ${showCheckmark ? 'pr-8 border-green-500 focus:border-green-500' : ''} ${error ? 'border-red-500' : ''}`}
           required={required}
           disabled={disabled}
         />
         <FiClock className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+        {showCheckmark && (
+          <span
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-green-500 pointer-events-none"
+            aria-hidden="true"
+          >
+            &#10003;
+          </span>
+        )}
       </div>
       {error && (
         <p id={errorId} className="text-red-500 text-sm mt-1" role="alert">{error}</p>

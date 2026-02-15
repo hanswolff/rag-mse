@@ -1,4 +1,6 @@
 import nodemailer from "nodemailer";
+import { promises as fs } from "fs";
+import path from "path";
 import { renderEmailTemplate } from "../lib/email-templates";
 import {
   classifyEmailError,
@@ -69,10 +71,39 @@ describe("Email Sender", () => {
             toRecipients: "recipient@example.com",
             subject: "Test Subject",
             textBody: "Test Body",
+            attachmentsJson: null,
           }),
         })
       );
       expect(result).toEqual({ queued: true, outboxId: "mail-1" });
+    });
+
+    it("stores attachments in outbox", async () => {
+      (mockPrisma.outgoingEmail.create as jest.Mock).mockResolvedValue({
+        id: "mail-2",
+        toRecipients: "recipient@example.com",
+      });
+
+      await sendTemplateEmail({
+        template: "test-template",
+        variables: { name: "Test" },
+        to: "recipient@example.com",
+        attachments: [
+          {
+            filename: "termin.ics",
+            content: "BEGIN:VCALENDAR\r\nEND:VCALENDAR\r\n",
+            contentType: "text/calendar; charset=utf-8; method=PUBLISH",
+          },
+        ],
+      });
+
+      expect(mockPrisma.outgoingEmail.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            attachmentsJson: expect.any(String),
+          }),
+        })
+      );
     });
 
     it("throws for empty recipients", async () => {
@@ -98,6 +129,7 @@ describe("Email Sender", () => {
         subject: "Subject",
         textBody: "Body",
         htmlBody: "Body",
+        attachmentsJson: null,
         attemptCount: 1,
         firstQueuedAt,
         lastAttemptAt,
@@ -108,12 +140,13 @@ describe("Email Sender", () => {
       const processed = await processDueEmailOutboxBatch();
 
       expect(processed).toBe(1);
-      expect(mockSendMail).toHaveBeenCalledWith(
-        expect.objectContaining({
-          to: "a@example.com, b@example.com",
-          subject: "Subject",
-        })
-      );
+    expect(mockSendMail).toHaveBeenCalledWith(
+      expect.objectContaining({
+        from: "\"RAG Schießsport MSE\" <noreply@example.com>",
+        to: "a@example.com, b@example.com",
+        subject: "Subject",
+      })
+    );
       expect(mockPrisma.outgoingEmail.update).toHaveBeenCalledWith(
         expect.objectContaining({
           where: { id: "mail-1" },
@@ -140,6 +173,7 @@ describe("Email Sender", () => {
         subject: "Subject",
         textBody: "Body",
         htmlBody: "Body",
+        attachmentsJson: null,
         attemptCount: 2,
         firstQueuedAt,
       });
@@ -173,6 +207,7 @@ describe("Email Sender", () => {
         subject: "Subject",
         textBody: "Body",
         htmlBody: "Body",
+        attachmentsJson: null,
         attemptCount: 1,
         firstQueuedAt,
       });
@@ -188,6 +223,60 @@ describe("Email Sender", () => {
           data: expect.objectContaining({ status: "FAILED" }),
         })
       );
+    });
+
+    it("writes attachments into dev-mode eml output", async () => {
+      const devLogDir = path.join(process.cwd(), "data", "tmp-email-tests");
+      await fs.rm(devLogDir, { recursive: true, force: true });
+
+      process.env.EMAIL_DEV_MODE = "true";
+      process.env.EMAIL_DEV_LOG_METHOD = "file";
+      process.env.EMAIL_DEV_LOG_DIR = devLogDir;
+
+      const firstQueuedAt = new Date("2026-02-08T10:00:00.000Z");
+      const lastAttemptAt = new Date("2026-02-08T10:01:00.000Z");
+
+      (mockPrisma.outgoingEmail.findFirst as jest.Mock)
+        .mockResolvedValueOnce({ id: "mail-4" })
+        .mockResolvedValueOnce(null);
+      (mockPrisma.outgoingEmail.updateMany as jest.Mock).mockResolvedValue({ count: 1 });
+      (mockPrisma.outgoingEmail.findUnique as jest.Mock).mockResolvedValue({
+        id: "mail-4",
+        template: "termin-erinnerung",
+        toRecipients: "a@example.com",
+        subject: "Subject",
+        textBody: "Body",
+        htmlBody: "<p>Body</p>",
+        attachmentsJson: JSON.stringify([
+          {
+            filename: "termin.ics",
+            content: "BEGIN:VCALENDAR\r\nEND:VCALENDAR\r\n",
+            contentType: "text/calendar; charset=utf-8; method=PUBLISH",
+          },
+        ]),
+        attemptCount: 1,
+        firstQueuedAt,
+        lastAttemptAt,
+      });
+      (mockPrisma.outgoingEmail.update as jest.Mock).mockResolvedValue({});
+
+      const processed = await processDueEmailOutboxBatch();
+      expect(processed).toBe(1);
+
+      const files = await fs.readdir(devLogDir);
+      expect(files.length).toBeGreaterThan(0);
+      const emlPath = path.join(devLogDir, files[0]);
+      const emlContent = await fs.readFile(emlPath, "utf8");
+
+      expect(emlContent).toContain('Content-Type: multipart/mixed; boundary="mixed-mail-4-');
+      expect(emlContent).toContain('Content-Disposition: attachment; filename="termin.ics"');
+      expect(emlContent).toContain(Buffer.from("BEGIN:VCALENDAR\r\nEND:VCALENDAR\r\n", "utf8").toString("base64"));
+      expect(mockSendMail).not.toHaveBeenCalled();
+
+      delete process.env.EMAIL_DEV_MODE;
+      delete process.env.EMAIL_DEV_LOG_METHOD;
+      delete process.env.EMAIL_DEV_LOG_DIR;
+      await fs.rm(devLogDir, { recursive: true, force: true });
     });
   });
 

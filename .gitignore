@@ -41,3 +41,6 @@ Thumbs.db
 /lib/version-info.ts
 
 public/photos/
+*.eml
+
+*.eml

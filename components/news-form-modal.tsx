@@ -1,10 +1,12 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import { Modal } from "./modal";
 import { LoadingButton } from "./loading-button";
 import { GermanDatePicker } from "./german-date-picker";
+import { ValidatedFieldGroup } from "./validated-field-group";
 import { useFormFieldValidation } from "@/lib/useFormFieldValidation";
+import { mapServerErrorToField, NEWS_FIELD_KEYWORDS } from "@/lib/server-error-mapper";
 import { newsValidationConfig } from "@/lib/validation-schema";
 import { getLocalDateString } from "@/lib/date-picker-utils";
 
@@ -49,7 +51,25 @@ export function NewsFormModal({
   errors = {},
   initialNewsData,
 }: NewsFormModalProps) {
-  const { errors: validationErrors, validateField, markFieldAsTouched, isFieldValid } = useFormFieldValidation(newsValidationConfig);
+  const {
+    errors: validationErrors,
+    validateField,
+    validateAllFields,
+    markFieldAsTouched,
+    shouldShowError,
+    isValidAndTouched,
+    reset,
+  } = useFormFieldValidation(newsValidationConfig);
+
+  useEffect(() => {
+    if (isOpen) {
+      reset();
+    }
+  }, [isOpen, reset]);
+
+  const inferredGeneralErrors = useMemo(() => {
+    return mapServerErrorToField(errors.general || "", NEWS_FIELD_KEYWORDS);
+  }, [errors.general]);
 
   const hasUnsavedChanges = useMemo(() => {
     const base = initialNewsData || initialNewNews;
@@ -62,8 +82,8 @@ export function NewsFormModal({
   }, [newsData, initialNewsData]);
 
   const combinedErrors = useMemo(() => {
-    return { ...validationErrors, ...errors };
-  }, [validationErrors, errors]);
+    return { ...validationErrors, ...inferredGeneralErrors, ...errors };
+  }, [validationErrors, inferredGeneralErrors, errors]);
 
   const handleChange = (name: string, value: string | boolean) => {
     setNewsData({ ...newsData, [name]: value });
@@ -78,11 +98,11 @@ export function NewsFormModal({
     validateField(name, value);
   };
 
-  const shouldShowFieldError = (fieldName: string) => {
-    const isServerError = !!errors[fieldName];
-    if (isServerError) return combinedErrors[fieldName];
-    // Show validation error if it exists, regardless of touched state (important for form submission)
-    if (combinedErrors[fieldName]) return combinedErrors[fieldName];
+  const getFieldError = (fieldName: string): string | undefined => {
+    if (errors[fieldName]) return errors[fieldName];
+    if (combinedErrors[fieldName] && shouldShowError(fieldName, newsData[fieldName as keyof typeof newsData] as string)) {
+      return combinedErrors[fieldName];
+    }
     return undefined;
   };
 
@@ -99,26 +119,13 @@ export function NewsFormModal({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
-    const values = {
+    const fieldValues: Record<string, string> = {
       newsDate: newsData.newsDate,
       title: newsData.title,
       content: newsData.content,
     };
 
-    // Mark all fields as touched when submitting to show validation errors
-    markFieldAsTouched("newsDate");
-    markFieldAsTouched("title");
-    markFieldAsTouched("content");
-
-    validateField("newsDate", values.newsDate);
-    validateField("title", values.title);
-    validateField("content", values.content);
-
-    const isValid =
-      isFieldValid("newsDate", values.newsDate) &&
-      isFieldValid("title", values.title) &&
-      isFieldValid("content", values.content);
-
+    const isValid = validateAllFields(fieldValues);
     if (!isValid) {
       return;
     }
@@ -136,7 +143,7 @@ export function NewsFormModal({
       closeOnEscape={false}
     >
       <form onSubmit={handleSubmit} className="space-y-4" noValidate>
-        {errors.general && (
+        {errors.general && Object.keys(inferredGeneralErrors).length === 0 && (
           <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
             {errors.general}
           </div>
@@ -144,69 +151,46 @@ export function NewsFormModal({
         <div>
           <GermanDatePicker
             id="news-date"
-            label="Datum *"
+            label="Datum"
             value={newsData.newsDate}
             onChange={(date) => handleChange("newsDate", date)}
             onBlur={() => handleBlur("newsDate", newsData.newsDate)}
             required
             disabled={isSubmitting}
-            error={shouldShowFieldError("newsDate")}
+            error={getFieldError("newsDate")}
           />
         </div>
-        <div>
-          <label htmlFor="news-title" className="form-label">
-            Titel *
-          </label>
-          <input
-            id="news-title"
-            type="text"
-            value={newsData.title}
-            onChange={(e) => handleChange("title", e.target.value)}
-            onBlur={(e) => handleBlur("title", e.target.value)}
-            required
-            maxLength={200}
-            className={`form-input ${
-              shouldShowFieldError("title") ? "border-red-500 focus:border-red-500" : ""
-            }`}
-            placeholder="Titel der News"
-            disabled={isSubmitting}
-            autoFocus={!isEditing}
-            aria-invalid={!!shouldShowFieldError("title")}
-            aria-describedby={shouldShowFieldError("title") ? "title-error" : undefined}
-          />
-          {shouldShowFieldError("title") && (
-            <p id="title-error" className="form-help text-red-600">
-              {combinedErrors.title}
-            </p>
-          )}
-        </div>
+        <ValidatedFieldGroup
+          label="Titel"
+          name="title"
+          type="text"
+          value={newsData.title}
+          onChange={(e) => handleChange("title", e.target.value)}
+          onBlur={(e) => handleBlur("title", e.target.value)}
+          error={getFieldError("title")}
+          showSuccess={isValidAndTouched("title", newsData.title)}
+          required
+          maxLength={200}
+          placeholder="Titel der News"
+          disabled={isSubmitting}
+          autoFocus={!isEditing}
+        />
 
-        <div>
-          <label htmlFor="news-content" className="form-label">
-            Inhalt *
-          </label>
-          <textarea
-            id="news-content"
-            value={newsData.content}
-            onChange={(e) => handleChange("content", e.target.value)}
-            onBlur={(e) => handleBlur("content", e.target.value)}
-            required
-            maxLength={10000}
-            rows={10}
-            className={`form-input ${
-              shouldShowFieldError("content") ? "border-red-500 focus:border-red-500" : ""
-            }`}
-            placeholder="Inhalt der News..."
-            disabled={isSubmitting}
-            aria-invalid={!!shouldShowFieldError("content")}
-            aria-describedby={shouldShowFieldError("content") ? "content-error" : undefined}
-          />
-          {shouldShowFieldError("content") && (
-            <p id="content-error" className="form-help text-red-600">
-              {combinedErrors.content}
-            </p>
-          )}
-        </div>
+        <ValidatedFieldGroup
+          as="textarea"
+          label="Inhalt"
+          name="content"
+          value={newsData.content}
+          onChange={(e) => handleChange("content", e.target.value)}
+          onBlur={(e) => handleBlur("content", e.target.value)}
+          error={getFieldError("content")}
+          showSuccess={isValidAndTouched("content", newsData.content)}
+          required
+          maxLength={10000}
+          rows={10}
+          placeholder="Inhalt der News..."
+          disabled={isSubmitting}
+        />
 
         <div className="flex items-center gap-3">
           <input

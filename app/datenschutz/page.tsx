@@ -6,6 +6,7 @@ export default function DatenschutzPage() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
         <div className="card">
           <h1 className="text-2xl sm:text-3xl font-bold text-center mb-6 sm:mb-8 text-gray-900">Datenschutzerklärung</h1>
+          <p className="text-center text-sm text-gray-600 -mt-3 mb-6 sm:mb-8">Zuletzt geändert: 15. Februar 2026</p>
 
           <section className="mb-6 sm:mb-8">
             <h2 className="text-lg sm:text-xl font-semibold mb-3 sm:mb-4 text-gray-900">1. Datenschutz auf einen Blick</h2>
@@ -46,6 +47,11 @@ export default function DatenschutzPage() {
               User-Agent). Diese Daten werden zur Gewährleistung der Sicherheit und zur Fehleranalyse verarbeitet.
               Rechtsgrundlage ist Art. 6 Abs. 1 lit. f DSGVO (berechtigtes Interesse).
             </p>
+            <p className="mt-4 text-base sm:text-base text-gray-800">
+              Zusätzlich setzen wir technische Missbrauchsschutz-Mechanismen (Rate-Limiting) ein, z. B. für Login,
+              Token-Links und Kontaktanfragen. Dafür verarbeiten wir je nach Endpunkt insbesondere IP-Adresse bzw.
+              Client-Identifier sowie Zeitstempel und Zählwerte.
+            </p>
           </section>
 
           <section className="mb-6 sm:mb-8">
@@ -57,8 +63,9 @@ export default function DatenschutzPage() {
             </p>
             <p className="mb-4 text-base sm:text-base text-gray-800">
               Für die Anmeldung setzen wir notwendige Session-Cookies, die für die Nutzung des Mitgliederbereichs
-              erforderlich sind (Art. 6 Abs. 1 lit. b und lit. f DSGVO). Die Einwilligung in den Cookie-Hinweis wird in
-              Ihrem Browser lokal in <strong>localStorage</strong> gespeichert.
+              erforderlich sind. Rechtsgrundlage hierfür ist § 25 Abs. 2 Nr. 2 TDDDG (technisch erforderlich) sowie
+              Art. 6 Abs. 1 lit. b und lit. f DSGVO. Die Einwilligung in den Cookie-Hinweis wird in Ihrem Browser lokal
+              in <strong>localStorage</strong> gespeichert.
             </p>
             <p className="text-base sm:text-base text-gray-800">
               Rechtsgrundlage für die Verarbeitung im Mitgliederbereich ist Art. 6 Abs. 1 lit. b DSGVO
@@ -88,6 +95,12 @@ export default function DatenschutzPage() {
             <p className="text-base sm:text-base text-gray-800">
               Admins können die Anmeldungen mit Namen einsehen, um die Organisation zu ermöglichen. Rechtsgrundlage ist
               Art. 6 Abs. 1 lit. b DSGVO (Mitgliedschaft/Organisation).
+            </p>
+            <p className="mt-4 text-base sm:text-base text-gray-800">
+              Sofern in Ihren Benachrichtigungseinstellungen aktiviert, senden wir zusätzlich Termin-Erinnerungen per
+              E-Mail. Diese enthalten personalisierte, zeitlich befristete Token-Links zur direkten Anmeldung
+              (Ja/Nein/Vielleicht) sowie zur Deaktivierung zukünftiger Erinnerungen. Die Token werden serverseitig nur
+              in gehashter Form gespeichert.
             </p>
           </section>
 

@@ -1,4 +1,4 @@
-import { validateEmail, validateContactName, validateContactMessage } from "./validation-schema";
+import { contactFormSchema } from "./validation-schema";
 
 export interface ValidationResult {
   isValid: boolean;
@@ -12,27 +12,8 @@ export interface ContactFormData {
 }
 
 export function validateContactFormData(data: ContactFormData): ValidationResult {
-  const errors: string[] = [];
-
-  if (!validateContactName(data.name)) {
-    if (data.name.trim().length < 2) {
-      errors.push("Name muss mindestens 2 Zeichen lang sein");
-    } else {
-      errors.push("Name darf maximal 100 Zeichen lang sein");
-    }
-  }
-
-  if (!validateEmail(data.email)) {
-    errors.push("Bitte geben Sie eine gültige E-Mail-Adresse ein");
-  }
-
-  if (!validateContactMessage(data.message)) {
-    if (data.message.trim().length < 10) {
-      errors.push("Nachricht muss mindestens 10 Zeichen lang sein");
-    } else {
-      errors.push("Nachricht darf maximal 2000 Zeichen lang sein");
-    }
-  }
+  const result = contactFormSchema.safeParse(data);
+  const errors = result.success ? [] : result.error.issues.map((issue) => issue.message);
 
   return {
     isValid: errors.length === 0,

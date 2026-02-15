@@ -307,6 +307,53 @@ describe("NewsFormModal", () => {
       });
     });
 
+    it("should clear validation state when modal is reopened", async () => {
+      const user = userEvent.setup();
+      const { rerender } = render(
+        <NewsFormModal
+          isOpen={true}
+          onClose={mockOnClose}
+          onSubmit={mockOnSubmit}
+          isSubmitting={false}
+          newsData={{ ...defaultNewsData, title: "" }}
+          setNewsData={jest.fn()}
+          isEditing={false}
+          initialNewsData={undefined}
+        />
+      );
+
+      await user.click(screen.getByRole("button", { name: "Erstellen" }));
+      expect(screen.getByText("Titel ist erforderlich")).toBeInTheDocument();
+
+      rerender(
+        <NewsFormModal
+          isOpen={false}
+          onClose={mockOnClose}
+          onSubmit={mockOnSubmit}
+          isSubmitting={false}
+          newsData={{ ...defaultNewsData, title: "" }}
+          setNewsData={jest.fn()}
+          isEditing={false}
+          initialNewsData={undefined}
+        />
+      );
+
+      rerender(
+        <NewsFormModal
+          isOpen={true}
+          onClose={mockOnClose}
+          onSubmit={mockOnSubmit}
+          isSubmitting={false}
+          newsData={{ ...defaultNewsData, title: "" }}
+          setNewsData={jest.fn()}
+          isEditing={false}
+          initialNewsData={undefined}
+        />
+      );
+
+      expect(screen.queryByText("Titel ist erforderlich")).not.toBeInTheDocument();
+    });
+
     it("should apply error styling to invalid inputs", async () => {
       const setNewsData = jest.fn();
       const user = userEvent.setup();

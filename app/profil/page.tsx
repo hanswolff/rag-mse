@@ -6,7 +6,9 @@ import { useSession } from "next-auth/react";
 import { BackLink } from "@/components/back-link";
 import { LoadingButton } from "@/components/loading-button";
 import { GermanDatePicker } from "@/components/german-date-picker";
+import { ValidatedFieldGroup } from "@/components/validated-field-group";
 import { useFormFieldValidation } from "@/lib/useFormFieldValidation";
+import { mapServerErrorToField, PROFILE_FIELD_KEYWORDS } from "@/lib/server-error-mapper";
 import { profileValidationConfig } from "@/lib/validation-schema";
 import { buildLoginUrlWithReturnUrl, getCurrentPathWithSearch } from "@/lib/return-url";
 import { normalizeDateInputValue } from "@/lib/date-picker-utils";
@@ -33,6 +35,7 @@ function useProfile() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [profileError, setProfileError] = useState("");
+  const [serverFieldErrors, setServerFieldErrors] = useState<Record<string, string>>({});
   const [profileSuccess, setProfileSuccess] = useState("");
 
   const [formData, setFormData] = useState({
@@ -48,7 +51,7 @@ function useProfile() {
     hasPossessionCard: false,
   });
 
-  const { errors: validationErrors, validateField, markFieldAsTouched, shouldShowError, isFieldValid } = useFormFieldValidation(profileValidationConfig);
+  const { errors: validationErrors, validateField, validateAllFields, markFieldAsTouched, shouldShowError, isValidAndTouched } = useFormFieldValidation(profileValidationConfig);
 
   const fetchProfile = useCallback(async () => {
     try {
@@ -99,27 +102,21 @@ function useProfile() {
   const handleSave = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
     setProfileError("");
+    setServerFieldErrors({});
     setProfileSuccess("");
 
-    validateField("name", formData.name);
-    validateField("address", formData.address);
-    validateField("phone", formData.phone);
-    validateField("dateOfBirth", formData.dateOfBirth);
-    validateField("rank", formData.rank);
-    validateField("pk", formData.pk);
-    validateField("reservistsAssociation", formData.reservistsAssociation);
-    validateField("associationMemberNumber", formData.associationMemberNumber);
+    const fieldValues: Record<string, string> = {
+      name: formData.name,
+      address: formData.address,
+      phone: formData.phone,
+      dateOfBirth: formData.dateOfBirth,
+      rank: formData.rank,
+      pk: formData.pk,
+      reservistsAssociation: formData.reservistsAssociation,
+      associationMemberNumber: formData.associationMemberNumber,
+    };
 
-    const isValid =
-      isFieldValid("name", formData.name) &&
-      isFieldValid("address", formData.address) &&
-      isFieldValid("phone", formData.phone) &&
-      isFieldValid("dateOfBirth", formData.dateOfBirth) &&
-      isFieldValid("rank", formData.rank) &&
-      isFieldValid("pk", formData.pk) &&
-      isFieldValid("reservistsAssociation", formData.reservistsAssociation) &&
-      isFieldValid("associationMemberNumber", formData.associationMemberNumber);
-
+    const isValid = validateAllFields(fieldValues);
     if (!isValid) {
       setProfileError("Bitte korrigieren Sie die Fehler im Formular");
       return;
@@ -160,7 +157,14 @@ function useProfile() {
       const data = await response.json();
 
       if (!response.ok) {
-        setProfileError(data.error || "Fehler beim Speichern des Profils");
+        const message = data.error || "Fehler beim Speichern des Profils";
+        const fieldErrorMap = mapServerErrorToField(message, PROFILE_FIELD_KEYWORDS);
+
+        if (Object.keys(fieldErrorMap).length > 0) {
+          setServerFieldErrors(fieldErrorMap);
+        } else {
+          setProfileError(message);
+        }
         return;
       }
 
@@ -173,7 +177,7 @@ function useProfile() {
     } finally {
       setIsSaving(false);
     }
-  }, [formData, validateField, isFieldValid, update]);
+  }, [formData, validateAllFields, update]);
 
   return {
     profile,
@@ -188,6 +192,9 @@ function useProfile() {
     validateField,
     markFieldAsTouched,
     shouldShowError,
+    isValidAndTouched,
+    serverFieldErrors,
+    setServerFieldErrors,
   };
 }
 
@@ -205,6 +212,9 @@ export default function ProfilePage() {
     validateField,
     markFieldAsTouched,
     shouldShowError,
+    isValidAndTouched,
+    serverFieldErrors,
+    setServerFieldErrors,
   } = useProfile();
 
   if (isLoading) {
@@ -217,6 +227,7 @@ export default function ProfilePage() {
 
   const handleInputChange = (fieldName: string, value: string) => {
     setFormData({ ...formData, [fieldName]: value });
+    setServerFieldErrors((prev) => ({ ...prev, [fieldName]: "" }));
 
     if (validationErrors[fieldName]) {
       validateField(fieldName, value);
@@ -228,8 +239,15 @@ export default function ProfilePage() {
     validateField(fieldName, value);
   };
 
-  const shouldShowFieldError = (fieldName: string, value: string) => {
-    return shouldShowError(fieldName, value) ? validationErrors[fieldName] : undefined;
+  const getFieldError = (fieldName: string): string | undefined => {
+    if (serverFieldErrors[fieldName]) return serverFieldErrors[fieldName];
+    return shouldShowError(fieldName, formData[fieldName as keyof typeof formData] as string)
+      ? validationErrors[fieldName]
+      : undefined;
+  };
+
+  const isFieldValidAndTouched = (fieldName: string): boolean => {
+    return isValidAndTouched(fieldName, formData[fieldName as keyof typeof formData] as string);
   };
 
   return (
@@ -270,56 +288,35 @@ export default function ProfilePage() {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <label htmlFor="name" className="form-label">
-                  Name
-                </label>
-                <input
-                  id="name"
-                  type="text"
-                  value={formData.name}
-                  onChange={(e) => handleInputChange("name", e.target.value)}
-                  onBlur={(e) => handleBlur("name", e.target.value)}
-                  maxLength={100}
-                  className={`form-input ${
-                    shouldShowFieldError("name", formData.name) ? "border-red-500 focus:border-red-500" : ""
-                  }`}
-                  placeholder="Max Mustermann"
-                  disabled={isSaving}
-                  autoFocus
-                  aria-invalid={!!shouldShowFieldError("name", formData.name)}
-                />
-                {shouldShowFieldError("name", formData.name) && (
-                  <p className="form-help text-red-600">
-                    {validationErrors.name}
-                  </p>
-                )}
-              </div>
+              <ValidatedFieldGroup
+                label="Name"
+                name="name"
+                type="text"
+                value={formData.name}
+                onChange={(e) => handleInputChange("name", e.target.value)}
+                onBlur={(e) => handleBlur("name", e.target.value)}
+                error={getFieldError("name")}
+                showSuccess={isFieldValidAndTouched("name")}
+                required
+                maxLength={100}
+                placeholder="Max Mustermann"
+                disabled={isSaving}
+                autoFocus
+              />
 
-              <div>
-                <label htmlFor="rank" className="form-label">
-                  Dienstgrad
-                </label>
-                <input
-                  id="rank"
-                  type="text"
-                  value={formData.rank}
-                  onChange={(e) => handleInputChange("rank", e.target.value)}
-                  onBlur={(e) => handleBlur("rank", e.target.value)}
-                  maxLength={30}
-                  className={`form-input ${
-                    shouldShowFieldError("rank", formData.rank) ? "border-red-500 focus:border-red-500" : ""
-                  }`}
-                  placeholder="z.B. Obergefreiter d.R."
-                  disabled={isSaving}
-                  aria-invalid={!!shouldShowFieldError("rank", formData.rank)}
-                />
-                {shouldShowFieldError("rank", formData.rank) && (
-                  <p className="form-help text-red-600">
-                    {validationErrors.rank}
-                  </p>
-                )}
-              </div>
+              <ValidatedFieldGroup
+                label="Dienstgrad"
+                name="rank"
+                type="text"
+                value={formData.rank}
+                onChange={(e) => handleInputChange("rank", e.target.value)}
+                onBlur={(e) => handleBlur("rank", e.target.value)}
+                error={getFieldError("rank")}
+                showSuccess={isFieldValidAndTouched("rank")}
+                maxLength={30}
+                placeholder="z.B. Obergefreiter d.R."
+                disabled={isSaving}
+              />
 
               <GermanDatePicker
                 id="dateOfBirth"
@@ -328,141 +325,84 @@ export default function ProfilePage() {
                 onChange={(date) => handleInputChange("dateOfBirth", date)}
                 onBlur={() => handleBlur("dateOfBirth", formData.dateOfBirth)}
                 disabled={isSaving}
-                error={shouldShowFieldError("dateOfBirth", formData.dateOfBirth)}
+                error={getFieldError("dateOfBirth")}
+                showSuccess={isFieldValidAndTouched("dateOfBirth")}
               />
             </div>
 
-            <div>
-              <label htmlFor="address" className="form-label">
-                Adresse
-              </label>
-              <textarea
-                id="address"
-                value={formData.address}
-                onChange={(e) => handleInputChange("address", e.target.value)}
-                onBlur={(e) => handleBlur("address", e.target.value)}
-                rows={3}
-                maxLength={200}
-                className={`form-textarea ${
-                  shouldShowFieldError("address", formData.address) ? "border-red-500 focus:border-red-500" : ""
-                }`}
-                placeholder="Musterstraße 1&#10;12345 Musterstadt"
+            <ValidatedFieldGroup
+              as="textarea"
+              label="Adresse"
+              name="address"
+              value={formData.address}
+              onChange={(e) => handleInputChange("address", e.target.value)}
+              onBlur={(e) => handleBlur("address", e.target.value)}
+              error={getFieldError("address")}
+              showSuccess={isFieldValidAndTouched("address")}
+              rows={3}
+              maxLength={200}
+              placeholder="Musterstraße 1&#10;12345 Musterstadt"
+              disabled={isSaving}
+            />
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <ValidatedFieldGroup
+                label="Telefon"
+                name="phone"
+                type="tel"
+                value={formData.phone}
+                onChange={(e) => handleInputChange("phone", e.target.value)}
+                onBlur={(e) => handleBlur("phone", e.target.value)}
+                error={getFieldError("phone")}
+                showSuccess={isFieldValidAndTouched("phone")}
+                maxLength={30}
+                placeholder="+49 123 456789"
                 disabled={isSaving}
-                aria-invalid={!!shouldShowFieldError("address", formData.address)}
               />
-              {shouldShowFieldError("address", formData.address) && (
-                <p className="form-help text-red-600">
-                  {validationErrors.address}
-                </p>
-              )}
+
+              <ValidatedFieldGroup
+                label="PK"
+                name="pk"
+                type="text"
+                value={formData.pk}
+                onChange={(e) => handleInputChange("pk", e.target.value)}
+                onBlur={(e) => handleBlur("pk", e.target.value)}
+                error={getFieldError("pk")}
+                showSuccess={isFieldValidAndTouched("pk")}
+                maxLength={20}
+                placeholder="z.B. 12345 A 67890"
+                disabled={isSaving}
+              />
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label htmlFor="phone" className="form-label">
-                  Telefon
-                </label>
-                <input
-                  id="phone"
-                  type="tel"
-                  value={formData.phone}
-                  onChange={(e) => handleInputChange("phone", e.target.value)}
-                  onBlur={(e) => handleBlur("phone", e.target.value)}
-                  maxLength={30}
-                  className={`form-input ${
-                    shouldShowFieldError("phone", formData.phone) ? "border-red-500 focus:border-red-500" : ""
-                  }`}
-                  placeholder="+49 123 456789"
-                  disabled={isSaving}
-                  aria-invalid={!!shouldShowFieldError("phone", formData.phone)}
-                />
-                {shouldShowFieldError("phone", formData.phone) && (
-                  <p className="form-help text-red-600">
-                    {validationErrors.phone}
-                  </p>
-                )}
-              </div>
+              <ValidatedFieldGroup
+                label="Reservistenkameradschaft"
+                name="reservistsAssociation"
+                type="text"
+                value={formData.reservistsAssociation}
+                onChange={(e) => handleInputChange("reservistsAssociation", e.target.value)}
+                onBlur={(e) => handleBlur("reservistsAssociation", e.target.value)}
+                error={getFieldError("reservistsAssociation")}
+                showSuccess={isFieldValidAndTouched("reservistsAssociation")}
+                maxLength={30}
+                placeholder="z.B. RK MSE"
+                disabled={isSaving}
+              />
 
-              <div>
-                <label htmlFor="pk" className="form-label">
-                  PK
-                </label>
-                <input
-                  id="pk"
-                  type="text"
-                  value={formData.pk}
-                  onChange={(e) => handleInputChange("pk", e.target.value)}
-                  onBlur={(e) => handleBlur("pk", e.target.value)}
-                  maxLength={20}
-                  className={`form-input ${
-                    shouldShowFieldError("pk", formData.pk) ? "border-red-500 focus:border-red-500" : ""
-                  }`}
-                  placeholder="z.B. 12345 A 67890"
-                  disabled={isSaving}
-                  aria-invalid={!!shouldShowFieldError("pk", formData.pk)}
-                />
-                {shouldShowFieldError("pk", formData.pk) && (
-                  <p className="form-help text-red-600">
-                    {validationErrors.pk}
-                  </p>
-                )}
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label htmlFor="reservistsAssociation" className="form-label">
-                  Reservistenkameradschaft
-                </label>
-                <input
-                  id="reservistsAssociation"
-                  type="text"
-                  value={formData.reservistsAssociation}
-                  onChange={(e) => handleInputChange("reservistsAssociation", e.target.value)}
-                  onBlur={(e) => handleBlur("reservistsAssociation", e.target.value)}
-                  maxLength={30}
-                  className={`form-input ${
-                    shouldShowFieldError("reservistsAssociation", formData.reservistsAssociation)
-                      ? "border-red-500 focus:border-red-500"
-                      : ""
-                  }`}
-                  placeholder="z.B. RK MSE"
-                  disabled={isSaving}
-                  aria-invalid={!!shouldShowFieldError("reservistsAssociation", formData.reservistsAssociation)}
-                />
-                {shouldShowFieldError("reservistsAssociation", formData.reservistsAssociation) && (
-                  <p className="form-help text-red-600">
-                    {validationErrors.reservistsAssociation}
-                  </p>
-                )}
-              </div>
-
-              <div>
-                <label htmlFor="associationMemberNumber" className="form-label">
-                  Mitgliedsnummer im Verband
-                </label>
-                <input
-                  id="associationMemberNumber"
-                  type="text"
-                  value={formData.associationMemberNumber}
-                  onChange={(e) => handleInputChange("associationMemberNumber", e.target.value)}
-                  onBlur={(e) => handleBlur("associationMemberNumber", e.target.value)}
-                  maxLength={30}
-                  className={`form-input ${
-                    shouldShowFieldError("associationMemberNumber", formData.associationMemberNumber)
-                      ? "border-red-500 focus:border-red-500"
-                      : ""
-                  }`}
-                  placeholder="z.B. 1234567890"
-                  disabled={isSaving}
-                  aria-invalid={!!shouldShowFieldError("associationMemberNumber", formData.associationMemberNumber)}
-                />
-                {shouldShowFieldError("associationMemberNumber", formData.associationMemberNumber) && (
-                  <p className="form-help text-red-600">
-                    {validationErrors.associationMemberNumber}
-                  </p>
-                )}
-              </div>
+              <ValidatedFieldGroup
+                label="Mitgliedsnummer im Verband"
+                name="associationMemberNumber"
+                type="text"
+                value={formData.associationMemberNumber}
+                onChange={(e) => handleInputChange("associationMemberNumber", e.target.value)}
+                onBlur={(e) => handleBlur("associationMemberNumber", e.target.value)}
+                error={getFieldError("associationMemberNumber")}
+                showSuccess={isFieldValidAndTouched("associationMemberNumber")}
+                maxLength={30}
+                placeholder="z.B. 1234567890"
+                disabled={isSaving}
+              />
             </div>
 
             <div>

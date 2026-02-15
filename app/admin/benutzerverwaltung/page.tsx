@@ -12,7 +12,19 @@ import { LoadingButton } from "@/components/loading-button";
 import { BackLink } from "@/components/back-link";
 import type { User } from "@/types";
 
-function InviteForm({ email, setEmail, onSubmit, isSubmitting }: { email: string; setEmail: (value: string) => void; onSubmit: (e: React.FormEvent) => void; isSubmitting: boolean }) {
+function InviteForm({
+  email,
+  setEmail,
+  onSubmit,
+  isSubmitting,
+  error,
+}: {
+  email: string;
+  setEmail: (value: string) => void;
+  onSubmit: (e: React.FormEvent) => void;
+  isSubmitting: boolean;
+  error?: string;
+}) {
   return (
     <div className="card-compact">
       <h2 className="text-lg sm:text-xl font-semibold mb-2">Einladung versenden</h2>
@@ -28,11 +40,18 @@ function InviteForm({ email, setEmail, onSubmit, isSubmitting }: { email: string
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required
-            className="form-input"
+            className={`form-input ${error ? "border-red-500 focus:border-red-500" : ""}`}
             placeholder="beispiel@email.de"
             disabled={isSubmitting}
             autoFocus
+            aria-invalid={!!error}
+            aria-describedby={error ? "invite-email-error" : undefined}
           />
+          {error && (
+            <p id="invite-email-error" className="form-help text-red-600">
+              {error}
+            </p>
+          )}
         </div>
         <LoadingButton
           type="submit"
@@ -191,6 +210,7 @@ export default function BenutzerverwaltungPage() {
               setEmail={userManagement.setInviteEmail}
               onSubmit={userManagement.handleSendInvite}
               isSubmitting={userManagement.isSendingInvite}
+              error={userManagement.inviteError}
             />
           </div>
           <div className="card-compact">

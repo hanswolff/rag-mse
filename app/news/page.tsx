@@ -66,7 +66,7 @@ export default function NewsPage() {
         <div className="mb-6 sm:mb-8">
           <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">News</h1>
           <p className="text-gray-600 mt-2 text-base sm:text-base">
-            Aktuelle Neuigkeiten vom RAG Schießsport MSE
+            Aktuelle Neuigkeiten von der RAG Schießsport MSE
           </p>
           {session && isAdmin(session.user) && (
             <div className="mt-4">

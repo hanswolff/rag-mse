@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/auth-utils";
 import { validateEmail } from "@/lib/user-validation";
 import { parseJsonBody, BadRequestError, logApiError, validateRequestBody, validateCsrfHeaders } from "@/lib/api-utils";
-import { logValidationFailure } from "@/lib/logger";
+import { logValidationFailure, logInfo } from "@/lib/logger";
 import {
   buildInviteUrl,
   generateInvitationToken,
@@ -21,6 +21,19 @@ const inviteSchema = {
 } as const;
 
 const INVITED_AT_EPOCH = new Date("1970-01-01T00:00:00.000Z");
+
+async function rollbackCreatedInvitation(invitationId: string): Promise<void> {
+  try {
+    await prisma.invitation.delete({
+      where: { id: invitationId },
+    });
+  } catch (rollbackError) {
+    logInfo("invitation_create_rollback_failed", "Failed to delete created invitation after email failure", {
+      invitationId,
+      error: rollbackError instanceof Error ? rollbackError.message : String(rollbackError),
+    });
+  }
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -77,25 +90,13 @@ export async function POST(request: NextRequest) {
     const tokenHash = hashInvitationToken(token);
     const expiresAt = getInvitationExpiryDate();
 
-    const invitation = await prisma.$transaction(async (tx: Omit<typeof prisma, "\$connect" | "\$disconnect" | "\$on" | "\$transaction" | "\$extends">) => {
-      await tx.invitation.updateMany({
-        where: {
-          email,
-          usedAt: null,
-        },
-        data: {
-          usedAt: INVITED_AT_EPOCH,
-        },
-      });
-
-      return tx.invitation.create({
-        data: {
-          email,
-          tokenHash,
-          expiresAt,
-          invitedById: admin.id,
-        },
-      });
+    const invitation = await prisma.invitation.create({
+      data: {
+        email,
+        tokenHash,
+        expiresAt,
+        invitedById: admin.id,
+      },
     });
 
     const inviteUrl = buildInviteUrl(appUrl, token);
@@ -112,11 +113,23 @@ export async function POST(request: NextRequest) {
     });
 
     if (!result.success) {
+      await rollbackCreatedInvitation(invitation.id);
       return NextResponse.json(
         { error: "E-Mail konnte nicht gesendet werden. Bitte versuchen Sie es erneut." },
         { status: 500 }
       );
     }
+
+    await prisma.invitation.updateMany({
+      where: {
+        email,
+        usedAt: null,
+        NOT: { id: invitation.id },
+      },
+      data: {
+        usedAt: INVITED_AT_EPOCH,
+      },
+    });
 
     return NextResponse.json(
       { message: "Einladung wurde erfolgreich erstellt und versendet." },

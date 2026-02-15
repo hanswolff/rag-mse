@@ -2,14 +2,18 @@
 
 import { useEffect, useState, use } from "react";
 import { useRouter } from "next/navigation";
-import { validatePassword, getPasswordRequirements } from "@/lib/password-validation";
+import { resetPasswordFormSchema } from "@/lib/validation-schema";
 import { LoadingButton } from "@/components/loading-button";
+import { getFieldErrors } from "@/lib/zod-form-errors";
+import { PasswordRequirements } from "@/components/password-requirements";
+import { ValidatedInput } from "@/components/validated-input";
 
 interface UseResetPasswordFormResult {
   password: string;
   confirmPassword: string;
   message: string;
   error: string;
+  fieldErrors: { password?: string; confirmPassword?: string };
   isLoading: boolean;
   isChanged: boolean;
   isValidToken: boolean;
@@ -25,6 +29,7 @@ function useResetPasswordForm(token: string): UseResetPasswordFormResult {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<{ password?: string; confirmPassword?: string }>({});
   const [isLoading, setIsLoading] = useState(false);
   const [isChanged, setIsChanged] = useState(false);
   const [isValidToken, setIsValidToken] = useState(false);
@@ -60,28 +65,29 @@ function useResetPasswordForm(token: string): UseResetPasswordFormResult {
   const setPasswordWithClear = (newPassword: string) => {
     setPassword(newPassword);
     clearError();
+    setFieldErrors((prev) => ({ ...prev, password: undefined }));
   };
 
   const setConfirmPasswordWithClear = (newConfirmPassword: string) => {
     setConfirmPassword(newConfirmPassword);
     clearError();
+    setFieldErrors((prev) => ({ ...prev, confirmPassword: undefined }));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
+    setFieldErrors({});
     setMessage("");
     setIsLoading(true);
 
-    if (password !== confirmPassword) {
-      setError("Die Passwörter stimmen nicht überein");
-      setIsLoading(false);
-      return;
-    }
-
-    const passwordValidation = validatePassword(password);
-    if (!passwordValidation.isValid) {
-      setError(passwordValidation.errors.join(". "));
+    const validation = resetPasswordFormSchema.safeParse({ password, confirmPassword });
+    if (!validation.success) {
+      const nextFieldErrors = getFieldErrors(validation.error);
+      setFieldErrors({
+        password: nextFieldErrors.password,
+        confirmPassword: nextFieldErrors.confirmPassword,
+      });
       setIsLoading(false);
       return;
     }
@@ -98,7 +104,14 @@ function useResetPasswordForm(token: string): UseResetPasswordFormResult {
       const data = await response.json();
 
       if (!response.ok) {
-        setError(data.error || "Ein Fehler ist aufgetreten");
+        const message = data.error || "Ein Fehler ist aufgetreten";
+        if (message.includes("Passwörter") || message.includes("bestätigung")) {
+          setFieldErrors({ confirmPassword: message });
+        } else if (message.includes("Passwort")) {
+          setFieldErrors({ password: message });
+        } else {
+          setError(message);
+        }
       } else {
         setMessage(data.message || "Passwort wurde erfolgreich geändert");
         setIsChanged(true);
@@ -118,6 +131,7 @@ function useResetPasswordForm(token: string): UseResetPasswordFormResult {
     confirmPassword,
     message,
     error,
+    fieldErrors,
     isLoading,
     isChanged,
     isValidToken,
@@ -135,6 +149,7 @@ export default function ResetPasswordPage({ params }: { params: Promise<{ token:
     confirmPassword,
     message,
     error,
+    fieldErrors,
     isLoading,
     isChanged,
     isValidToken,
@@ -236,41 +251,35 @@ export default function ResetPasswordPage({ params }: { params: Promise<{ token:
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label htmlFor="password" className="form-label">
-                Neues Passwort
-              </label>
-              <input
-                id="password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                maxLength={200}
-                className="form-input"
-                placeholder="Neues Passwort"
-                disabled={isLoading}
-                autoFocus
-              />
-            </div>
+          <form onSubmit={handleSubmit} className="space-y-4" noValidate>
+            <ValidatedInput
+              id="password"
+              name="password"
+              type="password"
+              label="Neues Passwort"
+              value={password}
+              onChange={setPassword}
+              error={fieldErrors.password}
+              required
+              maxLength={72}
+              placeholder="Neues Passwort"
+              disabled={isLoading}
+              autoFocus
+            />
 
-            <div>
-              <label htmlFor="confirmPassword" className="form-label">
-                Passwort bestätigen
-              </label>
-              <input
-                id="confirmPassword"
-                type="password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                required
-                maxLength={200}
-                className="form-input"
-                placeholder="Passwort bestätigen"
-                disabled={isLoading}
-              />
-            </div>
+            <ValidatedInput
+              id="confirmPassword"
+              name="confirmPassword"
+              type="password"
+              label="Passwort bestätigen"
+              value={confirmPassword}
+              onChange={setConfirmPassword}
+              error={fieldErrors.confirmPassword}
+              required
+              maxLength={72}
+              placeholder="Passwort bestätigen"
+              disabled={isLoading}
+            />
 
             <LoadingButton
               type="submit"
@@ -284,11 +293,7 @@ export default function ResetPasswordPage({ params }: { params: Promise<{ token:
 
           <div className="mt-6 text-base text-gray-600">
             <p className="font-medium mb-2">Passwort-Anforderungen:</p>
-            <ul className="list-disc list-inside space-y-1 text-base">
-              {getPasswordRequirements().map((req) => (
-                <li key={req}>{req}</li>
-              ))}
-            </ul>
+            <PasswordRequirements password={password} />
           </div>
 
           <div className="mt-6 text-center text-base text-gray-600">

@@ -3,6 +3,7 @@ import { authorizeCredentials } from "@/lib/auth";
 import { logError, logValidationFailure, maskEmail } from "@/lib/logger";
 import { parseJsonBody, BadRequestError, validateRequestBody, validateCsrfHeaders } from "@/lib/api-utils";
 import { withCorrelationId } from "@/lib/api-middleware";
+import { validateEmail } from "@/lib/validation-schema";
 
 interface LoginRequest {
   email: string;
@@ -37,6 +38,16 @@ async function handleLogin(request: NextRequest): Promise<NextResponse> {
       });
       return NextResponse.json(
         { error: "E-Mail und Passwort sind erforderlich" },
+        { status: 400 }
+      );
+    }
+
+    if (!validateEmail(email)) {
+      logValidationFailure('/api/auth/login', 'POST', 'Bitte geben Sie eine gültige E-Mail-Adresse ein', {
+        route: '/api/auth/login',
+      });
+      return NextResponse.json(
+        { error: "Bitte geben Sie eine gültige E-Mail-Adresse ein" },
         { status: 400 }
       );
     }

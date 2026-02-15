@@ -337,6 +337,53 @@ describe("UserFormModal", () => {
       });
     });
 
+    it("should clear validation state when modal is reopened", async () => {
+      const user = userEvent.setup();
+      const { rerender } = render(
+        <UserFormModal
+          isOpen={true}
+          onClose={mockOnClose}
+          onSubmit={mockOnSubmit}
+          isSubmitting={false}
+          userData={{ ...defaultUserData, email: "" }}
+          setUserData={jest.fn()}
+          isEditing={false}
+          initialUserData={undefined}
+        />
+      );
+
+      await user.click(screen.getByRole("button", { name: "Erstellen" }));
+      expect(screen.getByText("E-Mail ist erforderlich")).toBeInTheDocument();
+
+      rerender(
+        <UserFormModal
+          isOpen={false}
+          onClose={mockOnClose}
+          onSubmit={mockOnSubmit}
+          isSubmitting={false}
+          userData={{ ...defaultUserData, email: "" }}
+          setUserData={jest.fn()}
+          isEditing={false}
+          initialUserData={undefined}
+        />
+      );
+
+      rerender(
+        <UserFormModal
+          isOpen={true}
+          onClose={mockOnClose}
+          onSubmit={mockOnSubmit}
+          isSubmitting={false}
+          userData={{ ...defaultUserData, email: "" }}
+          setUserData={jest.fn()}
+          isEditing={false}
+          initialUserData={undefined}
+        />
+      );
+
+      expect(screen.queryByText("E-Mail ist erforderlich")).not.toBeInTheDocument();
+    });
+
     it("should apply error styling to invalid inputs", async () => {
       const setUserData = jest.fn();
       const user = userEvent.setup();

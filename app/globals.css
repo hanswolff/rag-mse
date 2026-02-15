@@ -109,15 +109,15 @@ body {
   }
 
   .form-input {
-    @apply w-full px-3 py-2.5 sm:py-2 border border-gray-300 rounded-md bg-white text-gray-900 placeholder:text-gray-400 placeholder:italic focus:outline-none focus:ring-2 focus:ring-brand-red-600/30 text-base sm:text-base disabled:opacity-50 disabled:cursor-not-allowed;
+    @apply w-full px-3 py-2.5 sm:py-2 border border-gray-300 rounded-md bg-white text-gray-900 placeholder:text-gray-400 placeholder:italic focus:outline-none focus:ring-2 focus:ring-blue-500/40 text-base sm:text-base disabled:opacity-50 disabled:cursor-not-allowed;
   }
 
   .form-select {
-    @apply w-full px-3 py-2.5 sm:py-2 border border-gray-300 rounded-md bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-red-600/30 text-base sm:text-base disabled:opacity-50 disabled:cursor-not-allowed;
+    @apply w-full px-3 py-2.5 sm:py-2 border border-gray-300 rounded-md bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/40 text-base sm:text-base disabled:opacity-50 disabled:cursor-not-allowed;
   }
 
   .form-textarea {
-    @apply w-full px-3 py-2.5 sm:py-2 border border-gray-300 rounded-md bg-white text-gray-900 placeholder:text-gray-400 placeholder:italic focus:outline-none focus:ring-2 focus:ring-brand-red-600/30 text-base sm:text-base resize-y disabled:opacity-50 disabled:cursor-not-allowed;
+    @apply w-full px-3 py-2.5 sm:py-2 border border-gray-300 rounded-md bg-white text-gray-900 placeholder:text-gray-400 placeholder:italic focus:outline-none focus:ring-2 focus:ring-blue-500/40 text-base sm:text-base resize-y disabled:opacity-50 disabled:cursor-not-allowed;
   }
 
   .form-help {

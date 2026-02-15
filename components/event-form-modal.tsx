@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import { Modal } from "./modal";
 import { GermanDatePicker } from "./german-date-picker";
 import { GermanTimePicker } from "./german-time-picker";
@@ -8,7 +8,9 @@ import { RichTextEditor } from "./rich-text-editor";
 import { ShootingRangePicker, ShootingRange } from "./shooting-range-picker";
 import { LoadingButton } from "./loading-button";
 import { useFormFieldValidation } from "@/lib/useFormFieldValidation";
-import { eventValidationConfig } from "@/lib/validation-schema";
+import { useCrossFieldValidation } from "@/lib/useCrossFieldValidation";
+import { mapServerErrorToField, EVENT_FIELD_KEYWORDS } from "@/lib/server-error-mapper";
+import { eventValidationConfig, eventFormSchema } from "@/lib/validation-schema";
 import { MAX_EVENT_DESCRIPTION_BYTES } from "@/lib/event-description";
 import type { NewEvent } from "@/types";
 
@@ -53,7 +55,25 @@ export function EventFormModal({
   onGeocode,
   geocodeSuccess = false,
 }: EventFormModalProps) {
-  const { errors: validationErrors, validateField, markFieldAsTouched, isFieldValid } = useFormFieldValidation(eventValidationConfig);
+  const {
+    errors: validationErrors,
+    validateField,
+    validateAllFields,
+    markFieldAsTouched,
+    shouldShowError,
+    isValidAndTouched,
+    reset,
+  } = useFormFieldValidation(eventValidationConfig);
+
+  useEffect(() => {
+    if (isOpen) {
+      reset();
+    }
+  }, [isOpen, reset]);
+
+  const inferredGeneralErrors = useMemo(() => {
+    return mapServerErrorToField(errors.general || "", EVENT_FIELD_KEYWORDS);
+  }, [errors.general]);
 
   // Check for unsaved changes
   const hasUnsavedChanges = useMemo(() => {
@@ -71,25 +91,27 @@ export function EventFormModal({
     );
   }, [eventData, initialEventData]);
 
-  // Cross-field validation: timeFrom must be before timeTo
-  const timeRangeError = useMemo(() => {
-    if (eventData.timeFrom && eventData.timeTo) {
-      const [hoursFrom, minutesFrom] = eventData.timeFrom.split(":").map(Number);
-      const [hoursTo, minutesTo] = eventData.timeTo.split(":").map(Number);
-      const fromMinutes = hoursFrom * 60 + minutesFrom;
-      const toMinutes = hoursTo * 60 + minutesTo;
+  // Cross-field validation using the hook
+  const crossFieldErrors = useCrossFieldValidation(eventFormSchema, {
+    date: eventData.date,
+    timeFrom: eventData.timeFrom,
+    timeTo: eventData.timeTo,
+    location: eventData.location,
+    description: eventData.description,
+    latitude: eventData.latitude,
+    longitude: eventData.longitude,
+  });
 
-      if (fromMinutes >= toMinutes) {
-        return "Uhrzeit bis muss nach Uhrzeit von liegen";
-      }
-    }
-    return null;
-  }, [eventData.timeFrom, eventData.timeTo]);
+  // Extract time range error specifically for display
+  const timeRangeError = useMemo(() => {
+    if (!eventData.timeFrom || !eventData.timeTo) return null;
+    return crossFieldErrors.timeTo?.includes("nach") ? crossFieldErrors.timeTo : null;
+  }, [crossFieldErrors, eventData.timeFrom, eventData.timeTo]);
 
   // Combine server errors with local validation errors
   const combinedErrors = useMemo(() => {
-    return { ...validationErrors, ...errors };
-  }, [validationErrors, errors]);
+    return { ...validationErrors, ...inferredGeneralErrors, ...errors };
+  }, [validationErrors, inferredGeneralErrors, errors]);
 
   const handleChange = (name: string, value: string | boolean) => {
     setEventData({ ...eventData, [name]: value });
@@ -112,11 +134,11 @@ export function EventFormModal({
     handleBlur("description", eventData.description);
   };
 
-  const shouldShowFieldError = (fieldName: string) => {
-    const isServerError = !!errors[fieldName];
-    if (isServerError) return combinedErrors[fieldName];
-    // Show validation error if it exists, regardless of touched state (important for form submission)
-    if (combinedErrors[fieldName]) return combinedErrors[fieldName];
+  const getFieldError = (fieldName: string): string | undefined => {
+    if (errors[fieldName]) return errors[fieldName];
+    if (combinedErrors[fieldName] && shouldShowError(fieldName, eventData[fieldName as keyof typeof eventData] as string)) {
+      return combinedErrors[fieldName];
+    }
     return undefined;
   };
 
@@ -146,35 +168,17 @@ export function EventFormModal({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
-    const values = {
+    const fieldValues: Record<string, string> = {
       date: eventData.date,
       timeFrom: eventData.timeFrom,
       timeTo: eventData.timeTo,
       location: eventData.location,
       description: eventData.description,
+      latitude: eventData.latitude,
+      longitude: eventData.longitude,
     };
 
-    // Mark all fields as touched when submitting to show validation errors
-    markFieldAsTouched("date");
-    markFieldAsTouched("timeFrom");
-    markFieldAsTouched("timeTo");
-    markFieldAsTouched("location");
-    markFieldAsTouched("description");
-
-    validateField("date", values.date);
-    validateField("timeFrom", values.timeFrom);
-    validateField("timeTo", values.timeTo);
-    validateField("location", values.location);
-    validateField("description", values.description);
-
-    const isValid =
-      isFieldValid("date", values.date) &&
-      isFieldValid("timeFrom", values.timeFrom) &&
-      isFieldValid("timeTo", values.timeTo) &&
-      isFieldValid("location", values.location) &&
-      isFieldValid("description", values.description) &&
-      !timeRangeError;
-
+    const isValid = validateAllFields(fieldValues) && !timeRangeError;
     if (!isValid) {
       return;
     }
@@ -198,7 +202,7 @@ export function EventFormModal({
       closeOnEscape={false}
     >
       <form onSubmit={handleSubmit} className="space-y-4" noValidate>
-        {errors.general && (
+        {errors.general && Object.keys(inferredGeneralErrors).length === 0 && (
           <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
             {errors.general}
           </div>
@@ -223,32 +227,35 @@ export function EventFormModal({
 
           <GermanDatePicker
             id="eventDate"
-            label="Datum *"
+            label="Datum"
             value={eventData.date}
             onChange={(date) => handleChange("date", date)}
             required
             disabled={isSubmitting}
             autoFocus={!isEditing}
-            error={shouldShowFieldError("date")}
+            error={getFieldError("date")}
+            showSuccess={isValidAndTouched("date", eventData.date)}
           />
 
           <GermanTimePicker
             id="timeFrom"
-            label="Uhrzeit von *"
+            label="Uhrzeit von"
             value={eventData.timeFrom}
             onChange={(time) => handleChange("timeFrom", time)}
             required
             disabled={isSubmitting}
-            error={timeRangeError || shouldShowFieldError("timeFrom")}
+            error={timeRangeError || getFieldError("timeFrom")}
+            showSuccess={isValidAndTouched("timeFrom", eventData.timeFrom) && !timeRangeError}
           />
           <GermanTimePicker
             id="timeTo"
-            label="Uhrzeit bis *"
+            label="Uhrzeit bis"
             value={eventData.timeTo}
             onChange={(time) => handleChange("timeTo", time)}
             required
             disabled={isSubmitting}
-            error={timeRangeError || shouldShowFieldError("timeTo")}
+            error={timeRangeError || getFieldError("timeTo")}
+            showSuccess={isValidAndTouched("timeTo", eventData.timeTo) && !timeRangeError}
           />
         </div>
 
@@ -266,12 +273,12 @@ export function EventFormModal({
               required
               maxLength={200}
               className={`flex-1 form-input ${
-                shouldShowFieldError("location") ? "border-red-500 focus:border-red-500" : ""
+                getFieldError("location") ? "border-red-500 focus:border-red-500" : ""
               }`}
               placeholder="z.B. Vereinsheim, Sportplatz..."
               disabled={isSubmitting || isGeocoding}
-              aria-invalid={!!shouldShowFieldError("location")}
-              aria-describedby={shouldShowFieldError("location") ? "location-error" : undefined}
+              aria-invalid={!!getFieldError("location")}
+              aria-describedby={getFieldError("location") ? "location-error" : undefined}
             />
             <button
               type="button"
@@ -287,7 +294,7 @@ export function EventFormModal({
               onSelect={handleSelectRange}
             />
           </div>
-          {shouldShowFieldError("location") && (
+          {getFieldError("location") && (
             <p id="location-error" className="form-help text-red-600">
               {combinedErrors.location}
             </p>
@@ -347,10 +354,10 @@ export function EventFormModal({
             onChange={handleDescriptionChange}
             onBlur={handleDescriptionBlur}
             disabled={isSubmitting}
-            error={shouldShowFieldError("description")}
+            error={getFieldError("description")}
             maxBytes={MAX_EVENT_DESCRIPTION_BYTES}
           />
-          {shouldShowFieldError("description") && (
+          {getFieldError("description") && (
             <p id="description-error" className="form-help text-red-600">
               {combinedErrors.description}
             </p>

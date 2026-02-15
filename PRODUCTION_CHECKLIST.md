@@ -41,6 +41,14 @@ Copy `.env.example` to `.env` and update the following values:
   - Example: `APP_NAME="RAG Schießsport MSE"`
 - [ ] `APP_URL` - Production base URL
   - Example: `APP_URL="https://www.rag-mse.de"`
+- [ ] `APP_TIMEZONE` - Zeitzone für datumsbasierte Reminder-Berechnung
+  - Example: `APP_TIMEZONE="Europe/Berlin"`
+
+#### Reminder Configuration
+- [ ] `EVENT_REMINDER_POLL_INTERVAL_MS` - Poll-Intervall des Reminder-Workers
+  - Example: `EVENT_REMINDER_POLL_INTERVAL_MS="3600000"` (1 Stunde)
+- [ ] `NOTIFICATION_TOKEN_VALIDITY_DAYS` - Token-Gültigkeit für `/anmeldung/[token]` und `/benachrichtigungen/abmelden/[token]`
+  - Example: `NOTIFICATION_TOKEN_VALIDITY_DAYS="60"`
 
 #### Cookie Settings
 - [ ] `COOKIE_SECURE` - **CRITICAL**: Set to `"true"` when using HTTPS
@@ -158,6 +166,7 @@ Before going live, test the following user flows:
 - [ ] Vote on event attendance (Ja/Nein/Vielleicht)
 - [ ] Change vote
 - [ ] View voting results
+- [ ] Update notification settings (`/benachrichtigungen`)
 - [ ] View news list
 - [ ] View news detail
 - [ ] Update profile information
@@ -175,6 +184,9 @@ Before going live, test the following user flows:
 - [ ] Contact form sends email to admin recipients
 - [ ] Email content includes all form fields
 - [ ] Email delivery is successful
+- [ ] Reminder email for missing event RSVP is queued and delivered
+- [ ] RSVP token link (`/anmeldung/[token]`) works
+- [ ] Unsubscribe token link (`/benachrichtigungen/abmelden/[token]`) disables reminders
 
 ## Rate Limiting Considerations
 

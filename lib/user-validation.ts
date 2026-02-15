@@ -4,6 +4,9 @@ import {
   validateEmail as validateEmailFormat,
   validatePhone as validatePhoneFormat,
   nameRegex,
+  validateDateString,
+  profileFormSchema,
+  passwordChangeFormSchema,
 } from "./validation-schema";
 
 // Re-export for backward compatibility with API routes
@@ -141,6 +144,35 @@ export function validateAssociationMemberNumber(value: string): { isValid: boole
   );
 }
 
+export function validateDateOfBirth(value: string): { isValid: boolean; error?: string } {
+  if (typeof value !== "string") {
+    return { isValid: false, error: "Ungültiges Geburtsdatum" };
+  }
+
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return { isValid: true };
+  }
+
+  if (!validateDateString(trimmed)) {
+    return { isValid: false, error: "Ungültiges Geburtsdatum" };
+  }
+
+  const date = new Date(trimmed);
+  const now = new Date();
+  const minDate = new Date(now.getFullYear() - 120, now.getMonth(), now.getDate());
+
+  if (date > now) {
+    return { isValid: false, error: "Geburtsdatum darf nicht in der Zukunft liegen" };
+  }
+
+  if (date < minDate) {
+    return { isValid: false, error: "Ungültiges Geburtsdatum" };
+  }
+
+  return { isValid: true };
+}
+
 export function validateCreateUserRequest(request: CreateUserRequest) {
   const errors: string[] = [];
   const { email, password, name, role = Role.MEMBER } = request;
@@ -180,143 +212,58 @@ export function validateCreateUserRequest(request: CreateUserRequest) {
 }
 
 export function validateUpdateProfileRequest(request: UpdateProfileRequest) {
-  const errors: string[] = [];
-  const { email, name } = request;
-
-  if (email !== undefined) {
-    if (typeof email !== "string" || email === "" || !validateEmail(email)) {
-      errors.push("Ungültiges E-Mail-Format");
-    }
-  }
-
-  if (name !== undefined) {
-    if (typeof name !== "string") {
-      errors.push("Ungültiger Name");
-    } else {
-      const trimmedName = name.trim();
-      if (trimmedName) {
-        const nameValidation = validateName(trimmedName);
-        if (!nameValidation.isValid) {
-          errors.push(nameValidation.error || "Ungültiger Name");
-        }
-      }
-    }
-  }
-
-  if (request.address !== undefined) {
-    if (typeof request.address !== "string") {
-      errors.push("Ungültige Adresse");
-    } else {
-      const address = request.address.trim();
-      if (address && address.length > 200) {
-        errors.push("Adresse darf maximal 200 Zeichen lang sein");
-      }
-    }
-  }
-
-  if (request.phone !== undefined) {
-    if (typeof request.phone !== "string") {
-      errors.push("Ungültige Telefonnummer");
-    } else {
-      const phone = request.phone.trim();
-      if (phone) {
-        const phoneValidation = validatePhone(phone);
-        if (!phoneValidation.isValid) {
-          errors.push(phoneValidation.error || "Ungültige Telefonnummer");
-        }
-      }
-    }
-  }
-
-  if (request.memberSince !== undefined) {
-    if (typeof request.memberSince !== "string") {
-      errors.push("Ungültiges Mitglied-seit-Datum");
-    } else if (request.memberSince.trim()) {
-      const date = new Date(request.memberSince);
-      if (isNaN(date.getTime())) {
-        errors.push("Ungültiges Mitglied-seit-Datum");
-      }
-    }
-  }
-
-  if (request.dateOfBirth !== undefined) {
-    if (typeof request.dateOfBirth !== "string") {
-      errors.push("Ungültiges Geburtsdatum");
-    } else if (request.dateOfBirth.trim()) {
-      const date = new Date(request.dateOfBirth);
-      if (isNaN(date.getTime())) {
-        errors.push("Ungültiges Geburtsdatum");
-      }
-    }
-  }
-
-  if (request.rank !== undefined) {
-    const rankValidation = validateRank(request.rank);
-    if (!rankValidation.isValid) {
-      errors.push(rankValidation.error || "Ungültiger Dienstgrad");
-    }
-  }
-
-  if (request.pk !== undefined) {
-    const pkValidation = validatePk(request.pk);
-    if (!pkValidation.isValid) {
-      errors.push(pkValidation.error || "Ungültige PK");
-    }
-  }
-
-  if (request.reservistsAssociation !== undefined) {
-    const reservistsAssociationValidation = validateReservistsAssociation(request.reservistsAssociation);
-    if (!reservistsAssociationValidation.isValid) {
-      errors.push(reservistsAssociationValidation.error || "Ungültige Reservistenkameradschaft");
-    }
-  }
-
-  if (request.associationMemberNumber !== undefined) {
-    const associationMemberNumberValidation = validateAssociationMemberNumber(request.associationMemberNumber);
-    if (!associationMemberNumberValidation.isValid) {
-      errors.push(associationMemberNumberValidation.error || "Ungültige Mitgliedsnummer im Verband");
-    }
-  }
-
+  // Validate hasPossessionCard separately since it's not in the Zod schema
   if (request.hasPossessionCard !== undefined && typeof request.hasPossessionCard !== "boolean") {
-    errors.push("Ungültiger Wert für Waffenbesitzkarte");
+    return {
+      isValid: false,
+      errors: ["Ungültiger Wert für Waffenbesitzkarte"],
+    };
+  }
+
+  // Build the data object for Zod validation (only include defined fields)
+  const data: Record<string, string> = {};
+  if (request.name !== undefined) data.name = request.name;
+  if (request.email !== undefined) data.email = request.email;
+  if (request.address !== undefined) data.address = request.address;
+  if (request.phone !== undefined) data.phone = request.phone;
+  if (request.dateOfBirth !== undefined) data.dateOfBirth = request.dateOfBirth;
+  if (request.rank !== undefined) data.rank = request.rank;
+  if (request.pk !== undefined) data.pk = request.pk;
+  if (request.reservistsAssociation !== undefined) data.reservistsAssociation = request.reservistsAssociation;
+  if (request.associationMemberNumber !== undefined) data.associationMemberNumber = request.associationMemberNumber;
+  if (request.memberSince !== undefined) data.memberSince = request.memberSince;
+
+  // If no profile fields to validate, return success
+  if (Object.keys(data).length === 0) {
+    return { isValid: true, errors: [] };
+  }
+
+  // Use partial schema for updates (all fields optional)
+  const result = profileFormSchema.partial().safeParse(data);
+
+  if (result.success) {
+    return { isValid: true, errors: [] };
   }
 
   return {
-    isValid: errors.length === 0,
-    errors,
+    isValid: false,
+    errors: result.error.issues.map((issue) => issue.message),
   };
 }
 
 export function validateChangePasswordRequest(request: ChangePasswordRequest) {
-  const errors: string[] = [];
-  const { currentPassword, newPassword, confirmPassword } = request;
+  const result = passwordChangeFormSchema.safeParse({
+    currentPassword: request.currentPassword,
+    newPassword: request.newPassword,
+    confirmPassword: request.confirmPassword,
+  });
 
-  if (!currentPassword || typeof currentPassword !== "string") {
-    errors.push("Aktuelles Passwort ist erforderlich");
-  }
-
-  if (!newPassword || typeof newPassword !== "string") {
-    errors.push("Neues Passwort ist erforderlich");
-  } else {
-    const passwordValidation = validatePassword(newPassword);
-    if (!passwordValidation.isValid) {
-      errors.push(...passwordValidation.errors);
-    }
-
-    if (currentPassword === newPassword) {
-      errors.push("Neues Passwort muss vom aktuellen Passwort abweichen");
-    }
-  }
-
-  if (!confirmPassword || typeof confirmPassword !== "string") {
-    errors.push("Passwortbestätigung ist erforderlich");
-  } else if (newPassword !== confirmPassword) {
-    errors.push("Neues Passwort und Passwortbestätigung stimmen nicht überein");
+  if (result.success) {
+    return { isValid: true, errors: [] };
   }
 
   return {
-    isValid: errors.length === 0,
-    errors,
+    isValid: false,
+    errors: result.error.issues.map((issue) => issue.message),
   };
 }

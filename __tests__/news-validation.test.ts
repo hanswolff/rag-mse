@@ -108,7 +108,7 @@ describe("news-validation", () => {
       const result = validateCreateNewsRequest(request);
       expect(result.isValid).toBe(false);
       expect(result.errors).toContain(
-        "Titel muss zwischen 1 und 200 Zeichen lang sein"
+        "Titel darf maximal 200 Zeichen haben"
       );
     });
 
@@ -120,7 +120,7 @@ describe("news-validation", () => {
       const result = validateCreateNewsRequest(request);
       expect(result.isValid).toBe(false);
       expect(result.errors).toContain(
-        "Titel muss zwischen 1 und 200 Zeichen lang sein"
+        "Titel ist erforderlich"
       );
     });
 
@@ -142,7 +142,7 @@ describe("news-validation", () => {
       const result = validateCreateNewsRequest(request);
       expect(result.isValid).toBe(false);
       expect(result.errors).toContain(
-        "Inhalt muss zwischen 1 und 10000 Zeichen lang sein"
+        "Inhalt darf maximal 10000 Zeichen haben"
       );
     });
 
@@ -154,7 +154,7 @@ describe("news-validation", () => {
       const result = validateCreateNewsRequest(request);
       expect(result.isValid).toBe(false);
       expect(result.errors).toContain(
-        "Inhalt muss zwischen 1 und 10000 Zeichen lang sein"
+        "Inhalt ist erforderlich"
       );
     });
 
@@ -214,7 +214,7 @@ describe("news-validation", () => {
       const result = validateUpdateNewsRequest(request);
       expect(result.isValid).toBe(false);
       expect(result.errors).toContain(
-        "Titel muss zwischen 1 und 200 Zeichen lang sein"
+        "Titel ist erforderlich"
       );
     });
 
@@ -225,7 +225,7 @@ describe("news-validation", () => {
       const result = validateUpdateNewsRequest(request);
       expect(result.isValid).toBe(false);
       expect(result.errors).toContain(
-        "Inhalt muss zwischen 1 und 10000 Zeichen lang sein"
+        "Inhalt ist erforderlich"
       );
     });
 
@@ -236,7 +236,7 @@ describe("news-validation", () => {
       const result = validateUpdateNewsRequest(request);
       expect(result.isValid).toBe(false);
       expect(result.errors).toContain(
-        "Titel muss zwischen 1 und 200 Zeichen lang sein"
+        "Titel darf maximal 200 Zeichen haben"
       );
     });
 
@@ -247,7 +247,7 @@ describe("news-validation", () => {
       const result = validateUpdateNewsRequest(request);
       expect(result.isValid).toBe(false);
       expect(result.errors).toContain(
-        "Titel muss zwischen 1 und 200 Zeichen lang sein"
+        "Titel ist erforderlich"
       );
     });
 
@@ -258,7 +258,7 @@ describe("news-validation", () => {
       const result = validateUpdateNewsRequest(request);
       expect(result.isValid).toBe(false);
       expect(result.errors).toContain(
-        "Inhalt muss zwischen 1 und 10000 Zeichen lang sein"
+        "Inhalt darf maximal 10000 Zeichen haben"
       );
     });
 
@@ -269,7 +269,7 @@ describe("news-validation", () => {
       const result = validateUpdateNewsRequest(request);
       expect(result.isValid).toBe(false);
       expect(result.errors).toContain(
-        "Inhalt muss zwischen 1 und 10000 Zeichen lang sein"
+        "Inhalt ist erforderlich"
       );
     });
 

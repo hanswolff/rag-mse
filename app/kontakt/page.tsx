@@ -3,8 +3,10 @@
 import { useState } from "react";
 import { BackLink } from "@/components/back-link";
 import { LoadingButton } from "@/components/loading-button";
+import { ValidatedFieldGroup } from "@/components/validated-field-group";
 import type { ContactFormData } from "@/lib/contact-validation";
 import { useFormFieldValidation } from "@/lib/useFormFieldValidation";
+import { mapServerErrorToFields, CONTACT_FIELD_KEYWORDS } from "@/lib/server-error-mapper";
 import { contactValidationConfig } from "@/lib/validation-schema";
 
 export default function ContactPage() {
@@ -14,10 +16,18 @@ export default function ContactPage() {
     message: "",
   });
   const [error, setError] = useState<string | string[]>("");
+  const [serverFieldErrors, setServerFieldErrors] = useState<Partial<Record<keyof ContactFormData, string>>>({});
   const [success, setSuccess] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
-  const { errors: validationErrors, validateField, markFieldAsTouched, shouldShowError, isFieldValid } = useFormFieldValidation(contactValidationConfig);
+  const {
+    errors: validationErrors,
+    validateField,
+    validateAllFields,
+    markFieldAsTouched,
+    shouldShowError,
+    isValidAndTouched,
+  } = useFormFieldValidation(contactValidationConfig);
 
   const clearError = () => {
     if (error) setError("");
@@ -26,11 +36,14 @@ export default function ContactPage() {
   const handleInputChange = (field: keyof ContactFormData) => (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
   ) => {
-    setFormData((prev) => ({ ...prev, [field]: e.target.value }));
+    const value = e.target.value;
+    setFormData((prev) => ({ ...prev, [field]: value }));
     clearError();
+    setServerFieldErrors((prev) => ({ ...prev, [field]: undefined }));
 
+    // Re-validate if there's already an error
     if (validationErrors[field]) {
-      validateField(field, e.target.value);
+      validateField(field, value);
     }
   };
 
@@ -41,28 +54,27 @@ export default function ContactPage() {
     validateField(field, e.target.value);
   };
 
+  const getFieldError = (field: keyof ContactFormData): string | undefined => {
+    if (serverFieldErrors[field]) return serverFieldErrors[field];
+    return shouldShowError(field, formData[field]) ? validationErrors[field] : undefined;
+  };
+
+  const fieldValues: Record<string, string> = {
+    name: formData.name,
+    email: formData.email,
+    message: formData.message,
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
+    setServerFieldErrors({});
     setSuccess(false);
 
-    // Validate all fields
-    validateField("name", formData.name);
-    validateField("email", formData.email);
-    validateField("message", formData.message);
-
-    // Check validation synchronously
-    const nameValid = isFieldValid("name", formData.name);
-    const emailValid = isFieldValid("email", formData.email);
-    const messageValid = isFieldValid("message", formData.message);
-
-    if (!nameValid || !emailValid || !messageValid) {
-      // Collect specific error messages
-      const errors: string[] = [];
-      if (!nameValid && validationErrors.name) errors.push(validationErrors.name);
-      if (!emailValid && validationErrors.email) errors.push(validationErrors.email);
-      if (!messageValid && validationErrors.message) errors.push(validationErrors.message);
-      setError(errors.length > 0 ? errors : "Bitte korrigieren Sie die Fehler im Formular");
+    // Validate all fields using the helper
+    const isValid = validateAllFields(fieldValues);
+    if (!isValid) {
+      setError("Bitte korrigieren Sie die Fehler im Formular");
       return;
     }
 
@@ -81,7 +93,16 @@ export default function ContactPage() {
 
       if (!response.ok) {
         if (data.errors) {
-          setError(data.errors);
+          // Use the shared error mapper for each error message
+          const mappedFieldErrors: Partial<Record<keyof ContactFormData, string>> = {};
+          for (const message of data.errors as string[]) {
+            const fieldErrors = mapServerErrorToFields(message, CONTACT_FIELD_KEYWORDS);
+            Object.assign(mappedFieldErrors, fieldErrors);
+          }
+          setServerFieldErrors(mappedFieldErrors);
+          if (Object.keys(mappedFieldErrors).length === 0) {
+            setError(data.errors);
+          }
         } else {
           setError(data.error || "Ein Fehler ist aufgetreten. Bitte versuchen Sie es erneut.");
         }
@@ -94,10 +115,6 @@ export default function ContactPage() {
     } finally {
       setIsLoading(false);
     }
-  };
-
-  const shouldShowFieldError = (fieldName: string, value: string) => {
-    return shouldShowError(fieldName, value) ? validationErrors[fieldName] : undefined;
   };
 
   return (
@@ -135,85 +152,52 @@ export default function ContactPage() {
 
         <div className="card">
           <form role="form" onSubmit={handleSubmit} className="space-y-4 sm:space-y-6" noValidate>
-            <div>
-              <label htmlFor="name" className="form-label">
-                Name *
-              </label>
-              <input
-                id="name"
-                type="text"
-                value={formData.name}
-                onChange={handleInputChange("name")}
-                onBlur={handleBlur("name")}
-                maxLength={100}
-                className={`form-input ${
-                  shouldShowFieldError("name", formData.name) ? "border-red-500 focus:border-red-500" : ""
-                }`}
-                placeholder="Ihr Name"
-                disabled={isLoading || success}
-                autoFocus
-                aria-invalid={!!shouldShowFieldError("name", formData.name)}
-              />
-              {shouldShowFieldError("name", formData.name) && (
-                <p className="form-help text-red-600">
-                  {validationErrors.name}
-                </p>
-              )}
-            </div>
+            <ValidatedFieldGroup
+              label="Name"
+              name="name"
+              type="text"
+              value={formData.name}
+              onChange={(e) => handleInputChange("name")(e as React.ChangeEvent<HTMLInputElement>)}
+              onBlur={(e) => handleBlur("name")(e as React.FocusEvent<HTMLInputElement>)}
+              error={getFieldError("name")}
+              showSuccess={isValidAndTouched("name", formData.name)}
+              required
+              maxLength={100}
+              placeholder="Ihr Name"
+              disabled={isLoading || success}
+              autoFocus
+            />
 
-            <div>
-              <label htmlFor="email" className="form-label">
-                E-Mail *
-              </label>
-              <input
-                id="email"
-                type="email"
-                value={formData.email}
-                onChange={handleInputChange("email")}
-                onBlur={handleBlur("email")}
-                className={`form-input ${
-                  shouldShowFieldError("email", formData.email) ? "border-red-500 focus:border-red-500" : ""
-                }`}
-                placeholder="ihre@email.de"
-                disabled={isLoading || success}
-                aria-invalid={!!shouldShowFieldError("email", formData.email)}
-              />
-              {shouldShowFieldError("email", formData.email) && (
-                <p className="form-help text-red-600">
-                  {validationErrors.email}
-                </p>
-              )}
-            </div>
+            <ValidatedFieldGroup
+              label="E-Mail"
+              name="email"
+              type="email"
+              value={formData.email}
+              onChange={(e) => handleInputChange("email")(e as React.ChangeEvent<HTMLInputElement>)}
+              onBlur={(e) => handleBlur("email")(e as React.FocusEvent<HTMLInputElement>)}
+              error={getFieldError("email")}
+              showSuccess={isValidAndTouched("email", formData.email)}
+              required
+              placeholder="ihre@email.de"
+              disabled={isLoading || success}
+            />
 
-            <div>
-              <label htmlFor="message" className="form-label">
-                Nachricht *
-              </label>
-              <textarea
-                id="message"
-                value={formData.message}
-                onChange={handleInputChange("message")}
-                onBlur={handleBlur("message")}
-                rows={6}
-                maxLength={2000}
-                className={`form-textarea ${
-                  shouldShowFieldError("message", formData.message) ? "border-red-500 focus:border-red-500" : ""
-                }`}
-                placeholder="Ihre Nachricht..."
-                disabled={isLoading || success}
-                aria-invalid={!!shouldShowFieldError("message", formData.message)}
-              />
-              <div className="flex justify-between items-center">
-                <p className="form-help">
-                  {formData.message.length} / 2000 Zeichen
-                </p>
-                {shouldShowFieldError("message", formData.message) && (
-                  <p className="form-help text-red-600">
-                    {validationErrors.message}
-                  </p>
-                )}
-              </div>
-            </div>
+            <ValidatedFieldGroup
+              as="textarea"
+              label="Nachricht"
+              name="message"
+              value={formData.message}
+              onChange={(e) => handleInputChange("message")(e as React.ChangeEvent<HTMLTextAreaElement>)}
+              onBlur={(e) => handleBlur("message")(e as React.FocusEvent<HTMLTextAreaElement>)}
+              error={getFieldError("message")}
+              showSuccess={isValidAndTouched("message", formData.message)}
+              required
+              rows={6}
+              maxLength={2000}
+              placeholder="Ihre Nachricht..."
+              disabled={isLoading || success}
+              helpText={!getFieldError("message") ? `${formData.message.length} / 2000 Zeichen` : undefined}
+            />
 
             <div className="flex justify-end">
               <LoadingButton

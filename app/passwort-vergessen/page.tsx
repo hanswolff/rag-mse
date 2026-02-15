@@ -3,11 +3,14 @@
 import { useState } from "react";
 import { BackLink } from "@/components/back-link";
 import { LoadingButton } from "@/components/loading-button";
+import { forgotPasswordFormSchema } from "@/lib/validation-schema";
+import { getFieldErrors } from "@/lib/zod-form-errors";
 
 interface UseForgotPasswordFormResult {
   email: string;
   message: string;
   error: string;
+  emailError: string;
   isLoading: boolean;
   isSubmitted: boolean;
   setEmail: (email: string) => void;
@@ -18,11 +21,13 @@ function useForgotPasswordForm(): UseForgotPasswordFormResult {
   const [email, setEmail] = useState("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [emailError, setEmailError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
 
   const clearError = () => {
     if (error) setError("");
+    if (emailError) setEmailError("");
   };
 
   const setEmailWithClear = (newEmail: string) => {
@@ -33,7 +38,16 @@ function useForgotPasswordForm(): UseForgotPasswordFormResult {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
+    setEmailError("");
     setMessage("");
+
+    const validation = forgotPasswordFormSchema.safeParse({ email });
+    if (!validation.success) {
+      const nextFieldErrors = getFieldErrors(validation.error);
+      setEmailError(nextFieldErrors.email || "Bitte geben Sie eine gültige E-Mail-Adresse ein");
+      return;
+    }
+
     setIsLoading(true);
 
     try {
@@ -48,7 +62,12 @@ function useForgotPasswordForm(): UseForgotPasswordFormResult {
       const data = await response.json();
 
       if (!response.ok) {
-        setError(data.error || "Ein Fehler ist aufgetreten");
+        const message = data.error || "Ein Fehler ist aufgetreten";
+        if (message.includes("E-Mail")) {
+          setEmailError(message);
+        } else {
+          setError(message);
+        }
       } else {
         setMessage(data.message || "Wenn diese E-Mail registriert ist, erhalten Sie in Kürze einen Link.");
         setIsSubmitted(true);
@@ -64,6 +83,7 @@ function useForgotPasswordForm(): UseForgotPasswordFormResult {
     email,
     message,
     error,
+    emailError,
     isLoading,
     isSubmitted,
     setEmail: setEmailWithClear,
@@ -72,7 +92,7 @@ function useForgotPasswordForm(): UseForgotPasswordFormResult {
 }
 
 export default function ForgotPasswordPage() {
-  const { email, message, error, isLoading, isSubmitted, setEmail, handleSubmit } = useForgotPasswordForm();
+  const { email, message, error, emailError, isLoading, isSubmitted, setEmail, handleSubmit } = useForgotPasswordForm();
 
   return (
     <main className="flex min-h-screen flex-col items-center justify-center p-4 sm:p-6">
@@ -98,10 +118,10 @@ export default function ForgotPasswordPage() {
           )}
 
           {!isSubmitted && (
-            <form onSubmit={handleSubmit} className="space-y-4">
+            <form onSubmit={handleSubmit} className="space-y-4" noValidate>
               <div>
                 <label htmlFor="email" className="form-label">
-                  E-Mail
+                  E-Mail *
                 </label>
                 <input
                   id="email"
@@ -113,7 +133,14 @@ export default function ForgotPasswordPage() {
                   placeholder="Ihre E-Mail-Adresse"
                   disabled={isLoading}
                   autoFocus
+                  aria-invalid={!!emailError}
+                  aria-describedby={emailError ? "forgot-email-error" : undefined}
                 />
+                {emailError && (
+                  <p id="forgot-email-error" className="form-help text-red-600">
+                    {emailError}
+                  </p>
+                )}
               </div>
 
               <LoadingButton

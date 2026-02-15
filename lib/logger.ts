@@ -48,7 +48,7 @@ function redactValue(value: unknown): unknown {
   }
 
   if (Array.isArray(value)) {
-    return value.map(item => redactObject(item));
+    return value.map(item => redactValue(item));
   }
 
   if (typeof value === 'object') {

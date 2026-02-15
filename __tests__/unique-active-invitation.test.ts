@@ -12,8 +12,8 @@ jest.mock("@/lib/prisma", () => ({
     invitation: {
       updateMany: jest.fn(),
       create: jest.fn(),
+      delete: jest.fn(),
     },
-    $transaction: jest.fn(),
   },
 }));
 
@@ -58,8 +58,8 @@ const mockedPrisma = prisma as {
   invitation: {
     updateMany: jest.Mock;
     create: jest.Mock;
+    delete: jest.Mock;
   };
-  $transaction: jest.Mock;
 };
 
 const mockedRequireAdmin = requireAdmin as jest.Mock;
@@ -76,6 +76,7 @@ describe("POST /api/admin/invitations - Unique active invitation per email", () 
       email: "admin@example.com",
     });
     mockedSendInvitationEmail.mockResolvedValue({ success: true });
+    mockedPrisma.invitation.delete.mockResolvedValue({ id: "deleted-invitation" });
   });
 
   afterEach(() => {
@@ -84,9 +85,6 @@ describe("POST /api/admin/invitations - Unique active invitation per email", () 
 
   it("should invalidate old active invitations before creating a new one", async () => {
     mockedPrisma.user.findUnique.mockResolvedValue(null);
-    mockedPrisma.$transaction.mockImplementation(async (callback) => {
-      return callback(mockedPrisma);
-    });
     mockedPrisma.invitation.updateMany.mockResolvedValue({ count: 2 });
     mockedPrisma.invitation.create.mockResolvedValue({
       id: "new-inv-123",
@@ -105,12 +103,11 @@ describe("POST /api/admin/invitations - Unique active invitation per email", () 
     expect(response.status).toBe(200);
     expect(data.message).toBe("Einladung wurde erfolgreich erstellt und versendet.");
 
-    expect(mockedPrisma.$transaction).toHaveBeenCalled();
-
     expect(mockedPrisma.invitation.updateMany).toHaveBeenCalledWith({
       where: {
         email: "user@example.com",
         usedAt: null,
+        NOT: { id: "new-inv-123" },
       },
       data: {
         usedAt: INVITED_AT_EPOCH,
@@ -122,9 +119,6 @@ describe("POST /api/admin/invitations - Unique active invitation per email", () 
 
   it("should handle email with existing active invitations", async () => {
     mockedPrisma.user.findUnique.mockResolvedValue(null);
-    mockedPrisma.$transaction.mockImplementation(async (callback) => {
-      return callback(mockedPrisma);
-    });
     mockedPrisma.invitation.updateMany.mockResolvedValue({ count: 1 });
     mockedPrisma.invitation.create.mockResolvedValue({
       id: "new-inv-456",
@@ -144,6 +138,7 @@ describe("POST /api/admin/invitations - Unique active invitation per email", () 
       where: {
         email: "existing@example.com",
         usedAt: null,
+        NOT: { id: "new-inv-456" },
       },
       data: {
         usedAt: INVITED_AT_EPOCH,
@@ -153,9 +148,6 @@ describe("POST /api/admin/invitations - Unique active invitation per email", () 
 
   it("should handle email with no existing active invitations", async () => {
     mockedPrisma.user.findUnique.mockResolvedValue(null);
-    mockedPrisma.$transaction.mockImplementation(async (callback) => {
-      return callback(mockedPrisma);
-    });
     mockedPrisma.invitation.updateMany.mockResolvedValue({ count: 0 });
     mockedPrisma.invitation.create.mockResolvedValue({
       id: "new-inv-789",
@@ -177,9 +169,6 @@ describe("POST /api/admin/invitations - Unique active invitation per email", () 
 
   it("should invalidate all unused invitations before creating a new one", async () => {
     mockedPrisma.user.findUnique.mockResolvedValue(null);
-    mockedPrisma.$transaction.mockImplementation(async (callback) => {
-      return callback(mockedPrisma);
-    });
     mockedPrisma.invitation.updateMany.mockResolvedValue({ count: 1 });
     mockedPrisma.invitation.create.mockResolvedValue({
       id: "new-inv-999",
@@ -200,9 +189,9 @@ describe("POST /api/admin/invitations - Unique active invitation per email", () 
     expect(updateCall.where.usedAt).toBe(null);
   });
 
-  it("should maintain transaction integrity - if transaction fails, no invitation is created", async () => {
+  it("should return 500 if invitation creation fails", async () => {
     mockedPrisma.user.findUnique.mockResolvedValue(null);
-    mockedPrisma.$transaction.mockRejectedValue(new Error("Transaction failed"));
+    mockedPrisma.invitation.create.mockRejectedValue(new Error("Create failed"));
 
     const request = new NextRequest("https://example.com/api/admin/invitations", {
       method: "POST",
@@ -211,14 +200,11 @@ describe("POST /api/admin/invitations - Unique active invitation per email", () 
     const response = await POST(request);
 
     expect(response.status).toBe(500);
-    expect(mockedPrisma.$transaction).toHaveBeenCalled();
+    expect(mockedPrisma.invitation.updateMany).not.toHaveBeenCalled();
   });
 
   it("should return error if email sending fails", async () => {
     mockedPrisma.user.findUnique.mockResolvedValue(null);
-    mockedPrisma.$transaction.mockImplementation(async (callback) => {
-      return callback(mockedPrisma);
-    });
     mockedPrisma.invitation.updateMany.mockResolvedValue({ count: 0 });
     mockedPrisma.invitation.create.mockResolvedValue({
       id: "new-inv-111",
@@ -240,13 +226,13 @@ describe("POST /api/admin/invitations - Unique active invitation per email", () 
 
     expect(response.status).toBe(500);
     expect(data.error).toBe("E-Mail konnte nicht gesendet werden. Bitte versuchen Sie es erneut.");
+    expect(mockedPrisma.invitation.delete).toHaveBeenCalledWith({
+      where: { id: "new-inv-111" },
+    });
   });
 
   it("should normalize email to lowercase and trim", async () => {
     mockedPrisma.user.findUnique.mockResolvedValue(null);
-    mockedPrisma.$transaction.mockImplementation(async (callback) => {
-      return callback(mockedPrisma);
-    });
     mockedPrisma.invitation.updateMany.mockResolvedValue({ count: 0 });
     mockedPrisma.invitation.create.mockResolvedValue({
       id: "new-inv-222",
@@ -267,6 +253,7 @@ describe("POST /api/admin/invitations - Unique active invitation per email", () 
       where: {
         email: "user@example.com",
         usedAt: null,
+        NOT: { id: "new-inv-222" },
       },
       data: {
         usedAt: INVITED_AT_EPOCH,
@@ -276,9 +263,6 @@ describe("POST /api/admin/invitations - Unique active invitation per email", () 
 
   it("should include invitationId in email log context", async () => {
     mockedPrisma.user.findUnique.mockResolvedValue(null);
-    mockedPrisma.$transaction.mockImplementation(async (callback) => {
-      return callback(mockedPrisma);
-    });
     mockedPrisma.invitation.updateMany.mockResolvedValue({ count: 0 });
     mockedPrisma.invitation.create.mockResolvedValue({
       id: "inv-with-id",
@@ -323,7 +307,7 @@ describe("POST /api/admin/invitations - Unique active invitation per email", () 
     expect(response.status).toBe(409);
     expect(data.error).toBe("Ein Benutzer mit dieser E-Mail existiert bereits");
 
-    expect(mockedPrisma.$transaction).not.toHaveBeenCalled();
+    expect(mockedPrisma.invitation.create).not.toHaveBeenCalled();
   });
 
   it("should return 500 if APP_URL is not configured", async () => {

@@ -4,7 +4,7 @@ import { getClientIp, handleRateLimitBlocked, logApiError, parseJsonBody, valida
 import { hash } from "bcryptjs";
 import { validatePassword } from "@/lib/password-validation";
 import { hashResetToken } from "@/lib/password-reset";
-import { logInfo, logValidationFailure, logResourceNotFound, maskToken } from "@/lib/logger";
+import { logInfo, logValidationFailure, logResourceNotFound, maskToken, logWarn } from "@/lib/logger";
 import { checkTokenRateLimit, recordSuccessfulTokenUsage } from "@/lib/rate-limiter";
 
 const BCRYPT_SALT_ROUNDS = 10;
@@ -85,7 +85,22 @@ export async function POST(
 
     const clientIp = getClientIp(request);
     const tokenHash = hashResetToken(token);
-    const rateLimitResult = await checkTokenRateLimit(clientIp, tokenHash);
+    let rateLimitResult = { allowed: true, attemptCount: 0 } as {
+      allowed: boolean;
+      blockedUntil?: number;
+      attemptCount: number;
+    };
+    try {
+      rateLimitResult = await checkTokenRateLimit(clientIp, tokenHash);
+    } catch (rateLimitError) {
+      logWarn('password_reset_rate_limit_unavailable', 'Rate limiter unavailable for password reset route, continuing without enforcement', {
+        route: "/api/auth/reset-password/[token]",
+        method: "POST",
+        clientIp,
+        token: maskToken(token),
+        error: rateLimitError instanceof Error ? rateLimitError.message : String(rateLimitError),
+      });
+    }
 
     if (!rateLimitResult.allowed) {
       return handleRateLimitBlocked(
@@ -146,7 +161,10 @@ export async function POST(
     await prisma.$transaction(async (tx: Omit<typeof prisma, "\$connect" | "\$disconnect" | "\$on" | "\$transaction" | "\$extends">) => {
       await tx.user.update({
         where: { id: user.id },
-        data: { password: hashedPassword },
+        data: {
+          password: hashedPassword,
+          passwordUpdatedAt: new Date(),
+        },
       });
 
       await tx.passwordReset.update({
@@ -155,7 +173,17 @@ export async function POST(
       });
     });
 
-    await recordSuccessfulTokenUsage(tokenHash, clientIp);
+    try {
+      await recordSuccessfulTokenUsage(tokenHash, clientIp);
+    } catch (rateLimitError) {
+      logWarn('password_reset_rate_limit_cleanup_failed', 'Failed to clear token rate limit state after successful password reset', {
+        route: "/api/auth/reset-password/[token]",
+        method: "POST",
+        clientIp,
+        token: maskToken(token),
+        error: rateLimitError instanceof Error ? rateLimitError.message : String(rateLimitError),
+      });
+    }
 
     logInfo('password_reset_completed', 'Password reset completed', {
       email: reset.email,

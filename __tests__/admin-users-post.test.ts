@@ -5,6 +5,7 @@ import { requireAdmin } from "@/lib/auth-utils";
 import { sendInvitationEmail } from "@/lib/invitations";
 import { hash } from "bcryptjs";
 import { validateCsrfHeaders } from "@/lib/api-utils";
+import { validateDateString } from "@/lib/validation-schema";
 
 jest.mock("@/lib/prisma", () => ({
   prisma: {
@@ -81,6 +82,7 @@ const mockedPrisma = prisma as {
 const mockedRequireAdmin = requireAdmin as jest.Mock;
 const mockedSendInvitationEmail = sendInvitationEmail as jest.Mock;
 const mockedHash = hash as jest.Mock;
+const mockedValidateDateString = validateDateString as jest.Mock;
 
 describe("POST /api/admin/users - User creation with transaction", () => {
   const mockAdmin = {
@@ -358,6 +360,45 @@ describe("POST /api/admin/users - User creation with transaction", () => {
     const response = await POST(request);
 
     expect(response.status).toBe(201);
+  });
+
+  it("should allow empty memberSince during user creation", async () => {
+    mockedPrisma.user.findUnique.mockResolvedValue(null);
+
+    const mockTx = {
+      user: {
+        create: jest.fn().mockResolvedValue(mockNewUser),
+      },
+      invitation: {
+        create: jest.fn(),
+        updateMany: jest.fn(),
+      },
+    };
+
+    mockedPrisma.$transaction.mockImplementation(async (callback) => {
+      return callback(mockTx);
+    });
+
+    const request = new NextRequest("https://example.com/api/admin/users", {
+      method: "POST",
+      body: JSON.stringify({
+        email: "user@example.com",
+        name: "Test User",
+        memberSince: "",
+      }),
+    });
+
+    const response = await POST(request);
+
+    expect(response.status).toBe(201);
+    expect(mockedValidateDateString).not.toHaveBeenCalled();
+    expect(mockTx.user.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          memberSince: null,
+        }),
+      })
+    );
   });
 
   it("should return 409 if user already exists", async () => {

@@ -234,6 +234,41 @@ Testen Sie die Validierung bei der Terminerstellung:
 - [ ] **Erwartet**: Abstimmungen bleiben erhalten
 - [ ] **Erwartet**: Stimmen werden nicht zurückgesetzt
 
+## 4.8 Benachrichtigungen (Reminder)
+
+### 4.8.1 Benachrichtigungseinstellungen im Profil
+- [ ] Melden Sie sich als Mitglied an
+- [ ] Navigieren Sie zu `/benachrichtigungen`
+- [ ] Aktivieren/Deaktivieren Sie die Erinnerung und ändern Sie den Wert "Tag(e) vor dem Termin"
+- [ ] Speichern Sie die Einstellungen
+- [ ] **Erwartet**: Erfolgsmeldung wird angezeigt
+- [ ] **Erwartet**: Nach Neuladen bleiben die Einstellungen erhalten
+
+### 4.8.2 Reminder-Link zur Terminanmeldung
+- [ ] Stellen Sie sicher, dass ein zukünftiger Termin ohne eigene Stimme existiert
+- [ ] Öffnen Sie den Reminder-Link `/anmeldung/[token]` aus der E-Mail
+- [ ] **Erwartet**: Termin-Daten und eigene aktuelle Stimme werden angezeigt
+- [ ] Stimmen Sie über den Link mit "Ja", "Nein" oder "Vielleicht" ab
+- [ ] **Erwartet**: Stimme wird gespeichert und als aktuelle Auswahl angezeigt
+
+### 4.8.3 Reminder-Link für vergangene oder unsichtbare Termine
+- [ ] Öffnen Sie einen Reminder-Link für einen nicht sichtbaren oder abgelaufenen Termin
+- [ ] **Erwartet**: Der Link liefert "ungültig oder abgelaufen" (keine Termindetails)
+
+### 4.8.4 Abmeldung per Token-Link
+- [ ] Öffnen Sie den Link `/benachrichtigungen/abmelden/[token]` aus der Reminder-E-Mail
+- [ ] **Erwartet**: Erfolgsmeldung zur Deaktivierung wird angezeigt
+- [ ] Öffnen Sie `/benachrichtigungen` als derselbe Benutzer
+- [ ] **Erwartet**: Erinnerung ist deaktiviert
+
+### 4.8.5 Admin-Verlauf Benachrichtigungen
+- [ ] Melden Sie sich als Admin an
+- [ ] Navigieren Sie zu `/admin/benachrichtigungen`
+- [ ] Prüfen Sie Suche, Pagination und Datumsanzeige
+- [ ] **Erwartet**: Einträge der letzten 30 Tage werden angezeigt
+- [ ] **Erwartet**: Status "Versendet" und "Ausstehend" werden korrekt dargestellt
+- [ ] **Hinweis**: "Versendet" bedeutet erfolgreicher Dispatch in die Outbox, nicht zwingend bereits erfolgreicher SMTP-Zustellabschluss
+
 ## 5. News-Verwaltung
 
 ### 5.1 News-Artikel erstellen

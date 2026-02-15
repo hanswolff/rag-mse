@@ -9,7 +9,11 @@ import Link from "next/link";
 import { BackLink } from "@/components/back-link";
 import { GermanDatePicker } from "@/components/german-date-picker";
 import { LoadingButton } from "@/components/loading-button";
+import { ValidatedFieldGroup } from "@/components/validated-field-group";
 import { getLocalDateString, normalizeDateInputValue } from "@/lib/date-picker-utils";
+import { useFormFieldValidation } from "@/lib/useFormFieldValidation";
+import { mapServerErrorToField, NEWS_FIELD_KEYWORDS } from "@/lib/server-error-mapper";
+import { newsValidationConfig } from "@/lib/validation-schema";
 import type { News, NewNews } from "@/types";
 
 function getTodayDateString() {
@@ -31,8 +35,28 @@ export default function NewsEditPage({ params }: { params: Promise<{ id: string 
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [success, setSuccess] = useState("");
   const [newNews, setNewNews] = useState<NewNews>(initialNewNews);
+  const { errors: validationErrors, validateField, validateAllFields, markFieldAsTouched, shouldShowError, isValidAndTouched } = useFormFieldValidation(newsValidationConfig);
+
+  function getFieldError(fieldName: string, value: string) {
+    if (fieldErrors[fieldName]) return fieldErrors[fieldName];
+    return shouldShowError(fieldName, value) ? validationErrors[fieldName] : undefined;
+  }
+
+  function handleFieldChange(fieldName: string, value: string) {
+    setNewNews((prev) => ({ ...prev, [fieldName]: value }));
+    setFieldErrors((prev) => ({ ...prev, [fieldName]: "" }));
+    if (validationErrors[fieldName]) {
+      validateField(fieldName, value);
+    }
+  }
+
+  function handleFieldBlur(fieldName: string, value: string) {
+    markFieldAsTouched(fieldName);
+    validateField(fieldName, value);
+  }
 
   useEffect(() => {
     if (status === "unauthenticated") {
@@ -77,7 +101,20 @@ export default function NewsEditPage({ params }: { params: Promise<{ id: string 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
+    setFieldErrors({});
     setSuccess("");
+
+    const fieldValues: Record<string, string> = {
+      newsDate: newNews.newsDate,
+      title: newNews.title,
+      content: newNews.content,
+    };
+
+    const isValid = validateAllFields(fieldValues);
+    if (!isValid) {
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
@@ -92,7 +129,14 @@ export default function NewsEditPage({ params }: { params: Promise<{ id: string 
       const data = await response.json();
 
       if (!response.ok) {
-        setError(data.error || "Fehler beim Aktualisieren der News");
+        const message = data.error || "Fehler beim Aktualisieren der News";
+        const nextFieldErrors = mapServerErrorToField(message, NEWS_FIELD_KEYWORDS);
+
+        if (Object.keys(nextFieldErrors).length > 0) {
+          setFieldErrors(nextFieldErrors);
+        } else {
+          setError(message);
+        }
         return;
       }
 
@@ -140,45 +184,49 @@ export default function NewsEditPage({ params }: { params: Promise<{ id: string 
 
         {newsItem && (
           <div className="card">
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div>
-                <GermanDatePicker
-                  id="newsDate"
-                  label="Datum *"
-                  value={newNews.newsDate}
-                  onChange={(date) => setNewNews({ ...newNews, newsDate: date })}
-                  required
-                  disabled={isSubmitting}
-                />
-              </div>
-              <div>
-                <label htmlFor="newsTitle" className="form-label">Titel *</label>
-                <input
-                  id="newsTitle"
-                  type="text"
-                  value={newNews.title}
-                  onChange={(e) => setNewNews({ ...newNews, title: e.target.value })}
-                  required
-                  maxLength={200}
-                  className="form-input"
-                  placeholder="Titel der News"
-                  disabled={isSubmitting}
-                />
-              </div>
-              <div>
-                <label htmlFor="newsContent" className="form-label">Inhalt *</label>
-                <textarea
-                  id="newsContent"
-                  value={newNews.content}
-                  onChange={(e) => setNewNews({ ...newNews, content: e.target.value })}
-                  required
-                  maxLength={10000}
-                  rows={10}
-                  className="form-input"
-                  placeholder="Inhalt der News..."
-                  disabled={isSubmitting}
-                />
-              </div>
+            <form onSubmit={handleSubmit} className="space-y-4" noValidate>
+              <GermanDatePicker
+                id="newsDate"
+                label="Datum"
+                value={newNews.newsDate}
+                onChange={(date) => handleFieldChange("newsDate", date)}
+                onBlur={() => handleFieldBlur("newsDate", newNews.newsDate)}
+                required
+                disabled={isSubmitting}
+                error={getFieldError("newsDate", newNews.newsDate)}
+              />
+
+              <ValidatedFieldGroup
+                label="Titel"
+                name="title"
+                type="text"
+                value={newNews.title}
+                onChange={(e) => handleFieldChange("title", e.target.value)}
+                onBlur={(e) => handleFieldBlur("title", e.target.value)}
+                error={getFieldError("title", newNews.title)}
+                showSuccess={isValidAndTouched("title", newNews.title)}
+                required
+                maxLength={200}
+                placeholder="Titel der News"
+                disabled={isSubmitting}
+              />
+
+              <ValidatedFieldGroup
+                as="textarea"
+                label="Inhalt"
+                name="content"
+                value={newNews.content}
+                onChange={(e) => handleFieldChange("content", e.target.value)}
+                onBlur={(e) => handleFieldBlur("content", e.target.value)}
+                error={getFieldError("content", newNews.content)}
+                showSuccess={isValidAndTouched("content", newNews.content)}
+                required
+                maxLength={10000}
+                rows={10}
+                placeholder="Inhalt der News..."
+                disabled={isSubmitting}
+              />
+
               <div className="flex items-center gap-3">
                 <input
                   id="newsPublished"
