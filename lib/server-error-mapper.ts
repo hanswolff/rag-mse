@@ -95,3 +95,8 @@ export const CONTACT_FIELD_KEYWORDS: Record<string, string[]> = {
   email: ["E-Mail"],
   message: ["Nachricht"],
 };
+
+export const DOCUMENT_FIELD_KEYWORDS: Record<string, string[]> = {
+  displayName: ["Dokumentenname"],
+  documentDate: ["Dokumentdatum"],
+};

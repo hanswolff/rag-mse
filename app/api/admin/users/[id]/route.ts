@@ -13,6 +13,7 @@ import {
   validateReservistsAssociation,
   validateAssociationMemberNumber,
   validateDateOfBirth,
+  validateAdminNotes,
 } from "@/lib/user-validation";
 import { validateRole, validateDateString } from "@/lib/validation-schema";
 import { Role } from "@prisma/client";
@@ -32,6 +33,7 @@ interface UpdateUserRequest {
   reservistsAssociation?: string;
   associationMemberNumber?: string;
   hasPossessionCard?: boolean;
+  adminNotes?: string | null;
 }
 
 interface UpdateUserData {
@@ -47,6 +49,7 @@ interface UpdateUserData {
   reservistsAssociation?: string | null;
   associationMemberNumber?: string | null;
   hasPossessionCard?: boolean;
+  adminNotes?: string | null;
 }
 
 const updateUserSchema = {
@@ -62,6 +65,7 @@ const updateUserSchema = {
   reservistsAssociation: { type: 'string' as const, optional: true },
   associationMemberNumber: { type: 'string' as const, optional: true },
   hasPossessionCard: { type: 'boolean' as const, optional: true },
+  adminNotes: { type: 'string' as const, optional: true },
 } as const;
 
 export const PATCH = withApiErrorHandling(async (
@@ -234,6 +238,18 @@ export const PATCH = withApiErrorHandling(async (
     }
   }
 
+  const adminNotes = typeof body.adminNotes === "string" || body.adminNotes === null ? body.adminNotes : undefined;
+  if (adminNotes !== undefined) {
+    if (adminNotes !== null) {
+      const adminNotesValidation = validateAdminNotes(adminNotes);
+      if (!adminNotesValidation.isValid) {
+        logValidationFailure('/api/admin/users/[id]', 'PATCH', adminNotesValidation.error || 'Ungültige Administratoren-Notizen', { userId: id });
+        return NextResponse.json({ error: adminNotesValidation.error }, { status: 400 });
+      }
+    }
+    updates.adminNotes = adminNotes;
+  }
+
   if (memberSince !== undefined) {
     updates.memberSince = memberSince.trim() ? new Date(memberSince) : null;
   }
@@ -270,6 +286,7 @@ export const PATCH = withApiErrorHandling(async (
     reservistsAssociation: true,
     associationMemberNumber: true,
     hasPossessionCard: true,
+    adminNotes: true,
     createdAt: true,
   } as const;
 
@@ -289,6 +306,7 @@ export const PATCH = withApiErrorHandling(async (
     reservistsAssociation: string | null;
     associationMemberNumber: string | null;
     hasPossessionCard: boolean;
+    adminNotes: string | null;
     createdAt: Date;
   };
   try {

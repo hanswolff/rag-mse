@@ -46,6 +46,10 @@ export async function requireMember() {
 }
 
 export function shouldRedirectToLogin(pathname: string, userRole: string | undefined): boolean {
+  if (pathname.startsWith("/benachrichtigungen/abmelden")) {
+    return false;
+  }
+
   if (pathname.startsWith("/admin") && !hasAdminRole(userRole)) {
     return true;
   }

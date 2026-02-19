@@ -29,8 +29,9 @@ interface UserFormModalProps {
     reservistsAssociation: string;
     associationMemberNumber: string;
     hasPossessionCard: boolean;
+    adminNotes: string;
   };
-  setUserData: (data: { email: string; name: string; address: string; phone: string; role: UserRole; memberSince: string; dateOfBirth: string; rank: string; pk: string; reservistsAssociation: string; associationMemberNumber: string; hasPossessionCard: boolean }) => void;
+  setUserData: (data: { email: string; name: string; address: string; phone: string; role: UserRole; memberSince: string; dateOfBirth: string; rank: string; pk: string; reservistsAssociation: string; associationMemberNumber: string; hasPossessionCard: boolean; adminNotes: string }) => void;
   isEditing: boolean;
   errors?: Record<string, string>;
   initialUserData?: {
@@ -46,6 +47,7 @@ interface UserFormModalProps {
     reservistsAssociation: string;
     associationMemberNumber: string;
     hasPossessionCard: boolean;
+    adminNotes: string;
   };
 }
 
@@ -62,6 +64,7 @@ const initialNewUser = {
   reservistsAssociation: "",
   associationMemberNumber: "",
   hasPossessionCard: false,
+  adminNotes: "",
 };
 
 export function UserFormModal({
@@ -110,7 +113,8 @@ export function UserFormModal({
       userData.pk !== base.pk ||
       userData.reservistsAssociation !== base.reservistsAssociation ||
       userData.associationMemberNumber !== base.associationMemberNumber ||
-      userData.hasPossessionCard !== base.hasPossessionCard
+      userData.hasPossessionCard !== base.hasPossessionCard ||
+      userData.adminNotes !== base.adminNotes
     );
   }, [userData, initialUserData]);
 
@@ -165,6 +169,7 @@ export function UserFormModal({
       pk: userData.pk,
       reservistsAssociation: userData.reservistsAssociation,
       associationMemberNumber: userData.associationMemberNumber,
+      adminNotes: userData.adminNotes,
     };
 
     const isValid = validateAllFields(fieldValues);
@@ -369,6 +374,38 @@ export function UserFormModal({
                 {getFieldError("role")}
               </p>
             )}
+          </div>
+        </div>
+
+        <div>
+          <label htmlFor="modal-adminNotes" className="form-label">
+            Administratoren-Notizen <span className="text-gray-400">(nur für Administratoren sichtbar)</span>
+          </label>
+          <textarea
+            id="modal-adminNotes"
+            value={userData.adminNotes}
+            onChange={(e) => {
+              const value = e.target.value;
+              if (value.length <= 4000) {
+                setUserData({ ...userData, adminNotes: value });
+              }
+            }}
+            onBlur={() => handleBlur("adminNotes", userData.adminNotes)}
+            className={`form-input min-h-[120px] resize-y ${getFieldError("adminNotes") ? "border-red-500 focus:border-red-500" : ""}`}
+            placeholder="Interne Notizen für Administratoren..."
+            disabled={isSubmitting}
+            maxLength={4000}
+          />
+          <div className="flex justify-between items-center mt-1">
+            {getFieldError("adminNotes") && (
+              <p className="form-help text-red-600">
+                {getFieldError("adminNotes")}
+              </p>
+            )}
+            {!getFieldError("adminNotes") && <span></span>}
+            <span className={`text-sm ${userData.adminNotes.length > 3800 ? "text-orange-500" : "text-gray-500"}`}>
+              {userData.adminNotes.length}/4000
+            </span>
           </div>
         </div>
 

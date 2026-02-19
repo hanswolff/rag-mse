@@ -67,7 +67,9 @@ describe("event-reminder-worker", () => {
     (prisma.eventReminderDispatch.update as jest.Mock).mockResolvedValue({ id: "dispatch-1" });
     (sendEventReminderEmail as jest.Mock).mockResolvedValue({ success: true });
 
-    const queued = await processEventReminders(new Date("2026-02-01T10:00:00.000Z"));
+    // Event starts 18:00 Europe/Berlin, reminder should fire 7 days before at 17:00 UTC
+    // Current time is within poll interval + grace period window
+    const queued = await processEventReminders(new Date("2026-02-01T16:56:00.000Z"));
 
     expect(queued).toBe(1);
     expect(prisma.eventReminderDispatch.create).toHaveBeenCalledTimes(1);
@@ -96,7 +98,9 @@ describe("event-reminder-worker", () => {
     (prisma.eventReminderDispatch.delete as jest.Mock).mockResolvedValue({ id: "dispatch-1" });
     (sendEventReminderEmail as jest.Mock).mockResolvedValue({ success: false });
 
-    const queued = await processEventReminders(new Date("2026-02-01T10:00:00.000Z"));
+    // Event starts 18:00 Europe/Berlin, reminder should fire 7 days before at 17:00 UTC
+    // Current time is within poll interval + grace period window
+    const queued = await processEventReminders(new Date("2026-02-01T16:56:00.000Z"));
 
     expect(queued).toBe(0);
     expect(prisma.eventReminderDispatch.delete).toHaveBeenCalledWith({
@@ -125,27 +129,22 @@ describe("event-reminder-worker", () => {
       queuedAt: new Date("2026-01-30T09:00:00.000Z"),
     });
 
-    const queued = await processEventReminders(new Date("2026-02-01T10:00:00.000Z"));
+    // Event starts 18:00 Europe/Berlin, reminder should fire 7 days before at 17:00 UTC
+    // Current time is within poll interval + grace period window
+    const queued = await processEventReminders(new Date("2026-02-01T16:56:00.000Z"));
 
     expect(queued).toBe(0);
     expect(sendEventReminderEmail).not.toHaveBeenCalled();
   });
 
-  it("filters events by APP_TIMEZONE date key", async () => {
+  it("sends reminder when within poll interval window of target time", async () => {
     (prisma.user.findMany as jest.Mock).mockResolvedValue([
       { id: "user-1", email: "max@example.org", eventReminderDaysBefore: 1 },
     ]);
     (prisma.event.findMany as jest.Mock).mockResolvedValue([
       {
-        id: "event-berlin-target-day",
-        date: new Date("2026-01-02T23:30:00.000Z"),
-        timeFrom: "18:00",
-        timeTo: "20:00",
-        location: "Ulm",
-      },
-      {
-        id: "event-berlin-next-day",
-        date: new Date("2026-01-03T23:30:00.000Z"),
+        id: "event-1",
+        date: new Date("2026-01-03T00:00:00.000Z"),
         timeFrom: "18:00",
         timeTo: "20:00",
         location: "Ulm",
@@ -155,14 +154,16 @@ describe("event-reminder-worker", () => {
     (prisma.eventReminderDispatch.update as jest.Mock).mockResolvedValue({ id: "dispatch-1" });
     (sendEventReminderEmail as jest.Mock).mockResolvedValue({ success: true });
 
-    const queued = await processEventReminders(new Date("2026-01-01T23:30:00.000Z"));
+    // Event starts 18:00 Europe/Berlin, reminder should fire 1 day before at 17:00 UTC
+    // Current time is within poll interval + grace period window
+    const queued = await processEventReminders(new Date("2026-01-02T16:57:00.000Z"));
 
     expect(queued).toBe(1);
     expect(prisma.eventReminderDispatch.create).toHaveBeenCalledTimes(1);
     expect(prisma.eventReminderDispatch.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
-          eventId: "event-berlin-target-day",
+          eventId: "event-1",
         }),
       })
     );
@@ -192,7 +193,9 @@ describe("event-reminder-worker", () => {
       .mockResolvedValueOnce({ id: "dispatch-pending" });
     (sendEventReminderEmail as jest.Mock).mockResolvedValue({ success: true });
 
-    const queued = await processEventReminders(new Date("2026-02-01T10:00:00.000Z"));
+    // Event starts 18:00 Europe/Berlin, reminder should fire 7 days before at 17:00 UTC
+    // Current time is within poll interval + grace period window
+    const queued = await processEventReminders(new Date("2026-02-01T16:56:00.000Z"));
 
     expect(queued).toBe(1);
     expect(prisma.eventReminderDispatch.update).toHaveBeenNthCalledWith(
@@ -200,7 +203,7 @@ describe("event-reminder-worker", () => {
       expect.objectContaining({
         where: { id: "dispatch-pending" },
         data: expect.objectContaining({
-          queuedAt: new Date("2026-02-01T10:00:00.000Z"),
+          queuedAt: new Date("2026-02-01T16:56:00.000Z"),
           sentAt: null,
         }),
       })
@@ -222,15 +225,15 @@ describe("event-reminder-worker", () => {
       {
         id: "event-1",
         date: new Date("2026-02-08T17:00:00.000Z"),
-        timeFrom: "18:00",
+        timeFrom: "18:00:00",
         timeTo: "20:00",
         location: "Ulm",
       },
       {
         id: "event-2",
-        date: new Date("2026-02-08T18:00:00.000Z"),
-        timeFrom: "19:00",
-        timeTo: "21:00",
+        date: new Date("2026-02-08T17:00:00.000Z"),
+        timeFrom: "18:00:02",
+        timeTo: "20:00",
         location: "Neu-Ulm",
       },
     ]);
@@ -244,10 +247,57 @@ describe("event-reminder-worker", () => {
       .mockRejectedValueOnce(new Error("DB lock"))
       .mockResolvedValueOnce({ id: "dispatch-2" });
 
-    const queued = await processEventReminders(new Date("2026-02-01T10:00:00.000Z"));
+    // Events start at 18:00 Europe/Berlin
+    // Current time is within poll interval + grace period window for both reminders
+    const queued = await processEventReminders(new Date("2026-02-01T16:57:00.000Z"));
 
+    // First event fails after retries, second one is still processed
     expect(queued).toBe(1);
     expect(prisma.eventReminderDispatch.create).toHaveBeenCalledTimes(2);
     expect(sendEventReminderEmail).toHaveBeenCalledTimes(2);
+  });
+
+  it("respects APP_TIMEZONE when calculating reminder timestamp", async () => {
+    process.env.APP_TIMEZONE = "UTC";
+    (prisma.user.findMany as jest.Mock).mockResolvedValue([
+      { id: "user-1", email: "max@example.org", eventReminderDaysBefore: 7 },
+    ]);
+    (prisma.event.findMany as jest.Mock).mockResolvedValue([
+      {
+        id: "event-1",
+        date: new Date("2026-02-08T00:00:00.000Z"),
+        timeFrom: "18:00",
+        timeTo: "20:00",
+        location: "Ulm",
+      },
+    ]);
+    (prisma.eventReminderDispatch.create as jest.Mock).mockResolvedValue({ id: "dispatch-1" });
+    (prisma.eventReminderDispatch.update as jest.Mock).mockResolvedValue({ id: "dispatch-1" });
+    (sendEventReminderEmail as jest.Mock).mockResolvedValue({ success: true });
+
+    const queued = await processEventReminders(new Date("2026-02-01T17:57:00.000Z"));
+
+    expect(queued).toBe(1);
+  });
+
+  it("does not queue at the same UTC timestamp when APP_TIMEZONE is Europe/Berlin", async () => {
+    process.env.APP_TIMEZONE = "Europe/Berlin";
+    (prisma.user.findMany as jest.Mock).mockResolvedValue([
+      { id: "user-1", email: "max@example.org", eventReminderDaysBefore: 7 },
+    ]);
+    (prisma.event.findMany as jest.Mock).mockResolvedValue([
+      {
+        id: "event-1",
+        date: new Date("2026-02-08T00:00:00.000Z"),
+        timeFrom: "18:00",
+        timeTo: "20:00",
+        location: "Ulm",
+      },
+    ]);
+    (sendEventReminderEmail as jest.Mock).mockResolvedValue({ success: true });
+
+    const queued = await processEventReminders(new Date("2026-02-01T17:57:00.000Z"));
+
+    expect(queued).toBe(0);
   });
 });

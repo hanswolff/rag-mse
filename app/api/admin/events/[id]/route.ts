@@ -191,7 +191,10 @@ export const PUT = withApiErrorHandling(async (request: NextRequest, ctx: RouteC
     updatedBy: 'admin',
   });
 
-  return NextResponse.json(updatedEvent);
+  return NextResponse.json({
+    ...updatedEvent,
+    date: formatDateForStorage(updatedEvent.date),
+  });
 }, { route: "/api/admin/events/[id]", method: "PUT" });
 
 export const DELETE = withApiErrorHandling(async (request: NextRequest, ctx: RouteContext<'/api/admin/events/[id]'>) => {

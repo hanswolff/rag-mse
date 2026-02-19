@@ -20,6 +20,7 @@ const initialNewUser: NewUser = {
   reservistsAssociation: "",
   associationMemberNumber: "",
   hasPossessionCard: false,
+  adminNotes: "",
 };
 
 export function useUserManagement() {
@@ -182,6 +183,7 @@ export function useUserManagement() {
       reservistsAssociation: user.reservistsAssociation || "",
       associationMemberNumber: user.associationMemberNumber || "",
       hasPossessionCard: user.hasPossessionCard || false,
+      adminNotes: user.adminNotes || "",
     };
     setModalUserData(userData);
     setInitialUserData(userData); // Track initial for unsaved changes

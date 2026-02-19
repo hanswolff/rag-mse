@@ -139,5 +139,8 @@ export const POST = withApiErrorHandling(async (request: NextRequest) => {
     createdBy: user.email,
   });
 
-  return NextResponse.json(newEvent, { status: 201 });
+  return NextResponse.json({
+    ...newEvent,
+    date: formatDateForStorage(newEvent.date),
+  }, { status: 201 });
 }, { route: "/api/admin/events", method: "POST" });

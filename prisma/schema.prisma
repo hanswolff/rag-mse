@@ -47,6 +47,7 @@ model User {
   hasPossessionCard Boolean   @default(false)
   eventReminderEnabled    Boolean @default(true)
   eventReminderDaysBefore Int     @default(7)
+  adminNotes         String?
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
 
@@ -54,6 +55,7 @@ model User {
   invitationsSent Invitation[] @relation("InvitedBy")
   eventsCreated Event[]
   eventReminderDispatches EventReminderDispatch[]
+  documentsUploaded Document[]
 }
 
 model Event {
@@ -185,4 +187,23 @@ model EventReminderDispatch {
 
   @@unique([userId, eventId])
   @@index([eventId])
+}
+
+model Document {
+  id               String   @id @default(cuid())
+  displayName      String
+  originalFileName String
+  storedFileName   String   @unique
+  mimeType         String
+  sizeBytes        Int
+  documentDate     DateTime @default(now())
+  uploadedById     String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  uploadedBy User? @relation(fields: [uploadedById], references: [id], onDelete: SetNull)
+
+  @@index([displayName])
+  @@index([documentDate])
+  @@index([createdAt])
 }

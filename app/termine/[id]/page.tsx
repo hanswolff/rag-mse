@@ -152,14 +152,14 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
   return (
     <main className="min-h-screen bg-gray-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
-        <div className="mb-8">
+        <div className="mb-8 flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
           <BackLink href="/termine" className="inline-flex items-center">
             Zurück zur Termin-Übersicht
           </BackLink>
           {session && isAdmin(session.user) && event && (
             <button
               onClick={() => eventManagement.startEditingEvent(event)}
-              className="btn-primary ml-4 text-base"
+              className="btn-primary text-base w-full sm:w-auto"
             >
               Bearbeiten
             </button>
@@ -208,14 +208,14 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
                 </div>
 
                 <div className="mb-6">
-                  <div className="flex items-center justify-between mb-2">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-2">
                     <h2 className="text-lg font-semibold text-gray-900">Ort</h2>
                     {event.latitude !== null && event.longitude !== null && (
                       <a
                         href={getOpenStreetMapUrl(event.latitude, event.longitude)}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-sm text-brand-blue-600 hover:text-brand-blue-800 hover:underline flex items-center gap-1"
+                        className="text-sm text-brand-blue-600 hover:text-brand-blue-800 hover:underline flex items-center gap-1 self-start sm:self-auto"
                       >
                         <ExternalLinkIcon className="h-4 w-4" />
                         Karte in neuem Tab öffnen

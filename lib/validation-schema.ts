@@ -114,6 +114,11 @@ const optionalAssociationMemberNumberSchema = z
   .trim()
   .max(30, "Mitgliedsnummer im Verband darf maximal 30 Zeichen lang sein");
 
+const optionalAdminNotesSchema = z
+  .string()
+  .trim()
+  .max(4000, "Administratoren-Notizen dürfen maximal 4000 Zeichen lang sein");
+
 const requiredDateSchema = z
   .string()
   .trim()
@@ -192,6 +197,27 @@ const requiredContentSchema = z
   .trim()
   .min(1, "Inhalt ist erforderlich")
   .max(10000, "Inhalt darf maximal 10000 Zeichen haben");
+
+const optionalDocumentDisplayNameSchema = z
+  .string()
+  .superRefine((value, ctx) => {
+    const normalized = value.trim();
+    if (!normalized) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Dokumentenname darf nicht leer sein" });
+      return;
+    }
+
+    if (normalized.length > 200) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Dokumentenname darf maximal 200 Zeichen lang sein" });
+    }
+  });
+
+const optionalDocumentDateSchema = z
+  .string()
+  .trim()
+  .refine((value) => !value || isValidIsoDate(value), {
+    message: "Ungültiges Dokumentdatum",
+  });
 
 const requiredContactNameSchema = z
   .string()
@@ -454,6 +480,11 @@ export const newsValidationConfig: Record<string, FieldValidationConfig> = {
   content: { zod: requiredContentSchema },
 };
 
+export const documentValidationConfig: Record<string, FieldValidationConfig> = {
+  displayName: { zod: optionalDocumentDisplayNameSchema },
+  documentDate: { zod: optionalDocumentDateSchema },
+};
+
 export const contactValidationConfig: Record<string, FieldValidationConfig> = {
   name: { zod: requiredContactNameSchema },
   email: { zod: requiredEmailSchema("Bitte geben Sie eine gültige E-Mail-Adresse ein") },
@@ -482,4 +513,5 @@ export const profileValidationConfig: Record<string, FieldValidationConfig> = {
 export const adminUserValidationConfig: Record<string, FieldValidationConfig> = {
   ...profileValidationConfig,
   role: { zod: requiredRoleSchema },
+  adminNotes: { zod: optionalAdminNotesSchema },
 };

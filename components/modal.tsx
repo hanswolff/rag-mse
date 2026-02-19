@@ -12,8 +12,9 @@ interface ModalProps {
   onClose: () => void;
   title: string;
   children: React.ReactNode;
-  size?: "sm" | "md" | "lg" | "xl" | "2xl";
+  size?: "sm" | "md" | "lg" | "xl" | "2xl" | "3xl" | "4xl";
   maxHeight?: string;
+  contentOverflow?: "auto" | "visible";
   closeOnOutsideClick?: boolean;
   closeOnEscape?: boolean;
 }
@@ -24,9 +25,21 @@ const sizeClasses = {
   lg: "max-w-lg",
   xl: "max-w-xl",
   "2xl": "max-w-3xl",
+  "3xl": "max-w-4xl",
+  "4xl": "max-w-7xl",
 };
 
-export function Modal({ isOpen, onClose, title, children, size = "lg", maxHeight = DEFAULT_MODAL_MAX_HEIGHT, closeOnOutsideClick = true, closeOnEscape = true }: ModalProps) {
+export function Modal({
+  isOpen,
+  onClose,
+  title,
+  children,
+  size = "lg",
+  maxHeight = DEFAULT_MODAL_MAX_HEIGHT,
+  contentOverflow = "auto",
+  closeOnOutsideClick = true,
+  closeOnEscape = true
+}: ModalProps) {
   const modalRef = useRef<HTMLDivElement>(null);
   const previousActiveElement = useRef<HTMLElement | null>(null);
   const [isAnimating, setIsAnimating] = useState(false);
@@ -145,14 +158,14 @@ export function Modal({ isOpen, onClose, title, children, size = "lg", maxHeight
         } ${isAnimating ? "opacity-100 scale-100" : "opacity-0 scale-95"}`}
         style={{ maxHeight }}
       >
-        <div className="flex items-center justify-between p-3 sm:p-4 border-b border-gray-200 shrink-0">
-          <h2 id="modal-title" className="text-lg sm:text-xl font-semibold text-gray-900">
+        <div className="flex items-center justify-between gap-3 p-3 sm:p-4 border-b border-gray-200 shrink-0">
+          <h2 id="modal-title" className="min-w-0 flex-1 text-lg sm:text-xl font-semibold text-gray-900 break-words">
             {title}
           </h2>
           <button
             type="button"
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 focus:outline-none focus:ring-2 focus:ring-brand-red-600/30 rounded-md p-1 transition-colors"
+            className="shrink-0 text-gray-400 hover:text-gray-600 focus:outline-none focus:ring-2 focus:ring-brand-red-600/30 rounded-md p-1 transition-colors"
             aria-label="Schließen"
           >
             <svg
@@ -170,7 +183,7 @@ export function Modal({ isOpen, onClose, title, children, size = "lg", maxHeight
             </svg>
           </button>
         </div>
-        <div className="p-4 sm:p-6 overflow-y-auto">{children}</div>
+        <div className={`p-4 sm:p-6 ${contentOverflow === "visible" ? "overflow-visible" : "overflow-y-auto"}`}>{children}</div>
       </div>
     </div>
   );

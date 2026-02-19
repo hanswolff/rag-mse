@@ -34,13 +34,14 @@ export function Pagination({
 }: PaginationProps) {
   if (totalPages <= 1) return null;
 
-  const pageNumbers = getPageNumbers(currentPage, totalPages);
+  const normalizedCurrentPage = Math.max(1, Math.min(currentPage, totalPages));
+  const pageNumbers = getPageNumbers(normalizedCurrentPage, totalPages);
 
   return (
     <div className="mt-8 flex flex-col sm:flex-row justify-center items-center gap-2 sm:gap-2">
       <button
-        onClick={() => onPageChange(currentPage - 1)}
-        disabled={currentPage === 1 || disabled}
+        onClick={() => onPageChange(normalizedCurrentPage - 1)}
+        disabled={normalizedCurrentPage === 1 || disabled}
         className="px-3 sm:px-4 py-2 text-base sm:text-base bg-white border border-brand-blue-200 rounded-md hover:bg-brand-blue-50 disabled:opacity-50 disabled:cursor-not-allowed w-full sm:w-auto"
         aria-label="Zurück"
       >
@@ -67,12 +68,12 @@ export function Pagination({
               onClick={() => onPageChange(pageNum as number)}
               disabled={disabled}
               className={`px-3 sm:px-4 py-2 text-base sm:text-base rounded-md min-w-[2.5rem] font-semibold ${
-                currentPage === pageNum
+                normalizedCurrentPage === pageNum
                   ? "bg-brand-red-600 text-white"
                   : "bg-white border border-brand-blue-200 hover:bg-brand-blue-50 disabled:opacity-50 text-brand-blue-900"
               }`}
               aria-label={`Seite ${pageNum}`}
-              aria-current={currentPage === pageNum ? "page" : undefined}
+              aria-current={normalizedCurrentPage === pageNum ? "page" : undefined}
             >
               {pageNum}
             </button>
@@ -81,8 +82,8 @@ export function Pagination({
       </div>
 
       <button
-        onClick={() => onPageChange(currentPage + 1)}
-        disabled={currentPage === totalPages || disabled}
+        onClick={() => onPageChange(normalizedCurrentPage + 1)}
+        disabled={normalizedCurrentPage === totalPages || disabled}
         className="px-3 sm:px-4 py-2 text-base sm:text-base bg-white border border-brand-blue-200 rounded-md hover:bg-brand-blue-50 disabled:opacity-50 disabled:cursor-not-allowed w-full sm:w-auto"
         aria-label="Weiter"
       >

@@ -10,10 +10,11 @@ import {
 } from "./notifications";
 import { logError, logInfo } from "./logger";
 
-const DEFAULT_POLL_INTERVAL_MS = 60 * 60 * 1000;
+const DEFAULT_POLL_INTERVAL_MS = 5 * 60 * 1000;
 const DEFAULT_NOTIFICATION_TIMEZONE = "Europe/Berlin";
 const PENDING_DISPATCH_RESEND_DELAY_MS = 6 * 60 * 60 * 1000;
 const SENT_AT_UPDATE_MAX_ATTEMPTS = 3;
+const REMINDER_GRACE_PERIOD_MS = 2 * 60 * 1000;
 
 const globalForReminderWorker = globalThis as typeof globalThis & {
   eventReminderWorkerStarted?: boolean;
@@ -35,38 +36,75 @@ function getNotificationTimeZone(): string {
   return process.env.APP_TIMEZONE?.trim() || DEFAULT_NOTIFICATION_TIMEZONE;
 }
 
-function formatDateKeyInTimeZone(date: Date, timeZone: string): string {
-  const parts = new Intl.DateTimeFormat("en-CA", {
+type TimeZoneDateParts = {
+  year: number;
+  month: number;
+  day: number;
+  hour: number;
+  minute: number;
+  second: number;
+};
+
+function getTimeZoneDateParts(date: Date, timeZone: string): TimeZoneDateParts {
+  const formatter = new Intl.DateTimeFormat("en-CA", {
     timeZone,
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
-  }).formatToParts(date);
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  });
 
-  const year = parts.find((part) => part.type === "year")?.value;
-  const month = parts.find((part) => part.type === "month")?.value;
-  const day = parts.find((part) => part.type === "day")?.value;
+  const parts = formatter.formatToParts(date);
+  const getPart = (type: Intl.DateTimeFormatPartTypes): number => {
+    const value = parts.find((part) => part.type === type)?.value;
+    return Number.parseInt(value || "0", 10);
+  };
 
-  if (!year || !month || !day) {
-    throw new Error(`Could not format date parts for timezone ${timeZone}`);
+  return {
+    year: getPart("year"),
+    month: getPart("month"),
+    day: getPart("day"),
+    hour: getPart("hour"),
+    minute: getPart("minute"),
+    second: getPart("second"),
+  };
+}
+
+function getTimeZoneOffsetMs(date: Date, timeZone: string): number {
+  const zoned = getTimeZoneDateParts(date, timeZone);
+  const utcFromZoned = Date.UTC(
+    zoned.year,
+    zoned.month - 1,
+    zoned.day,
+    zoned.hour,
+    zoned.minute,
+    zoned.second,
+    0
+  );
+  return utcFromZoned - date.getTime();
+}
+
+function zonedTimeToUtc(parts: {
+  year: number;
+  month: number;
+  day: number;
+  hour: number;
+  minute: number;
+  second?: number;
+}, timeZone: string): Date {
+  const second = parts.second ?? 0;
+  const targetUtc = Date.UTC(parts.year, parts.month - 1, parts.day, parts.hour, parts.minute, second, 0);
+  let utcGuess = targetUtc;
+
+  for (let i = 0; i < 3; i += 1) {
+    const offset = getTimeZoneOffsetMs(new Date(utcGuess), timeZone);
+    utcGuess = targetUtc - offset;
   }
 
-  return `${year}-${month}-${day}`;
-}
-
-function getTargetDateKey(daysBefore: number, timeZone: string, now = new Date()): string {
-  const targetDate = new Date(now.getTime() + daysBefore * 24 * 60 * 60 * 1000);
-  return formatDateKeyInTimeZone(targetDate, timeZone);
-}
-
-function getSearchRange(daysBefore: number, now = new Date()): { start: Date; end: Date } {
-  const start = new Date(now);
-  start.setHours(0, 0, 0, 0);
-  start.setDate(start.getDate() + daysBefore - 1);
-
-  const end = new Date(start);
-  end.setDate(end.getDate() + 3);
-  return { start, end };
+  return new Date(utcGuess);
 }
 
 function isUniqueConstraintError(error: unknown): boolean {
@@ -238,6 +276,36 @@ async function queueReminderForUserEvent(params: {
   return sentSuccessfully;
 }
 
+function parseTimeParts(time: string): { hours: number; minutes: number } {
+  const [hours, minutes] = time.split(":").map((value) => Number.parseInt(value, 10));
+  return {
+    hours: Number.isInteger(hours) ? hours : 0,
+    minutes: Number.isInteger(minutes) ? minutes : 0,
+  };
+}
+
+function buildEventDateTime(eventDate: Date, time: string, timeZone: string): Date {
+  const { hours, minutes } = parseTimeParts(time);
+  const eventDateParts = getTimeZoneDateParts(eventDate, timeZone);
+  return zonedTimeToUtc(
+    {
+      year: eventDateParts.year,
+      month: eventDateParts.month,
+      day: eventDateParts.day,
+      hour: hours,
+      minute: minutes,
+      second: 0,
+    },
+    timeZone
+  );
+}
+
+function shouldSendReminder(eventDateTime: Date, daysBefore: number, now: Date, pollIntervalMs: number): boolean {
+  const reminderTime = new Date(eventDateTime.getTime() - daysBefore * 24 * 60 * 60 * 1000);
+  const timeDiff = reminderTime.getTime() - now.getTime();
+  return timeDiff >= -REMINDER_GRACE_PERIOD_MS && timeDiff < pollIntervalMs;
+}
+
 export async function processEventReminders(now = new Date()): Promise<number> {
   const appUrl = process.env.APP_URL;
   if (!appUrl) {
@@ -245,6 +313,8 @@ export async function processEventReminders(now = new Date()): Promise<number> {
     return 0;
   }
 
+  const pollIntervalMs = getPollIntervalMs();
+  const notificationTimeZone = getNotificationTimeZone();
   const users = await prisma.user.findMany({
     where: { eventReminderEnabled: true },
     select: {
@@ -255,18 +325,26 @@ export async function processEventReminders(now = new Date()): Promise<number> {
   });
 
   let queued = 0;
-  const timeZone = getNotificationTimeZone();
 
   for (const user of users) {
-    const { start, end } = getSearchRange(user.eventReminderDaysBefore, now);
-    const targetDateKey = getTargetDateKey(user.eventReminderDaysBefore, timeZone, now);
+    const hoursBefore = user.eventReminderDaysBefore * 24;
+    const searchWindowMs = pollIntervalMs + REMINDER_GRACE_PERIOD_MS;
+
+    const minEventTime = new Date(now.getTime() + hoursBefore * 60 * 60 * 1000 - REMINDER_GRACE_PERIOD_MS);
+    const maxEventTime = new Date(now.getTime() + hoursBefore * 60 * 60 * 1000 + searchWindowMs);
+
+    const minEventDate = new Date(minEventTime);
+    minEventDate.setHours(0, 0, 0, 0);
+
+    const maxEventDate = new Date(maxEventTime);
+    maxEventDate.setHours(23, 59, 59, 999);
 
     const eventsForRange = await prisma.event.findMany({
       where: {
         visible: true,
         date: {
-          gte: start,
-          lt: end,
+          gte: minEventDate,
+          lte: maxEventDate,
         },
         votes: {
           none: {
@@ -283,9 +361,12 @@ export async function processEventReminders(now = new Date()): Promise<number> {
       },
     });
 
-    const events = eventsForRange.filter((event) => formatDateKeyInTimeZone(event.date, timeZone) === targetDateKey);
+    for (const event of eventsForRange) {
+      const eventDateTime = buildEventDateTime(event.date, event.timeFrom, notificationTimeZone);
+      if (!shouldSendReminder(eventDateTime, user.eventReminderDaysBefore, now, pollIntervalMs)) {
+        continue;
+      }
 
-    for (const event of events) {
       try {
         const queuedForEvent = await queueReminderForUserEvent({
           userId: user.id,
@@ -352,6 +433,7 @@ export function startEventReminderWorker(): void {
 
   logInfo("event_reminder_worker_started", "Event reminder worker started", {
     pollIntervalMs,
+    notificationTimeZone: getNotificationTimeZone(),
   });
 }
 

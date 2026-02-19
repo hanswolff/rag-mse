@@ -112,8 +112,8 @@ export default function TerminePage() {
               >
                 <Link href={`/termine/${event.id}`} className="block">
                   <div className="p-4 sm:p-6">
-                    <div className="flex items-center justify-between mb-3">
-                      <div className="flex items-center gap-2">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-3">
+                      <div className="flex items-center gap-2 flex-wrap min-w-0">
                         <h2 className="text-base sm:text-xl font-semibold text-gray-900 hover:text-brand-red-600 transition-colors">
                           {formatDate(event.date)}
                         </h2>
@@ -133,7 +133,7 @@ export default function TerminePage() {
                         )}
                       </div>
                       {session && event._count && (
-                        <span className="bg-brand-blue-50 text-brand-blue-800 text-base font-medium px-2.5 py-0.5 rounded">
+                        <span className="bg-brand-blue-50 text-brand-blue-800 text-base font-medium px-2.5 py-0.5 rounded self-start sm:self-auto">
                           {event._count.votes} Anmeldung{event._count.votes !== 1 ? "en" : ""}
                         </span>
                       )}

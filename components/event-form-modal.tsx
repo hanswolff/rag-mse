@@ -207,7 +207,7 @@ export function EventFormModal({
             {errors.general}
           </div>
         )}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <div>
             <label htmlFor="modal-eventType" className="form-label">
               Typ
@@ -230,6 +230,7 @@ export function EventFormModal({
             label="Datum"
             value={eventData.date}
             onChange={(date) => handleChange("date", date)}
+            onBlur={() => handleBlur("date", eventData.date)}
             required
             disabled={isSubmitting}
             autoFocus={!isEditing}
@@ -242,6 +243,7 @@ export function EventFormModal({
             label="Uhrzeit von"
             value={eventData.timeFrom}
             onChange={(time) => handleChange("timeFrom", time)}
+            onBlur={() => handleBlur("timeFrom", eventData.timeFrom)}
             required
             disabled={isSubmitting}
             error={timeRangeError || getFieldError("timeFrom")}
@@ -252,6 +254,7 @@ export function EventFormModal({
             label="Uhrzeit bis"
             value={eventData.timeTo}
             onChange={(time) => handleChange("timeTo", time)}
+            onBlur={() => handleBlur("timeTo", eventData.timeTo)}
             required
             disabled={isSubmitting}
             error={timeRangeError || getFieldError("timeTo")}

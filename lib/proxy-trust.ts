@@ -15,7 +15,7 @@ interface IpRange {
 let cachedTrustedRanges: IpRange[] | null = null;
 let cachedTrustedIps: Set<string> | null = null;
 
-const DEFAULT_TRUSTED_PROXY_IPS = "127.0.0.0/8,10.0.0.0/8,192.168.0.0/16";
+const DEFAULT_TRUSTED_PROXY_IPS = "127.0.0.0/8,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16";
 
 function toUnsigned32Bit(value: number): number {
   return value >>> 0;

@@ -83,6 +83,7 @@ export interface User {
   reservistsAssociation?: string | null;
   associationMemberNumber?: string | null;
   hasPossessionCard?: boolean;
+  adminNotes?: string | null;
   createdAt: string;
   lastLoginAt?: string | null;
   passwordUpdatedAt?: string | null;
@@ -105,4 +106,29 @@ export interface NewUser {
   reservistsAssociation: string;
   associationMemberNumber: string;
   hasPossessionCard: boolean;
+  adminNotes: string;
+}
+
+
+export interface DocumentItem {
+  id: string;
+  displayName: string;
+  originalFileName: string;
+  mimeType: string;
+  sizeBytes: number;
+  documentDate: string;
+  createdAt: string;
+  updatedAt: string;
+  uploadedById?: string | null;
+  uploadedBy?: {
+    id: string;
+    name: string | null;
+    email: string;
+  } | null;
+}
+
+export interface NewDocumentInput {
+  displayName: string;
+  documentDate: string;
+  file: File | null;
 }

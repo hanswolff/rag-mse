@@ -55,6 +55,7 @@ jest.mock("@/lib/user-validation", () => ({
   validatePk: jest.fn(() => ({ isValid: true, error: null })),
   validateReservistsAssociation: jest.fn(() => ({ isValid: true, error: null })),
   validateAssociationMemberNumber: jest.fn(() => ({ isValid: true, error: null })),
+  validateAdminNotes: jest.fn(() => ({ isValid: true, error: null })),
   normalizeOptionalField: jest.fn((val) => (val === null || val === "" || val === undefined ? null : val)),
 }));
 
@@ -105,6 +106,7 @@ describe("POST /api/admin/users - User creation with transaction", () => {
     reservistsAssociation: null,
     associationMemberNumber: null,
     hasPossessionCard: false,
+    adminNotes: null,
   };
 
   beforeEach(() => {
@@ -207,6 +209,7 @@ describe("POST /api/admin/users - User creation with transaction", () => {
         reservistsAssociation: null,
         associationMemberNumber: null,
         hasPossessionCard: false,
+        adminNotes: null,
       },
       select: {
         id: true,
@@ -222,6 +225,7 @@ describe("POST /api/admin/users - User creation with transaction", () => {
         reservistsAssociation: true,
         associationMemberNumber: true,
         hasPossessionCard: true,
+        adminNotes: true,
         createdAt: true,
       },
     });

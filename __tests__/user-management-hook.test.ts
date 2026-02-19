@@ -20,6 +20,7 @@ describe("Modal management", () => {
         address: "Existing Address",
         phone: "123456",
         role: Role.ADMIN,
+        adminNotes: "",
       };
 
       const initialNewUser = {
@@ -28,6 +29,7 @@ describe("Modal management", () => {
         address: "",
         phone: "",
         role: Role.MEMBER,
+        adminNotes: "",
       };
 
       // This test demonstrates the expected behavior
@@ -73,6 +75,7 @@ describe("Modal management", () => {
         address: mockUser.address || "",
         phone: mockUser.phone || "",
         role: mockUser.role,
+        adminNotes: "",
       };
 
       expect(modalUserData.email).toBe(mockUser.email);
@@ -128,6 +131,7 @@ describe("Modal management", () => {
         address: "",
         phone: "",
         role: Role.MEMBER,
+        adminNotes: "",
       };
 
       expect(modalUserData.email).toBe("");
@@ -203,6 +207,7 @@ describe("Modal management", () => {
         address: "Modal Address",
         phone: "111222",
         role: Role.ADMIN,
+        adminNotes: "",
       };
 
       expect(modalUserData.email).toBe("modal@example.com");
@@ -228,6 +233,7 @@ describe("User update functionality", () => {
         address: "New Address",
         phone: "123456",
         role: Role.ADMIN,
+        adminNotes: "",
       };
 
       // This demonstrates the expected API call
@@ -271,6 +277,7 @@ describe("User update functionality", () => {
         address: "",
         phone: "",
         role: Role.MEMBER,
+        adminNotes: "",
       };
 
       const editingUser = null;
@@ -300,6 +307,7 @@ describe("User creation with modal", () => {
         address: "",
         phone: "",
         role: Role.MEMBER,
+        adminNotes: "",
       };
 
       const fetchCall = {
@@ -323,6 +331,7 @@ describe("User creation with modal", () => {
         address: "",
         phone: "",
         role: Role.MEMBER,
+        adminNotes: "",
       };
 
       expect(modalUserData.email).toBe("");
@@ -350,6 +359,7 @@ describe("Integration: Modal workflow", () => {
         address: "",
         phone: "",
         role: Role.MEMBER,
+        adminNotes: "",
       };
       const editingUser = null;
 
@@ -365,6 +375,7 @@ describe("Integration: Modal workflow", () => {
         address: "",
         phone: "",
         role: Role.MEMBER,
+        adminNotes: "",
       };
 
       expect(modalUserData.email).toBe("typed@example.com");
@@ -400,6 +411,7 @@ describe("Integration: Modal workflow", () => {
         address: mockUser.address || "",
         phone: mockUser.phone || "",
         role: mockUser.role,
+        adminNotes: "",
       };
       const editingUser = mockUser;
 
@@ -415,6 +427,7 @@ describe("Integration: Modal workflow", () => {
         address: "Updated Address",
         phone: "654321",
         role: Role.ADMIN,
+        adminNotes: "",
       };
 
       expect(modalUserData.email).toBe("updated@example.com");
@@ -445,6 +458,7 @@ describe("Integration: Modal workflow", () => {
         address: "",
         phone: "",
         role: Role.MEMBER,
+        adminNotes: "",
       };
       const editingUser = null;
 

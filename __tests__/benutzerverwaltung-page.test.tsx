@@ -38,6 +38,7 @@ describe("BenutzerverwaltungPage", () => {
       reservistsAssociation: "RK Neubrandenburg",
       associationMemberNumber: "V12345",
       hasPossessionCard: true,
+      adminNotes: "",
     },
     {
       id: "2",
@@ -54,6 +55,7 @@ describe("BenutzerverwaltungPage", () => {
       reservistsAssociation: null,
       associationMemberNumber: null,
       hasPossessionCard: false,
+      adminNotes: "",
     },
   ];
 
@@ -79,6 +81,7 @@ describe("BenutzerverwaltungPage", () => {
       reservistsAssociation: "",
       associationMemberNumber: "",
       hasPossessionCard: false,
+      adminNotes: "",
     },
     isModalOpen: false,
     editingUser: null,
@@ -246,6 +249,7 @@ describe("BenutzerverwaltungPage", () => {
           reservistsAssociation: "",
           associationMemberNumber: "",
           hasPossessionCard: false,
+          adminNotes: "",
         },
       });
 
@@ -412,6 +416,7 @@ describe("BenutzerverwaltungPage", () => {
         reservistsAssociation: "RK Neubrandenburg",
         associationMemberNumber: "V12345",
         hasPossessionCard: true,
+        adminNotes: "",
       };
 
       (useUserManagement as jest.Mock).mockReturnValue({
@@ -453,6 +458,7 @@ describe("BenutzerverwaltungPage", () => {
         reservistsAssociation: "RK Neubrandenburg",
         associationMemberNumber: "V12345",
         hasPossessionCard: true,
+        adminNotes: "",
       };
 
       (useUserManagement as jest.Mock).mockReturnValue({
@@ -511,6 +517,7 @@ describe("BenutzerverwaltungPage", () => {
         reservistsAssociation: "RK Neubrandenburg",
         associationMemberNumber: "V12345",
         hasPossessionCard: true,
+        adminNotes: "",
       };
 
       (useUserManagement as jest.Mock).mockReturnValue({

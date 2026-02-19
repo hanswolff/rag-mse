@@ -7,6 +7,7 @@ import { isAdmin } from "@/lib/role-utils";
 import { buildLoginUrlWithReturnUrl, getCurrentPathWithSearch } from "@/lib/return-url";
 import { BackLink } from "@/components/back-link";
 import { Pagination } from "@/components/pagination";
+import { SearchHighlight } from "@/components/search-highlight";
 import { formatDate, formatTime } from "@/lib/date-utils";
 
 type NotificationItem = {
@@ -67,6 +68,10 @@ export default function AdminNotificationsPage() {
   const [error, setError] = useState<string | null>(null);
   const [searchInput, setSearchInput] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
+  const showMobileCards =
+    typeof window !== "undefined" &&
+    typeof window.matchMedia === "function" &&
+    window.matchMedia("(max-width: 767px)").matches;
 
   useEffect(() => {
     if (status === "unauthenticated") {
@@ -147,10 +152,12 @@ export default function AdminNotificationsPage() {
           </span>
         </td>
         <td className="px-4 py-3 text-base text-gray-900">
-          {item.user.name || "-"}
+          {item.user.name
+            ? <SearchHighlight text={item.user.name} query={searchQuery} />
+            : "-"}
         </td>
         <td className="px-4 py-3 text-base text-gray-700 break-all">
-          {item.user.email}
+          <SearchHighlight text={item.user.email} query={searchQuery} />
         </td>
         <td className="px-4 py-3 text-base text-gray-900 whitespace-nowrap">
           {formatDate(item.event.date)}
@@ -163,7 +170,7 @@ export default function AdminNotificationsPage() {
         </td>
       </tr>
     ));
-  }, [items]);
+  }, [items, searchQuery]);
 
   if (status === "loading" || isLoading) {
     return (
@@ -200,7 +207,7 @@ export default function AdminNotificationsPage() {
               <h2 className="text-lg sm:text-xl font-semibold text-gray-900">Versandverlauf</h2>
               <p className="text-base text-gray-600 mt-1">{total} Einträge</p>
             </div>
-            <form onSubmit={handleSubmitSearch} className="flex w-full md:w-auto gap-2">
+            <form onSubmit={handleSubmitSearch} className="flex flex-col sm:flex-row w-full md:w-auto gap-2">
               <input
                 type="text"
                 value={searchInput}
@@ -208,13 +215,50 @@ export default function AdminNotificationsPage() {
                 placeholder="Suche nach Name oder E-Mail"
                 className="form-input w-full md:w-80"
               />
-              <button type="submit" className="btn-primary px-4 py-2 text-base whitespace-nowrap">
+              <button type="submit" className="btn-primary px-4 py-2 text-base whitespace-nowrap w-full sm:w-auto">
                 Suchen
               </button>
             </form>
           </div>
 
-          <div className="overflow-x-auto border border-gray-200 rounded-md bg-white">
+          {showMobileCards && (
+          <div className="space-y-3 md:hidden">
+            {items.length === 0 ? (
+              <div className="border border-gray-200 rounded-md bg-white px-4 py-6 text-base text-gray-500 text-center">
+                Keine Benachrichtigungen in den letzten 30 Tagen gefunden.
+              </div>
+            ) : (
+              items.map((item) => (
+                <article key={item.id} className="border border-gray-200 rounded-md bg-white p-4 space-y-2">
+                  <p className="text-sm text-gray-500">{item.sentAt ? formatSentAt(item.sentAt) : formatSentAt(item.queuedAt)}</p>
+                  <p className={item.status === "VERSENDET" ? "text-green-700 font-semibold" : "text-amber-700 font-semibold"}>
+                    {item.status === "VERSENDET" ? "Versendet" : "Ausstehend"}
+                  </p>
+                  <p className="text-base text-gray-900">
+                    <span className="font-semibold">Name:</span>{" "}
+                    {item.user.name ? <SearchHighlight text={item.user.name} query={searchQuery} /> : "-"}
+                  </p>
+                  <p className="text-base text-gray-700 break-all">
+                    <span className="font-semibold text-gray-900">E-Mail:</span>{" "}
+                    <SearchHighlight text={item.user.email} query={searchQuery} />
+                  </p>
+                  <p className="text-base text-gray-900">
+                    <span className="font-semibold">Termin:</span> {formatDate(item.event.date)}
+                  </p>
+                  <p className="text-base text-gray-700">
+                    <span className="font-semibold text-gray-900">Uhrzeit:</span>{" "}
+                    {formatTime(item.event.timeFrom)} - {formatTime(item.event.timeTo)}
+                  </p>
+                  <p className="text-base text-gray-900 break-words">
+                    <span className="font-semibold">Ort:</span> {item.event.location}
+                  </p>
+                </article>
+              ))
+            )}
+          </div>
+          )}
+
+          <div className="hidden md:block overflow-x-auto border border-gray-200 rounded-md bg-white">
             <table className="min-w-full">
               <thead className="bg-gray-50">
                 <tr>

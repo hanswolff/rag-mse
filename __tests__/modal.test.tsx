@@ -218,6 +218,18 @@ describe("Modal", () => {
   });
 
   describe("maxHeight prop", () => {
+    it("should apply width class for 3xl size", () => {
+      render(
+        <Modal isOpen={true} onClose={mockOnClose} title="Test Modal" size="3xl">
+          <p>Modal content</p>
+        </Modal>
+      );
+
+      const dialog = screen.getByRole("dialog");
+      const modalContent = dialog.querySelector(".bg-white");
+      expect(modalContent).toHaveClass("max-w-4xl");
+    });
+
     it("should apply default maxHeight when not provided", () => {
       render(
         <Modal isOpen={true} onClose={mockOnClose} title="Test Modal">

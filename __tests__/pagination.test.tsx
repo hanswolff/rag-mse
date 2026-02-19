@@ -145,4 +145,21 @@ describe("Pagination", () => {
     fireEvent.click(screen.getByText("3"));
     expect(mockOnPageChange).not.toHaveBeenCalled();
   });
+
+  it("normalizes out-of-range current page for rendering and controls", () => {
+    render(
+      <Pagination
+        currentPage={5}
+        totalPages={2}
+        onPageChange={mockOnPageChange}
+      />
+    );
+
+    expect(screen.getByLabelText("Weiter")).toBeDisabled();
+    const pageTwoButton = screen.getByLabelText("Seite 2");
+    expect(pageTwoButton).toHaveAttribute("aria-current", "page");
+
+    fireEvent.click(screen.getByLabelText("Zurück"));
+    expect(mockOnPageChange).toHaveBeenCalledWith(1);
+  });
 });

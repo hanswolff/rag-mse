@@ -2,6 +2,7 @@ import { logInfo, logError } from "@/lib/logger";
 import { validateProductionConfig, printValidationResults } from "@/lib/config-validation";
 import { startEmailOutboxWorker } from "@/lib/email-sender";
 import { startEventReminderWorker } from "@/lib/event-reminder-worker";
+import { VERSION_INFO } from "@/lib/version-info";
 
 export function registerNode() {
   const appName = process.env.APP_NAME || "RAG Schießsport MSE";
@@ -12,7 +13,8 @@ export function registerNode() {
     appName,
     nodeEnv,
     appUrl,
-    version: "1.0.0",
+    version: VERSION_INFO.version,
+    buildDate: VERSION_INFO.buildDate,
   });
 
   const validation = validateProductionConfig();

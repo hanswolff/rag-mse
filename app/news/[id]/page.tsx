@@ -47,14 +47,14 @@ export default function NewsDetailPage({ params }: { params: Promise<{ id: strin
   return (
     <main className="min-h-screen bg-gray-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
-        <div className="mb-8">
+        <div className="mb-8 flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
           <BackLink href="/news" className="inline-flex items-center">
             Zurück zur News-Übersicht
           </BackLink>
           {session && isAdmin(session.user) && newsItem && (
             <Link
               href={`/admin/news/${id}/edit`}
-              className="btn-primary ml-4 text-base"
+              className="btn-primary text-base w-full sm:w-auto"
             >
               Bearbeiten
             </Link>

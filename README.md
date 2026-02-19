@@ -258,6 +258,7 @@ DEPS_STAGE=deps-hostcache PNPM_STORE_DIR=/pfad/zum/pnpm-store DOCKER_BUILDKIT=1 
 Die SQLite-Datenbankdatei wird im lokalen `./data`-Verzeichnis gespeichert, um Datenverluste bei Container-Neustarts zu vermeiden.
 Für Backups in Produktion wird das Skript `scripts/backup-sqlite.sh` verwendet (SQLite Online Backup + gzip + Retention).
 Die Betriebsoptionen (systemd/cron/ZFS) sind in `ops/BACKUP_OPTIONS.md` dokumentiert.
+Hochgeladene Dokumente liegen standardmäßig unter `./data/documents` und sollten zusammen mit der Datenbank gesichert werden.
 
 ```bash
 # Backup jetzt ausfuehren
@@ -561,7 +562,7 @@ SMTP_FROM="noreply@rag-mse.de"
 ADMIN_EMAILS="admin1@example.com,admin2@example.com"
 
 # Proxy-Trust für Rate-Limits (trusted proxy/source ranges)
-TRUSTED_PROXY_IPS="127.0.0.0/8,10.0.0.0/8,192.168.0.0/16"
+TRUSTED_PROXY_IPS="127.0.0.0/8,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16"
 
 # Redis für verteilte Rate-Limits
 REDIS_URL="redis://localhost:6379"
@@ -582,6 +583,10 @@ NOTIFICATION_TOKEN_VALIDITY_DAYS="60"
 # Container-User für Docker (muss Schreibrechte auf ./data haben)
 APP_UID="1000"
 APP_GID="1000"
+
+# Dokumentenverwaltung
+DOCUMENTS_DIR="./data/documents"
+DOCUMENT_UPLOAD_MAX_MB="15"
 ```
 
 **WICHTIG:**

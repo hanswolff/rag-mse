@@ -173,6 +173,18 @@ export function validateDateOfBirth(value: string): { isValid: boolean; error?: 
   return { isValid: true };
 }
 
+export function validateAdminNotes(value: string): { isValid: boolean; error?: string } {
+  if (typeof value !== "string") {
+    return { isValid: false, error: "Ungültige Administratoren-Notizen" };
+  }
+  return validateTextMaxLength(
+    value,
+    4000,
+    "Ungültige Administratoren-Notizen",
+    "Administratoren-Notizen dürfen maximal 4000 Zeichen lang sein"
+  );
+}
+
 export function validateCreateUserRequest(request: CreateUserRequest) {
   const errors: string[] = [];
   const { email, password, name, role = Role.MEMBER } = request;

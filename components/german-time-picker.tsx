@@ -10,6 +10,7 @@ interface GermanTimePickerProps {
   id?: string;
   value: string;
   onChange: (time: string) => void;
+  onBlur?: () => void;
   error?: string;
   label?: string;
   timeIntervals?: number;
@@ -19,7 +20,7 @@ interface GermanTimePickerProps {
   showSuccess?: boolean;
 }
 
-export function GermanTimePicker({ id, value, onChange, error, label, timeIntervals = 15, required, disabled, showSuccess }: GermanTimePickerProps) {
+export function GermanTimePicker({ id, value, onChange, onBlur, error, label, timeIntervals = 15, required, disabled, showSuccess }: GermanTimePickerProps) {
   const errorId = error ? `error-${id || 'time'}` : undefined;
   const time = value ? parseTime(value) : null;
   const showCheckmark = showSuccess && !error;
@@ -47,6 +48,7 @@ export function GermanTimePicker({ id, value, onChange, error, label, timeInterv
           key={value}
           selected={time}
           onChange={handleTimeChange}
+          onBlur={onBlur}
           locale={de}
           showTimeSelect
           showTimeSelectOnly

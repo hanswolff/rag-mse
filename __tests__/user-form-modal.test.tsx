@@ -21,6 +21,7 @@ describe("UserFormModal", () => {
     reservistsAssociation: "",
     associationMemberNumber: "",
     hasPossessionCard: false,
+    adminNotes: "",
   };
 
   const initialUserData = {
@@ -36,6 +37,7 @@ describe("UserFormModal", () => {
     reservistsAssociation: "",
     associationMemberNumber: "",
     hasPossessionCard: false,
+    adminNotes: "",
   };
 
   beforeEach(() => {
@@ -728,6 +730,7 @@ describe("UserFormModal", () => {
             reservistsAssociation: "",
             associationMemberNumber: "",
             hasPossessionCard: false,
+            adminNotes: "",
           }}
           setUserData={setUserData}
           isEditing={false}

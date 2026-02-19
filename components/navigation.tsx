@@ -71,7 +71,7 @@ export function Navigation() {
       <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-8">
         <div className="flex items-center justify-between h-16 sm:h-20">
           <div className="flex items-center flex-shrink-0">
-            <Link href="/" className="flex items-center gap-2 sm:gap-3">
+            <Link href="/" className="flex items-center gap-2 sm:gap-3 min-w-0">
               <div className="relative w-10 h-10 sm:w-12 sm:h-12">
                 <Image
                   src="/vdrbw-logo.svg"
@@ -81,7 +81,7 @@ export function Navigation() {
                   priority
                 />
               </div>
-              <span className="text-base sm:text-lg font-bold leading-tight text-brand-blue-900">
+              <span className="text-base sm:text-lg font-bold leading-tight text-brand-blue-900 truncate max-w-[11rem] sm:max-w-none">
                 RAG Schießsport MSE
               </span>
             </Link>

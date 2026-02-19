@@ -114,8 +114,8 @@ function UserList({ users, onEdit, onDelete, canDeleteUser }: { users: User[]; o
                   </button>
                 </div>
               </div>
-              <div className="w-full mt-1 text-xs sm:text-sm text-gray-400 text-left whitespace-nowrap overflow-x-auto">
-                <p>
+              <div className="w-full mt-1 text-xs sm:text-sm text-gray-400 text-left break-words">
+                <p className="leading-relaxed">
                   Erstellt: {formatDate(user.createdAt)} &bull; Letzter Login: {user.lastLoginAt ? formatDate(user.lastLoginAt) : "Nie"} &bull; Passwort-Änderung: {user.passwordUpdatedAt ? formatDate(user.passwordUpdatedAt) : "-"}
                 </p>
               </div>

@@ -119,5 +119,10 @@ describe("middleware helpers", () => {
       expect(shouldRedirectToLogin("/termine/123", undefined)).toBe(false);
       expect(shouldRedirectToLogin("/termine/123", "ADMIN")).toBe(false);
     });
+
+    it("should not redirect to login for public notification unsubscribe links", () => {
+      expect(shouldRedirectToLogin("/benachrichtigungen/abmelden/token-123", undefined)).toBe(false);
+      expect(shouldRedirectToLogin("/benachrichtigungen/abmelden/token-123", "MEMBER")).toBe(false);
+    });
   });
 });

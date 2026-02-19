@@ -7,6 +7,7 @@ import { isAdmin } from "@/lib/role-utils";
 import { buildLoginUrlWithReturnUrl, getCurrentPathWithSearch } from "@/lib/return-url";
 import { BackLink } from "@/components/back-link";
 import { Pagination } from "@/components/pagination";
+import { SearchHighlight } from "@/components/search-highlight";
 
 type OutgoingEmailStatus = "QUEUED" | "PROCESSING" | "RETRYING" | "SENT" | "FAILED";
 
@@ -98,6 +99,10 @@ export default function AdminOutgoingEmailsPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [retryingEmailId, setRetryingEmailId] = useState<string | null>(null);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
+  const showMobileCards =
+    typeof window !== "undefined" &&
+    typeof window.matchMedia === "function" &&
+    window.matchMedia("(max-width: 767px)").matches;
 
   useEffect(() => {
     if (status === "unauthenticated") {
@@ -194,9 +199,15 @@ export default function AdminOutgoingEmailsPage() {
       return (
         <tr key={item.id} className="border-t border-gray-100">
           <td className="px-4 py-3 text-base text-gray-900 whitespace-nowrap">{formatDateTime(item.createdAt)}</td>
-          <td className="px-4 py-3 text-base text-gray-700">{item.template}</td>
-          <td className="px-4 py-3 text-base text-gray-900">{item.subject}</td>
-          <td className="px-4 py-3 text-base text-gray-700 break-all">{item.toRecipients}</td>
+          <td className="px-4 py-3 text-base text-gray-700">
+            <SearchHighlight text={item.template} query={searchQuery} />
+          </td>
+          <td className="px-4 py-3 text-base text-gray-900">
+            <SearchHighlight text={item.subject} query={searchQuery} />
+          </td>
+          <td className="px-4 py-3 text-base text-gray-700 break-all">
+            <SearchHighlight text={item.toRecipients} query={searchQuery} />
+          </td>
           <td className="px-4 py-3 text-base whitespace-nowrap">
             <span className={getStatusClassName(item.status)}>{getStatusLabel(item.status)}</span>
           </td>
@@ -224,7 +235,7 @@ export default function AdminOutgoingEmailsPage() {
         </tr>
       );
     });
-  }, [handleRetry, items, retryingEmailId]);
+  }, [handleRetry, items, retryingEmailId, searchQuery]);
 
   if (status === "loading" || isLoading) {
     return (
@@ -263,7 +274,7 @@ export default function AdminOutgoingEmailsPage() {
               <h2 className="text-lg sm:text-xl font-semibold text-gray-900">Versandverlauf</h2>
               <p className="text-base text-gray-600 mt-1">{total} Einträge</p>
             </div>
-            <form onSubmit={handleSubmitSearch} className="flex w-full md:w-auto gap-2">
+            <form onSubmit={handleSubmitSearch} className="flex flex-col sm:flex-row w-full md:w-auto gap-2">
               <input
                 type="text"
                 value={searchInput}
@@ -271,13 +282,68 @@ export default function AdminOutgoingEmailsPage() {
                 placeholder="Suche nach Betreff, Empfänger oder Typ"
                 className="form-input w-full md:w-80"
               />
-              <button type="submit" className="btn-primary px-4 py-2 text-base whitespace-nowrap">
+              <button type="submit" className="btn-primary px-4 py-2 text-base whitespace-nowrap w-full sm:w-auto">
                 Suchen
               </button>
             </form>
           </div>
 
-          <div className="overflow-x-auto border border-gray-200 rounded-md bg-white">
+          {showMobileCards && (
+          <div className="space-y-3 md:hidden">
+            {items.length === 0 ? (
+              <div className="border border-gray-200 rounded-md bg-white px-4 py-6 text-base text-gray-500 text-center">
+                Keine E-Mails in den letzten 30 Tagen gefunden.
+              </div>
+            ) : (
+              items.map((item) => {
+                const canRetry = item.status === "FAILED";
+                return (
+                  <article key={item.id} className="border border-gray-200 rounded-md bg-white p-4 space-y-2">
+                    <p className="text-sm text-gray-500">{formatDateTime(item.createdAt)}</p>
+                    <p className="text-base text-gray-700">
+                      <span className="font-semibold text-gray-900">Typ:</span>{" "}
+                      <SearchHighlight text={item.template} query={searchQuery} />
+                    </p>
+                    <p className="text-base text-gray-900">
+                      <span className="font-semibold">Betreff:</span>{" "}
+                      <SearchHighlight text={item.subject} query={searchQuery} />
+                    </p>
+                    <p className="text-base text-gray-700 break-all">
+                      <span className="font-semibold text-gray-900">Empfänger:</span>{" "}
+                      <SearchHighlight text={item.toRecipients} query={searchQuery} />
+                    </p>
+                    <p className="text-base">
+                      <span className="font-semibold text-gray-900">Status:</span>{" "}
+                      <span className={getStatusClassName(item.status)}>{getStatusLabel(item.status)}</span>
+                    </p>
+                    <p className="text-base text-gray-700">
+                      <span className="font-semibold text-gray-900">Versuche:</span> {item.attemptCount}
+                    </p>
+                    <p className="text-base text-gray-700 break-words">
+                      <span className="font-semibold text-gray-900">Letzter Fehler:</span> {item.lastError ? item.lastError : "-"}
+                    </p>
+                    <p className="text-base text-gray-700">
+                      <span className="font-semibold text-gray-900">Letzter Versuch:</span>{" "}
+                      {item.lastAttemptAt ? formatDateTime(item.lastAttemptAt) : "-"}
+                    </p>
+                    {canRetry && (
+                      <button
+                        type="button"
+                        onClick={() => handleRetry(item.id)}
+                        className="btn-primary px-3 py-2 text-sm w-full"
+                        disabled={retryingEmailId === item.id}
+                      >
+                        {retryingEmailId === item.id ? "Wird eingeplant..." : "Erneut senden"}
+                      </button>
+                    )}
+                  </article>
+                );
+              })
+            )}
+          </div>
+          )}
+
+          <div className="hidden md:block overflow-x-auto border border-gray-200 rounded-md bg-white">
             <table className="min-w-full">
               <thead className="bg-gray-50">
                 <tr>

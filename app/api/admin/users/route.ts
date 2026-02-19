@@ -12,6 +12,7 @@ import {
   validateReservistsAssociation,
   validateAssociationMemberNumber,
   validateDateOfBirth,
+  validateAdminNotes,
 } from "@/lib/user-validation";
 import { validateRole, validateDateString } from "@/lib/validation-schema";
 import { requireAdmin } from "@/lib/auth-utils";
@@ -75,6 +76,7 @@ interface CreateUserRequest {
   reservistsAssociation?: string;
   associationMemberNumber?: string;
   hasPossessionCard?: boolean;
+  adminNotes?: string;
 }
 
 const createUserSchema = {
@@ -90,6 +92,7 @@ const createUserSchema = {
   reservistsAssociation: { type: 'string' as const, optional: true },
   associationMemberNumber: { type: 'string' as const, optional: true },
   hasPossessionCard: { type: 'boolean' as const, optional: true },
+  adminNotes: { type: 'string' as const, optional: true },
 } as const;
 
 export const POST = withApiErrorHandling(async (request: NextRequest) => {
@@ -231,6 +234,17 @@ export const POST = withApiErrorHandling(async (request: NextRequest) => {
     }
   }
 
+  const adminNotes = typeof body.adminNotes === "string" ? body.adminNotes : undefined;
+  if (adminNotes !== undefined) {
+    const adminNotesValidation = validateAdminNotes(adminNotes);
+    if (!adminNotesValidation.isValid) {
+      logValidationFailure('/api/admin/users', 'POST', adminNotesValidation.error || 'Ungültige Administratoren-Notizen', {
+        email: normalizedEmail,
+      });
+      return NextResponse.json({ error: adminNotesValidation.error }, { status: 400 });
+    }
+  }
+
   const existingUser = await prisma.user.findUnique({
     where: { email: normalizedEmail },
   });
@@ -269,6 +283,7 @@ export const POST = withApiErrorHandling(async (request: NextRequest) => {
         reservistsAssociation: reservistsAssociation || null,
         associationMemberNumber: associationMemberNumber || null,
         hasPossessionCard: hasPossessionCard || false,
+        adminNotes: adminNotes || null,
       },
       select: {
         id: true,
@@ -284,6 +299,7 @@ export const POST = withApiErrorHandling(async (request: NextRequest) => {
         reservistsAssociation: true,
         associationMemberNumber: true,
         hasPossessionCard: true,
+        adminNotes: true,
         createdAt: true,
       },
     });
@@ -354,6 +370,7 @@ export const GET = withApiErrorHandling(async () => {
       reservistsAssociation: true,
       associationMemberNumber: true,
       hasPossessionCard: true,
+      adminNotes: true,
       createdAt: true,
       lastLoginAt: true,
       passwordUpdatedAt: true,
