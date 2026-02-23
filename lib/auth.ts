@@ -6,6 +6,8 @@ import { Role } from "@prisma/client";
 import { logInfo, logError, logWarn, maskEmail } from "./logger";
 import { checkLoginRateLimit, recordSuccessfulLogin } from "./rate-limiter";
 import { getClientIdentifierFromHeaders } from "./proxy-trust";
+import { shouldFailOpenOnRateLimiterError } from "./rate-limit-policy";
+import crypto from "node:crypto";
 
 const COOKIE_SECURE = process.env.COOKIE_SECURE === "true";
 const COOKIE_MAX_AGE = Number.parseInt(process.env.COOKIE_MAX_AGE || "", 10);
@@ -15,10 +17,101 @@ interface AuthUser extends User {
   role: Role;
 }
 
+interface LoginProof {
+  version: 1;
+  email: string;
+  clientIp: string;
+  passwordDigest: string;
+  expiresAt: number;
+}
+
 type RequestLikeHeaders =
   | Headers
   | Record<string, string | string[] | undefined>
   | undefined;
+
+const LOGIN_PROOF_TTL_MS = 60_000;
+const LOGIN_PROOF_VERSION = "v1";
+
+function hashLoginPassword(password: string): string {
+  return crypto.createHash("sha256").update(password).digest("hex");
+}
+
+function getLoginProofSecret(): string {
+  const secret = process.env.NEXTAUTH_SECRET;
+  if (!secret || secret.length < 32) {
+    throw new Error("LOGIN_PROOF_UNAVAILABLE");
+  }
+  return secret;
+}
+
+function signLoginProof(payloadSegment: string, secret: string): string {
+  return crypto.createHmac("sha256", secret).update(payloadSegment).digest("base64url");
+}
+
+function verifyLoginProofSignature(payloadSegment: string, signatureSegment: string, secret: string): boolean {
+  const expected = signLoginProof(payloadSegment, secret);
+  if (expected.length !== signatureSegment.length) {
+    return false;
+  }
+  return crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(signatureSegment));
+}
+
+export function createLoginProof(email: string, clientIp: string, password: string): string {
+  const secret = getLoginProofSecret();
+  const payload: LoginProof = {
+    version: 1,
+    email: email.toLowerCase(),
+    clientIp,
+    passwordDigest: hashLoginPassword(password),
+    expiresAt: Date.now() + LOGIN_PROOF_TTL_MS,
+  };
+
+  const payloadSegment = Buffer.from(JSON.stringify(payload), "utf8").toString("base64url");
+  const signatureSegment = signLoginProof(payloadSegment, secret);
+  return `${LOGIN_PROOF_VERSION}.${payloadSegment}.${signatureSegment}`;
+}
+
+function validateLoginProof(token: string, email: string, clientIp: string, password: string): boolean {
+  if (!token) {
+    return false;
+  }
+
+  const parts = token.split(".");
+  if (parts.length !== 3 || parts[0] !== LOGIN_PROOF_VERSION) {
+    return false;
+  }
+
+  const [, payloadSegment, signatureSegment] = parts;
+  let secret = "";
+  try {
+    secret = getLoginProofSecret();
+  } catch {
+    return false;
+  }
+
+  if (!verifyLoginProofSignature(payloadSegment, signatureSegment, secret)) {
+    return false;
+  }
+
+  let payload: LoginProof | null = null;
+  try {
+    payload = JSON.parse(Buffer.from(payloadSegment, "base64url").toString("utf8")) as LoginProof;
+  } catch {
+    return false;
+  }
+
+  if (!payload || payload.version !== 1) {
+    return false;
+  }
+
+  return (
+    payload.email === email.toLowerCase()
+    && payload.clientIp === clientIp
+    && payload.passwordDigest === hashLoginPassword(password)
+    && payload.expiresAt > Date.now()
+  );
+}
 
 async function findUserByEmail(email: string) {
   return prisma.user.findUnique({
@@ -72,7 +165,7 @@ function mapUserToAuthUser(user: { id: string; email: string; name: string | nul
   };
 }
 
-async function authorizeUser(credentials?: { email?: string; password?: string }, req?: unknown): Promise<AuthUser | null> {
+async function authorizeUser(credentials?: { email?: string; password?: string; loginProof?: string }, req?: unknown): Promise<AuthUser | null> {
   if (!credentials?.email || !credentials?.password) {
     return null;
   }
@@ -80,6 +173,35 @@ async function authorizeUser(credentials?: { email?: string; password?: string }
   const trimmedEmail = credentials.email.trim();
   const normalizedEmail = trimmedEmail.toLowerCase();
   const clientIp = getClientIpFromAuthRequest(req);
+  const loginProof = typeof credentials.loginProof === "string" ? credentials.loginProof : "";
+
+  if (loginProof && validateLoginProof(loginProof, normalizedEmail, clientIp, credentials.password)) {
+    let user = await findUserByEmail(normalizedEmail);
+    if (!user && normalizedEmail !== trimmedEmail) {
+      user = await findUserByEmail(trimmedEmail);
+    }
+
+    if (!user) {
+      logError("login_failed", "Login proof valid but user not found", {
+        email: maskEmail(trimmedEmail),
+        clientIp,
+      });
+      return null;
+    }
+
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { lastLoginAt: new Date() },
+    });
+    logInfo("login_success", "User logged in successfully via login proof", {
+      email: maskEmail(user.email),
+      userId: user.id,
+      role: user.role,
+      clientIp,
+    });
+    return mapUserToAuthUser(user);
+  }
+
   let rateLimitResult = { allowed: true, attemptCount: 0 } as {
     allowed: boolean;
     blockedUntil?: number;
@@ -88,7 +210,16 @@ async function authorizeUser(credentials?: { email?: string; password?: string }
   try {
     rateLimitResult = await checkLoginRateLimit(clientIp, normalizedEmail);
   } catch (error) {
-    logWarn('login_rate_limit_unavailable', 'Rate limiter unavailable during login, continuing without enforcement', {
+    if (!shouldFailOpenOnRateLimiterError()) {
+      logError("login_rate_limit_unavailable", "Rate limiter unavailable during login, blocking request", {
+        clientIp,
+        email: maskEmail(trimmedEmail),
+        error: error instanceof Error ? error.message : String(error),
+      });
+      throw new Error("RATE_LIMIT_UNAVAILABLE");
+    }
+
+    logWarn('login_rate_limit_unavailable', 'Rate limiter unavailable during login, continuing due fail-open policy', {
       clientIp,
       email: maskEmail(trimmedEmail),
       error: error instanceof Error ? error.message : String(error),
@@ -152,7 +283,7 @@ async function authorizeUser(credentials?: { email?: string; password?: string }
 }
 
 export async function authorizeCredentials(
-  credentials?: { email?: string; password?: string },
+  credentials?: { email?: string; password?: string; loginProof?: string },
   req?: unknown
 ): Promise<AuthUser | null> {
   return authorizeUser(credentials, req);
@@ -188,6 +319,7 @@ export const authOptions: NextAuthOptions = {
       credentials: {
         email: { label: "Email", type: "email" },
         password: { label: "Passwort", type: "password" },
+        loginProof: { label: "Login Proof", type: "text" },
       },
       authorize: (credentials, req) => authorizeCredentials(credentials, req),
     }),

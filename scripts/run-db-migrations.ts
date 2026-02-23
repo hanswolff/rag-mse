@@ -22,6 +22,13 @@ interface MigrationEntry {
   checksum: string;
 }
 
+interface SqliteErrorLike {
+  code?: string;
+  message?: string;
+}
+
+type SqliteDatabase = InstanceType<typeof Database>;
+
 function listMigrationEntries(): MigrationEntry[] {
   if (!existsSync(MIGRATIONS_DIR)) {
     return [];
@@ -39,6 +46,78 @@ function listMigrationEntries(): MigrationEntry[] {
 
     return { name, sql, checksum };
   });
+}
+
+function quoteIdentifier(identifier: string): string {
+  return `"${identifier.replace(/"/g, "\"\"")}"`;
+}
+
+function hasColumn(db: SqliteDatabase, tableName: string, columnName: string): boolean {
+  const quotedTable = quoteIdentifier(tableName);
+  const rows = db.prepare(`PRAGMA table_info(${quotedTable});`).all() as Array<{ name: string }>;
+  return rows.some((row) => row.name === columnName);
+}
+
+function tableExists(db: SqliteDatabase, tableName: string): boolean {
+  const row = db
+    .prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ? LIMIT 1;")
+    .get(tableName);
+  return Boolean(row);
+}
+
+function indexExists(db: SqliteDatabase, indexName: string): boolean {
+  const row = db
+    .prepare("SELECT 1 FROM sqlite_master WHERE type = 'index' AND name = ? LIMIT 1;")
+    .get(indexName);
+  return Boolean(row);
+}
+
+function canTreatMigrationAsAlreadyApplied(
+  db: SqliteDatabase,
+  migration: MigrationEntry,
+  error: unknown
+): boolean {
+  const sqliteError = error as SqliteErrorLike;
+  const message = sqliteError?.message ?? "";
+
+  if (sqliteError?.code !== "SQLITE_ERROR") {
+    return false;
+  }
+
+  const duplicateColumnMatch = message.match(/duplicate column name:\s*"?([A-Za-z0-9_]+)"?/i);
+  if (duplicateColumnMatch) {
+    const columnName = duplicateColumnMatch[1];
+    const addColumnRegex =
+      /ALTER\s+TABLE\s+"?([A-Za-z0-9_]+)"?\s+ADD\s+COLUMN\s+"?([A-Za-z0-9_]+)"?/gi;
+    for (const match of migration.sql.matchAll(addColumnRegex)) {
+      const tableName = match[1];
+      const statementColumnName = match[2];
+      if (statementColumnName === columnName && hasColumn(db, tableName, columnName)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  if (/table\s+["`']?[A-Za-z0-9_]+["`']?\s+already exists/i.test(message)) {
+    const createTableRegex = /CREATE\s+TABLE\s+"?([A-Za-z0-9_]+)"?/i;
+    const match = migration.sql.match(createTableRegex);
+    if (!match) {
+      return false;
+    }
+    return tableExists(db, match[1]);
+  }
+
+  if (/index\s+["`']?[A-Za-z0-9_]+["`']?\s+already exists/i.test(message)) {
+    const createIndexRegex = /CREATE\s+(?:UNIQUE\s+)?INDEX\s+"?([A-Za-z0-9_]+)"?/i;
+    const match = migration.sql.match(createIndexRegex);
+    if (!match) {
+      return false;
+    }
+    return indexExists(db, match[1]);
+  }
+
+  return false;
 }
 
 function run(): void {
@@ -77,8 +156,19 @@ function run(): void {
       insertStmt.run(migration.name, migration.checksum);
     });
 
-    tx();
-    console.log(`Migration angewendet: ${migration.name}`);
+    try {
+      tx();
+      console.log(`Migration angewendet: ${migration.name}`);
+    } catch (error) {
+      if (!canTreatMigrationAsAlreadyApplied(db, migration, error)) {
+        throw error;
+      }
+
+      insertStmt.run(migration.name, migration.checksum);
+      console.warn(
+        `Migration als bereits angewendet markiert (Schema bereits vorhanden): ${migration.name}`
+      );
+    }
   }
 
   db.close();

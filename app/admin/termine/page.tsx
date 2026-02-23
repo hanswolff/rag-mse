@@ -9,6 +9,7 @@ import { useEventManagement } from "@/lib/use-event-management";
 import { formatDate, formatTime } from "@/lib/date-utils";
 import { getEventDescriptionPreview } from "@/lib/event-description";
 import { pluralize } from "@/lib/pluralization";
+import { formatRegistrationCount } from "@/lib/registration-count";
 import { EventFormModal } from "@/components/event-form-modal";
 import { LoadingButton } from "@/components/loading-button";
 import { BackLink } from "@/components/back-link";
@@ -28,6 +29,13 @@ function EventList({
   onPublish: (id: string, published: boolean) => void;
   publishingEventId: string | null;
 }) {
+  function getEventRegistrationCountLabel(event: Event): string {
+    if (event.voteCounts) {
+      return formatRegistrationCount(event.voteCounts);
+    }
+    return formatRegistrationCount({ JA: event._count?.votes || 0, NEIN: 0, VIELLEICHT: 0 });
+  }
+
   if (events.length === 0) {
     return (
       <div className="text-center py-12">
@@ -76,7 +84,7 @@ function EventList({
               </p>
               <p className="text-base text-gray-500 mt-1">{getEventDescriptionPreview(event.description, 220)}</p>
               <p className="text-base text-gray-400 mt-2">
-                Anmeldungen: {event._count?.votes || 0}
+                Anmeldungen: {getEventRegistrationCountLabel(event)}
               </p>
             </div>
             <div className="flex flex-col sm:flex-row gap-2 sm:ml-4">

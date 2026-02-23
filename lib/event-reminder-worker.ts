@@ -315,6 +315,17 @@ export async function processEventReminders(now = new Date()): Promise<number> {
 
   const pollIntervalMs = getPollIntervalMs();
   const notificationTimeZone = getNotificationTimeZone();
+
+  // Get emails with pending (unused) invitations to exclude them
+  const pendingInvitationEmails = await prisma.invitation.findMany({
+    where: {
+      usedAt: null,
+      expiresAt: { gt: now },
+    },
+    select: { email: true },
+  });
+  const excludedEmails = new Set(pendingInvitationEmails.map((inv) => inv.email.toLowerCase()));
+
   const users = await prisma.user.findMany({
     where: { eventReminderEnabled: true },
     select: {
@@ -324,9 +335,12 @@ export async function processEventReminders(now = new Date()): Promise<number> {
     },
   });
 
+  // Filter out users with pending invitations
+  const activeUsers = users.filter((user) => !excludedEmails.has(user.email.toLowerCase()));
+
   let queued = 0;
 
-  for (const user of users) {
+  for (const user of activeUsers) {
     const hoursBefore = user.eventReminderDaysBefore * 24;
     const searchWindowMs = pollIntervalMs + REMINDER_GRACE_PERIOD_MS;
 

@@ -90,7 +90,7 @@ describe("VergangeneTerminePage", () => {
     expect(mockFetch).toHaveBeenCalledTimes(1);
   });
 
-  it("displays vote count for authenticated users", async () => {
+  it("displays registration range for authenticated users", async () => {
     (useSession as jest.Mock).mockReturnValue({
       data: { user: { id: "user-1", role: "MEMBER" } },
       status: "authenticated",
@@ -108,6 +108,7 @@ describe("VergangeneTerminePage", () => {
         visible: true,
         createdAt: "2026-01-31T10:00:00.000Z",
         _count: { votes: 3 },
+        voteCounts: { JA: 3, NEIN: 2, VIELLEICHT: 1 },
       },
     ];
 
@@ -125,7 +126,7 @@ describe("VergangeneTerminePage", () => {
       expect(screen.queryByText("Laden...")).not.toBeInTheDocument();
     });
 
-    expect(screen.getByText("3 Anmeldungen")).toBeInTheDocument();
+    expect(screen.getByText("3-4 Anmeldungen")).toBeInTheDocument();
     expect(mockFetch).toHaveBeenCalledTimes(1);
   });
 
@@ -219,7 +220,7 @@ describe("VergangeneTerminePage", () => {
     expect(mockFetch).toHaveBeenCalledTimes(1);
   });
 
-  it("redirects to login on 401/403 response", async () => {
+  it("shows load error on 401/403 response", async () => {
     mockFetch.mockResolvedValueOnce({
       ok: false,
       status: 401,
@@ -228,7 +229,7 @@ describe("VergangeneTerminePage", () => {
     render(<VergangeneTerminePage />);
 
     await waitFor(() => {
-      expect(mockPush).toHaveBeenCalledWith("/login?returnUrl=%2F");
+      expect(screen.getByText("Fehler beim Laden der Termine")).toBeInTheDocument();
     });
   });
 

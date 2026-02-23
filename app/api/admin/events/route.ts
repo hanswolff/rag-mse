@@ -12,6 +12,7 @@ import {
 import { logInfo, logValidationFailure } from "@/lib/logger";
 import { formatDateForStorage, parseDateAndTime } from "@/lib/date-picker-utils";
 import { hasEventDescriptionContent, sanitizeEventDescriptionHtml } from "@/lib/event-description";
+import { VoteType } from "@prisma/client";
 
 const createEventSchema = {
   date: { type: 'string' as const },
@@ -65,14 +66,21 @@ export const GET = withApiErrorHandling(async (request: NextRequest) => {
         _count: {
           select: { votes: true },
         },
+        votes: {
+          select: { vote: true },
+        },
       },
     }),
     prisma.event.count(),
   ]);
 
-  const formattedEvents = events.map((event: (typeof events)[number]) => ({
+  const formattedEvents = events.map(({ votes, ...event }: (typeof events)[number] & { votes: { vote: VoteType }[] }) => ({
     ...event,
     date: formatDateForStorage(event.date),
+    voteCounts: votes.reduce(
+      (acc, { vote }) => ({ ...acc, [vote]: acc[vote] + 1 }),
+      { JA: 0, NEIN: 0, VIELLEICHT: 0 }
+    ),
   }));
 
   return NextResponse.json({

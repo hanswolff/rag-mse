@@ -234,7 +234,7 @@ describe("EventDetailPage", () => {
       expect(screen.queryByText("Laden...")).not.toBeInTheDocument();
     });
 
-    expect(screen.getByText("Anmeldestand (10 Anmeldungen)")).toBeInTheDocument();
+    expect(screen.getByText("Anmeldestand (5-8 Anmeldungen)")).toBeInTheDocument();
   });
 
   it("does not display list of voters for non-admin users", async () => {

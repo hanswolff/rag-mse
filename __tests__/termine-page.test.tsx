@@ -151,7 +151,7 @@ describe("TerminePage", () => {
     expect(mockFetch).toHaveBeenCalledTimes(1);
   });
 
-  it("displays vote count for authenticated users", async () => {
+  it("displays registration range for authenticated users", async () => {
     (useSession as jest.Mock).mockReturnValue({
       data: { user: { id: "user-1", role: "MEMBER" } },
       status: "authenticated",
@@ -170,6 +170,7 @@ describe("TerminePage", () => {
         visible: true,
         createdAt: "2026-01-31T10:00:00.000Z",
         _count: { votes: 5 },
+        voteCounts: { JA: 5, NEIN: 3, VIELLEICHT: 2 },
       },
     ];
 
@@ -189,7 +190,7 @@ describe("TerminePage", () => {
       expect(screen.queryByText("Laden...")).not.toBeInTheDocument();
     });
 
-    expect(screen.getByText("5 Anmeldungen")).toBeInTheDocument();
+    expect(screen.getByText("5-7 Anmeldungen")).toBeInTheDocument();
     expect(mockFetch).toHaveBeenCalledTimes(1);
   });
 

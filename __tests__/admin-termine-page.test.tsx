@@ -38,6 +38,7 @@ describe("TerminePage (Admin)", () => {
         createdAt: "2026-01-01T10:00:00.000Z",
         updatedAt: "2026-01-01T10:00:00.000Z",
         _count: { votes: 3 },
+        voteCounts: { JA: 3, NEIN: 1, VIELLEICHT: 1 },
       },
     ],
     currentPage: 1,
@@ -96,6 +97,7 @@ describe("TerminePage (Admin)", () => {
     render(<TerminePage />);
 
     expect(screen.getByText("12 Termine gesamt")).toBeInTheDocument();
+    expect(screen.getByText("Anmeldungen: 3-4 Anmeldungen")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Weiter" })).toBeInTheDocument();
   });
 

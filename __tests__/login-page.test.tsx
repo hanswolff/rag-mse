@@ -69,7 +69,7 @@ describe("LoginPage", () => {
       (global.fetch as jest.Mock).mockResolvedValue({
         ok: true,
         status: 200,
-        json: async () => ({ success: true }),
+        json: async () => ({ success: true, loginProof: "proof-token" }),
       });
       (signIn as jest.Mock).mockResolvedValue({ error: "CredentialsSignin", ok: false });
       render(<LoginPage />);
@@ -99,7 +99,7 @@ describe("LoginPage", () => {
       (global.fetch as jest.Mock).mockResolvedValue({
         ok: true,
         status: 200,
-        json: async () => ({ success: true }),
+        json: async () => ({ success: true, loginProof: "proof-token" }),
       });
       (signIn as jest.Mock).mockResolvedValue({ ok: true });
       (useSession as jest.Mock).mockReturnValue({
@@ -124,7 +124,7 @@ describe("LoginPage", () => {
       (global.fetch as jest.Mock).mockResolvedValue({
         ok: true,
         status: 200,
-        json: async () => ({ success: true }),
+        json: async () => ({ success: true, loginProof: "proof-token" }),
       });
       (signIn as jest.Mock).mockResolvedValue({ ok: true });
       (useSession as jest.Mock).mockReturnValue({
@@ -147,7 +147,7 @@ describe("LoginPage", () => {
       (global.fetch as jest.Mock).mockResolvedValue({
         ok: true,
         status: 200,
-        json: async () => ({ success: true }),
+        json: async () => ({ success: true, loginProof: "proof-token" }),
       });
       (signIn as jest.Mock).mockResolvedValue({ ok: true });
       (useSession as jest.Mock).mockReturnValue({
@@ -168,6 +168,7 @@ describe("LoginPage", () => {
         expect(signIn).toHaveBeenCalledWith("credentials", {
           email: "test@example.com",
           password: "Password1",
+          loginProof: "proof-token",
           redirect: false,
         });
         expect(mockPush).toHaveBeenCalledWith("/");
@@ -179,7 +180,7 @@ describe("LoginPage", () => {
       (global.fetch as jest.Mock).mockResolvedValue({
         ok: true,
         status: 200,
-        json: async () => ({ success: true }),
+        json: async () => ({ success: true, loginProof: "proof-token" }),
       });
       (signIn as jest.Mock).mockResolvedValue({ ok: true });
       (useSession as jest.Mock).mockReturnValue({
@@ -200,6 +201,7 @@ describe("LoginPage", () => {
         expect(signIn).toHaveBeenCalledWith("credentials", {
           email: "admin@example.com",
           password: "AdminPassword",
+          loginProof: "proof-token",
           redirect: false,
         });
         expect(mockPush).toHaveBeenCalledWith("/admin");
@@ -235,7 +237,7 @@ describe("LoginPage", () => {
       resolveFetch!({
         ok: true,
         status: 200,
-        json: async () => ({ success: true }),
+        json: async () => ({ success: true, loginProof: "proof-token" }),
       });
       (signIn as jest.Mock).mockResolvedValue({ ok: true });
       await waitFor(() => {

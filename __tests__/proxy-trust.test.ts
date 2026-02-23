@@ -85,12 +85,12 @@ describe("proxy-trust", () => {
       expect(getClientIdentifierFromHeaders(headers, "::ffff:127.0.0.1")).toBe("203.0.113.22");
     });
 
-    it("trusts Docker bridge source IPs from default private range", () => {
+    it("does not trust Docker bridge source IPs by default", () => {
       const headers = new Headers({
         "x-forwarded-for": "203.0.113.30",
       });
 
-      expect(getClientIdentifierFromHeaders(headers, "172.18.0.2")).toBe("203.0.113.30");
+      expect(getClientIdentifierFromHeaders(headers, "172.18.0.2")).toBe("172.18.0.2");
     });
   });
 

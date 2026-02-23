@@ -5,6 +5,7 @@ import { authorizeCredentials } from "@/lib/auth";
 
 jest.mock("@/lib/auth", () => ({
   authorizeCredentials: jest.fn(),
+  createLoginProof: jest.fn(() => "proof-token"),
 }));
 
 jest.mock("@/lib/logger", () => ({
@@ -23,6 +24,7 @@ jest.mock("@/lib/api-utils", () => ({
   },
   validateRequestBody: jest.fn().mockReturnValue({ isValid: true, errors: [] }),
   validateCsrfHeaders: jest.fn(),
+  getClientIp: jest.fn(() => "127.0.0.1"),
 }));
 
 function createMockRequest(body: Record<string, unknown>, headers: Record<string, string> = {}) {
@@ -109,6 +111,7 @@ describe("/api/auth/login/route", () => {
 
     expect(response.status).toBe(200);
     expect(data.success).toBe(true);
+    expect(data.loginProof).toBe("proof-token");
   });
 
   describe("correlation ID headers", () => {

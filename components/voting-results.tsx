@@ -1,7 +1,7 @@
 import { VoteType } from "@prisma/client";
 import { VOTE_OPTIONS } from "@/lib/vote-utils";
 import { VotingPieChart } from "@/components/voting-pie-chart";
-import { pluralize } from "@/lib/pluralization";
+import { formatRegistrationCount } from "@/lib/registration-count";
 
 export interface Vote {
   id: string;
@@ -25,7 +25,7 @@ interface VotingResultsProps {
 }
 
 export function VotingResults({ votes, voteCounts, isAdmin = false }: VotingResultsProps) {
-  const totalVotes = voteCounts.JA + voteCounts.NEIN + voteCounts.VIELLEICHT;
+  const registrationCountLabel = formatRegistrationCount(voteCounts);
 
   const votesByOption = VOTE_OPTIONS.map((option) => ({
     ...option,
@@ -36,7 +36,7 @@ export function VotingResults({ votes, voteCounts, isAdmin = false }: VotingResu
     <>
       <div>
         <h3 className="text-base sm:text-lg font-semibold text-gray-900 mb-4">
-          Anmeldestand ({totalVotes} {pluralize(totalVotes, "Anmeldung", "Anmeldungen")})
+          Anmeldestand ({registrationCountLabel})
         </h3>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

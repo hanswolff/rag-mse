@@ -361,7 +361,6 @@ export const PATCH = withApiErrorHandling(async (
   const changedFields: string[] = Object.keys(updates);
   logInfo('user_updated', 'User updated by admin', {
     userId: updatedUser.id,
-    email: updatedUser.email,
     changedFields,
     updatedBy: 'admin',
   });

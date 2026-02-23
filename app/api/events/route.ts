@@ -5,6 +5,7 @@ import { authOptions } from "@/lib/auth";
 import { isAdmin } from "@/lib/role-utils";
 import { withApiErrorHandling, getAuthNoCacheHeaders } from "@/lib/api-utils";
 import { formatDateForStorage, getStartOfToday } from "@/lib/date-picker-utils";
+import { VoteType } from "@prisma/client";
 
 const MAX_PAGE_SIZE = 50;
 
@@ -48,6 +49,9 @@ function getEventSelect(isAuthenticated: boolean) {
     _count: {
       select: { votes: true },
     },
+    votes: {
+      select: { vote: true },
+    },
   } as const;
 }
 
@@ -55,6 +59,21 @@ function formatEvents(events: Array<{ date: Date } & Record<string, unknown>>) {
   return events.map(event => ({
     ...event,
     date: formatDateForStorage(event.date),
+  }));
+}
+
+type EventWithVotes = {
+  date: Date;
+  votes: { vote: VoteType }[];
+} & Record<string, unknown>;
+
+function addVoteCountsToEvents(events: EventWithVotes[]) {
+  return events.map(({ votes, ...event }) => ({
+    ...event,
+    voteCounts: votes.reduce(
+      (acc, { vote }) => ({ ...acc, [vote]: acc[vote] + 1 }),
+      { JA: 0, NEIN: 0, VIELLEICHT: 0 }
+    ),
   }));
 }
 
@@ -110,9 +129,16 @@ export const GET = withApiErrorHandling(async (request: NextRequest) => {
     }),
   ]);
 
+  const eventsWithVoteCounts = isAuthenticated
+    ? addVoteCountsToEvents(events as unknown as EventWithVotes[])
+    : events;
+  const pastEventsWithVoteCounts = isAuthenticated
+    ? addVoteCountsToEvents(pastEvents as unknown as EventWithVotes[])
+    : pastEvents;
+
   return NextResponse.json({
-    events: formatEvents(events),
-    pastEvents: formatEvents(pastEvents),
+    events: formatEvents(eventsWithVoteCounts as Array<{ date: Date } & Record<string, unknown>>),
+    pastEvents: formatEvents(pastEventsWithVoteCounts as Array<{ date: Date } & Record<string, unknown>>),
     pagination: {
       total,
       page,

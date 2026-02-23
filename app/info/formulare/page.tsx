@@ -27,6 +27,18 @@ const pathways = [
         className: "btn-secondary"
       }
     ]
+  },
+  {
+    title: "Schießkladde führen",
+    description:
+      "Die Schießkladde dient der strukturierten Dokumentation von Schießterminen, Ergebnissen und Munitionsverbrauch.",
+    actions: [
+      {
+        label: "Schiesskladde RAG herunterladen",
+        href: "/dokumente/Schiesskladde_RAG.pdf",
+        className: "btn-secondary"
+      }
+    ]
   }
 ];
 

@@ -102,7 +102,7 @@ export function Navigation() {
               <div className="relative" ref={infoMenuRef}>
                 <button
                   type="button"
-                  className={`${BASE_LINK_CLASSES} ${isActive("/info/schiesssportordnung") || isActive("/info/formulare") || isActive("/info/leitfaden-waffenteile") || isActive("/info/sicherheitsbelehrung") ? ACTIVE_CLASSES : INACTIVE_CLASSES} flex items-center gap-1`}
+                  className={`${BASE_LINK_CLASSES} ${isActive("/info/schiesssportordnung") || isActive("/info/formulare") || isActive("/info/leitfaden-waffenteile") || isActive("/info/sicherheitsbelehrung") || isActive("/info/waffentechnische-begriffe") ? ACTIVE_CLASSES : INACTIVE_CLASSES} flex items-center gap-1`}
                   onClick={() => setIsInfoMenuOpen(!isInfoMenuOpen)}
                   aria-expanded={isInfoMenuOpen}
                   aria-haspopup="true"
@@ -126,6 +126,13 @@ export function Navigation() {
                       className="block px-4 py-2 text-base text-gray-700 hover:bg-gray-100 transition-colors"
                     >
                       Leitfaden Waffenteile
+                    </Link>
+                    <Link
+                      href="/info/waffentechnische-begriffe"
+                      onClick={handleInfoMenuItemClick}
+                      className="block px-4 py-2 text-base text-gray-700 hover:bg-gray-100 transition-colors"
+                    >
+                      Waffentechnische Begriffe
                     </Link>
                     <Link
                       href="/info/sicherheitsbelehrung"
@@ -270,6 +277,13 @@ export function Navigation() {
             onClick={() => setIsMenuOpen(false)}
           >
             Leitfaden Waffenteile
+          </Link>
+          <Link
+            href="/info/waffentechnische-begriffe"
+            className={`${getLinkClasses("/info/waffentechnische-begriffe", true)} pl-6`}
+            onClick={() => setIsMenuOpen(false)}
+          >
+            Waffentechnische Begriffe
           </Link>
           <Link
             href="/info/sicherheitsbelehrung"

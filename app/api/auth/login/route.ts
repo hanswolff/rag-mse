@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { authorizeCredentials } from "@/lib/auth";
+import { authorizeCredentials, createLoginProof } from "@/lib/auth";
 import { logError, logValidationFailure, maskEmail } from "@/lib/logger";
-import { parseJsonBody, BadRequestError, validateRequestBody, validateCsrfHeaders } from "@/lib/api-utils";
+import { parseJsonBody, BadRequestError, validateRequestBody, validateCsrfHeaders, getClientIp } from "@/lib/api-utils";
 import { withCorrelationId } from "@/lib/api-middleware";
 import { validateEmail } from "@/lib/validation-schema";
 
@@ -58,6 +58,12 @@ async function handleLogin(request: NextRequest): Promise<NextResponse> {
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       if (!errorMessage.startsWith("RATE_LIMITED:")) {
+        if (errorMessage === "RATE_LIMIT_UNAVAILABLE") {
+          return NextResponse.json(
+            { error: "Anmeldung ist vorübergehend nicht verfügbar. Bitte versuchen Sie es erneut." },
+            { status: 503 }
+          );
+        }
         throw error;
       }
       const minutes = errorMessage.split(":")[1] || "1";
@@ -78,10 +84,23 @@ async function handleLogin(request: NextRequest): Promise<NextResponse> {
       );
     }
 
-    return NextResponse.json(
-      { success: true },
-      { status: 200 }
-    );
+    try {
+      return NextResponse.json(
+        {
+          success: true,
+          loginProof: createLoginProof(email, getClientIp(request), password),
+        },
+        { status: 200 }
+      );
+    } catch (proofError) {
+      logError("login_proof_error", "Failed to create login proof", {
+        error: proofError instanceof Error ? proofError.message : String(proofError),
+      });
+      return NextResponse.json(
+        { error: "Anmeldung ist vorübergehend nicht verfügbar. Bitte versuchen Sie es erneut." },
+        { status: 503 }
+      );
+    }
   } catch (error) {
     if (error instanceof BadRequestError) {
       return NextResponse.json({ error: error.message }, { status: 400 });

@@ -4,6 +4,7 @@ import { logApiError } from "@/lib/api-utils";
 import { logWarn, logInfo } from "@/lib/logger";
 import { getClientIdentifier } from "@/lib/proxy-trust";
 import { checkGeocodeRateLimit } from "@/lib/rate-limiter";
+import { shouldFailOpenOnRateLimiterError } from "@/lib/rate-limit-policy";
 
 const MIN_QUERY_LENGTH = 3;
 const NOMINATIM_API_URL = "https://nominatim.openstreetmap.org/search";
@@ -122,7 +123,17 @@ export async function GET(request: NextRequest): Promise<NextResponse<GeocodeRes
         return NextResponse.json({ error: "Zu viele Anfragen. Bitte später erneut versuchen." }, { status: 429 });
       }
     } catch (rateLimitError) {
-      logWarn('rate_limit_unavailable', 'Rate limiter unavailable for geocode route, continuing without enforcement', {
+      if (!shouldFailOpenOnRateLimiterError()) {
+        logWarn("rate_limit_unavailable", "Rate limiter unavailable for geocode route, blocking request", {
+          clientId,
+          route: "/api/geocode",
+          method: "GET",
+          error: rateLimitError instanceof Error ? rateLimitError.message : String(rateLimitError),
+        });
+        return NextResponse.json({ error: "Dienst aktuell nicht verfügbar. Bitte später erneut versuchen." }, { status: 503 });
+      }
+
+      logWarn('rate_limit_unavailable', 'Rate limiter unavailable for geocode route, continuing due fail-open policy', {
         clientId,
         route: "/api/geocode",
         method: "GET",

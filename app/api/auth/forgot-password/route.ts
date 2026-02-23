@@ -11,6 +11,7 @@ import { sendTemplateEmail } from "@/lib/email-sender";
 import { logInfo, logValidationFailure, logError, logWarn } from "@/lib/logger";
 import { checkForgotPasswordRateLimit } from "@/lib/rate-limiter";
 import { validateEmail } from "@/lib/validation-schema";
+import { shouldFailOpenOnRateLimiterError } from "@/lib/rate-limit-policy";
 
 const SUCCESS_MESSAGE =
   "Wenn diese E-Mail registriert ist, erhalten Sie in Kürze einen Link zum Zurücksetzen Ihres Passworts.";
@@ -85,7 +86,21 @@ export async function POST(request: NextRequest) {
     try {
       rateLimitResult = await checkForgotPasswordRateLimit(clientIp, email);
     } catch (rateLimitError) {
-      logWarn('forgot_password_rate_limit_unavailable', 'Rate limiter unavailable for forgot-password route, continuing without enforcement', {
+      if (!shouldFailOpenOnRateLimiterError()) {
+        logError("forgot_password_rate_limit_unavailable", "Rate limiter unavailable for forgot-password route, blocking request", {
+          route: "/api/auth/forgot-password",
+          method: "POST",
+          clientIp,
+          email,
+          error: rateLimitError instanceof Error ? rateLimitError.message : String(rateLimitError),
+        });
+        return NextResponse.json(
+          { error: "Dienst aktuell nicht verfügbar. Bitte später erneut versuchen." },
+          { status: 503 }
+        );
+      }
+
+      logWarn('forgot_password_rate_limit_unavailable', 'Rate limiter unavailable for forgot-password route, continuing due fail-open policy', {
         route: "/api/auth/forgot-password",
         method: "POST",
         clientIp,

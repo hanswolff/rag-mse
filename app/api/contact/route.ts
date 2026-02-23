@@ -5,6 +5,7 @@ import { sendTemplateEmail } from "@/lib/email-sender";
 import { logInfo, logWarn, logValidationFailure, logError } from "@/lib/logger";
 import { getClientIdentifier } from "@/lib/proxy-trust";
 import { checkContactRateLimit } from "@/lib/rate-limiter";
+import { shouldFailOpenOnRateLimiterError } from "@/lib/rate-limit-policy";
 
 const RATE_LIMIT_WINDOW_MS = 60_000;
 const RATE_LIMIT_MAX_REQUESTS = 5;
@@ -35,7 +36,20 @@ export async function POST(request: NextRequest) {
         );
       }
     } catch (rateLimitError) {
-      logWarn('rate_limit_unavailable', 'Rate limiter unavailable for contact route, continuing without enforcement', {
+      if (!shouldFailOpenOnRateLimiterError()) {
+        logError("rate_limit_unavailable", "Rate limiter unavailable for contact route, blocking request", {
+          clientId,
+          route: "/api/contact",
+          method: "POST",
+          error: rateLimitError instanceof Error ? rateLimitError.message : String(rateLimitError),
+        });
+        return NextResponse.json(
+          { error: "Dienst aktuell nicht verfügbar. Bitte später erneut versuchen." },
+          { status: 503 }
+        );
+      }
+
+      logWarn('rate_limit_unavailable', 'Rate limiter unavailable for contact route, continuing due fail-open policy', {
         clientId,
         route: "/api/contact",
         method: "POST",
@@ -114,10 +128,8 @@ export async function POST(request: NextRequest) {
     });
 
     logInfo('contact_submitted', 'Contact form submitted and email queued', {
-      name: formData.name,
-      email: formData.email,
       messageLength: formData.message.length,
-      recipients,
+      recipientCount: recipients.length,
     });
 
     return NextResponse.json(

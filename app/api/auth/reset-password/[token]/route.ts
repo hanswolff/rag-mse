@@ -6,6 +6,7 @@ import { validatePassword } from "@/lib/password-validation";
 import { hashResetToken } from "@/lib/password-reset";
 import { logInfo, logValidationFailure, logResourceNotFound, maskToken, logWarn } from "@/lib/logger";
 import { checkTokenRateLimit, recordSuccessfulTokenUsage } from "@/lib/rate-limiter";
+import { shouldFailOpenOnRateLimiterError } from "@/lib/rate-limit-policy";
 
 const BCRYPT_SALT_ROUNDS = 10;
 
@@ -93,7 +94,21 @@ export async function POST(
     try {
       rateLimitResult = await checkTokenRateLimit(clientIp, tokenHash);
     } catch (rateLimitError) {
-      logWarn('password_reset_rate_limit_unavailable', 'Rate limiter unavailable for password reset route, continuing without enforcement', {
+      if (!shouldFailOpenOnRateLimiterError()) {
+        logWarn("password_reset_rate_limit_unavailable", "Rate limiter unavailable for password reset route, blocking request", {
+          route: "/api/auth/reset-password/[token]",
+          method: "POST",
+          clientIp,
+          token: maskToken(token),
+          error: rateLimitError instanceof Error ? rateLimitError.message : String(rateLimitError),
+        });
+        return NextResponse.json(
+          { error: "Dienst aktuell nicht verfügbar. Bitte später erneut versuchen." },
+          { status: 503 }
+        );
+      }
+
+      logWarn('password_reset_rate_limit_unavailable', 'Rate limiter unavailable for password reset route, continuing due fail-open policy', {
         route: "/api/auth/reset-password/[token]",
         method: "POST",
         clientIp,

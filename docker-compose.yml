@@ -28,7 +28,7 @@ services:
     extra_hosts:
       - "mail.neuraforce.com:87.118.82.131"
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
     environment:
       - NODE_ENV=${NODE_ENV:-production}
       - DEVELOPMENT_DEPLOYMENT=${DEVELOPMENT_DEPLOYMENT:-false}
@@ -53,6 +53,7 @@ services:
       - COOKIE_SECURE=${COOKIE_SECURE}
       - COOKIE_MAX_AGE=${COOKIE_MAX_AGE:-604800}
       - REDIS_URL=${REDIS_URL:-redis://redis:6379}
+      - TRUSTED_PROXY_IPS=${TRUSTED_PROXY_IPS:-127.0.0.1/32,172.16.0.0/12}
       # Seed variables for initial admin user (optional, required for first-time setup)
       - SEED_ADMIN_EMAIL=${SEED_ADMIN_EMAIL}
       - SEED_ADMIN_PASSWORD=${SEED_ADMIN_PASSWORD}

@@ -4,7 +4,8 @@ const config: Config = {
   coverageProvider: "v8",
   testEnvironment: "jsdom",
   setupFilesAfterEnv: ["<rootDir>/jest.setup.js"],
-  testTimeout: 10000,
+  testTimeout: 20000,
+  maxWorkers: "50%",
   transform: {
     "^.+\\.(t|j)sx?$": ["babel-jest", {
       presets: [

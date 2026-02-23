@@ -213,8 +213,7 @@ function createInvitationSuccessResponse(result: RedemptionResult) {
 
   logInfo('invitation_accepted', `Invitation accepted and account ${action}`, {
     userId: result.user.id,
-    email: result.user.email,
-    name: result.user.name,
+    email: "masked",
   });
 
   return NextResponse.json({

@@ -20,6 +20,12 @@ interface UseLoginFormResult {
   handleSubmit: (e: React.FormEvent) => Promise<void>;
 }
 
+interface LoginPreflightResponse {
+  success?: boolean;
+  loginProof?: string;
+  error?: string;
+}
+
 function useLoginForm(): UseLoginFormResult {
   const router = useRouter();
   const { data: session } = useSession();
@@ -93,20 +99,33 @@ function useLoginForm(): UseLoginFormResult {
         body: JSON.stringify({ email, password }),
       });
 
-      const data = await response.json();
+      const data: LoginPreflightResponse = await response.json();
 
       if (response.status === 429) {
         setError(data.error || "Zu viele Anmeldeversuche. Bitte versuchen Sie es später erneut.");
+      } else if (response.status === 503) {
+        setError(data.error || "Anmeldung ist vorübergehend nicht verfügbar. Bitte versuchen Sie es erneut.");
       } else if (response.status === 401) {
         setFieldErrors({ password: data.error || "Ungültige E-Mail oder Passwort" });
       } else if (response.status === 200 && data.success) {
+        if (!data.loginProof) {
+          setError("Ein Fehler ist aufgetreten. Bitte versuchen Sie es später erneut.");
+          return;
+        }
+
         const result = await signIn("credentials", {
           email,
           password,
+          loginProof: data.loginProof,
           redirect: false,
         });
 
-        if (result?.error) {
+        if (result?.error?.startsWith("RATE_LIMITED:")) {
+          const minutes = result.error.split(":")[1] || "1";
+          setError(`Zu viele fehlgeschlagene Anmeldeversuche. Bitte versuchen Sie es in ${minutes} Minute(n) erneut.`);
+        } else if (result?.error === "RATE_LIMIT_UNAVAILABLE") {
+          setError("Anmeldung ist vorübergehend nicht verfügbar. Bitte versuchen Sie es erneut.");
+        } else if (result?.error) {
           setError("Ungültige E-Mail oder Passwort");
         } else if (result?.ok) {
           setShouldRedirect(true);

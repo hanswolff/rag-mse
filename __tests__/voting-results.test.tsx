@@ -31,12 +31,12 @@ describe("VotingResults", () => {
     expect(screen.getByText(/JA: 5, NEIN: 2, VIELLEICHT: 3/)).toBeInTheDocument();
   });
 
-  it("displays total vote count", () => {
+  it("displays registration range without NEIN votes", () => {
     render(
       <VotingResults votes={mockVotes} voteCounts={mockVoteCounts} isAdmin={false} />
     );
 
-    expect(screen.getByText("Anmeldestand (10 Anmeldungen)")).toBeInTheDocument();
+    expect(screen.getByText("Anmeldestand (5-8 Anmeldungen)")).toBeInTheDocument();
   });
 
   it("does not render vote count numbers (removed feature)", () => {

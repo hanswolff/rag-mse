@@ -389,7 +389,6 @@ export const GET = withApiErrorHandling(async () => {
 
   logInfo('admin_users_list', 'Admin accessed user list', {
     adminId: admin.id,
-    adminEmail: admin.email,
     userCount: sortedUsers.length,
   });
 

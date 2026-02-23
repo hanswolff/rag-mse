@@ -17,10 +17,17 @@ const SENSITIVE_FIELDS = [
   'smtp_user',
 ] as const;
 
+const EMAIL_LIKE_FIELDS = ["email", "useremail", "adminemail", "to", "torecipients", "recipients"] as const;
+
 type SensitiveField = (typeof SENSITIVE_FIELDS)[number];
 
 function isSensitiveField(key: string): key is SensitiveField {
   return SENSITIVE_FIELDS.some(field => key.toLowerCase() === field.toLowerCase());
+}
+
+function isEmailLikeField(key: string): boolean {
+  const normalized = key.toLowerCase();
+  return EMAIL_LIKE_FIELDS.some((field) => normalized === field || normalized.endsWith(field));
 }
 
 export function maskToken(token: string): string {
@@ -64,6 +71,17 @@ function redactObject(obj: Record<string, unknown>): Record<string, unknown> {
   for (const [key, value] of Object.entries(obj)) {
     if (isSensitiveField(key)) {
       result[key] = '[REDACTED]';
+    } else if (isEmailLikeField(key)) {
+      if (typeof value === "string") {
+        const parts = value.split(",").map((entry) => entry.trim()).filter((entry) => entry.length > 0);
+        result[key] = parts.length <= 1
+          ? maskEmail(value)
+          : parts.map((entry) => maskEmail(entry)).join(", ");
+      } else if (Array.isArray(value)) {
+        result[key] = value.map((entry) => typeof entry === "string" ? maskEmail(entry) : redactValue(entry));
+      } else {
+        result[key] = redactValue(value);
+      }
     } else {
       result[key] = redactValue(value);
     }

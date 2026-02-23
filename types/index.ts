@@ -23,6 +23,11 @@ export interface Event {
   _count?: {
     votes: number;
   };
+  voteCounts?: {
+    JA: number;
+    NEIN: number;
+    VIELLEICHT: number;
+  };
 }
 
 /**

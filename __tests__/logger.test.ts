@@ -205,7 +205,7 @@ describe("logging redaction", () => {
       );
     });
 
-    it("should preserve non-sensitive field values", () => {
+    it("should mask email-like field values", () => {
       const originalLogInfo = jest.requireActual("../lib/logger").logInfo;
       originalLogInfo("test_action", "test message", {
         email: "user@example.com",
@@ -213,7 +213,7 @@ describe("logging redaction", () => {
         userId: "12345"
       });
       expect(consoleLogSpy).toHaveBeenCalledWith(
-        expect.stringContaining('"email":"user@example.com"')
+        expect.stringContaining('"email":"use***r@example.com"')
       );
       expect(consoleLogSpy).toHaveBeenCalledWith(
         expect.stringContaining('"name":"John Doe"')

@@ -562,7 +562,8 @@ SMTP_FROM="noreply@rag-mse.de"
 ADMIN_EMAILS="admin1@example.com,admin2@example.com"
 
 # Proxy-Trust für Rate-Limits (trusted proxy/source ranges)
-TRUSTED_PROXY_IPS="127.0.0.0/8,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16"
+TRUSTED_PROXY_IPS="127.0.0.1/32,172.16.0.0/12"
+RATE_LIMIT_FAIL_OPEN="false"
 
 # Redis für verteilte Rate-Limits
 REDIS_URL="redis://localhost:6379"

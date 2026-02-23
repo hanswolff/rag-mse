@@ -111,6 +111,7 @@ describe("/api/events/route", () => {
       const firstCall = (prisma.event.findMany as jest.Mock).mock.calls[0][0];
       expect(firstCall.where).toHaveProperty("visible", true);
       expect(firstCall.select).not.toHaveProperty("_count");
+      expect(firstCall.select).not.toHaveProperty("votes");
     });
 
     it("allows members to see their own events", async () => {
@@ -129,6 +130,7 @@ describe("/api/events/route", () => {
         { createdById: "user-123" },
       ]);
       expect(firstCall.select).toHaveProperty("_count");
+      expect(firstCall.select).toHaveProperty("votes");
     });
 
     it("allows admins to see all events", async () => {
@@ -145,6 +147,7 @@ describe("/api/events/route", () => {
       expect(firstCall.where).not.toHaveProperty("visible");
       expect(firstCall.where).not.toHaveProperty("OR");
       expect(firstCall.select).toHaveProperty("_count");
+      expect(firstCall.select).toHaveProperty("votes");
     });
 
     it("handles custom page size", async () => {

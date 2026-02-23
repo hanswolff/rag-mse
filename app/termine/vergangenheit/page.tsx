@@ -2,13 +2,12 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { formatDate, formatTime } from "@/lib/date-utils";
 import { Pagination } from "@/components/pagination";
 import { isAdmin } from "@/lib/role-utils";
-import { buildLoginUrlWithReturnUrl, getCurrentPathWithSearch } from "@/lib/return-url";
 import { getEventDescriptionPreview } from "@/lib/event-description";
+import { formatRegistrationCount } from "@/lib/registration-count";
 import type { Event } from "@/types";
 
 interface EventListResponse {
@@ -21,8 +20,14 @@ interface EventListResponse {
   };
 }
 
+function getEventRegistrationCountLabel(event: Event): string {
+  if (event.voteCounts) {
+    return formatRegistrationCount(event.voteCounts);
+  }
+  return formatRegistrationCount({ JA: event._count?.votes || 0, NEIN: 0, VIELLEICHT: 0 });
+}
+
 export default function VergangeneTerminePage() {
-  const router = useRouter();
   const { data: session } = useSession();
   const [pastEventsData, setPastEventsData] = useState<Event[]>([]);
   const [pastPagination, setPastPagination] = useState<{
@@ -37,7 +42,6 @@ export default function VergangeneTerminePage() {
 
   useEffect(() => {
     fetchEvents(pastPage);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pastPage]);
 
   async function fetchEvents(page: number) {
@@ -48,10 +52,6 @@ export default function VergangeneTerminePage() {
       const response = await fetch(`/api/events?pastPage=${page}&limit=20`);
 
       if (!response.ok) {
-        if (response.status === 401 || response.status === 403) {
-          router.push(buildLoginUrlWithReturnUrl(getCurrentPathWithSearch()));
-          return;
-        }
         throw new Error("Fehler beim Laden der Termine");
       }
 
@@ -134,9 +134,9 @@ export default function VergangeneTerminePage() {
                           </span>
                         )}
                       </div>
-                      {session && event._count && (
+                      {session && (event.voteCounts || event._count) && (
                         <span className="bg-brand-blue-50 text-brand-blue-800 text-base font-medium px-2.5 py-0.5 rounded self-start sm:self-auto">
-                          {event._count.votes} Anmeldung{event._count.votes !== 1 ? "en" : ""}
+                          {getEventRegistrationCountLabel(event)}
                         </span>
                       )}
                     </div>

@@ -88,7 +88,6 @@ export const POST = withApiErrorHandling(async (
 
     logInfo('vote_updated', 'Vote updated', {
       userId: user.id,
-      userEmail: user.email,
       eventId,
       vote,
     });
@@ -106,7 +105,6 @@ export const POST = withApiErrorHandling(async (
 
   logInfo('vote_created', 'Vote created', {
     userId: user.id,
-    userEmail: user.email,
     eventId,
     vote,
   });
@@ -136,7 +134,6 @@ export const DELETE = withApiErrorHandling(async (
   if (!event) {
     logResourceNotFound('event', eventId, '/api/events/[id]/vote', 'DELETE', {
       userId: user.id,
-      userEmail: user.email,
     });
     return NextResponse.json(
       { error: "Termin nicht gefunden" },
@@ -161,7 +158,6 @@ export const DELETE = withApiErrorHandling(async (
     logResourceNotFound('event', eventId, '/api/events/[id]/vote', 'DELETE', {
       reason: 'event not visible',
       userId: user.id,
-      userEmail: user.email,
     });
     return NextResponse.json(
       { error: "Termin nicht gefunden" },
@@ -195,7 +191,6 @@ export const DELETE = withApiErrorHandling(async (
 
   logInfo('vote_deleted', 'Vote deleted', {
     userId: user.id,
-    userEmail: user.email,
     eventId,
   });
 

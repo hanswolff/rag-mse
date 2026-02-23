@@ -16,6 +16,9 @@ jest.mock("@/lib/prisma", () => ({
       update: jest.fn(),
       delete: jest.fn(),
     },
+    invitation: {
+      findMany: jest.fn(),
+    },
   },
 }));
 
@@ -39,6 +42,7 @@ describe("event-reminder-worker", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     (prisma.eventReminderDispatch.findUnique as jest.Mock).mockResolvedValue(null);
+    (prisma.invitation.findMany as jest.Mock).mockResolvedValue([]);
     process.env = {
       ...originalEnv,
       APP_URL: "https://example.org",
@@ -299,5 +303,68 @@ describe("event-reminder-worker", () => {
     const queued = await processEventReminders(new Date("2026-02-01T17:57:00.000Z"));
 
     expect(queued).toBe(0);
+  });
+
+  it("excludes users with pending invitations from reminders", async () => {
+    (prisma.user.findMany as jest.Mock).mockResolvedValue([
+      { id: "user-1", email: "active@example.org", eventReminderDaysBefore: 7 },
+      { id: "user-2", email: "pending@example.org", eventReminderDaysBefore: 7 },
+    ]);
+    // user-2 has a pending invitation
+    (prisma.invitation.findMany as jest.Mock).mockResolvedValue([
+      { email: "pending@example.org" },
+    ]);
+    (prisma.event.findMany as jest.Mock).mockResolvedValue([
+      {
+        id: "event-1",
+        date: new Date("2026-02-08T17:00:00.000Z"),
+        timeFrom: "18:00",
+        timeTo: "20:00",
+        location: "Ulm",
+      },
+    ]);
+    (prisma.eventReminderDispatch.create as jest.Mock).mockResolvedValue({ id: "dispatch-1" });
+    (prisma.eventReminderDispatch.update as jest.Mock).mockResolvedValue({ id: "dispatch-1" });
+    (sendEventReminderEmail as jest.Mock).mockResolvedValue({ success: true });
+
+    const queued = await processEventReminders(new Date("2026-02-01T16:56:00.000Z"));
+
+    // Only user-1 should get a reminder, user-2 is excluded due to pending invitation
+    expect(queued).toBe(1);
+    expect(sendEventReminderEmail).toHaveBeenCalledTimes(1);
+    expect(sendEventReminderEmail).toHaveBeenCalledWith(
+      expect.objectContaining({
+        email: "active@example.org",
+      })
+    );
+  });
+
+  it("sends reminders to users after invitation is used", async () => {
+    (prisma.user.findMany as jest.Mock).mockResolvedValue([
+      { id: "user-1", email: "activated@example.org", eventReminderDaysBefore: 7 },
+    ]);
+    // No pending invitations (invitation was used)
+    (prisma.invitation.findMany as jest.Mock).mockResolvedValue([]);
+    (prisma.event.findMany as jest.Mock).mockResolvedValue([
+      {
+        id: "event-1",
+        date: new Date("2026-02-08T17:00:00.000Z"),
+        timeFrom: "18:00",
+        timeTo: "20:00",
+        location: "Ulm",
+      },
+    ]);
+    (prisma.eventReminderDispatch.create as jest.Mock).mockResolvedValue({ id: "dispatch-1" });
+    (prisma.eventReminderDispatch.update as jest.Mock).mockResolvedValue({ id: "dispatch-1" });
+    (sendEventReminderEmail as jest.Mock).mockResolvedValue({ success: true });
+
+    const queued = await processEventReminders(new Date("2026-02-01T16:56:00.000Z"));
+
+    expect(queued).toBe(1);
+    expect(sendEventReminderEmail).toHaveBeenCalledWith(
+      expect.objectContaining({
+        email: "activated@example.org",
+      })
+    );
   });
 });
