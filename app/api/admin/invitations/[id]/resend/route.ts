@@ -11,7 +11,6 @@ import {
 } from "@/lib/invitations";
 import { logWarn } from "@/lib/logger";
 
-const INVITED_AT_EPOCH = new Date("1970-01-01T00:00:00.000Z");
 type InvitationTransactionClient = {
   invitation: Pick<typeof prisma.invitation, "updateMany" | "update">;
 };
@@ -80,7 +79,7 @@ export const POST = withApiErrorHandling(async (request: NextRequest, { params }
         NOT: { id: invitationId },
       },
       data: {
-        usedAt: INVITED_AT_EPOCH,
+        usedAt: new Date(),
       },
     });
 

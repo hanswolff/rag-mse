@@ -14,6 +14,15 @@ const NAV_ITEMS = [
   { href: "/termine", label: "Termine" },
 ] as const;
 
+const INFO_ITEMS = [
+  { href: "/info/schiesssportordnung", label: "Schießsportordnung" },
+  { href: "/info/leitfaden-waffenteile", label: "Leitfaden Waffenteile" },
+  { href: "/info/waffentechnische-begriffe", label: "Waffentechnische Begriffe" },
+  { href: "/info/sachkundepruefung", label: "Sachkundeprüfung" },
+  { href: "/info/sicherheitsbelehrung", label: "Sicherheitsbelehrung" },
+  { href: "/info/formulare", label: "Formulare" },
+] as const;
+
 const ACTIVE_CLASSES = "text-brand-red-700 border-brand-red-600";
 const INACTIVE_CLASSES = "text-brand-blue-900 hover:text-brand-red-700 border-transparent";
 const BASE_LINK_CLASSES =
@@ -66,6 +75,8 @@ export function Navigation() {
     setIsInfoMenuOpen(false);
   };
 
+  const isInfoActive = INFO_ITEMS.some((item) => isActive(item.href));
+
   return (
     <nav className="bg-white text-brand-blue-900 shadow-sm sticky top-0 z-header border-b-4 border-brand-red-600">
       <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-8">
@@ -102,7 +113,7 @@ export function Navigation() {
               <div className="relative" ref={infoMenuRef}>
                 <button
                   type="button"
-                  className={`${BASE_LINK_CLASSES} ${isActive("/info/schiesssportordnung") || isActive("/info/formulare") || isActive("/info/leitfaden-waffenteile") || isActive("/info/sicherheitsbelehrung") || isActive("/info/waffentechnische-begriffe") ? ACTIVE_CLASSES : INACTIVE_CLASSES} flex items-center gap-1`}
+                  className={`${BASE_LINK_CLASSES} ${isInfoActive ? ACTIVE_CLASSES : INACTIVE_CLASSES} flex items-center gap-1`}
                   onClick={() => setIsInfoMenuOpen(!isInfoMenuOpen)}
                   aria-expanded={isInfoMenuOpen}
                   aria-haspopup="true"
@@ -113,41 +124,16 @@ export function Navigation() {
 
                 {isInfoMenuOpen && (
                   <div className="absolute left-0 mt-2 w-auto min-w-[15rem] bg-white rounded-md shadow-lg py-1 z-dropdown border border-gray-200">
-                    <Link
-                      href="/info/schiesssportordnung"
-                      onClick={handleInfoMenuItemClick}
-                      className="block px-4 py-2 text-base text-gray-700 hover:bg-gray-100 transition-colors"
-                    >
-                      Schießsportordnung
-                    </Link>
-                    <Link
-                      href="/info/leitfaden-waffenteile"
-                      onClick={handleInfoMenuItemClick}
-                      className="block px-4 py-2 text-base text-gray-700 hover:bg-gray-100 transition-colors"
-                    >
-                      Leitfaden Waffenteile
-                    </Link>
-                    <Link
-                      href="/info/waffentechnische-begriffe"
-                      onClick={handleInfoMenuItemClick}
-                      className="block px-4 py-2 text-base text-gray-700 hover:bg-gray-100 transition-colors"
-                    >
-                      Waffentechnische Begriffe
-                    </Link>
-                    <Link
-                      href="/info/sicherheitsbelehrung"
-                      onClick={handleInfoMenuItemClick}
-                      className="block px-4 py-2 text-base text-gray-700 hover:bg-gray-100 transition-colors"
-                    >
-                      Sicherheitsbelehrung
-                    </Link>
-                    <Link
-                      href="/info/formulare"
-                      onClick={handleInfoMenuItemClick}
-                      className="block px-4 py-2 text-base text-gray-700 hover:bg-gray-100 transition-colors"
-                    >
-                      Formulare
-                    </Link>
+                    {INFO_ITEMS.map((item) => (
+                      <Link
+                        key={item.href}
+                        href={item.href}
+                        onClick={handleInfoMenuItemClick}
+                        className="block px-4 py-2 text-base text-gray-700 hover:bg-gray-100 transition-colors"
+                      >
+                        {item.label}
+                      </Link>
+                    ))}
                   </div>
                 )}
               </div>
@@ -264,41 +250,16 @@ export function Navigation() {
           <div className="px-3 py-2 text-brand-blue-700 font-semibold uppercase tracking-wide">
             Infos
           </div>
-          <Link
-            href="/info/schiesssportordnung"
-            className={`${getLinkClasses("/info/schiesssportordnung", true)} pl-6`}
-            onClick={() => setIsMenuOpen(false)}
-          >
-            Schießsportordnung
-          </Link>
-          <Link
-            href="/info/leitfaden-waffenteile"
-            className={`${getLinkClasses("/info/leitfaden-waffenteile", true)} pl-6`}
-            onClick={() => setIsMenuOpen(false)}
-          >
-            Leitfaden Waffenteile
-          </Link>
-          <Link
-            href="/info/waffentechnische-begriffe"
-            className={`${getLinkClasses("/info/waffentechnische-begriffe", true)} pl-6`}
-            onClick={() => setIsMenuOpen(false)}
-          >
-            Waffentechnische Begriffe
-          </Link>
-          <Link
-            href="/info/sicherheitsbelehrung"
-            className={`${getLinkClasses("/info/sicherheitsbelehrung", true)} pl-6`}
-            onClick={() => setIsMenuOpen(false)}
-          >
-            Sicherheitsbelehrung
-          </Link>
-          <Link
-            href="/info/formulare"
-            className={`${getLinkClasses("/info/formulare", true)} pl-6`}
-            onClick={() => setIsMenuOpen(false)}
-          >
-            Formulare
-          </Link>
+          {INFO_ITEMS.map((item) => (
+            <Link
+              key={item.href}
+              href={item.href}
+              className={`${getLinkClasses(item.href, true)} pl-6`}
+              onClick={() => setIsMenuOpen(false)}
+            >
+              {item.label}
+            </Link>
+          ))}
 
           <Link
             href="/kontakt"

@@ -1,6 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getClientIp, handleRateLimitBlocked, logApiError, parseJsonBody, validateRequestBody, validateCsrfHeaders } from "@/lib/api-utils";
+import {
+  getClientIp,
+  getNoCacheHeaders,
+  handleRateLimitBlocked,
+  logApiError,
+  parseJsonBody,
+  validateRequestBody,
+  validateCsrfHeaders,
+} from "@/lib/api-utils";
 import { hash } from "bcryptjs";
 import { validatePassword } from "@/lib/password-validation";
 import { hashResetToken } from "@/lib/password-reset";
@@ -46,19 +54,22 @@ export async function GET(
   try {
     const { token } = await context.params;
     if (!token) {
-      return NextResponse.json({ error: "Ungültiger Link" }, { status: 400 });
+      return NextResponse.json({ error: "Ungültiger Link" }, { status: 400, headers: getNoCacheHeaders() });
     }
 
     const { reset, status } = await findValidResetToken(token);
     if (!reset) {
       const message = status === 410 ? "Der Link ist abgelaufen" : "Ungültiger Link";
-      return NextResponse.json({ error: message }, { status });
+      return NextResponse.json({ error: message }, { status, headers: getNoCacheHeaders() });
     }
 
-    return NextResponse.json({
-      email: reset.email,
-      expiresAt: reset.expiresAt,
-    });
+    return NextResponse.json(
+      {
+        email: reset.email,
+        expiresAt: reset.expiresAt,
+      },
+      { headers: getNoCacheHeaders() }
+    );
   } catch (error) {
     logApiError(error, {
       route: "/api/auth/reset-password/[token]",
@@ -67,7 +78,7 @@ export async function GET(
     });
     return NextResponse.json(
       { error: "Ein Fehler ist aufgetreten" },
-      { status: 500 }
+      { status: 500, headers: getNoCacheHeaders() }
     );
   }
 }

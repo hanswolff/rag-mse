@@ -4,7 +4,7 @@ import { useState, useEffect, use } from "react";
 import { useSession } from "next-auth/react";
 import { formatDate, formatTime, isEventInPast } from "@/lib/date-utils";
 import { VoteType } from "@prisma/client";
-import { VotingResults, type Vote, type VoteCounts } from "@/components/voting-results";
+import { VotingResults, type Vote, type VoteCounts, type EditableRegistration } from "@/components/voting-results";
 import { EventMap } from "@/components/event-map";
 import { EventFormModal } from "@/components/event-form-modal";
 import { isAdmin } from "@/lib/role-utils";
@@ -15,6 +15,7 @@ import { LoadingButton } from "@/components/loading-button";
 import { useEventManagement } from "@/lib/use-event-management";
 import { formatEventDescriptionForDisplay } from "@/lib/event-description";
 import { buildLoginUrlWithReturnUrl } from "@/lib/return-url";
+import { Modal } from "@/components/modal";
 import type { Event } from "@/types";
 
 interface EventWithVotes extends Event {
@@ -24,6 +25,23 @@ interface EventWithVotes extends Event {
     id: string;
     vote: VoteType;
   } | null;
+}
+
+interface AdminMemberRegistration {
+  userId: string;
+  name: string;
+  vote: VoteType | null;
+}
+
+interface AdminGuestRegistration {
+  id: string;
+  name: string;
+  vote: VoteType;
+}
+
+interface AdminRegistrations {
+  members: AdminMemberRegistration[];
+  guests: AdminGuestRegistration[];
 }
 
 function getOpenStreetMapUrl(latitude: number, longitude: number): string {
@@ -38,6 +56,16 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
   const [pendingVote, setPendingVote] = useState<VoteType | null>(null);
   const [error, setError] = useState("");
   const [voteError, setVoteError] = useState("");
+  const [adminRegistrations, setAdminRegistrations] = useState<AdminRegistrations | null>(null);
+  const [isAdminRegistrationsLoading, setIsAdminRegistrationsLoading] = useState(false);
+  const [adminRegistrationError, setAdminRegistrationError] = useState("");
+  const [adminRegistrationSuccess, setAdminRegistrationSuccess] = useState("");
+  const [isAddRegistrationModalOpen, setIsAddRegistrationModalOpen] = useState(false);
+  const [addRegistrationVote, setAddRegistrationVote] = useState<VoteType>(VoteType.JA);
+  const [addRegistrationMode, setAddRegistrationMode] = useState<"member" | "guest">("member");
+  const [selectedMemberId, setSelectedMemberId] = useState("");
+  const [guestName, setGuestName] = useState("");
+  const [registrationActionKey, setRegistrationActionKey] = useState<string | null>(null);
   const { data: session } = useSession();
   const isAdminUser = session ? isAdmin(session.user) : false;
   const eventManagement = useEventManagement({ enforceAdminRedirect: false, enabled: isAdminUser });
@@ -51,19 +79,37 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
     fetchEvent(id);
   }, [id]);
 
+  useEffect(() => {
+    if (!isAdminUser) {
+      setAdminRegistrations(null);
+      setIsAdminRegistrationsLoading(false);
+      return;
+    }
+    void fetchAdminRegistrations(id);
+  }, [id, isAdminUser]);
+
   // Refresh event data after successful update
   useEffect(() => {
     if (eventManagement.success && !eventManagement.isModalOpen) {
       fetchEvent(id);
+      if (isAdminUser) {
+        void fetchAdminRegistrations(id);
+      }
     }
-  }, [eventManagement.success, eventManagement.isModalOpen, id]);
+  }, [eventManagement.success, eventManagement.isModalOpen, id, isAdminUser]);
+
+  useEffect(() => {
+    if (!adminRegistrationSuccess) return;
+    const timer = window.setTimeout(() => setAdminRegistrationSuccess(""), 3000);
+    return () => window.clearTimeout(timer);
+  }, [adminRegistrationSuccess]);
 
   async function fetchEvent(id: string) {
     setIsLoading(true);
     setError("");
 
     try {
-      const response = await fetch(`/api/events/${id}`);
+      const response = await fetch(`/api/events/${id}`, { cache: "no-store" });
 
       if (!response.ok) {
         if (response.status === 404) {
@@ -80,6 +126,136 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
       setError(err instanceof Error ? err.message : "Ein Fehler ist aufgetreten");
     } finally {
       setIsLoading(false);
+    }
+  }
+
+  async function fetchAdminRegistrations(eventId: string) {
+    setIsAdminRegistrationsLoading(true);
+    try {
+      const response = await fetch(`/api/admin/events/${eventId}/registrations`, { cache: "no-store" });
+      const json = await response.json();
+
+      if (!response.ok) {
+        throw new Error(json.error || "Fehler beim Laden der Anmeldungen");
+      }
+
+      setAdminRegistrations(json);
+      setAdminRegistrationError("");
+    } catch (err: unknown) {
+      setAdminRegistrationError(err instanceof Error ? err.message : "Ein Fehler ist aufgetreten");
+    } finally {
+      setIsAdminRegistrationsLoading(false);
+    }
+  }
+
+  function openAddRegistrationModal(vote: VoteType) {
+    setAddRegistrationVote(vote);
+    setAddRegistrationMode("member");
+    setSelectedMemberId("");
+    setGuestName("");
+    setAdminRegistrationError("");
+    setIsAddRegistrationModalOpen(true);
+  }
+
+  function closeAddRegistrationModal() {
+    setIsAddRegistrationModalOpen(false);
+    setSelectedMemberId("");
+    setGuestName("");
+  }
+
+  async function addRegistration() {
+    if (!event) {
+      return;
+    }
+
+    if (addRegistrationMode === "member" && !selectedMemberId) {
+      setAdminRegistrationError("Bitte ein Mitglied auswählen.");
+      return;
+    }
+
+    if (addRegistrationMode === "guest" && !guestName.trim()) {
+      setAdminRegistrationError("Bitte einen Gastnamen eingeben.");
+      return;
+    }
+
+    setRegistrationActionKey("create-registration");
+    setAdminRegistrationError("");
+    setAdminRegistrationSuccess("");
+
+    try {
+      const response = await fetch(`/api/admin/events/${event.id}/registrations`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(
+          addRegistrationMode === "member"
+            ? { type: "member", userId: selectedMemberId, vote: addRegistrationVote }
+            : { type: "guest", name: guestName.trim(), vote: addRegistrationVote }
+        ),
+      });
+      const json = await response.json();
+
+      if (!response.ok) {
+        throw new Error(json.error || "Fehler beim Speichern");
+      }
+
+      await Promise.all([fetchEvent(event.id), fetchAdminRegistrations(event.id)]);
+      setAdminRegistrationSuccess(
+        addRegistrationMode === "member" ? "Mitgliedsanmeldung gespeichert" : "Gastanmeldung gespeichert"
+      );
+      closeAddRegistrationModal();
+    } catch (err: unknown) {
+      setAdminRegistrationError(err instanceof Error ? err.message : "Ein Fehler ist aufgetreten");
+    } finally {
+      setRegistrationActionKey(null);
+    }
+  }
+
+  async function deleteRegistration(registration: EditableRegistration, voteId: string) {
+    if (!event) {
+      return;
+    }
+
+    const confirmationMessage =
+      registration.type === "member"
+        ? `Teilnahmeanmeldung von "${registration.name}" wirklich entfernen?`
+        : `Gastanmeldung "${registration.name}" wirklich entfernen?`;
+
+    if (!confirm(confirmationMessage)) {
+      return;
+    }
+
+    setRegistrationActionKey(`delete-${voteId}`);
+    setAdminRegistrationError("");
+    setAdminRegistrationSuccess("");
+
+    try {
+      const response = await fetch(`/api/admin/events/${event.id}/registrations`, {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(
+          registration.type === "member"
+            ? { type: "member", userId: registration.userId }
+            : { type: "guest", name: registration.name }
+        ),
+      });
+      const json = await response.json();
+
+      if (!response.ok) {
+        throw new Error(json.error || "Fehler beim Löschen");
+      }
+
+      await Promise.all([fetchEvent(event.id), fetchAdminRegistrations(event.id)]);
+      setAdminRegistrationSuccess(
+        registration.type === "member" ? "Mitgliedsanmeldung entfernt" : "Gastanmeldung entfernt"
+      );
+    } catch (err: unknown) {
+      setAdminRegistrationError(err instanceof Error ? err.message : "Ein Fehler ist aufgetreten");
+    } finally {
+      setRegistrationActionKey(null);
     }
   }
 
@@ -133,7 +309,55 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
         return;
       }
 
+      setEvent((prev) => {
+        if (!prev) {
+          return prev;
+        }
+
+        const existingVote = prev.votes
+          ? prev.votes.find((vote) => vote.user.id === session.user.id)
+          : prev.currentUserVote ?? null;
+
+        if (!existingVote) {
+          return {
+            ...prev,
+            currentUserVote: null,
+          };
+        }
+
+        const nextVoteCounts = prev.voteCounts
+          ? {
+              ...prev.voteCounts,
+              [existingVote.vote]: Math.max(0, prev.voteCounts[existingVote.vote] - 1),
+            }
+          : prev.voteCounts;
+
+        return {
+          ...prev,
+          votes: prev.votes ? prev.votes.filter((vote) => vote.user.id !== session.user.id) : prev.votes,
+          voteCounts: nextVoteCounts,
+          currentUserVote: null,
+        };
+      });
+
+      if (isAdminUser) {
+        setAdminRegistrations((prev) => {
+          if (!prev) {
+            return prev;
+          }
+          return {
+            ...prev,
+            members: prev.members.map((member) =>
+              member.userId === session.user.id ? { ...member, vote: null } : member
+            ),
+          };
+        });
+      }
+
       await fetchEvent(event.id);
+      if (isAdminUser) {
+        await fetchAdminRegistrations(event.id);
+      }
     } catch (err: unknown) {
       setVoteError(err instanceof Error ? err.message : "Ein Fehler ist aufgetreten");
     } finally {
@@ -145,6 +369,42 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
   const currentUserVote = session?.user?.id && event?.votes
     ? event.votes.find((v) => v.user.id === session.user.id)
     : event?.currentUserVote ?? undefined;
+
+  const editableVotesForAdmin: Vote[] = adminRegistrations
+    ? [
+        ...adminRegistrations.members
+          .filter((member) => member.vote !== null)
+          .map((member) => ({
+            id: `member-${member.userId}`,
+            vote: member.vote as VoteType,
+            user: {
+              id: member.userId,
+              name: member.name,
+            },
+            registration: {
+              type: "member" as const,
+              userId: member.userId,
+              name: member.name,
+            },
+          })),
+        ...adminRegistrations.guests.map((guest) => ({
+          id: `guest-${guest.id}`,
+          vote: guest.vote,
+          user: {
+            id: `guest-${guest.id}`,
+            name: `${guest.name} (Gast)`,
+          },
+          registration: {
+            type: "guest" as const,
+            name: guest.name,
+          },
+        })),
+      ]
+    : [];
+
+  const unregisteredMembers = adminRegistrations
+    ? adminRegistrations.members.filter((member) => member.vote === null)
+    : [];
 
   // Check if event is in the past
   const isPast = event ? isEventInPast(event.date) : false;
@@ -320,7 +580,22 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
                   </div>
 
                   {event.voteCounts && (
-                    <VotingResults votes={event.votes} voteCounts={event.voteCounts} isAdmin={isAdminUser} />
+                    <VotingResults
+                      votes={isAdminUser ? editableVotesForAdmin : event.votes}
+                      voteCounts={event.voteCounts}
+                      isAdmin={isAdminUser}
+                      onAddVote={
+                        isAdminUser && adminRegistrations && !isAdminRegistrationsLoading
+                          ? openAddRegistrationModal
+                          : undefined
+                      }
+                      onRemoveVote={
+                        isAdminUser
+                          ? (voteId, registration) => void deleteRegistration(registration, voteId)
+                          : undefined
+                      }
+                      registrationActionKey={registrationActionKey}
+                    />
                   )}
                 </div>
               </section>
@@ -328,6 +603,103 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
           </div>
         )}
       </div>
+
+      {isAdminUser && adminRegistrationError && (
+        <div className="fixed bottom-4 right-4 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded shadow-lg z-40">
+          {adminRegistrationError}
+        </div>
+      )}
+      {isAdminUser && adminRegistrationSuccess && (
+        <div className="fixed bottom-4 left-4 bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded shadow-lg z-40">
+          {adminRegistrationSuccess}
+        </div>
+      )}
+
+      <Modal
+        isOpen={isAddRegistrationModalOpen}
+        onClose={closeAddRegistrationModal}
+        title={`Anmeldung hinzufügen (${VOTE_OPTIONS.find((option) => option.value === addRegistrationVote)?.label ?? "Ja"})`}
+        size="lg"
+      >
+        <div className="space-y-5">
+          <div className="flex flex-wrap gap-5">
+            <label className="inline-flex items-center gap-2.5 text-base text-gray-800">
+              <input
+                type="radio"
+                name="registration-mode"
+                value="member"
+                checked={addRegistrationMode === "member"}
+                onChange={() => setAddRegistrationMode("member")}
+                className="h-4 w-4 accent-brand-red-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-red-600/30"
+              />
+              Mitglied
+            </label>
+            <label className="inline-flex items-center gap-2.5 text-base text-gray-800">
+              <input
+                type="radio"
+                name="registration-mode"
+                value="guest"
+                checked={addRegistrationMode === "guest"}
+                onChange={() => setAddRegistrationMode("guest")}
+                className="h-4 w-4 accent-brand-red-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-red-600/30"
+              />
+              Gast
+            </label>
+          </div>
+
+          {addRegistrationMode === "member" ? (
+            <div>
+              <label htmlFor="member-select" className="form-label">
+                Nicht angemeldetes Mitglied
+              </label>
+              <select
+                id="member-select"
+                value={selectedMemberId}
+                onChange={(e) => setSelectedMemberId(e.target.value)}
+                className="form-select"
+              >
+                <option value="">Bitte auswählen</option>
+                {unregisteredMembers.map((member) => (
+                  <option key={member.userId} value={member.userId}>
+                    {member.name}
+                  </option>
+                ))}
+              </select>
+              {unregisteredMembers.length === 0 && (
+                <p className="text-sm text-gray-500 mt-2">Es sind keine weiteren Mitglieder ohne Anmeldung verfügbar.</p>
+              )}
+            </div>
+          ) : (
+            <div>
+              <label htmlFor="guest-name" className="form-label">
+                Gastname
+              </label>
+              <input
+                id="guest-name"
+                type="text"
+                value={guestName}
+                onChange={(e) => setGuestName(e.target.value)}
+                className="form-input"
+                placeholder="Name des Gasts"
+              />
+            </div>
+          )}
+
+          <div className="flex justify-end gap-2 pt-1">
+            <button type="button" onClick={closeAddRegistrationModal} className="btn-outline">
+              Abbrechen
+            </button>
+            <LoadingButton
+              onClick={addRegistration}
+              loading={registrationActionKey === "create-registration"}
+              loadingText="Speichern"
+              className="btn-primary"
+            >
+              Hinzufügen
+            </LoadingButton>
+          </div>
+        </div>
+      </Modal>
 
       <EventFormModal
         isOpen={eventManagement.isModalOpen}

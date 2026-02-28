@@ -20,8 +20,6 @@ const inviteSchema = {
   email: { type: 'string' as const },
 } as const;
 
-const INVITED_AT_EPOCH = new Date("1970-01-01T00:00:00.000Z");
-
 async function rollbackCreatedInvitation(invitationId: string): Promise<void> {
   try {
     await prisma.invitation.delete({
@@ -127,7 +125,7 @@ export async function POST(request: NextRequest) {
         NOT: { id: invitation.id },
       },
       data: {
-        usedAt: INVITED_AT_EPOCH,
+        usedAt: new Date(),
       },
     });
 

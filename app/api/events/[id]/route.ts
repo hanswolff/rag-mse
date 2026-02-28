@@ -10,7 +10,7 @@ import { logResourceNotFound } from "@/lib/logger";
 
 type EventWithVotes = {
   id: string;
-  date: Date;
+  date: string;
   timeFrom: string;
   timeTo: string;
   location: string;
@@ -29,6 +29,11 @@ type EventWithVotes = {
       id: string;
       name: string;
     };
+  }[];
+  guestRegistrations: {
+    id: string;
+    name: string;
+    vote: VoteType;
   }[];
 };
 
@@ -75,6 +80,13 @@ export const GET = withApiErrorHandling(async (
               name: true,
             },
           },
+        },
+      },
+      guestRegistrations: {
+        select: {
+          id: true,
+          name: true,
+          vote: true,
         },
       },
     } : {
@@ -136,18 +148,36 @@ export const GET = withApiErrorHandling(async (
 
   if ("votes" in formattedEvent) {
     const eventWithVotes = formattedEvent as unknown as EventWithVotes;
+    const guestRegistrations = eventWithVotes.guestRegistrations ?? [];
     const voteCounts: VoteCounts = eventWithVotes.votes.reduce(
       (acc, { vote }) => ({ ...acc, [vote]: acc[vote] + 1 }),
       { JA: 0, NEIN: 0, VIELLEICHT: 0 }
     );
+    for (const guest of guestRegistrations) {
+      voteCounts[guest.vote] += 1;
+    }
 
     if (canSeeAll) {
-      return NextResponse.json({ ...formattedEvent, voteCounts }, { headers: getAuthNoCacheHeaders() });
+      const guestVotes = guestRegistrations.map((guest) => ({
+        id: `guest-${guest.id}`,
+        vote: guest.vote,
+        user: {
+          id: `guest-${guest.id}`,
+          name: `${guest.name} (Gast)`,
+        },
+      }));
+      const { guestRegistrations: hiddenGuestRegistrations, ...eventWithoutGuests } = eventWithVotes;
+      void hiddenGuestRegistrations;
+      return NextResponse.json(
+        { ...eventWithoutGuests, votes: [...eventWithVotes.votes, ...guestVotes], voteCounts },
+        { headers: getAuthNoCacheHeaders() }
+      );
     }
 
     const currentUserVote = eventWithVotes.votes.find((vote) => vote.user.id === userId);
-    const { votes, ...eventWithoutVotes } = formattedEvent;
+    const { votes, guestRegistrations: hiddenGuestRegistrations, ...eventWithoutVotes } = eventWithVotes;
     void votes;
+    void hiddenGuestRegistrations;
     return NextResponse.json(
       {
         ...eventWithoutVotes,

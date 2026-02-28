@@ -1,6 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { BadRequestError, getClientIp, handleRateLimitBlocked, logApiError, parseJsonBody, validateRequestBody, validateCsrfHeaders } from "@/lib/api-utils";
+import {
+  BadRequestError,
+  getClientIp,
+  getNoCacheHeaders,
+  handleRateLimitBlocked,
+  logApiError,
+  parseJsonBody,
+  validateRequestBody,
+  validateCsrfHeaders,
+} from "@/lib/api-utils";
 import { hash } from "bcryptjs";
 import { validatePassword } from "@/lib/password-validation";
 import { hashInvitationToken } from "@/lib/invitations";
@@ -250,13 +259,13 @@ export async function GET(
   try {
     const { token } = await context.params;
     if (!token) {
-      return NextResponse.json({ error: ERROR_MESSAGES.invalidToken }, { status: 400 });
+      return NextResponse.json({ error: ERROR_MESSAGES.invalidToken }, { status: 400, headers: getNoCacheHeaders() });
     }
 
     const { invitation, status } = await findValidInvitation(token);
     if (!invitation) {
       const message = status === 410 ? ERROR_MESSAGES.tokenExpired : ERROR_MESSAGES.invalidToken;
-      return NextResponse.json({ error: message }, { status });
+      return NextResponse.json({ error: message }, { status, headers: getNoCacheHeaders() });
     }
 
     const existingUser = await prisma.user.findUnique({
@@ -275,28 +284,31 @@ export async function GET(
       },
     });
 
-    return NextResponse.json({
-      email: invitation.email,
-      role: invitation.role,
-      expiresAt: invitation.expiresAt,
-      name: existingUser?.name ?? "",
-      address: existingUser?.address ?? "",
-      phone: existingUser?.phone ?? "",
-      memberSince: formatDateInputValue(existingUser?.memberSince) ?? "",
-      dateOfBirth: formatDateInputValue(existingUser?.dateOfBirth) ?? "",
-      rank: existingUser?.rank ?? "",
-      pk: existingUser?.pk ?? "",
-      reservistsAssociation: existingUser?.reservistsAssociation ?? "",
-      associationMemberNumber: existingUser?.associationMemberNumber ?? "",
-      hasPossessionCard: existingUser?.hasPossessionCard ?? false,
-    });
+    return NextResponse.json(
+      {
+        email: invitation.email,
+        role: invitation.role,
+        expiresAt: invitation.expiresAt,
+        name: existingUser?.name ?? "",
+        address: existingUser?.address ?? "",
+        phone: existingUser?.phone ?? "",
+        memberSince: formatDateInputValue(existingUser?.memberSince) ?? "",
+        dateOfBirth: formatDateInputValue(existingUser?.dateOfBirth) ?? "",
+        rank: existingUser?.rank ?? "",
+        pk: existingUser?.pk ?? "",
+        reservistsAssociation: existingUser?.reservistsAssociation ?? "",
+        associationMemberNumber: existingUser?.associationMemberNumber ?? "",
+        hasPossessionCard: existingUser?.hasPossessionCard ?? false,
+      },
+      { headers: getNoCacheHeaders() }
+    );
   } catch (error) {
     logApiError(error, {
       route: "/api/invitations/[token]",
       method: "GET",
       status: 500,
     });
-    return NextResponse.json({ error: ERROR_MESSAGES.serverError }, { status: 500 });
+    return NextResponse.json({ error: ERROR_MESSAGES.serverError }, { status: 500, headers: getNoCacheHeaders() });
   }
 }
 

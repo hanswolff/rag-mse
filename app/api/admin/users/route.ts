@@ -30,8 +30,6 @@ import {
 import { generateRandomPassword } from "@/lib/crypto-utils";
 
 const BCRYPT_SALT_ROUNDS = 10;
-const INVITED_AT_EPOCH = new Date("1970-01-01T00:00:00.000Z");
-
 function serializeUserDateFields<T extends { memberSince: Date | null; dateOfBirth: Date | null }>(user: T) {
   return {
     ...user,
@@ -321,7 +319,7 @@ export const POST = withApiErrorHandling(async (request: NextRequest) => {
         NOT: { tokenHash },
       },
       data: {
-        usedAt: INVITED_AT_EPOCH,
+        usedAt: new Date(),
       },
     });
 

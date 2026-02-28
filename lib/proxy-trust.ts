@@ -1,4 +1,5 @@
 import { NextRequest } from "next/server";
+import { isIP } from "node:net";
 
 const IPV4_OCTET_COUNT = 4;
 const BITS_PER_OCTET = 8;
@@ -15,7 +16,7 @@ interface IpRange {
 let cachedTrustedRanges: IpRange[] | null = null;
 let cachedTrustedIps: Set<string> | null = null;
 
-const DEFAULT_TRUSTED_PROXY_IPS = "127.0.0.1/32";
+const DEFAULT_TRUSTED_PROXY_IPS = "127.0.0.1/32,::1";
 
 function toUnsigned32Bit(value: number): number {
   return value >>> 0;
@@ -100,6 +101,25 @@ function isTrustedProxy(ip: string): boolean {
   return false;
 }
 
+function extractFirstValidForwardedIp(xForwardedFor: string | null): string | null {
+  if (!xForwardedFor) {
+    return null;
+  }
+
+  const forwardedIps = xForwardedFor
+    .split(",")
+    .map((ip) => ip.trim())
+    .filter((ip) => ip.length > 0);
+
+  for (const forwardedIp of forwardedIps) {
+    if (isIP(forwardedIp)) {
+      return forwardedIp;
+    }
+  }
+
+  return null;
+}
+
 export function getClientIdentifier(request: NextRequest): string {
   const sourceIp = (request as NextRequest & { ip?: string | null }).ip || null;
   return getClientIdentifierFromHeaders(request.headers, sourceIp);
@@ -112,14 +132,25 @@ export function getClientIdentifierFromHeaders(headers: Headers, sourceIp: strin
   const isProxyTrusted = sourceIp ? isTrustedProxy(sourceIp) : false;
 
   if (isProxyTrusted && xForwardedFor) {
-    const forwardedIps = xForwardedFor.split(",").map((ip) => ip.trim()).filter((ip) => ip.length > 0);
-    if (forwardedIps.length > 0) {
-      return forwardedIps[0];
+    const forwardedIp = extractFirstValidForwardedIp(xForwardedFor);
+    if (forwardedIp) {
+      return forwardedIp;
     }
   }
 
-  if (isProxyTrusted && xRealIp) {
+  if (isProxyTrusted && xRealIp && isIP(xRealIp)) {
     return xRealIp;
+  }
+
+  if (!sourceIp) {
+    if (xRealIp && isIP(xRealIp)) {
+      return xRealIp;
+    }
+
+    const forwardedIp = extractFirstValidForwardedIp(xForwardedFor);
+    if (forwardedIp) {
+      return forwardedIp;
+    }
   }
 
   if (sourceIp) {

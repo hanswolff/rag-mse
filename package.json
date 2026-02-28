@@ -1,6 +1,6 @@
 {
   "name": "rag-mse",
-  "version": "1.2.1",
+  "version": "1.2.2",
   "private": true,
   "packageManager": "pnpm@10.0.0",
   "engines": {
@@ -23,13 +23,14 @@
     "db:push": "prisma db push",
     "db:studio": "prisma studio"
   },
-  "overrides": {
-    "test-exclude": "7.0.1",
-    "jsdom": "28.0.0",
-    "hono": "4.11.8",
-    "lodash": "4.17.23"
-  },
   "pnpm": {
+    "overrides": {
+      "test-exclude": "7.0.1",
+      "jsdom": "28.0.0",
+      "hono": "4.11.10",
+      "lodash": "4.17.23",
+      "markdown-it": "14.1.1"
+    },
     "onlyBuiltDependencies": [
       "@prisma/engines",
       "better-sqlite3",

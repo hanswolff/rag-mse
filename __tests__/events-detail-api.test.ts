@@ -98,6 +98,7 @@ describe("/api/events/[id]/route", () => {
           { id: "vote-1", vote: "JA", user: { id: "user-1", name: "User 1" } },
           { id: "vote-2", vote: "NEIN", user: { id: "user-2", name: "User 2" } },
         ],
+        guestRegistrations: [],
       };
       (prisma.event.findUnique as jest.Mock).mockResolvedValue(mockEventWithVotes);
       getServerSession.mockResolvedValue({
@@ -110,6 +111,60 @@ describe("/api/events/[id]/route", () => {
       expect(response.status).toBe(200);
       expect(response.headers.get("Cache-Control")).toBe("no-store, no-cache, must-revalidate");
       expect(response.headers.get("Vary")).toBe("Authorization, Cookie");
+    });
+
+    it("includes guest registrations in vote counts for members", async () => {
+      const mockEventWithVotes = {
+        ...mockEvent,
+        votes: [
+          { id: "vote-1", vote: "JA", user: { id: "user-1", name: "User 1" } },
+        ],
+        guestRegistrations: [
+          { id: "guest-1", name: "Gast 1", vote: "VIELLEICHT" },
+        ],
+      };
+      (prisma.event.findUnique as jest.Mock).mockResolvedValue(mockEventWithVotes);
+      getServerSession.mockResolvedValue({
+        user: { id: "user-1", email: "user@example.com", role: "MEMBER" },
+      });
+
+      const request = new NextRequest("http://localhost:3000/api/events/1");
+      const response = await GET(request, { params: { id: "1" } });
+      const json = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(json.voteCounts).toEqual({ JA: 1, NEIN: 0, VIELLEICHT: 1 });
+    });
+
+    it("returns guest names with '(Gast)' suffix for admins", async () => {
+      const mockEventWithVotes = {
+        ...mockEvent,
+        votes: [
+          { id: "vote-1", vote: "JA", user: { id: "user-1", name: "User 1" } },
+        ],
+        guestRegistrations: [
+          { id: "guest-1", name: "Gast 1", vote: "NEIN" },
+        ],
+      };
+      (prisma.event.findUnique as jest.Mock).mockResolvedValue(mockEventWithVotes);
+      getServerSession.mockResolvedValue({
+        user: { id: "admin-1", email: "admin@example.com", role: "ADMIN" },
+      });
+
+      const request = new NextRequest("http://localhost:3000/api/events/1");
+      const response = await GET(request, { params: { id: "1" } });
+      const json = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(json.voteCounts).toEqual({ JA: 1, NEIN: 1, VIELLEICHT: 0 });
+      expect(json.votes).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            vote: "NEIN",
+            user: expect.objectContaining({ name: "Gast 1 (Gast)" }),
+          }),
+        ])
+      );
     });
 
     it("sets cache-control and vary headers on successful response for member without votes", async () => {

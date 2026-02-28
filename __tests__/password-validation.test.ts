@@ -93,16 +93,15 @@ describe("password-validation", () => {
       const requirements = getPasswordRequirements();
       expect(requirements).toEqual([
         "Mindestens 8 Zeichen",
-        "Maximal 72 Zeichen",
         "Mindestens ein Großbuchstabe",
         "Mindestens ein Kleinbuchstabe",
         "Mindestens eine Ziffer",
       ]);
     });
 
-    it("should return 5 requirements", () => {
+    it("should return 4 requirements", () => {
       const requirements = getPasswordRequirements();
-      expect(requirements).toHaveLength(5);
+      expect(requirements).toHaveLength(4);
     });
   });
 });

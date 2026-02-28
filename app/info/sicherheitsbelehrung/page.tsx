@@ -35,7 +35,9 @@ export default function SicherheitsbelehrungPage() {
               <li>Unzulässige Waffen oder Munition</li>
               <li>Lagerort des Erste-Hilfe-Kastens / Ersthelfer / Notruf</li>
               <li>Ladezustand der Waffe bei Übergabe oder Übernahme</li>
-              <li>Gehörschutz</li>
+              <li>
+                Benutzungspflicht von Gehörschutz beim Schießen sowie Trage- und Verwendungspflicht von taktischen Brillen bzw. Schutzbrillen mit Seitenschutz beim Kurzwaffenschießen
+              </li>
               <li>Kommandos der Aufsichten</li>
               <li>Regelungen zur Trefferaufnahme</li>
               <li>Waffenablage (offener Verschluss, Mündung in Richtung Ziel)</li>

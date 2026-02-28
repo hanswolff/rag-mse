@@ -58,7 +58,6 @@ export interface PasswordRequirement {
 export function getPasswordRequirementsWithStatus(password: string): PasswordRequirement[] {
   return [
     { label: `Mindestens ${MIN_PASSWORD_LENGTH} Zeichen`, met: hasMinimumLength(password) },
-    { label: `Maximal ${MAX_PASSWORD_LENGTH} Zeichen`, met: password.length <= MAX_PASSWORD_LENGTH },
     { label: "Mindestens ein Großbuchstabe", met: hasUppercase(password) },
     { label: "Mindestens ein Kleinbuchstabe", met: hasLowercase(password) },
     { label: "Mindestens eine Ziffer", met: hasDigit(password) },

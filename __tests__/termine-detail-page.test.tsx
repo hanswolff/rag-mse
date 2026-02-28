@@ -1,4 +1,5 @@
 import { render, screen, waitFor, act } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import EventDetailPage from "@/app/termine/[id]/page";
 
 const mockFetch = jest.fn();
@@ -515,6 +516,74 @@ describe("EventDetailPage", () => {
     });
 
     expect(screen.getByText("Anmeldung zurückziehen")).toBeInTheDocument();
+  });
+
+  it("updates registration chart section after deleting own vote", async () => {
+    const user = userEvent.setup();
+    const futureDate = new Date();
+    futureDate.setDate(futureDate.getDate() + 1);
+
+    mockFetch
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          id: "1",
+          date: futureDate.toISOString(),
+          timeFrom: "18:00",
+          timeTo: "20:00",
+          location: "Test Location",
+          description: "Test Description",
+          latitude: null,
+          longitude: null,
+          createdAt: "2026-01-31T10:00:00.000Z",
+          updatedAt: "2026-01-31T10:00:00.000Z",
+          votes: [
+            {
+              id: "v1",
+              vote: "JA",
+              user: { id: "user-1", name: "Test User" },
+            },
+          ],
+          voteCounts: { JA: 1, NEIN: 0, VIELLEICHT: 0 },
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ success: true }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          id: "1",
+          date: futureDate.toISOString(),
+          timeFrom: "18:00",
+          timeTo: "20:00",
+          location: "Test Location",
+          description: "Test Description",
+          latitude: null,
+          longitude: null,
+          createdAt: "2026-01-31T10:00:00.000Z",
+          updatedAt: "2026-01-31T10:00:00.000Z",
+          votes: [],
+          voteCounts: { JA: 0, NEIN: 0, VIELLEICHT: 0 },
+        }),
+      });
+
+    await act(async () => {
+      render(<EventDetailPage params={Promise.resolve({ id: "1" })} />);
+    });
+
+    await waitFor(() => {
+      expect(screen.queryByText("Laden...")).not.toBeInTheDocument();
+    });
+
+    expect(screen.getByText("Anmeldestand (1 Anmeldung)")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Anmeldung zurückziehen" }));
+
+    await waitFor(() => {
+      expect(screen.getByText("Anmeldestand (0 Anmeldungen)")).toBeInTheDocument();
+    });
   });
 
   it("displays 'Keine Anmeldung vorhanden' for past events without user vote", async () => {

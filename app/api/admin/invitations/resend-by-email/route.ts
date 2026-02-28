@@ -19,8 +19,6 @@ interface ResendByEmailRequest {
 const resendByEmailSchema = {
   email: { type: 'string' as const },
 } as const;
-const INVITED_AT_EPOCH = new Date("1970-01-01T00:00:00.000Z");
-
 async function rollbackInvitationToken(invitationId: string, previousTokenHash: string, previousExpiresAt: Date): Promise<void> {
   try {
     await prisma.invitation.update({
@@ -92,7 +90,7 @@ export const POST = withApiErrorHandling(async (request: NextRequest) => {
         NOT: { id: invitation.id },
       },
       data: {
-        usedAt: INVITED_AT_EPOCH,
+        usedAt: new Date(),
       },
     });
 

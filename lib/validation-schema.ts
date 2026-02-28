@@ -344,7 +344,6 @@ export const validatePassword = (password: string): boolean => {
 
 export const getPasswordRequirements = (): string[] => [
   `Mindestens ${MIN_PASSWORD_LENGTH} Zeichen`,
-  `Maximal ${MAX_PASSWORD_LENGTH} Zeichen`,
   "Mindestens ein Großbuchstabe",
   "Mindestens ein Kleinbuchstabe",
   "Mindestens eine Ziffer",

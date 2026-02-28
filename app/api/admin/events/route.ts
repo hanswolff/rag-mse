@@ -69,19 +69,30 @@ export const GET = withApiErrorHandling(async (request: NextRequest) => {
         votes: {
           select: { vote: true },
         },
+        guestRegistrations: {
+          select: { vote: true },
+        },
       },
     }),
     prisma.event.count(),
   ]);
 
-  const formattedEvents = events.map(({ votes, ...event }: (typeof events)[number] & { votes: { vote: VoteType }[] }) => ({
-    ...event,
-    date: formatDateForStorage(event.date),
-    voteCounts: votes.reduce(
+  const formattedEvents = events.map(({ votes, guestRegistrations, ...event }: (typeof events)[number] & { votes: { vote: VoteType }[]; guestRegistrations?: { vote: VoteType }[] }) => {
+    const voteCounts = votes.reduce(
       (acc, { vote }) => ({ ...acc, [vote]: acc[vote] + 1 }),
       { JA: 0, NEIN: 0, VIELLEICHT: 0 }
-    ),
-  }));
+    );
+
+    for (const guest of guestRegistrations ?? []) {
+      voteCounts[guest.vote] += 1;
+    }
+
+    return {
+      ...event,
+      date: formatDateForStorage(event.date),
+      voteCounts,
+    };
+  });
 
   return NextResponse.json({
     events: formattedEvents,

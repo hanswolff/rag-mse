@@ -3,6 +3,17 @@ import { VOTE_OPTIONS } from "@/lib/vote-utils";
 import { VotingPieChart } from "@/components/voting-pie-chart";
 import { formatRegistrationCount } from "@/lib/registration-count";
 
+export type EditableRegistration =
+  | {
+      type: "member";
+      userId: string;
+      name: string;
+    }
+  | {
+      type: "guest";
+      name: string;
+    };
+
 export interface Vote {
   id: string;
   vote: VoteType;
@@ -10,6 +21,7 @@ export interface Vote {
     id: string;
     name: string;
   };
+  registration?: EditableRegistration;
 }
 
 export interface VoteCounts {
@@ -22,9 +34,19 @@ interface VotingResultsProps {
   votes?: Vote[];
   voteCounts: VoteCounts;
   isAdmin?: boolean;
+  onAddVote?: (vote: VoteType) => void;
+  onRemoveVote?: (voteId: string, registration: EditableRegistration) => void;
+  registrationActionKey?: string | null;
 }
 
-export function VotingResults({ votes, voteCounts, isAdmin = false }: VotingResultsProps) {
+export function VotingResults({
+  votes,
+  voteCounts,
+  isAdmin = false,
+  onAddVote,
+  onRemoveVote,
+  registrationActionKey = null,
+}: VotingResultsProps) {
   const registrationCountLabel = formatRegistrationCount(voteCounts);
 
   const votesByOption = VOTE_OPTIONS.map((option) => ({
@@ -44,7 +66,7 @@ export function VotingResults({ votes, voteCounts, isAdmin = false }: VotingResu
             <VotingPieChart voteCounts={voteCounts} />
           </div>
 
-          {isAdmin && votes && votes.length > 0 && (
+          {isAdmin && (
             <div className="bg-white rounded-2xl shadow-md p-4 sm:p-6">
               <h3 className="text-base sm:text-lg font-semibold text-gray-900 mb-3 sm:mb-4">
                 Angemeldet sind:
@@ -52,18 +74,60 @@ export function VotingResults({ votes, voteCounts, isAdmin = false }: VotingResu
               <div className="space-y-4">
                 {votesByOption.map((option) => (
                   <div key={option.value}>
-                    <div className={`text-sm font-semibold mb-2 px-2 py-1 rounded inline-block ${option.color}`}>
-                      {option.label} ({option.votes.length})
+                    <div className="mb-2 flex items-center gap-2">
+                      <div className={`text-sm font-semibold px-2 py-1 rounded inline-block ${option.color}`}>
+                        {option.label} ({option.votes.length})
+                      </div>
+                      {onAddVote && (
+                        <button
+                          type="button"
+                          onClick={() => onAddVote(option.value)}
+                          className="btn-icon"
+                          aria-label={`${option.label}: Anmeldung hinzufügen`}
+                        >
+                          <svg className="h-4 w-4" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                            <path
+                              d="M10 4.5v11m-5.5-5.5h11"
+                              stroke="currentColor"
+                              strokeWidth="1.8"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            />
+                          </svg>
+                        </button>
+                      )}
                     </div>
                     <ul className="space-y-1.5 ml-2">
-                      {option.votes.map((vote) => (
+                      {option.votes.map((vote) => {
+                        const registration = vote.registration;
+                        return (
                         <li
                           key={vote.id}
-                          className="text-gray-700 text-sm sm:text-base"
+                          className="text-gray-700 text-sm sm:text-base flex items-center gap-2"
                         >
-                          {vote.user.name}
+                          <span>{vote.user.name}</span>
+                          {registration && onRemoveVote && (
+                            <button
+                              type="button"
+                              onClick={() => onRemoveVote(vote.id, registration)}
+                              disabled={registrationActionKey === `delete-${vote.id}`}
+                              className="btn-icon-danger"
+                              aria-label={`${vote.user.name}: Anmeldung entfernen`}
+                            >
+                              <svg className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                                <path
+                                  d="M5.5 5.5l9 9m0-9l-9 9"
+                                  stroke="currentColor"
+                                  strokeWidth="1.8"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                />
+                              </svg>
+                            </button>
+                          )}
                         </li>
-                      ))}
+                        );
+                      })}
                       {option.votes.length === 0 && (
                         <li className="text-gray-400 text-sm italic">
                           Keine Anmeldungen

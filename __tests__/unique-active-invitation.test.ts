@@ -65,8 +65,6 @@ const mockedPrisma = prisma as {
 const mockedRequireAdmin = requireAdmin as jest.Mock;
 const mockedSendInvitationEmail = sendInvitationEmail as jest.Mock;
 
-const INVITED_AT_EPOCH = new Date("1970-01-01T00:00:00.000Z");
-
 describe("POST /api/admin/invitations - Unique active invitation per email", () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -110,7 +108,7 @@ describe("POST /api/admin/invitations - Unique active invitation per email", () 
         NOT: { id: "new-inv-123" },
       },
       data: {
-        usedAt: INVITED_AT_EPOCH,
+        usedAt: expect.any(Date),
       },
     });
 
@@ -141,7 +139,7 @@ describe("POST /api/admin/invitations - Unique active invitation per email", () 
         NOT: { id: "new-inv-456" },
       },
       data: {
-        usedAt: INVITED_AT_EPOCH,
+        usedAt: expect.any(Date),
       },
     });
   });
@@ -256,7 +254,7 @@ describe("POST /api/admin/invitations - Unique active invitation per email", () 
         NOT: { id: "new-inv-222" },
       },
       data: {
-        usedAt: INVITED_AT_EPOCH,
+        usedAt: expect.any(Date),
       },
     });
   });

@@ -54,6 +54,15 @@ export const GET = withApiErrorHandling(async (request: NextRequest, ctx: RouteC
           },
         },
       },
+      guestRegistrations: {
+        select: {
+          id: true,
+          name: true,
+          vote: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+      },
     },
   });
 

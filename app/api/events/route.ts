@@ -52,6 +52,9 @@ function getEventSelect(isAuthenticated: boolean) {
     votes: {
       select: { vote: true },
     },
+    guestRegistrations: {
+      select: { vote: true },
+    },
   } as const;
 }
 
@@ -65,16 +68,25 @@ function formatEvents(events: Array<{ date: Date } & Record<string, unknown>>) {
 type EventWithVotes = {
   date: Date;
   votes: { vote: VoteType }[];
+  guestRegistrations: { vote: VoteType }[];
 } & Record<string, unknown>;
 
 function addVoteCountsToEvents(events: EventWithVotes[]) {
-  return events.map(({ votes, ...event }) => ({
-    ...event,
-    voteCounts: votes.reduce(
+  return events.map(({ votes, guestRegistrations, ...event }) => {
+    const voteCounts = votes.reduce(
       (acc, { vote }) => ({ ...acc, [vote]: acc[vote] + 1 }),
       { JA: 0, NEIN: 0, VIELLEICHT: 0 }
-    ),
-  }));
+    );
+
+    for (const guest of guestRegistrations ?? []) {
+      voteCounts[guest.vote] += 1;
+    }
+
+    return {
+      ...event,
+      voteCounts,
+    };
+  });
 }
 
 export const GET = withApiErrorHandling(async (request: NextRequest) => {

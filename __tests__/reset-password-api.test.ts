@@ -46,6 +46,7 @@ jest.mock("@/lib/api-utils", () => ({
   logApiError: jest.fn(),
   getClientIp: jest.fn(() => "127.0.0.1"),
   handleRateLimitBlocked: jest.fn(),
+  getNoCacheHeaders: jest.fn(() => ({ "Cache-Control": "no-store, no-cache, must-revalidate" })),
   validateRequestBody: jest.fn().mockReturnValue({ isValid: true, errors: [] }),
   validateCsrfHeaders: jest.fn(),
 }));

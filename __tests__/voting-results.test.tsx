@@ -1,4 +1,5 @@
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { VotingResults } from "@/components/voting-results";
 
 jest.mock("@/components/voting-pie-chart", () => ({
@@ -86,7 +87,7 @@ describe("VotingResults", () => {
       <VotingResults votes={[]} voteCounts={{ JA: 0, NEIN: 0, VIELLEICHT: 0 }} isAdmin={true} />
     );
 
-    expect(screen.queryByText("Angemeldet sind:")).not.toBeInTheDocument();
+    expect(screen.getByText("Angemeldet sind:")).toBeInTheDocument();
   });
 
   it("renders pie chart even when no votes", () => {
@@ -124,5 +125,37 @@ describe("VotingResults", () => {
     expect(screen.getByText("User 1")).toBeInTheDocument();
     expect(screen.getByText("User 2")).toBeInTheDocument();
     expect(screen.getByText("User 3")).toBeInTheDocument();
+  });
+
+  it("renders add buttons for each category for admins", () => {
+    const onAddVote = jest.fn();
+    render(
+      <VotingResults votes={mockVotes} voteCounts={mockVoteCounts} isAdmin={true} onAddVote={onAddVote} />
+    );
+
+    expect(screen.getByRole("button", { name: "Ja: Anmeldung hinzufügen" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Nein: Anmeldung hinzufügen" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Vielleicht: Anmeldung hinzufügen" })).toBeInTheDocument();
+  });
+
+  it("calls remove handler for removable entries", async () => {
+    const user = userEvent.setup();
+    const onRemoveVote = jest.fn();
+    const votesWithRegistration = [
+      {
+        id: "member-1",
+        vote: "JA" as const,
+        user: { id: "u1", name: "User 1" },
+        registration: { type: "member" as const, userId: "u1", name: "User 1" },
+      },
+    ];
+
+    render(
+      <VotingResults votes={votesWithRegistration} voteCounts={{ JA: 1, NEIN: 0, VIELLEICHT: 0 }} isAdmin={true} onRemoveVote={onRemoveVote} />
+    );
+
+    await user.click(screen.getByRole("button", { name: "User 1: Anmeldung entfernen" }));
+
+    expect(onRemoveVote).toHaveBeenCalledWith("member-1", { type: "member", userId: "u1", name: "User 1" });
   });
 });

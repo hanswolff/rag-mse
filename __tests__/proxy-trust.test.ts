@@ -13,7 +13,7 @@ describe("proxy-trust", () => {
   });
 
   describe("getClientIdentifier", () => {
-    it("returns fallback identifier when source IP is missing", () => {
+    it("uses x-real-ip when source IP is missing", () => {
       process.env.TRUSTED_PROXY_IPS = "192.168.1.100";
 
       const request = new NextRequest("http://example.com", {
@@ -23,7 +23,7 @@ describe("proxy-trust", () => {
         },
       });
 
-      expect(getClientIdentifier(request)).toContain("fallback:");
+      expect(getClientIdentifier(request)).toBe("192.168.1.100");
     });
 
     it("returns fallback identifier when no IP headers are present", () => {
