@@ -1,4 +1,4 @@
-import { hasAdminRole, hasMemberRole } from "../lib/role-utils";
+import { hasAdminAccessRole, hasAdminRole, hasMemberRole } from "../lib/role-utils";
 import { shouldRedirectToLogin } from "../lib/auth-utils";
 
 describe("middleware helpers", () => {
@@ -7,8 +7,16 @@ describe("middleware helpers", () => {
       expect(hasAdminRole("ADMIN")).toBe(true);
     });
 
+    it("should return true for SITE_ADMINISTRATOR role", () => {
+      expect(hasAdminRole("SITE_ADMINISTRATOR")).toBe(true);
+    });
+
     it("should return false for MEMBER role", () => {
       expect(hasAdminRole("MEMBER")).toBe(false);
+    });
+
+    it("should return false for AUDITOR role", () => {
+      expect(hasAdminRole("AUDITOR")).toBe(false);
     });
 
     it("should return false for undefined role", () => {
@@ -20,9 +28,35 @@ describe("middleware helpers", () => {
     });
   });
 
+  describe("hasAdminAccessRole", () => {
+    it("should return true for ADMIN role", () => {
+      expect(hasAdminAccessRole("ADMIN")).toBe(true);
+    });
+
+    it("should return true for SITE_ADMINISTRATOR role", () => {
+      expect(hasAdminAccessRole("SITE_ADMINISTRATOR")).toBe(true);
+    });
+
+    it("should return true for AUDITOR role", () => {
+      expect(hasAdminAccessRole("AUDITOR")).toBe(true);
+    });
+
+    it("should return false for MEMBER role", () => {
+      expect(hasAdminAccessRole("MEMBER")).toBe(false);
+    });
+  });
+
   describe("hasMemberRole", () => {
     it("should return true for ADMIN role", () => {
       expect(hasMemberRole("ADMIN")).toBe(true);
+    });
+
+    it("should return true for SITE_ADMINISTRATOR role", () => {
+      expect(hasMemberRole("SITE_ADMINISTRATOR")).toBe(true);
+    });
+
+    it("should return false for AUDITOR role", () => {
+      expect(hasMemberRole("AUDITOR")).toBe(false);
     });
 
     it("should return true for MEMBER role", () => {
@@ -46,6 +80,8 @@ describe("middleware helpers", () => {
 
     it("should not redirect to login when accessing admin with admin role", () => {
       expect(shouldRedirectToLogin("/admin", "ADMIN")).toBe(false);
+      expect(shouldRedirectToLogin("/admin", "SITE_ADMINISTRATOR")).toBe(false);
+      expect(shouldRedirectToLogin("/admin", "AUDITOR")).toBe(false);
     });
 
     it("should redirect to login when accessing profil without member role", () => {

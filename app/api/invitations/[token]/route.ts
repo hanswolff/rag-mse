@@ -15,6 +15,7 @@ import { validatePassword } from "@/lib/password-validation";
 import { hashInvitationToken } from "@/lib/invitations";
 import { logInfo, logValidationFailure, logResourceNotFound, maskToken } from "@/lib/logger";
 import { Role } from "@prisma/client";
+import type { Prisma } from "@prisma/client";
 import { checkTokenRateLimit, recordSuccessfulTokenUsage } from "@/lib/rate-limiter";
 import {
   normalizeOptionalField,
@@ -98,7 +99,7 @@ interface RedemptionResult {
 }
 
 async function redeemInvitationForExistingUser(
-  tx: any, // eslint-disable-line @typescript-eslint/no-explicit-any
+  tx: Prisma.TransactionClient,
   userId: string,
   invitationId: string,
   name: string,
@@ -139,7 +140,7 @@ async function redeemInvitationForExistingUser(
 }
 
 async function createUserWithInvitation(
-  tx: any, // eslint-disable-line @typescript-eslint/no-explicit-any
+  tx: Prisma.TransactionClient,
   invitation: Invitation,
   name: string,
   address: string,
@@ -183,7 +184,7 @@ async function createUserWithInvitation(
 }
 
 async function validateInvitationInTransaction(
-  tx: any, // eslint-disable-line @typescript-eslint/no-explicit-any
+  tx: Prisma.TransactionClient,
   invitationId: string,
   token: string
 ) {
@@ -355,11 +356,11 @@ export async function POST(
     const phone = normalizeOptionalField(body.phone);
     const password = typeof body.password === "string" ? body.password : "";
     const confirmPassword = typeof body.confirmPassword === "string" ? body.confirmPassword : "";
-    const dateOfBirth = typeof body.dateOfBirth === "string" ? body.dateOfBirth : undefined;
-    const rank = typeof body.rank === "string" ? body.rank : undefined;
-    const pk = typeof body.pk === "string" ? body.pk : undefined;
-    const reservistsAssociation = typeof body.reservistsAssociation === "string" ? body.reservistsAssociation : undefined;
-    const associationMemberNumber = typeof body.associationMemberNumber === "string" ? body.associationMemberNumber : undefined;
+    const dateOfBirth = normalizeOptionalField(typeof body.dateOfBirth === "string" ? body.dateOfBirth : undefined);
+    const rank = normalizeOptionalField(typeof body.rank === "string" ? body.rank : undefined);
+    const pk = normalizeOptionalField(typeof body.pk === "string" ? body.pk : undefined);
+    const reservistsAssociation = normalizeOptionalField(typeof body.reservistsAssociation === "string" ? body.reservistsAssociation : undefined);
+    const associationMemberNumber = normalizeOptionalField(typeof body.associationMemberNumber === "string" ? body.associationMemberNumber : undefined);
     const hasPossessionCard = typeof body.hasPossessionCard === "boolean" ? body.hasPossessionCard : false;
 
     const nameValidation = validateName(name);
@@ -385,7 +386,7 @@ export async function POST(
     }
 
     // Validate new profile fields
-    if (dateOfBirth !== undefined) {
+    if (dateOfBirth !== null) {
       const dateOfBirthValidation = validateDateOfBirth(dateOfBirth);
       if (!dateOfBirthValidation.isValid) {
         logValidationFailure('/api/invitations/[token]', 'POST', dateOfBirthValidation.error || 'Ungültiges Geburtsdatum', { token: maskToken(token) });
@@ -393,7 +394,7 @@ export async function POST(
       }
     }
 
-    if (rank !== undefined) {
+    if (rank !== null) {
       const rankValidation = validateRank(rank);
       if (!rankValidation.isValid) {
         logValidationFailure('/api/invitations/[token]', 'POST', rankValidation.error || 'Ungültiger Dienstgrad', { token: maskToken(token) });
@@ -401,7 +402,7 @@ export async function POST(
       }
     }
 
-    if (pk !== undefined) {
+    if (pk !== null) {
       const pkValidation = validatePk(pk);
       if (!pkValidation.isValid) {
         logValidationFailure('/api/invitations/[token]', 'POST', pkValidation.error || 'Ungültige PK', { token: maskToken(token) });
@@ -409,7 +410,7 @@ export async function POST(
       }
     }
 
-    if (reservistsAssociation !== undefined) {
+    if (reservistsAssociation !== null) {
       const reservistsAssociationValidation = validateReservistsAssociation(reservistsAssociation);
       if (!reservistsAssociationValidation.isValid) {
         logValidationFailure('/api/invitations/[token]', 'POST', reservistsAssociationValidation.error || 'Ungültige Reservistenkameradschaft', { token: maskToken(token) });
@@ -417,7 +418,7 @@ export async function POST(
       }
     }
 
-    if (associationMemberNumber !== undefined) {
+    if (associationMemberNumber !== null) {
       const associationMemberNumberValidation = validateAssociationMemberNumber(associationMemberNumber);
       if (!associationMemberNumberValidation.isValid) {
         logValidationFailure('/api/invitations/[token]', 'POST', associationMemberNumberValidation.error || 'Ungültige Mitgliedsnummer im Verband', { token: maskToken(token) });
@@ -445,7 +446,7 @@ export async function POST(
       return NextResponse.json({ error: message }, { status });
     }
 
-    const result = await prisma.$transaction(async (tx: Omit<typeof prisma, "\$connect" | "\$disconnect" | "\$on" | "\$transaction" | "\$extends">) => {
+    const result = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       await validateInvitationInTransaction(tx, invitation.id, token);
 
       const existingUser = await tx.user.findUnique({
@@ -462,11 +463,11 @@ export async function POST(
           address ?? "",
           phone ?? "",
           password,
-          dateOfBirth,
-          rank,
-          pk,
-          reservistsAssociation,
-          associationMemberNumber,
+          dateOfBirth ?? undefined,
+          rank ?? undefined,
+          pk ?? undefined,
+          reservistsAssociation ?? undefined,
+          associationMemberNumber ?? undefined,
           hasPossessionCard
         );
       }
@@ -478,11 +479,11 @@ export async function POST(
         address ?? "",
         phone ?? "",
         password,
-        dateOfBirth,
-        rank,
-        pk,
-        reservistsAssociation,
-        associationMemberNumber,
+        dateOfBirth ?? undefined,
+        rank ?? undefined,
+        pk ?? undefined,
+        reservistsAssociation ?? undefined,
+        associationMemberNumber ?? undefined,
         hasPossessionCard
       );
     });

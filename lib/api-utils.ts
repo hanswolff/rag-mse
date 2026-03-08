@@ -3,6 +3,7 @@ import { logError, logWarn, maskToken, logValidationFailure } from "@/lib/logger
 import { addCorrelationIdHeaders } from "@/lib/api-middleware";
 import { getClientIdentifier } from "./proxy-trust";
 import { getCorrelationId, withNewCorrelationId } from "./correlation-id";
+import { pluralize } from "./pluralization";
 
 const DEFAULT_MAX_REQUEST_BODY_SIZE = 1048576;
 export const MAX_REQUEST_BODY_SIZE = parseInt(process.env.MAX_REQUEST_BODY_SIZE || `${DEFAULT_MAX_REQUEST_BODY_SIZE}`, 10);
@@ -149,6 +150,7 @@ export type FieldValidator = (value: unknown) => boolean;
 export interface FieldDefinition {
   type: 'string' | 'number' | 'boolean' | 'array' | 'object';
   optional?: boolean;
+  nullable?: boolean;
   validator?: FieldValidator;
 }
 
@@ -160,6 +162,12 @@ export function validateRequestBody(
   context: { route: string; method: string }
 ): { isValid: boolean; errors: string[] } {
   const errors: string[] = [];
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    errors.push("Ungültiger Request-Body");
+    logValidationFailure(context.route, context.method, errors.join("; "));
+    return { isValid: false, errors };
+  }
+
   const allowedFields = new Set(Object.keys(schema));
 
   for (const [key, fieldDef] of Object.entries(schema)) {
@@ -182,7 +190,9 @@ export function validateRequestBody(
     }
 
     if (value === null) {
-      errors.push(`Feld '${key}' darf nicht null sein`);
+      if (!fieldDef.nullable) {
+        errors.push(`Feld '${key}' darf nicht null sein`);
+      }
       continue;
     }
 
@@ -234,11 +244,16 @@ export function validateCsrfHeaders(request: NextRequest): void {
     return;
   }
 
+  const isProduction = process.env.NODE_ENV === "production" && process.env.DEVELOPMENT_DEPLOYMENT !== "true";
+
   const appUrl = process.env.APP_URL;
   const origin = request.headers.get("origin");
   const referer = request.headers.get("referer");
 
   if (!appUrl) {
+    if (isProduction) {
+      throw new CsrfError("CSRF-Schutz ist nicht korrekt konfiguriert. Bitte Administrator kontaktieren.");
+    }
     return;
   }
 
@@ -246,6 +261,9 @@ export function validateCsrfHeaders(request: NextRequest): void {
   try {
     appUrlObj = new URL(appUrl);
   } catch {
+    if (isProduction) {
+      throw new CsrfError("CSRF-Schutz ist nicht korrekt konfiguriert. Bitte Administrator kontaktieren.");
+    }
     return;
   }
 
@@ -308,9 +326,10 @@ export function handleRateLimitBlocked(
 
   if (blockedUntil) {
     const blockedMinutes = Math.ceil((blockedUntil - Date.now()) / 60000);
+    const minuteLabel = pluralize(blockedMinutes, "Minute", "Minuten");
     return NextResponse.json(
       {
-        error: `Zu viele fehlgeschlagene Versuche. Bitte versuchen Sie es in ${blockedMinutes} Minute(n) erneut.`
+        error: `Zu viele fehlgeschlagene Versuche. Bitte versuchen Sie es in ${blockedMinutes} ${minuteLabel} erneut.`
       },
       { status: 429 }
     );

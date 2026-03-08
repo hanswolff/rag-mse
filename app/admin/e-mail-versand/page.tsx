@@ -8,6 +8,9 @@ import { buildLoginUrlWithReturnUrl, getCurrentPathWithSearch } from "@/lib/retu
 import { BackLink } from "@/components/back-link";
 import { Pagination } from "@/components/pagination";
 import { SearchHighlight } from "@/components/search-highlight";
+import { SortableTableHeader } from "@/components/sortable-table-header";
+import { useTableSorting } from "@/lib/use-table-sorting";
+import { Permissions } from "@/lib/permissions";
 
 type OutgoingEmailStatus = "QUEUED" | "PROCESSING" | "RETRYING" | "SENT" | "FAILED";
 
@@ -37,6 +40,20 @@ type OutgoingEmailsResponse = {
 };
 
 const PAGE_SIZE = 20;
+type OutgoingEmailSortField =
+  "createdAt"
+  | "template"
+  | "subject"
+  | "toRecipients"
+  | "status"
+  | "attemptCount"
+  | "lastError"
+  | "lastAttemptAt";
+const OUTGOING_EMAIL_DEFAULT_SORT_DIRECTIONS: Partial<Record<OutgoingEmailSortField, "asc" | "desc">> = {
+  createdAt: "desc",
+  lastAttemptAt: "desc",
+  attemptCount: "desc",
+};
 
 function formatDateTime(value: string): string {
   const date = new Date(value);
@@ -88,6 +105,7 @@ function getStatusClassName(status: OutgoingEmailStatus): string {
 export default function AdminOutgoingEmailsPage() {
   const router = useRouter();
   const { data: session, status } = useSession();
+  const canManage = session ? isAdmin(session.user) : false;
 
   const [items, setItems] = useState<EmailItem[]>([]);
   const [page, setPage] = useState(1);
@@ -99,6 +117,11 @@ export default function AdminOutgoingEmailsPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [retryingEmailId, setRetryingEmailId] = useState<string | null>(null);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
+  const { sortBy, sortDir, handleSortChange } = useTableSorting<OutgoingEmailSortField>(
+    "createdAt",
+    "desc",
+    OUTGOING_EMAIL_DEFAULT_SORT_DIRECTIONS,
+  );
   const showMobileCards =
     typeof window !== "undefined" &&
     typeof window.matchMedia === "function" &&
@@ -107,12 +130,17 @@ export default function AdminOutgoingEmailsPage() {
   useEffect(() => {
     if (status === "unauthenticated") {
       router.push(buildLoginUrlWithReturnUrl(getCurrentPathWithSearch()));
-    } else if (status === "authenticated" && !isAdmin(session.user)) {
+    } else if (status === "authenticated" && !Permissions.canReadOutgoingEmails(session?.user)) {
       router.push("/");
     }
   }, [status, session, router]);
 
-  const loadEmails = useCallback(async (targetPage: number, query: string) => {
+  const loadEmails = useCallback(async (
+    targetPage: number,
+    query: string,
+    nextSortBy: OutgoingEmailSortField,
+    nextSortDir: "asc" | "desc",
+  ) => {
     setIsLoading(true);
     setError(null);
 
@@ -120,6 +148,8 @@ export default function AdminOutgoingEmailsPage() {
       const params = new URLSearchParams({
         page: String(targetPage),
         limit: String(PAGE_SIZE),
+        sortBy: nextSortBy,
+        sortDir: nextSortDir,
       });
 
       if (query.trim().length > 0) {
@@ -148,11 +178,11 @@ export default function AdminOutgoingEmailsPage() {
   }, []);
 
   useEffect(() => {
-    if (status !== "authenticated" || !session || !isAdmin(session.user)) {
+    if (status !== "authenticated" || !session || !Permissions.canReadOutgoingEmails(session.user)) {
       return;
     }
-    void loadEmails(page, searchQuery);
-  }, [status, session, page, searchQuery, loadEmails]);
+    void loadEmails(page, searchQuery, sortBy, sortDir);
+  }, [status, session, page, searchQuery, sortBy, sortDir, loadEmails]);
 
   const handleSubmitSearch = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -175,13 +205,18 @@ export default function AdminOutgoingEmailsPage() {
       }
 
       setActionMessage("Fehlgeschlagene E-Mail wurde erneut eingeplant.");
-      await loadEmails(page, searchQuery);
+      await loadEmails(page, searchQuery, sortBy, sortDir);
     } catch (retryError) {
       setError(retryError instanceof Error ? retryError.message : "E-Mail konnte nicht erneut eingeplant werden");
     } finally {
       setRetryingEmailId(null);
     }
-  }, [loadEmails, page, searchQuery]);
+  }, [loadEmails, page, searchQuery, sortBy, sortDir]);
+
+  const handleTableSort = useCallback((field: OutgoingEmailSortField) => {
+    setPage(1);
+    handleSortChange(field);
+  }, [handleSortChange]);
 
   const tableContent = useMemo(() => {
     if (items.length === 0) {
@@ -219,7 +254,7 @@ export default function AdminOutgoingEmailsPage() {
             {item.lastAttemptAt ? formatDateTime(item.lastAttemptAt) : "-"}
           </td>
           <td className="px-4 py-3 text-base text-gray-900 whitespace-nowrap">
-            {canRetry ? (
+            {canManage && canRetry ? (
               <button
                 type="button"
                 onClick={() => handleRetry(item.id)}
@@ -235,7 +270,7 @@ export default function AdminOutgoingEmailsPage() {
         </tr>
       );
     });
-  }, [handleRetry, items, retryingEmailId, searchQuery]);
+  }, [canManage, handleRetry, items, retryingEmailId, searchQuery]);
 
   if (status === "loading" || isLoading) {
     return (
@@ -326,7 +361,7 @@ export default function AdminOutgoingEmailsPage() {
                       <span className="font-semibold text-gray-900">Letzter Versuch:</span>{" "}
                       {item.lastAttemptAt ? formatDateTime(item.lastAttemptAt) : "-"}
                     </p>
-                    {canRetry && (
+                    {canManage && canRetry && (
                       <button
                         type="button"
                         onClick={() => handleRetry(item.id)}
@@ -347,14 +382,70 @@ export default function AdminOutgoingEmailsPage() {
             <table className="min-w-full">
               <thead className="bg-gray-50">
                 <tr>
-                  <th scope="col" className="px-4 py-3 text-left text-base font-semibold text-gray-700">Erstellt am</th>
-                  <th scope="col" className="px-4 py-3 text-left text-base font-semibold text-gray-700">Typ</th>
-                  <th scope="col" className="px-4 py-3 text-left text-base font-semibold text-gray-700">Betreff</th>
-                  <th scope="col" className="px-4 py-3 text-left text-base font-semibold text-gray-700">Empfänger</th>
-                  <th scope="col" className="px-4 py-3 text-left text-base font-semibold text-gray-700">Status</th>
-                  <th scope="col" className="px-4 py-3 text-left text-base font-semibold text-gray-700">Versuche</th>
-                  <th scope="col" className="px-4 py-3 text-left text-base font-semibold text-gray-700">Letzter Fehler</th>
-                  <th scope="col" className="px-4 py-3 text-left text-base font-semibold text-gray-700">Letzter Versuch</th>
+                  <SortableTableHeader
+                    label="Erstellt am"
+                    field="createdAt"
+                    activeField={sortBy}
+                    sortDir={sortDir}
+                    onSortChange={handleTableSort}
+                    className="px-4 py-3 text-left text-base font-semibold text-gray-700"
+                  />
+                  <SortableTableHeader
+                    label="Typ"
+                    field="template"
+                    activeField={sortBy}
+                    sortDir={sortDir}
+                    onSortChange={handleTableSort}
+                    className="px-4 py-3 text-left text-base font-semibold text-gray-700"
+                  />
+                  <SortableTableHeader
+                    label="Betreff"
+                    field="subject"
+                    activeField={sortBy}
+                    sortDir={sortDir}
+                    onSortChange={handleTableSort}
+                    className="px-4 py-3 text-left text-base font-semibold text-gray-700"
+                  />
+                  <SortableTableHeader
+                    label="Empfänger"
+                    field="toRecipients"
+                    activeField={sortBy}
+                    sortDir={sortDir}
+                    onSortChange={handleTableSort}
+                    className="px-4 py-3 text-left text-base font-semibold text-gray-700"
+                  />
+                  <SortableTableHeader
+                    label="Status"
+                    field="status"
+                    activeField={sortBy}
+                    sortDir={sortDir}
+                    onSortChange={handleTableSort}
+                    className="px-4 py-3 text-left text-base font-semibold text-gray-700"
+                  />
+                  <SortableTableHeader
+                    label="Versuche"
+                    field="attemptCount"
+                    activeField={sortBy}
+                    sortDir={sortDir}
+                    onSortChange={handleTableSort}
+                    className="px-4 py-3 text-left text-base font-semibold text-gray-700"
+                  />
+                  <SortableTableHeader
+                    label="Letzter Fehler"
+                    field="lastError"
+                    activeField={sortBy}
+                    sortDir={sortDir}
+                    onSortChange={handleTableSort}
+                    className="px-4 py-3 text-left text-base font-semibold text-gray-700"
+                  />
+                  <SortableTableHeader
+                    label="Letzter Versuch"
+                    field="lastAttemptAt"
+                    activeField={sortBy}
+                    sortDir={sortDir}
+                    onSortChange={handleTableSort}
+                    className="px-4 py-3 text-left text-base font-semibold text-gray-700"
+                  />
                   <th scope="col" className="px-4 py-3 text-left text-base font-semibold text-gray-700">Aktion</th>
                 </tr>
               </thead>

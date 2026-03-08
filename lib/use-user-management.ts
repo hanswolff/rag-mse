@@ -222,6 +222,8 @@ export function useUserManagement() {
     const user = users.find((u) => u.id === userId);
     if (!user) return false;
 
+    if (user.role === "SITE_ADMINISTRATOR") return false;
+
     if (user.role !== "ADMIN") return true;
 
     const adminCount = users.filter((u) => u.role === "ADMIN").length;

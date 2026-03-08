@@ -681,6 +681,35 @@ Testen Sie die Validierung bei der Profilveränderung:
 - [ ] **Erwartet**: Fehlermeldung wird angezeigt
 - [ ] **Erwartet**: Keine Daten gehen verloren (Formular-Inhalte bleiben)
 
+## 17. Dokumentverzeichnisse
+
+### 17.1 Verzeichnisverwaltung
+- [ ] Öffnen Sie `/admin/dokumente`
+- [ ] Legen Sie ein neues Verzeichnis an (z. B. `Formulare`)
+- [ ] Benennen Sie das Verzeichnis um
+- [ ] **Erwartet**: Verzeichnis wird sofort in der Verzeichnisliste aktualisiert
+- [ ] **Erwartet**: Root bleibt auswählbar
+
+### 17.2 Upload in Root und Verzeichnis
+- [ ] Laden Sie ein Dokument in `Root` hoch
+- [ ] Laden Sie ein Dokument in ein Verzeichnis hoch
+- [ ] **Erwartet**: Dokumente erscheinen nur im jeweils ausgewählten Bereich
+- [ ] **Erwartet**: Zähler pro Verzeichnis/Root werden korrekt aktualisiert
+
+### 17.3 Dokument verschieben
+- [ ] Öffnen Sie „Dokument bearbeiten“
+- [ ] Verschieben Sie ein Dokument von Root in ein Verzeichnis
+- [ ] Verschieben Sie ein Dokument zurück in Root
+- [ ] **Erwartet**: Dokument erscheint nach dem Speichern im Zielbereich
+- [ ] **Erwartet**: Verzeichniszähler ändern sich entsprechend
+
+### 17.4 Verzeichnis löschen
+- [ ] Versuchen Sie, ein nicht leeres Verzeichnis zu löschen
+- [ ] **Erwartet**: API/UI zeigt Fehlermeldung `Verzeichnis ist nicht leer`
+- [ ] Verschieben oder löschen Sie alle Dokumente im Verzeichnis
+- [ ] Löschen Sie danach das Verzeichnis
+- [ ] **Erwartet**: Leeres Verzeichnis wird erfolgreich gelöscht
+
 ## Test-Ergebnisse dokumentieren
 
 ### Zusammenfassung

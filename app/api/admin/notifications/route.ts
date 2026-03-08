@@ -1,11 +1,24 @@
 import { NextRequest, NextResponse } from "next/server";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { requireAdmin } from "@/lib/auth-utils";
+import { requireAuth, ForbiddenError } from "@/lib/auth-utils";
 import { withApiErrorHandling } from "@/lib/api-utils";
 import { formatDateForStorage } from "@/lib/date-picker-utils";
+import { Permissions } from "@/lib/permissions";
 
 const MAX_PAGE_SIZE = 100;
 const DEFAULT_PAGE_SIZE = 20;
+const NOTIFICATION_SORT_FIELDS = [
+  "sentAt",
+  "status",
+  "userName",
+  "userEmail",
+  "eventDate",
+  "eventTime",
+  "location",
+] as const;
+type NotificationSortField = (typeof NOTIFICATION_SORT_FIELDS)[number];
+type NotificationSortDirection = "asc" | "desc";
 
 function parsePageNumber(value: string | null): number {
   const parsed = Number.parseInt(value || "", 10);
@@ -19,6 +32,42 @@ function parsePageSize(value: string | null): number {
   return Math.min(parsed, MAX_PAGE_SIZE);
 }
 
+function parseSortField(value: string | null): NotificationSortField {
+  if (!value) {
+    return "sentAt";
+  }
+
+  if (NOTIFICATION_SORT_FIELDS.includes(value as NotificationSortField)) {
+    return value as NotificationSortField;
+  }
+
+  return "sentAt";
+}
+
+function parseSortDirection(value: string | null): NotificationSortDirection {
+  return value === "asc" ? "asc" : "desc";
+}
+
+function getOrderBy(sortBy: NotificationSortField, sortDir: NotificationSortDirection): Prisma.EventReminderDispatchOrderByWithRelationInput[] {
+  switch (sortBy) {
+    case "status":
+    case "sentAt":
+      return [{ sentAt: sortDir }, { queuedAt: sortDir }, { id: "desc" }];
+    case "userName":
+      return [{ user: { name: sortDir } }, { user: { email: sortDir } }, { id: "desc" }];
+    case "userEmail":
+      return [{ user: { email: sortDir } }, { id: "desc" }];
+    case "eventDate":
+      return [{ event: { date: sortDir } }, { event: { timeFrom: sortDir } }, { id: "desc" }];
+    case "eventTime":
+      return [{ event: { timeFrom: sortDir } }, { event: { timeTo: sortDir } }, { id: "desc" }];
+    case "location":
+      return [{ event: { location: sortDir } }, { id: "desc" }];
+    default:
+      return [{ sentAt: "desc" }, { queuedAt: "desc" }, { id: "desc" }];
+  }
+}
+
 function getCutoffDate(now = new Date()): Date {
   const cutoff = new Date(now);
   cutoff.setDate(cutoff.getDate() - 30);
@@ -26,13 +75,18 @@ function getCutoffDate(now = new Date()): Date {
 }
 
 export const GET = withApiErrorHandling(async (request: NextRequest) => {
-  await requireAdmin();
+  const user = await requireAuth();
+  if (!Permissions.canReadNotificationsAdmin(user)) {
+    throw new ForbiddenError("Keine Berechtigung");
+  }
 
   const { searchParams } = new URL(request.url);
   const page = parsePageNumber(searchParams.get("page"));
   const limit = parsePageSize(searchParams.get("limit"));
   const skip = (page - 1) * limit;
   const query = (searchParams.get("q") || "").trim();
+  const sortBy = parseSortField(searchParams.get("sortBy"));
+  const sortDir = parseSortDirection(searchParams.get("sortDir"));
 
   const cutoff = getCutoffDate();
 
@@ -66,7 +120,7 @@ export const GET = withApiErrorHandling(async (request: NextRequest) => {
   const [dispatches, total] = await Promise.all([
     prisma.eventReminderDispatch.findMany({
       where,
-      orderBy: { sentAt: "desc" },
+      orderBy: getOrderBy(sortBy, sortDir),
       skip,
       take: limit,
       select: {

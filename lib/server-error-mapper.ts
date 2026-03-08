@@ -99,4 +99,5 @@ export const CONTACT_FIELD_KEYWORDS: Record<string, string[]> = {
 export const DOCUMENT_FIELD_KEYWORDS: Record<string, string[]> = {
   displayName: ["Dokumentenname"],
   documentDate: ["Dokumentdatum"],
+  directoryId: ["Verzeichnis", "directoryId"],
 };

@@ -142,5 +142,5 @@ INSERT OR IGNORE INTO "ShootingRange" ("id", "name", "street", "postalCode", "ci
 -- Admin user creation (uncomment and replace placeholders before running)
 -- DELETE FROM User WHERE id='admin001';
 -- INSERT INTO User (id, email, password, name, role, createdAt, updatedAt)
--- VALUES ('admin001', '<ADMIN_EMAIL>', '<BCRYPT_HASH>', '<ADMIN_NAME>', 'ADMIN', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
+-- VALUES ('admin001', '<ADMIN_EMAIL>', '<BCRYPT_HASH>', '<ADMIN_NAME>', 'SITE_ADMINISTRATOR', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
 -- SELECT id, email, name, role FROM User;

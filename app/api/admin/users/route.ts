@@ -16,7 +16,7 @@ import {
 } from "@/lib/user-validation";
 import { validateRole, validateDateString } from "@/lib/validation-schema";
 import { requireAdmin } from "@/lib/auth-utils";
-import { Role } from "@prisma/client";
+import { Role, Prisma } from "@prisma/client";
 import { parseJsonBody, BadRequestError, withApiErrorHandling, validateRequestBody, validateCsrfHeaders } from "@/lib/api-utils";
 import { logValidationFailure, logInfo } from "@/lib/logger";
 import { formatDateInputValue } from "@/lib/date-picker-utils";
@@ -40,7 +40,7 @@ function serializeUserDateFields<T extends { memberSince: Date | null; dateOfBir
 
 async function rollbackProvisionedUser(userId: string, email: string, tokenHash: string): Promise<void> {
   try {
-    await prisma.$transaction(async (tx: Omit<typeof prisma, "\$connect" | "\$disconnect" | "\$on" | "\$transaction" | "\$extends">) => {
+    await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       await tx.invitation.deleteMany({
         where: {
           email,
@@ -96,7 +96,7 @@ const createUserSchema = {
 export const POST = withApiErrorHandling(async (request: NextRequest) => {
   validateCsrfHeaders(request);
 
-  const admin = await requireAdmin();
+  const admin = await requireAdmin("write");
 
   const body = await parseJsonBody<CreateUserRequest>(request);
 
@@ -110,13 +110,20 @@ export const POST = withApiErrorHandling(async (request: NextRequest) => {
   const role = body.role || Role.MEMBER;
   const address = normalizeOptionalField(body.address);
   const phone = normalizeOptionalField(body.phone);
-  const memberSince = typeof body.memberSince === "string" ? body.memberSince : undefined;
-  const dateOfBirth = typeof body.dateOfBirth === "string" ? body.dateOfBirth : undefined;
-  const rank = typeof body.rank === "string" ? body.rank : undefined;
-  const pk = typeof body.pk === "string" ? body.pk : undefined;
-  const reservistsAssociation = typeof body.reservistsAssociation === "string" ? body.reservistsAssociation : undefined;
-  const associationMemberNumber = typeof body.associationMemberNumber === "string" ? body.associationMemberNumber : undefined;
+  const memberSince = normalizeOptionalField(typeof body.memberSince === "string" ? body.memberSince : undefined);
+  const dateOfBirth = normalizeOptionalField(typeof body.dateOfBirth === "string" ? body.dateOfBirth : undefined);
+  const rank = normalizeOptionalField(typeof body.rank === "string" ? body.rank : undefined);
+  const pk = normalizeOptionalField(typeof body.pk === "string" ? body.pk : undefined);
+  const reservistsAssociation = normalizeOptionalField(typeof body.reservistsAssociation === "string" ? body.reservistsAssociation : undefined);
+  const associationMemberNumber = normalizeOptionalField(typeof body.associationMemberNumber === "string" ? body.associationMemberNumber : undefined);
   const hasPossessionCard = typeof body.hasPossessionCard === "boolean" ? body.hasPossessionCard : false;
+
+  if (role === "SITE_ADMINISTRATOR") {
+    return NextResponse.json(
+      { error: "Die Rolle SiteAdministrator darf nicht vergeben werden" },
+      { status: 403 }
+    );
+  }
 
   if (!normalizedEmail || !validateEmail(normalizedEmail)) {
     logValidationFailure('/api/admin/users', 'POST', 'E-Mail ist erforderlich und muss gültig sein', {
@@ -171,10 +178,8 @@ export const POST = withApiErrorHandling(async (request: NextRequest) => {
   }
 
   // Validate new profile fields
-  if (memberSince !== undefined) {
-    if (typeof memberSince !== "string" || !memberSince.trim()) {
-      // Empty is allowed
-    } else if (!validateDateString(memberSince)) {
+  if (memberSince !== null) {
+    if (!validateDateString(memberSince)) {
       logValidationFailure('/api/admin/users', 'POST', 'Ungültiges Mitglied-seit-Datum', {
         email: normalizedEmail,
       });
@@ -182,7 +187,7 @@ export const POST = withApiErrorHandling(async (request: NextRequest) => {
     }
   }
 
-  if (dateOfBirth !== undefined) {
+  if (dateOfBirth !== null) {
     const dateOfBirthValidation = validateDateOfBirth(dateOfBirth);
     if (!dateOfBirthValidation.isValid) {
       logValidationFailure('/api/admin/users', 'POST', dateOfBirthValidation.error || 'Ungültiges Geburtsdatum', {
@@ -192,7 +197,7 @@ export const POST = withApiErrorHandling(async (request: NextRequest) => {
     }
   }
 
-  if (rank !== undefined) {
+  if (rank !== null) {
     const rankValidation = validateRank(rank);
     if (!rankValidation.isValid) {
       logValidationFailure('/api/admin/users', 'POST', rankValidation.error || 'Ungültiger Dienstgrad', {
@@ -202,7 +207,7 @@ export const POST = withApiErrorHandling(async (request: NextRequest) => {
     }
   }
 
-  if (pk !== undefined) {
+  if (pk !== null) {
     const pkValidation = validatePk(pk);
     if (!pkValidation.isValid) {
       logValidationFailure('/api/admin/users', 'POST', pkValidation.error || 'Ungültige PK', {
@@ -212,7 +217,7 @@ export const POST = withApiErrorHandling(async (request: NextRequest) => {
     }
   }
 
-  if (reservistsAssociation !== undefined) {
+  if (reservistsAssociation !== null) {
     const reservistsAssociationValidation = validateReservistsAssociation(reservistsAssociation);
     if (!reservistsAssociationValidation.isValid) {
       logValidationFailure('/api/admin/users', 'POST', reservistsAssociationValidation.error || 'Ungültige Reservistenkameradschaft', {
@@ -222,7 +227,7 @@ export const POST = withApiErrorHandling(async (request: NextRequest) => {
     }
   }
 
-  if (associationMemberNumber !== undefined) {
+  if (associationMemberNumber !== null) {
     const associationMemberNumberValidation = validateAssociationMemberNumber(associationMemberNumber);
     if (!associationMemberNumberValidation.isValid) {
       logValidationFailure('/api/admin/users', 'POST', associationMemberNumberValidation.error || 'Ungültige Mitgliedsnummer im Verband', {
@@ -232,8 +237,8 @@ export const POST = withApiErrorHandling(async (request: NextRequest) => {
     }
   }
 
-  const adminNotes = typeof body.adminNotes === "string" ? body.adminNotes : undefined;
-  if (adminNotes !== undefined) {
+  const adminNotes = normalizeOptionalField(typeof body.adminNotes === "string" ? body.adminNotes : undefined);
+  if (adminNotes !== null) {
     const adminNotesValidation = validateAdminNotes(adminNotes);
     if (!adminNotesValidation.isValid) {
       logValidationFailure('/api/admin/users', 'POST', adminNotesValidation.error || 'Ungültige Administratoren-Notizen', {
@@ -265,7 +270,7 @@ export const POST = withApiErrorHandling(async (request: NextRequest) => {
   const tokenHash = hashInvitationToken(token);
   const expiresAt = getInvitationExpiryDate();
 
-  const newUser = await prisma.$transaction(async (tx: Omit<typeof prisma, "\$connect" | "\$disconnect" | "\$on" | "\$transaction" | "\$extends">) => {
+  const newUser = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     const user = await tx.user.create({
       data: {
         email: normalizedEmail,
@@ -276,12 +281,12 @@ export const POST = withApiErrorHandling(async (request: NextRequest) => {
         phone,
         memberSince: memberSince ? new Date(memberSince) : null,
         dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : null,
-        rank: rank || null,
-        pk: pk || null,
-        reservistsAssociation: reservistsAssociation || null,
-        associationMemberNumber: associationMemberNumber || null,
+        rank,
+        pk,
+        reservistsAssociation,
+        associationMemberNumber,
         hasPossessionCard: hasPossessionCard || false,
-        adminNotes: adminNotes || null,
+        adminNotes,
       },
       select: {
         id: true,
@@ -351,7 +356,7 @@ export const POST = withApiErrorHandling(async (request: NextRequest) => {
 }, { route: "/api/admin/users", method: "POST" });
 
 export const GET = withApiErrorHandling(async () => {
-  const admin = await requireAdmin();
+  const admin = await requireAdmin("read");
 
   const users = await prisma.user.findMany({
     select: {
@@ -376,13 +381,20 @@ export const GET = withApiErrorHandling(async () => {
   });
 
   const sortedUsers = users.sort((a, b) => {
+    const roleOrder: Record<Role, number> = {
+      SITE_ADMINISTRATOR: 0,
+      ADMIN: 1,
+      AUDITOR: 2,
+      MEMBER: 3,
+    };
+
     if (a.role === b.role) {
       const nameA = a.name ?? "";
       const nameB = b.name ?? "";
 
       return nameA.localeCompare(nameB, "de");
     }
-    return a.role === Role.MEMBER ? -1 : 1;
+    return roleOrder[a.role] - roleOrder[b.role];
   });
 
   logInfo('admin_users_list', 'Admin accessed user list', {

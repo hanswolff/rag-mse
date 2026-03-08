@@ -12,6 +12,7 @@ import { mapServerErrorToField, PROFILE_FIELD_KEYWORDS } from "@/lib/server-erro
 import { profileValidationConfig } from "@/lib/validation-schema";
 import { buildLoginUrlWithReturnUrl, getCurrentPathWithSearch } from "@/lib/return-url";
 import { normalizeDateInputValue } from "@/lib/date-picker-utils";
+import { Permissions } from "@/lib/permissions";
 
 interface UserProfile {
   id: string;
@@ -441,7 +442,7 @@ export default function ProfilePage() {
                 <div className="flex">
                   <dt className="text-base text-gray-600">Rolle:</dt>
                   <dd className="text-base font-medium text-gray-900 ml-2">
-                    {profile.role === "ADMIN" ? "Administrator" : "Mitglied"}
+                    {Permissions.getRoleLabel(profile.role)}
                   </dd>
                 </div>
               </dl>

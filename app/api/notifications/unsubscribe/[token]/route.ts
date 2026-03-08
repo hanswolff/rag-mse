@@ -1,13 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { checkTokenRateLimit, recordSuccessfulTokenUsage } from "@/lib/rate-limiter";
-import { getClientIp, getNoCacheHeaders, handleRateLimitBlocked, withApiErrorHandling } from "@/lib/api-utils";
+import { getClientIp, getNoCacheHeaders, handleRateLimitBlocked, validateCsrfHeaders, withApiErrorHandling } from "@/lib/api-utils";
 import { hashNotificationToken } from "@/lib/notifications";
+import { Permissions } from "@/lib/permissions";
 
 export const POST = withApiErrorHandling(async (
   request: NextRequest,
   ctx: RouteContext<"/api/notifications/unsubscribe/[token]">
 ) => {
+  validateCsrfHeaders(request);
+
   const { token } = await ctx.params;
   if (!token) {
     return NextResponse.json({ error: "Ungültiger Link" }, { status: 400 });
@@ -35,6 +38,11 @@ export const POST = withApiErrorHandling(async (
     select: {
       userId: true,
       unsubscribeTokenExpiresAt: true,
+      user: {
+        select: {
+          role: true,
+        },
+      },
     },
   });
 
@@ -47,6 +55,13 @@ export const POST = withApiErrorHandling(async (
 
   if (dispatch.unsubscribeTokenExpiresAt < new Date()) {
     return NextResponse.json({ error: "Link ist abgelaufen" }, { status: 410, headers: getNoCacheHeaders() });
+  }
+
+  if (!Permissions.canManageOwnProfile(dispatch.user.role)) {
+    return NextResponse.json(
+      { error: "Link ist ungültig oder abgelaufen" },
+      { status: 403, headers: getNoCacheHeaders() }
+    );
   }
 
   await prisma.user.update({

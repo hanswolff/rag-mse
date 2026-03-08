@@ -1,5 +1,7 @@
 import { NextRequest } from "next/server";
 import { isIP } from "node:net";
+import crypto from "node:crypto";
+import { logWarn } from "./logger";
 
 const IPV4_OCTET_COUNT = 4;
 const BITS_PER_OCTET = 8;
@@ -101,7 +103,7 @@ function isTrustedProxy(ip: string): boolean {
   return false;
 }
 
-function extractFirstValidForwardedIp(xForwardedFor: string | null): string | null {
+function extractLastValidForwardedIp(xForwardedFor: string | null): string | null {
   if (!xForwardedFor) {
     return null;
   }
@@ -111,13 +113,31 @@ function extractFirstValidForwardedIp(xForwardedFor: string | null): string | nu
     .map((ip) => ip.trim())
     .filter((ip) => ip.length > 0);
 
-  for (const forwardedIp of forwardedIps) {
+  for (let index = forwardedIps.length - 1; index >= 0; index -= 1) {
+    const forwardedIp = forwardedIps[index];
     if (isIP(forwardedIp)) {
       return forwardedIp;
     }
   }
 
   return null;
+}
+
+function buildHeaderFingerprint(headers: Headers): string {
+  const userAgent = headers.get("user-agent")?.trim().toLowerCase() || "";
+  const acceptLanguage = headers.get("accept-language")?.trim().toLowerCase() || "";
+
+  if (!userAgent && !acceptLanguage) {
+    return "fallback:unknown-client";
+  }
+
+  const digest = crypto
+    .createHash("sha256")
+    .update(`${userAgent}|${acceptLanguage}`)
+    .digest("hex")
+    .slice(0, 24);
+
+  return `fallback:${digest}`;
 }
 
 export function getClientIdentifier(request: NextRequest): string {
@@ -132,7 +152,7 @@ export function getClientIdentifierFromHeaders(headers: Headers, sourceIp: strin
   const isProxyTrusted = sourceIp ? isTrustedProxy(sourceIp) : false;
 
   if (isProxyTrusted && xForwardedFor) {
-    const forwardedIp = extractFirstValidForwardedIp(xForwardedFor);
+    const forwardedIp = extractLastValidForwardedIp(xForwardedFor);
     if (forwardedIp) {
       return forwardedIp;
     }
@@ -142,22 +162,15 @@ export function getClientIdentifierFromHeaders(headers: Headers, sourceIp: strin
     return xRealIp;
   }
 
-  if (!sourceIp) {
-    if (xRealIp && isIP(xRealIp)) {
-      return xRealIp;
-    }
-
-    const forwardedIp = extractFirstValidForwardedIp(xForwardedFor);
-    if (forwardedIp) {
-      return forwardedIp;
-    }
-  }
-
   if (sourceIp) {
     return sourceIp;
   }
 
-  return "fallback:unknown-client";
+  const fingerprint = buildHeaderFingerprint(headers);
+  logWarn("client_identifier_fallback", "Using header fingerprint as client identifier fallback - no IP available", {
+    fingerprintPreview: fingerprint.slice(0, 20),
+  });
+  return fingerprint;
 }
 
 export function getDirectIp(request: NextRequest): string | null {

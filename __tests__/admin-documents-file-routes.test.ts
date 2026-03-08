@@ -67,4 +67,42 @@ describe("admin documents view/download routes", () => {
     expect(response.headers.get("Content-Length")).toBe("2");
     expect(response.headers.get("Content-Disposition")).toContain("attachment;");
   });
+
+  it("returns 404 for view when file is missing on disk", async () => {
+    (prisma.document.findUnique as jest.Mock).mockResolvedValue({
+      id: "doc-1",
+      storedFileName: "missing.pdf",
+      originalFileName: "antrag.pdf",
+      mimeType: "application/pdf",
+      sizeBytes: 999999,
+    });
+    (readDocumentFile as jest.Mock).mockRejectedValue({ code: "ENOENT" });
+
+    const response = await GET_VIEW(new Request("http://localhost:3000/api/admin/documents/doc-1/view"), {
+      params: Promise.resolve({ id: "doc-1" }),
+    });
+    const data = await response.json();
+
+    expect(response.status).toBe(404);
+    expect(data.error).toBe("Dokument nicht gefunden");
+  });
+
+  it("returns 404 for download when file is missing on disk", async () => {
+    (prisma.document.findUnique as jest.Mock).mockResolvedValue({
+      id: "doc-1",
+      storedFileName: "missing.pdf",
+      originalFileName: "antrag.pdf",
+      mimeType: "application/pdf",
+      sizeBytes: 999999,
+    });
+    (readDocumentFile as jest.Mock).mockRejectedValue({ code: "ENOENT" });
+
+    const response = await GET_DOWNLOAD(new Request("http://localhost:3000/api/admin/documents/doc-1/download"), {
+      params: Promise.resolve({ id: "doc-1" }),
+    });
+    const data = await response.json();
+
+    expect(response.status).toBe(404);
+    expect(data.error).toBe("Dokument nicht gefunden");
+  });
 });

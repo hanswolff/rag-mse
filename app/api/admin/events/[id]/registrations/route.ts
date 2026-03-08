@@ -42,7 +42,7 @@ async function ensureEventExists(eventId: string) {
 }
 
 export const GET = withApiErrorHandling(async (_request: NextRequest, ctx: RouteContext<"/api/admin/events/[id]/registrations">) => {
-  await requireAdmin();
+  await requireAdmin("read");
 
   const { id: eventId } = await ctx.params;
 
@@ -95,7 +95,7 @@ export const GET = withApiErrorHandling(async (_request: NextRequest, ctx: Route
 export const POST = withApiErrorHandling(async (request: NextRequest, ctx: RouteContext<"/api/admin/events/[id]/registrations">) => {
   validateCsrfHeaders(request);
 
-  await requireAdmin();
+  await requireAdmin("write");
 
   const { id: eventId } = await ctx.params;
   const body = await parseJsonBody<RegistrationRequest>(request);
@@ -228,7 +228,7 @@ export const POST = withApiErrorHandling(async (request: NextRequest, ctx: Route
 export const DELETE = withApiErrorHandling(async (request: NextRequest, ctx: RouteContext<"/api/admin/events/[id]/registrations">) => {
   validateCsrfHeaders(request);
 
-  await requireAdmin();
+  await requireAdmin("write");
 
   const { id: eventId } = await ctx.params;
   const body = await parseJsonBody<RegistrationRequest>(request);

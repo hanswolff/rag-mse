@@ -17,7 +17,7 @@ const SENSITIVE_FIELDS = [
   'smtp_user',
 ] as const;
 
-const EMAIL_LIKE_FIELDS = ["email", "useremail", "adminemail", "to", "torecipients", "recipients"] as const;
+const EMAIL_LIKE_FIELDS = ["email", "useremail", "adminemail", "adminemails", "to", "torecipients", "recipients"] as const;
 
 type SensitiveField = (typeof SENSITIVE_FIELDS)[number];
 
@@ -122,9 +122,10 @@ export function logWarn(action: string, message: string, context: LogContext = {
 }
 
 export function logResourceNotFound(resourceType: string, resourceId: string, route: string, method: string, context: LogContext = {}): void {
+  const safeResourceId = resourceId.includes("@") ? maskEmail(resourceId) : resourceId;
   logWarn('resource_not_found', `${resourceType} not found`, {
     resourceType,
-    resourceId,
+    resourceId: safeResourceId,
     route,
     method,
     ...context,

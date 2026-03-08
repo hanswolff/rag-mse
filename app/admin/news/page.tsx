@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { isAdmin } from "@/lib/role-utils";
+import { canAccessAdminArea, isAdmin } from "@/lib/role-utils";
 import { buildLoginUrlWithReturnUrl, getCurrentPathWithSearch } from "@/lib/return-url";
 import { useNewsManagement } from "@/lib/use-news-management";
 import { formatDate } from "@/lib/date-utils";
@@ -18,12 +18,14 @@ function NewsList({
   onDelete,
   onPublish,
   publishingNewsId,
+  canManage,
 }: {
   news: News[];
   onEdit: (n: News) => void;
   onDelete: (id: string) => void;
   onPublish: (id: string, published: boolean) => void;
   publishingNewsId: string | null;
+  canManage: boolean;
 }) {
   if (news.length === 0) return <p className="text-gray-500">Keine News gefunden</p>;
   return (
@@ -45,30 +47,32 @@ function NewsList({
                 Datum: {formatDate(newsItem.newsDate)}
               </p>
             </div>
-            <div className="flex flex-col sm:flex-row gap-2 sm:ml-4">
-              <button
-                onClick={() => onEdit(newsItem)}
-                className="px-3 py-2 sm:py-1 text-base bg-brand-blue-50 text-brand-blue-800 rounded hover:bg-brand-blue-100 focus:outline-none focus:ring-2 focus:ring-brand-red-600/30 touch-manipulation"
-              >
-                Bearbeiten
-              </button>
-              {!newsItem.published && (
-                <LoadingButton
-                  onClick={() => onPublish(newsItem.id, true)}
-                  loading={publishingNewsId === newsItem.id}
-                  loadingText="Veröffentlichen"
-                  className="px-3 py-2 sm:py-1 text-base bg-green-100 text-green-700 rounded hover:bg-green-200 focus:outline-none focus:ring-2 focus:ring-green-500 touch-manipulation disabled:cursor-not-allowed disabled:opacity-60"
+            {canManage && (
+              <div className="flex flex-col sm:flex-row gap-2 sm:ml-4">
+                <button
+                  onClick={() => onEdit(newsItem)}
+                  className="px-3 py-2 sm:py-1 text-base bg-brand-blue-50 text-brand-blue-800 rounded hover:bg-brand-blue-100 focus:outline-none focus:ring-2 focus:ring-brand-red-600/30 touch-manipulation"
                 >
-                  Veröffentlichen
-                </LoadingButton>
-              )}
-              <button
-                onClick={() => onDelete(newsItem.id)}
-                className="px-3 py-2 sm:py-1 text-base bg-red-100 text-red-700 rounded hover:bg-red-200 focus:outline-none focus:ring-2 focus:ring-red-500 touch-manipulation"
-              >
-                Löschen
-              </button>
-            </div>
+                  Bearbeiten
+                </button>
+                {!newsItem.published && (
+                  <LoadingButton
+                    onClick={() => onPublish(newsItem.id, true)}
+                    loading={publishingNewsId === newsItem.id}
+                    loadingText="Veröffentlichen"
+                    className="px-3 py-2 sm:py-1 text-base bg-green-100 text-green-700 rounded hover:bg-green-200 focus:outline-none focus:ring-2 focus:ring-green-500 touch-manipulation disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    Veröffentlichen
+                  </LoadingButton>
+                )}
+                <button
+                  onClick={() => onDelete(newsItem.id)}
+                  className="px-3 py-2 sm:py-1 text-base bg-red-100 text-red-700 rounded hover:bg-red-200 focus:outline-none focus:ring-2 focus:ring-red-500 touch-manipulation"
+                >
+                  Löschen
+                </button>
+              </div>
+            )}
           </div>
         </div>
       ))}
@@ -80,11 +84,12 @@ export default function NewsPage() {
   const router = useRouter();
   const { data: session, status } = useSession();
   const newsManagement = useNewsManagement();
+  const canManage = session ? isAdmin(session.user) : false;
 
   useEffect(() => {
     if (status === "unauthenticated") {
       router.push(buildLoginUrlWithReturnUrl(getCurrentPathWithSearch()));
-    } else if (status === "authenticated" && !isAdmin(session.user)) {
+    } else if (status === "authenticated" && !canAccessAdminArea(session.user)) {
       router.push("/");
     }
   }, [status, session, router]);
@@ -106,12 +111,14 @@ export default function NewsPage() {
           </BackLink>
           <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mt-4">News verwalten</h1>
           <p className="text-base sm:text-base text-gray-600 mt-2">Veröffentlichen und verwalten Sie Neuigkeiten und Ankündigungen</p>
-          <button
-            onClick={newsManagement.openCreateModal}
-            className="mt-4 btn-primary py-2.5 sm:py-2 px-6 text-base sm:text-base touch-manipulation"
-          >
-            Neue News erstellen
-          </button>
+          {canManage && (
+            <button
+              onClick={newsManagement.openCreateModal}
+              className="mt-4 btn-primary py-2.5 sm:py-2 px-6 text-base sm:text-base touch-manipulation"
+            >
+              Neue News erstellen
+            </button>
+          )}
         </div>
 
         {newsManagement.error && (
@@ -145,20 +152,23 @@ export default function NewsPage() {
             onDelete={newsManagement.handleDeleteNews}
             onPublish={newsManagement.handlePublishNews}
             publishingNewsId={newsManagement.publishingNewsId}
+            canManage={canManage}
           />
         </section>
 
-        <NewsFormModal
-          isOpen={newsManagement.isModalOpen}
-          onClose={newsManagement.closeModal}
-          onSubmit={newsManagement.editingNews ? newsManagement.handleUpdateNews : newsManagement.handleCreateNews}
-          isSubmitting={newsManagement.isCreatingNews || newsManagement.isEditingNews}
-          newsData={newsManagement.modalNewsData}
-          setNewsData={newsManagement.setModalNewsData}
-          isEditing={!!newsManagement.editingNews}
-          errors={newsManagement.error ? { general: newsManagement.error } : {}}
-          initialNewsData={newsManagement.initialNewsData}
-        />
+        {canManage && (
+          <NewsFormModal
+            isOpen={newsManagement.isModalOpen}
+            onClose={newsManagement.closeModal}
+            onSubmit={newsManagement.editingNews ? newsManagement.handleUpdateNews : newsManagement.handleCreateNews}
+            isSubmitting={newsManagement.isCreatingNews || newsManagement.isEditingNews}
+            newsData={newsManagement.modalNewsData}
+            setNewsData={newsManagement.setModalNewsData}
+            isEditing={!!newsManagement.editingNews}
+            errors={newsManagement.error ? { general: newsManagement.error } : {}}
+            initialNewsData={newsManagement.initialNewsData}
+          />
+        )}
       </div>
     </main>
   );

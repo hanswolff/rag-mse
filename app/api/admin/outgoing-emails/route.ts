@@ -1,11 +1,24 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireAdmin } from "@/lib/auth-utils";
+import { requireAuth, ForbiddenError } from "@/lib/auth-utils";
 import { withApiErrorHandling } from "@/lib/api-utils";
+import { Permissions } from "@/lib/permissions";
 
 const MAX_PAGE_SIZE = 100;
 const DEFAULT_PAGE_SIZE = 20;
 const LOOKBACK_DAYS = 30;
+const OUTGOING_EMAIL_SORT_FIELDS = [
+  "createdAt",
+  "template",
+  "subject",
+  "toRecipients",
+  "status",
+  "attemptCount",
+  "lastError",
+  "lastAttemptAt",
+] as const;
+type OutgoingEmailSortField = (typeof OUTGOING_EMAIL_SORT_FIELDS)[number];
+type OutgoingEmailSortDirection = "asc" | "desc";
 
 function parsePageNumber(value: string | null): number {
   const parsed = Number.parseInt(value || "", 10);
@@ -23,6 +36,22 @@ function parsePageSize(value: string | null): number {
   return Math.min(parsed, MAX_PAGE_SIZE);
 }
 
+function parseSortField(value: string | null): OutgoingEmailSortField {
+  if (!value) {
+    return "createdAt";
+  }
+
+  if (OUTGOING_EMAIL_SORT_FIELDS.includes(value as OutgoingEmailSortField)) {
+    return value as OutgoingEmailSortField;
+  }
+
+  return "createdAt";
+}
+
+function parseSortDirection(value: string | null): OutgoingEmailSortDirection {
+  return value === "asc" ? "asc" : "desc";
+}
+
 function getCutoffDate(now = new Date()): Date {
   const cutoff = new Date(now);
   cutoff.setDate(cutoff.getDate() - LOOKBACK_DAYS);
@@ -30,13 +59,18 @@ function getCutoffDate(now = new Date()): Date {
 }
 
 export const GET = withApiErrorHandling(async (request: NextRequest) => {
-  await requireAdmin();
+  const user = await requireAuth();
+  if (!Permissions.canReadOutgoingEmails(user)) {
+    throw new ForbiddenError("Keine Berechtigung");
+  }
 
   const { searchParams } = new URL(request.url);
   const page = parsePageNumber(searchParams.get("page"));
   const limit = parsePageSize(searchParams.get("limit"));
   const skip = (page - 1) * limit;
   const query = (searchParams.get("q") || "").trim();
+  const sortBy = parseSortField(searchParams.get("sortBy"));
+  const sortDir = parseSortDirection(searchParams.get("sortDir"));
   const cutoffDate = getCutoffDate();
 
   const where = {
@@ -55,7 +89,7 @@ export const GET = withApiErrorHandling(async (request: NextRequest) => {
   const [emails, total] = await Promise.all([
     prisma.outgoingEmail.findMany({
       where,
-      orderBy: { createdAt: "desc" },
+      orderBy: [{ [sortBy]: sortDir }, { id: "desc" }],
       skip,
       take: limit,
       select: {

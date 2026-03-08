@@ -19,6 +19,11 @@ describe("auth-utils", () => {
       expect(isAdmin(user)).toBe(true);
     });
 
+    it("should return true for site administrator user", () => {
+      const user = { role: "SITE_ADMINISTRATOR" as Role };
+      expect(isAdmin(user)).toBe(true);
+    });
+
     it("should return false for member user", () => {
       const user = { role: "MEMBER" as Role };
       expect(isAdmin(user)).toBe(false);
@@ -42,6 +47,16 @@ describe("auth-utils", () => {
     it("should return true for admin user", () => {
       const user = { role: "ADMIN" as Role };
       expect(isMember(user)).toBe(true);
+    });
+
+    it("should return true for site administrator user", () => {
+      const user = { role: "SITE_ADMINISTRATOR" as Role };
+      expect(isMember(user)).toBe(true);
+    });
+
+    it("should return false for auditor user", () => {
+      const user = { role: "AUDITOR" as Role };
+      expect(isMember(user)).toBe(false);
     });
 
     it("should return true for member user", () => {

@@ -56,7 +56,7 @@ describe("event-reminder-worker", () => {
 
   it("queues reminder and sets sentAt after successful delivery", async () => {
     (prisma.user.findMany as jest.Mock).mockResolvedValue([
-      { id: "user-1", email: "max@example.org", eventReminderDaysBefore: 7 },
+      { id: "user-1", email: "max@example.org", role: "MEMBER", eventReminderDaysBefore: 7 },
     ]);
     (prisma.event.findMany as jest.Mock).mockResolvedValue([
       {
@@ -87,7 +87,7 @@ describe("event-reminder-worker", () => {
 
   it("deletes dispatch and does not set sentAt when delivery fails", async () => {
     (prisma.user.findMany as jest.Mock).mockResolvedValue([
-      { id: "user-1", email: "max@example.org", eventReminderDaysBefore: 7 },
+      { id: "user-1", email: "max@example.org", role: "MEMBER", eventReminderDaysBefore: 7 },
     ]);
     (prisma.event.findMany as jest.Mock).mockResolvedValue([
       {
@@ -115,7 +115,7 @@ describe("event-reminder-worker", () => {
 
   it("ignores duplicate dispatches caused by unique constraint", async () => {
     (prisma.user.findMany as jest.Mock).mockResolvedValue([
-      { id: "user-1", email: "max@example.org", eventReminderDaysBefore: 7 },
+      { id: "user-1", email: "max@example.org", role: "MEMBER", eventReminderDaysBefore: 7 },
     ]);
     (prisma.event.findMany as jest.Mock).mockResolvedValue([
       {
@@ -143,7 +143,7 @@ describe("event-reminder-worker", () => {
 
   it("sends reminder when within poll interval window of target time", async () => {
     (prisma.user.findMany as jest.Mock).mockResolvedValue([
-      { id: "user-1", email: "max@example.org", eventReminderDaysBefore: 1 },
+      { id: "user-1", email: "max@example.org", role: "MEMBER", eventReminderDaysBefore: 1 },
     ]);
     (prisma.event.findMany as jest.Mock).mockResolvedValue([
       {
@@ -175,7 +175,7 @@ describe("event-reminder-worker", () => {
 
   it("retries pending duplicate dispatches older than resend delay", async () => {
     (prisma.user.findMany as jest.Mock).mockResolvedValue([
-      { id: "user-1", email: "max@example.org", eventReminderDaysBefore: 7 },
+      { id: "user-1", email: "max@example.org", role: "MEMBER", eventReminderDaysBefore: 7 },
     ]);
     (prisma.event.findMany as jest.Mock).mockResolvedValue([
       {
@@ -223,7 +223,7 @@ describe("event-reminder-worker", () => {
 
   it("continues processing after single event queue failure", async () => {
     (prisma.user.findMany as jest.Mock).mockResolvedValue([
-      { id: "user-1", email: "max@example.org", eventReminderDaysBefore: 7 },
+      { id: "user-1", email: "max@example.org", role: "MEMBER", eventReminderDaysBefore: 7 },
     ]);
     (prisma.event.findMany as jest.Mock).mockResolvedValue([
       {
@@ -264,7 +264,7 @@ describe("event-reminder-worker", () => {
   it("respects APP_TIMEZONE when calculating reminder timestamp", async () => {
     process.env.APP_TIMEZONE = "UTC";
     (prisma.user.findMany as jest.Mock).mockResolvedValue([
-      { id: "user-1", email: "max@example.org", eventReminderDaysBefore: 7 },
+      { id: "user-1", email: "max@example.org", role: "MEMBER", eventReminderDaysBefore: 7 },
     ]);
     (prisma.event.findMany as jest.Mock).mockResolvedValue([
       {
@@ -287,7 +287,7 @@ describe("event-reminder-worker", () => {
   it("does not queue at the same UTC timestamp when APP_TIMEZONE is Europe/Berlin", async () => {
     process.env.APP_TIMEZONE = "Europe/Berlin";
     (prisma.user.findMany as jest.Mock).mockResolvedValue([
-      { id: "user-1", email: "max@example.org", eventReminderDaysBefore: 7 },
+      { id: "user-1", email: "max@example.org", role: "MEMBER", eventReminderDaysBefore: 7 },
     ]);
     (prisma.event.findMany as jest.Mock).mockResolvedValue([
       {
@@ -307,8 +307,8 @@ describe("event-reminder-worker", () => {
 
   it("excludes users with pending invitations from reminders", async () => {
     (prisma.user.findMany as jest.Mock).mockResolvedValue([
-      { id: "user-1", email: "active@example.org", eventReminderDaysBefore: 7 },
-      { id: "user-2", email: "pending@example.org", eventReminderDaysBefore: 7 },
+      { id: "user-1", email: "active@example.org", role: "MEMBER", eventReminderDaysBefore: 7 },
+      { id: "user-2", email: "pending@example.org", role: "MEMBER", eventReminderDaysBefore: 7 },
     ]);
     // user-2 has a pending invitation
     (prisma.invitation.findMany as jest.Mock).mockResolvedValue([
@@ -341,7 +341,7 @@ describe("event-reminder-worker", () => {
 
   it("sends reminders to users after invitation is used", async () => {
     (prisma.user.findMany as jest.Mock).mockResolvedValue([
-      { id: "user-1", email: "activated@example.org", eventReminderDaysBefore: 7 },
+      { id: "user-1", email: "activated@example.org", role: "MEMBER", eventReminderDaysBefore: 7 },
     ]);
     // No pending invitations (invitation was used)
     (prisma.invitation.findMany as jest.Mock).mockResolvedValue([]);
@@ -366,5 +366,27 @@ describe("event-reminder-worker", () => {
         email: "activated@example.org",
       })
     );
+  });
+
+  it("does not send reminders to auditors", async () => {
+    (prisma.user.findMany as jest.Mock).mockResolvedValue([
+      { id: "auditor-1", email: "audit@example.org", role: "AUDITOR", eventReminderDaysBefore: 7 },
+    ]);
+    (prisma.invitation.findMany as jest.Mock).mockResolvedValue([]);
+    (prisma.event.findMany as jest.Mock).mockResolvedValue([
+      {
+        id: "event-1",
+        date: new Date("2026-02-08T17:00:00.000Z"),
+        timeFrom: "18:00",
+        timeTo: "20:00",
+        location: "Ulm",
+      },
+    ]);
+
+    const queued = await processEventReminders(new Date("2026-02-01T16:56:00.000Z"));
+
+    expect(queued).toBe(0);
+    expect(prisma.event.findMany).not.toHaveBeenCalled();
+    expect(sendEventReminderEmail).not.toHaveBeenCalled();
   });
 });

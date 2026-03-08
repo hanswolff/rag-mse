@@ -3,6 +3,14 @@ import userEvent from "@testing-library/user-event";
 import { useSession, signOut } from "next-auth/react";
 import { Navigation } from "@/components/navigation";
 
+jest.mock("next/navigation", () => ({
+  usePathname: jest.fn(() => "/"),
+  useRouter: jest.fn(() => ({
+    push: jest.fn(),
+    refresh: jest.fn(),
+  })),
+}));
+
 jest.mock("next-auth/react", () => ({
   useSession: jest.fn(),
   signOut: jest.fn(),
@@ -14,6 +22,33 @@ const mockSession = {
     name: "Test User",
     email: "test@example.com",
     role: "MEMBER",
+  },
+  expires: "2024-01-01",
+};
+
+const mockAuditorSession = {
+  user: {
+    id: "2",
+    name: "Audit User",
+    email: "audit@example.com",
+    role: "AUDITOR",
+  },
+  expires: "2024-01-01",
+};
+
+const mockImpersonatedSession = {
+  user: {
+    id: "3",
+    name: "Vertretenes Mitglied",
+    email: "member@example.com",
+    role: "MEMBER",
+    isImpersonating: true,
+    impersonatedBy: {
+      id: "site-1",
+      role: "SITE_ADMINISTRATOR",
+      name: "Site Admin",
+      email: "site@example.com",
+    },
   },
   expires: "2024-01-01",
 };
@@ -154,6 +189,20 @@ describe("Navigation", () => {
     expect(screen.getAllByText("Abmelden").length).toBeGreaterThan(0);
   });
 
+  it("hides member-only links for auditor users", async () => {
+    (useSession as jest.Mock).mockReturnValue({ data: mockAuditorSession, status: "authenticated" });
+    const user = userEvent.setup();
+    render(<Navigation />);
+
+    const userButton = screen.getByRole("button", { name: /Audit User/i });
+    await user.click(userButton);
+
+    expect(screen.queryByText("Profil")).not.toBeInTheDocument();
+    expect(screen.queryByText("Benachrichtigungen")).not.toBeInTheDocument();
+    expect(screen.queryByText("Passwort ändern")).not.toBeInTheDocument();
+    expect(screen.getAllByText("Adminbereich").length).toBeGreaterThan(0);
+  });
+
   it("renders navigation container", () => {
     render(<Navigation />);
 
@@ -167,5 +216,13 @@ describe("Navigation", () => {
 
     const logo = screen.getByAltText("RAG Schießsport Logo");
     expect(logo).toBeInTheDocument();
+  });
+
+  it("shows impersonation banner when impersonation is active", () => {
+    (useSession as jest.Mock).mockReturnValue({ data: mockImpersonatedSession, status: "authenticated", update: jest.fn() });
+    render(<Navigation />);
+
+    expect(screen.getByText(/Impersonierung aktiv/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Impersonierung beenden" })).toBeInTheDocument();
   });
 });

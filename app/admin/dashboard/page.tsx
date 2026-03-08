@@ -3,18 +3,21 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { isAdmin } from "@/lib/role-utils";
+import { canAccessAdminArea } from "@/lib/role-utils";
 import { buildLoginUrlWithReturnUrl, getCurrentPathWithSearch } from "@/lib/return-url";
 import Link from "next/link";
+import { Permissions } from "@/lib/permissions";
 
 export default function AdminDashboardPage() {
   const router = useRouter();
   const { data: session, status } = useSession();
+  const canReadNotificationsAdmin = Permissions.canReadNotificationsAdmin(session?.user);
+  const canReadOutgoingEmails = Permissions.canReadOutgoingEmails(session?.user);
 
   useEffect(() => {
     if (status === "unauthenticated") {
       router.push(buildLoginUrlWithReturnUrl(getCurrentPathWithSearch()));
-    } else if (status === "authenticated" && !isAdmin(session.user)) {
+    } else if (status === "authenticated" && !canAccessAdminArea(session.user)) {
       router.push("/");
     }
   }, [status, session, router]);
@@ -80,31 +83,35 @@ export default function AdminDashboardPage() {
             </p>
           </Link>
 
-          <Link
-            href="/admin/benachrichtigungen"
-            className="block p-6 bg-white border border-gray-200 rounded-lg hover:shadow-md transition-shadow"
-          >
-            <div className="flex items-center gap-3 mb-3">
-              <span className="text-2xl sm:text-3xl">🔔</span>
-              <h2 className="text-lg sm:text-xl font-semibold text-gray-900">Benachrichtigungen</h2>
-            </div>
-            <p className="text-sm sm:text-base text-gray-600">
-              Sehen Sie die zuletzt versendeten Termin-Benachrichtigungen der letzten 30 Tage.
-            </p>
-          </Link>
+          {canReadNotificationsAdmin && (
+            <Link
+              href="/admin/benachrichtigungen"
+              className="block p-6 bg-white border border-gray-200 rounded-lg hover:shadow-md transition-shadow"
+            >
+              <div className="flex items-center gap-3 mb-3">
+                <span className="text-2xl sm:text-3xl">🔔</span>
+                <h2 className="text-lg sm:text-xl font-semibold text-gray-900">Benachrichtigungen</h2>
+              </div>
+              <p className="text-sm sm:text-base text-gray-600">
+                Sehen Sie die zuletzt versendeten Termin-Benachrichtigungen der letzten 30 Tage.
+              </p>
+            </Link>
+          )}
 
-          <Link
-            href="/admin/e-mail-versand"
-            className="block p-6 bg-white border border-gray-200 rounded-lg hover:shadow-md transition-shadow"
-          >
-            <div className="flex items-center gap-3 mb-3">
-              <span className="text-2xl sm:text-3xl">✉️</span>
-              <h2 className="text-lg sm:text-xl font-semibold text-gray-900">E-Mail-Versand</h2>
-            </div>
-            <p className="text-sm sm:text-base text-gray-600">
-              Überwachen Sie Outbox-E-Mails, suchen Sie Metadaten und planen Sie fehlgeschlagene E-Mails neu ein.
-            </p>
-          </Link>
+          {canReadOutgoingEmails && (
+            <Link
+              href="/admin/e-mail-versand"
+              className="block p-6 bg-white border border-gray-200 rounded-lg hover:shadow-md transition-shadow"
+            >
+              <div className="flex items-center gap-3 mb-3">
+                <span className="text-2xl sm:text-3xl">✉️</span>
+                <h2 className="text-lg sm:text-xl font-semibold text-gray-900">E-Mail-Versand</h2>
+              </div>
+              <p className="text-sm sm:text-base text-gray-600">
+                Überwachen Sie Outbox-E-Mails, suchen Sie Metadaten und planen Sie fehlgeschlagene E-Mails neu ein.
+              </p>
+            </Link>
+          )}
 
           <Link
             href="/admin/dokumente"

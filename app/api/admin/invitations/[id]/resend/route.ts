@@ -34,7 +34,7 @@ async function rollbackInvitationToken(invitationId: string, previousTokenHash: 
 
 export const POST = withApiErrorHandling(async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
   validateCsrfHeaders(request);
-  await requireAdmin();
+  await requireAdmin("write");
   const { id: invitationId } = await params;
 
   const invitation = await prisma.invitation.findUnique({

@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { isAdmin } from "@/lib/role-utils";
+import { canAccessAdminArea } from "@/lib/role-utils";
 import { buildLoginUrlWithReturnUrl, getCurrentPathWithSearch } from "@/lib/return-url";
 
 export default function AdminPage() {
@@ -13,9 +13,9 @@ export default function AdminPage() {
   useEffect(() => {
     if (status === "unauthenticated") {
       router.push(buildLoginUrlWithReturnUrl(getCurrentPathWithSearch()));
-    } else if (status === "authenticated" && !isAdmin(session.user)) {
+    } else if (status === "authenticated" && !canAccessAdminArea(session.user)) {
       router.push("/");
-    } else if (status === "authenticated" && isAdmin(session.user)) {
+    } else if (status === "authenticated" && canAccessAdminArea(session.user)) {
       router.push("/admin/dashboard");
     }
   }, [status, session, router]);

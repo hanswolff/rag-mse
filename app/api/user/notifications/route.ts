@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireAuth } from "@/lib/auth-utils";
+import { requireMember } from "@/lib/auth-utils";
 import { parseJsonBody, validateRequestBody, withApiErrorHandling, validateCsrfHeaders } from "@/lib/api-utils";
 import { validateReminderSettings } from "@/lib/notification-settings";
 import { logInfo, logValidationFailure } from "@/lib/logger";
@@ -16,7 +16,7 @@ const updateNotificationsSchema = {
 } as const;
 
 export const GET = withApiErrorHandling(async () => {
-  const user = await requireAuth();
+  const user = await requireMember();
 
   const settings = await prisma.user.findUnique({
     where: { id: user.id },
@@ -36,7 +36,7 @@ export const GET = withApiErrorHandling(async () => {
 export const PUT = withApiErrorHandling(async (request: NextRequest) => {
   validateCsrfHeaders(request);
 
-  const user = await requireAuth();
+  const user = await requireMember();
   const body = await parseJsonBody<UpdateNotificationRequest>(request);
   const bodyValidation = validateRequestBody(
     body as unknown as Record<string, unknown>,

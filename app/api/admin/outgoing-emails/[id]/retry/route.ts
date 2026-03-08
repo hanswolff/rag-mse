@@ -8,7 +8,7 @@ import { logError } from "@/lib/logger";
 
 export const POST = withApiErrorHandling(async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
   validateCsrfHeaders(request);
-  await requireAdmin();
+  await requireAdmin("write");
 
   const { id } = await params;
   const email = await prisma.outgoingEmail.findUnique({

@@ -2,10 +2,10 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useState, useRef, useEffect } from "react";
 import { useSession, signOut } from "next-auth/react";
-import { isAdmin } from "@/lib/role-utils";
+import { canAccessAdminArea, isMember } from "@/lib/role-utils";
 import { MenuIcon, XIcon, UserIcon, ChevronDownIcon } from "./icons";
 
 const NAV_ITEMS = [
@@ -33,12 +33,15 @@ const MOBILE_LINK_CLASSES =
 
 export function Navigation() {
   const pathname = usePathname();
+  const router = useRouter();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [isInfoMenuOpen, setIsInfoMenuOpen] = useState(false);
+  const [isStoppingImpersonation, setIsStoppingImpersonation] = useState(false);
+  const [impersonationError, setImpersonationError] = useState("");
   const userMenuRef = useRef<HTMLDivElement>(null);
   const infoMenuRef = useRef<HTMLDivElement>(null);
-  const { data: session, status } = useSession();
+  const { data: session, status, update } = useSession();
 
   const isActive = (path: string) => pathname === path;
 
@@ -61,6 +64,9 @@ export function Navigation() {
   }, []);
 
   const userName = session?.user?.name || "Benutzer";
+  const canAccessMemberMenu = !!session && isMember(session.user);
+  const isImpersonating = !!session?.user?.isImpersonating && !!session.user.impersonatedBy?.id;
+  const impersonatedBy = session?.user?.impersonatedBy;
 
   const handleLogout = async () => {
     setIsUserMenuOpen(false);
@@ -75,10 +81,77 @@ export function Navigation() {
     setIsInfoMenuOpen(false);
   };
 
+  const handleStopImpersonation = async () => {
+    if (!isImpersonating || isStoppingImpersonation) {
+      return;
+    }
+
+    if (typeof update !== "function") {
+      setImpersonationError("Impersonierung konnte nicht beendet werden");
+      return;
+    }
+
+    setImpersonationError("");
+    setIsStoppingImpersonation(true);
+    try {
+      const response = await fetch("/api/auth/impersonation/stop", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      });
+      const data = await response.json();
+      if (!response.ok || typeof data.proof !== "string") {
+        setImpersonationError(data.error || "Impersonierung konnte nicht beendet werden");
+        return;
+      }
+
+      const updatedSession = await update({ impersonationStopProof: data.proof });
+      if (updatedSession?.user?.isImpersonating) {
+        setImpersonationError("Impersonierung konnte nicht beendet werden");
+        return;
+      }
+
+      router.push("/admin/benutzerverwaltung");
+      router.refresh();
+    } catch {
+      setImpersonationError("Impersonierung konnte nicht beendet werden");
+    } finally {
+      setIsStoppingImpersonation(false);
+    }
+  };
+
   const isInfoActive = INFO_ITEMS.some((item) => isActive(item.href));
 
   return (
     <nav className="bg-white text-brand-blue-900 shadow-sm sticky top-0 z-header border-b-4 border-brand-red-600">
+      {isImpersonating && (
+        <div className="bg-amber-100 border-b border-amber-200">
+          <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-8 py-2 sm:py-2.5 flex flex-col sm:flex-row gap-2 sm:items-center sm:justify-between">
+            <p className="text-base text-amber-900">
+              Impersonierung aktiv: Sie agieren als <strong>{userName || "Benutzer"}</strong>.
+              {impersonatedBy?.name ? ` Angemeldet durch ${impersonatedBy.name}.` : ""}
+            </p>
+            <button
+              type="button"
+              onClick={() => void handleStopImpersonation()}
+              disabled={isStoppingImpersonation}
+              className={`px-3 py-2 rounded text-base font-medium touch-manipulation ${
+                isStoppingImpersonation
+                  ? "bg-gray-200 text-gray-500 cursor-not-allowed"
+                  : "bg-amber-700 text-white hover:bg-amber-800"
+              }`}
+            >
+              {isStoppingImpersonation ? "Beenden..." : "Impersonierung beenden"}
+            </button>
+          </div>
+          {impersonationError && (
+            <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-8 pb-2">
+              <p className="text-base text-red-700">{impersonationError}</p>
+            </div>
+          )}
+        </div>
+      )}
       <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-8">
         <div className="flex items-center justify-between h-16 sm:h-20">
           <div className="flex items-center flex-shrink-0">
@@ -160,7 +233,7 @@ export function Navigation() {
 
                   {isUserMenuOpen && (
                     <div className="absolute right-0 mt-2 w-auto min-w-[15rem] bg-white rounded-md shadow-lg py-1 z-dropdown border border-gray-200">
-                      {isAdmin(session.user) && (
+                      {canAccessAdminArea(session.user) && (
                         <>
                           <Link
                             href="/admin"
@@ -172,27 +245,31 @@ export function Navigation() {
                           <div className="border-t border-gray-200 my-1" />
                         </>
                       )}
-                      <Link
-                        href="/profil"
-                        onClick={handleUserMenuItemClick}
-                        className="block px-4 py-2 text-base text-gray-700 hover:bg-gray-100 transition-colors"
-                      >
-                        Profil
-                      </Link>
-                      <Link
-                        href="/benachrichtigungen"
-                        onClick={handleUserMenuItemClick}
-                        className="block px-4 py-2 text-base text-gray-700 hover:bg-gray-100 transition-colors"
-                      >
-                        Benachrichtigungen
-                      </Link>
-                      <Link
-                        href="/passwort-aendern"
-                        onClick={handleUserMenuItemClick}
-                        className="block px-4 py-2 text-base text-gray-700 hover:bg-gray-100 transition-colors"
-                      >
-                        Passwort ändern
-                      </Link>
+                      {canAccessMemberMenu && (
+                        <>
+                          <Link
+                            href="/profil"
+                            onClick={handleUserMenuItemClick}
+                            className="block px-4 py-2 text-base text-gray-700 hover:bg-gray-100 transition-colors"
+                          >
+                            Profil
+                          </Link>
+                          <Link
+                            href="/benachrichtigungen"
+                            onClick={handleUserMenuItemClick}
+                            className="block px-4 py-2 text-base text-gray-700 hover:bg-gray-100 transition-colors"
+                          >
+                            Benachrichtigungen
+                          </Link>
+                          <Link
+                            href="/passwort-aendern"
+                            onClick={handleUserMenuItemClick}
+                            className="block px-4 py-2 text-base text-gray-700 hover:bg-gray-100 transition-colors"
+                          >
+                            Passwort ändern
+                          </Link>
+                        </>
+                      )}
                       <div className="border-t border-gray-200 my-1" />
                       <button
                         type="button"
@@ -277,7 +354,7 @@ export function Navigation() {
                   {userName}
                 </div>
               </div>
-              {isAdmin(session.user) && (
+              {canAccessAdminArea(session.user) && (
                 <>
                   <Link
                     href="/admin"
@@ -289,27 +366,31 @@ export function Navigation() {
                   <div className="border-t border-brand-blue-100 my-2" />
                 </>
               )}
-              <Link
-                href="/profil"
-                className={`${getLinkClasses("/profil", true)} flex items-center gap-2`}
-                onClick={() => setIsMenuOpen(false)}
-              >
-                Profil
-              </Link>
-              <Link
-                href="/benachrichtigungen"
-                className={`${getLinkClasses("/benachrichtigungen", true)} flex items-center gap-2`}
-                onClick={() => setIsMenuOpen(false)}
-              >
-                Benachrichtigungen
-              </Link>
-              <Link
-                href="/passwort-aendern"
-                className={`${getLinkClasses("/passwort-aendern", true)} flex items-center gap-2`}
-                onClick={() => setIsMenuOpen(false)}
-              >
-                Passwort ändern
-              </Link>
+              {canAccessMemberMenu && (
+                <>
+                  <Link
+                    href="/profil"
+                    className={`${getLinkClasses("/profil", true)} flex items-center gap-2`}
+                    onClick={() => setIsMenuOpen(false)}
+                  >
+                    Profil
+                  </Link>
+                  <Link
+                    href="/benachrichtigungen"
+                    className={`${getLinkClasses("/benachrichtigungen", true)} flex items-center gap-2`}
+                    onClick={() => setIsMenuOpen(false)}
+                  >
+                    Benachrichtigungen
+                  </Link>
+                  <Link
+                    href="/passwort-aendern"
+                    className={`${getLinkClasses("/passwort-aendern", true)} flex items-center gap-2`}
+                    onClick={() => setIsMenuOpen(false)}
+                  >
+                    Passwort ändern
+                  </Link>
+                </>
+              )}
               <div className="border-t border-brand-blue-100 my-2" />
               <button
                 type="button"

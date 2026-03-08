@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { ASSIGNABLE_ROLES } from "./permissions";
 import { FieldValidationConfig } from "./useFormFieldValidation";
 import {
   MAX_EVENT_DESCRIPTION_BYTES,
@@ -15,8 +16,8 @@ export const phoneRegex = /^[0-9+()\s-]+$/;
 // Name validation
 export const nameRegex = /^[a-zA-ZäöüÄÖÜß\s\-'.]+$/;
 
-// Time validation
-export const timeRegex = /^([01]?[0-9]|2[0-3]):[0-5][0-9]$/;
+// Time validation (requires HH:MM format with leading zeros)
+export const timeRegex = /^([01][0-9]|2[0-3]):[0-5][0-9]$/;
 
 const isoDateRegex = /^(\d{4})-(\d{2})-(\d{2})$/;
 
@@ -219,6 +220,11 @@ const optionalDocumentDateSchema = z
     message: "Ungültiges Dokumentdatum",
   });
 
+const optionalDocumentDirectoryIdSchema = z
+  .string()
+  .trim()
+  .max(100, "Ungültiges Verzeichnis");
+
 const requiredContactNameSchema = z
   .string()
   .trim()
@@ -357,7 +363,7 @@ export const validateEventType = (type: string): boolean => {
 };
 
 // Role validation
-export const VALID_ROLES = ["ADMIN", "MEMBER"] as const;
+export const VALID_ROLES = ASSIGNABLE_ROLES;
 export const validateRole = (role: string): boolean => {
   if (typeof role !== "string") return false;
   return VALID_ROLES.includes(role as (typeof VALID_ROLES)[number]);
@@ -482,6 +488,7 @@ export const newsValidationConfig: Record<string, FieldValidationConfig> = {
 export const documentValidationConfig: Record<string, FieldValidationConfig> = {
   displayName: { zod: optionalDocumentDisplayNameSchema },
   documentDate: { zod: optionalDocumentDateSchema },
+  directoryId: { zod: optionalDocumentDirectoryIdSchema },
 };
 
 export const contactValidationConfig: Record<string, FieldValidationConfig> = {

@@ -16,7 +16,7 @@ import { profileValidationConfig, resetPasswordFormSchema } from "@/lib/validati
 
 interface InvitationStatus {
   email: string;
-  role: "ADMIN" | "MEMBER";
+  role: "SITE_ADMINISTRATOR" | "ADMIN" | "AUDITOR" | "MEMBER";
   expiresAt: string;
   name: string;
   address: string;

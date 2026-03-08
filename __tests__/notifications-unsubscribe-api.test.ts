@@ -42,6 +42,9 @@ describe("/api/notifications/unsubscribe/[token]", () => {
     (prisma.eventReminderDispatch.findUnique as jest.Mock).mockResolvedValue({
       userId: "user-1",
       unsubscribeTokenExpiresAt: new Date(Date.now() - 60_000),
+      user: {
+        role: "MEMBER",
+      },
     });
 
     const request = new NextRequest("http://localhost:3000/api/notifications/unsubscribe/token");
@@ -58,6 +61,9 @@ describe("/api/notifications/unsubscribe/[token]", () => {
     (prisma.eventReminderDispatch.findUnique as jest.Mock).mockResolvedValue({
       userId: "user-1",
       unsubscribeTokenExpiresAt: new Date(Date.now() + 60_000),
+      user: {
+        role: "MEMBER",
+      },
     });
     (prisma.user.update as jest.Mock).mockResolvedValue({});
 
@@ -73,5 +79,23 @@ describe("/api/notifications/unsubscribe/[token]", () => {
       data: { eventReminderEnabled: false },
     });
     expect(recordSuccessfulTokenUsage).toHaveBeenCalled();
+  });
+
+  it("rejects unsubscribe for auditor users", async () => {
+    (prisma.eventReminderDispatch.findUnique as jest.Mock).mockResolvedValue({
+      userId: "user-1",
+      unsubscribeTokenExpiresAt: new Date(Date.now() + 60_000),
+      user: {
+        role: "AUDITOR",
+      },
+    });
+
+    const request = new NextRequest("http://localhost:3000/api/notifications/unsubscribe/token");
+    const response = await POST(request, { params: Promise.resolve({ token: "token" }) });
+    const data = await response.json();
+
+    expect(response.status).toBe(403);
+    expect(data.error).toContain("ungültig");
+    expect(prisma.user.update).not.toHaveBeenCalled();
   });
 });

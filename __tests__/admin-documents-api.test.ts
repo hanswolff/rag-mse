@@ -19,6 +19,9 @@ jest.mock("@/lib/prisma", () => ({
       update: jest.fn(),
       delete: jest.fn(),
     },
+    documentDirectory: {
+      findUnique: jest.fn(),
+    },
   },
 }));
 
@@ -97,7 +100,34 @@ describe("/api/admin/documents", () => {
     const findManyCall = (prisma.document.findMany as jest.Mock).mock.calls[0][0];
     expect(findManyCall.orderBy).toEqual([
       { documentDate: "desc" },
-      { createdAt: "desc" },
+      { id: "desc" },
+    ]);
+  });
+
+  it("uses requested sorting when sort parameters are provided", async () => {
+    (prisma.document.findMany as jest.Mock).mockResolvedValue([]);
+    (prisma.document.count as jest.Mock).mockResolvedValue(0);
+
+    const request = new NextRequest("http://localhost:3000/api/admin/documents?sortBy=sizeBytes&sortDir=asc");
+    await GET(request);
+
+    const findManyCall = (prisma.document.findMany as jest.Mock).mock.calls[0][0];
+    expect(findManyCall.orderBy).toEqual([
+      { sizeBytes: "asc" },
+      { id: "desc" },
+    ]);
+  });
+
+  it("falls back to default sorting for unsupported sort fields", async () => {
+    (prisma.document.findMany as jest.Mock).mockResolvedValue([]);
+    (prisma.document.count as jest.Mock).mockResolvedValue(0);
+
+    const request = new NextRequest("http://localhost:3000/api/admin/documents?sortBy=createdAt&sortDir=asc");
+    await GET(request);
+
+    const findManyCall = (prisma.document.findMany as jest.Mock).mock.calls[0][0];
+    expect(findManyCall.orderBy).toEqual([
+      { documentDate: "asc" },
       { id: "desc" },
     ]);
   });
@@ -111,6 +141,42 @@ describe("/api/admin/documents", () => {
 
     const firstCall = (prisma.document.findMany as jest.Mock).mock.calls[0][0];
     expect(firstCall.where).toEqual({ displayName: { contains: "mitglied" } });
+  });
+
+  it("filters documents for root directory", async () => {
+    (prisma.document.findMany as jest.Mock).mockResolvedValue([]);
+    (prisma.document.count as jest.Mock).mockResolvedValue(0);
+
+    const request = new NextRequest("http://localhost:3000/api/admin/documents?directory=root");
+    await GET(request);
+
+    const firstCall = (prisma.document.findMany as jest.Mock).mock.calls[0][0];
+    expect(firstCall.where).toEqual({ directoryId: null });
+  });
+
+  it("searches across root and subdirectories when query is set in root", async () => {
+    (prisma.document.findMany as jest.Mock).mockResolvedValue([]);
+    (prisma.document.count as jest.Mock).mockResolvedValue(0);
+
+    const request = new NextRequest("http://localhost:3000/api/admin/documents?directory=root&q=antrag");
+    await GET(request);
+
+    const firstCall = (prisma.document.findMany as jest.Mock).mock.calls[0][0];
+    expect(firstCall.where).toEqual({ displayName: { contains: "antrag" } });
+  });
+
+  it("searches only within selected subdirectory", async () => {
+    (prisma.document.findMany as jest.Mock).mockResolvedValue([]);
+    (prisma.document.count as jest.Mock).mockResolvedValue(0);
+
+    const request = new NextRequest("http://localhost:3000/api/admin/documents?directory=dir-1&q=antrag");
+    await GET(request);
+
+    const firstCall = (prisma.document.findMany as jest.Mock).mock.calls[0][0];
+    expect(firstCall.where).toEqual({
+      displayName: { contains: "antrag" },
+      directoryId: "dir-1",
+    });
   });
 
   it("returns validation error when upload has no file", async () => {
@@ -161,6 +227,59 @@ describe("/api/admin/documents", () => {
     expect(response.status).toBe(400);
     expect(data.error).toContain("Dateiinhalt wird nicht unterstützt");
     expect(writeDocumentFile).not.toHaveBeenCalled();
+  });
+
+  it("stores upload fallback documentDate as date-only without time", async () => {
+    (writeDocumentFile as jest.Mock).mockResolvedValue({
+      storedFileName: "stored-file.pdf",
+      filePath: "/tmp/stored-file.pdf",
+    });
+    (prisma.document.create as jest.Mock).mockImplementation(async (args: { data: { documentDate: Date } }) => ({
+      id: "doc-1",
+      displayName: "Testdokument",
+      originalFileName: "antrag.pdf",
+      storedFileName: "stored-file.pdf",
+      mimeType: "application/pdf",
+      sizeBytes: 6,
+      documentDate: args.data.documentDate,
+      directoryId: null,
+      uploadedById: "admin-1",
+      createdAt: new Date("2026-02-10T10:00:00.000Z"),
+      updatedAt: new Date("2026-02-10T10:00:00.000Z"),
+      directory: null,
+      uploadedBy: {
+        id: "admin-1",
+        name: "Admin",
+        email: "admin@example.com",
+      },
+    }));
+
+    const fileBytes = new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d, 0x31]);
+    const file = new File([fileBytes], "antrag.pdf", { type: "application/pdf" });
+    Object.defineProperty(file, "arrayBuffer", {
+      value: async () => fileBytes.buffer,
+    });
+
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("displayName", "Testdokument");
+    formData.append("documentDate", "");
+
+    const request = new NextRequest("http://localhost:3000/api/admin/documents", { method: "POST" });
+    Object.defineProperty(request, "formData", {
+      value: async () => formData,
+    });
+
+    const response = await POST(request);
+
+    expect(response.status).toBe(201);
+    const createCall = (prisma.document.create as jest.Mock).mock.calls[0][0];
+    const persistedDate = createCall.data.documentDate as Date;
+    expect(persistedDate).toBeInstanceOf(Date);
+    expect(persistedDate.getUTCHours()).toBe(0);
+    expect(persistedDate.getUTCMinutes()).toBe(0);
+    expect(persistedDate.getUTCSeconds()).toBe(0);
+    expect(persistedDate.getUTCMilliseconds()).toBe(0);
   });
 
   it("cleans up uploaded file when metadata write fails", async () => {
@@ -237,6 +356,109 @@ describe("/api/admin/documents/[id]", () => {
     expect(response.status).toBe(200);
     expect(data.displayName).toBe("Neu");
     expect(prisma.document.update).toHaveBeenCalled();
+  });
+
+  it("moves a document to root", async () => {
+    (prisma.document.findUnique as jest.Mock).mockResolvedValue({
+      id: "doc-1",
+      displayName: "Alt",
+      documentDate: new Date("2026-02-10T00:00:00.000Z"),
+    });
+    (prisma.document.update as jest.Mock).mockResolvedValue({
+      id: "doc-1",
+      displayName: "Neu",
+      originalFileName: "antrag.pdf",
+      storedFileName: "abc123.pdf",
+      mimeType: "application/pdf",
+      sizeBytes: 1024,
+      documentDate: new Date("2026-02-12T00:00:00.000Z"),
+      directoryId: null,
+      uploadedById: "admin-1",
+      createdAt: new Date("2026-02-10T10:00:00.000Z"),
+      updatedAt: new Date("2026-02-12T10:00:00.000Z"),
+      uploadedBy: {
+        id: "admin-1",
+        name: "Admin",
+        email: "admin@example.com",
+      },
+      directory: null,
+    });
+
+    const request = new NextRequest("http://localhost:3000/api/admin/documents/doc-1", {
+      method: "PATCH",
+      body: JSON.stringify({ directoryId: null }),
+      headers: { "content-type": "application/json" },
+    });
+
+    const response = await PATCH(request, { params: Promise.resolve({ id: "doc-1" }) });
+    expect(response.status).toBe(200);
+    expect(prisma.document.update).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ directoryId: null }),
+    }));
+  });
+
+  it("moves a document to an existing directory", async () => {
+    (prisma.document.findUnique as jest.Mock).mockResolvedValue({
+      id: "doc-1",
+      displayName: "Alt",
+      documentDate: new Date("2026-02-10T00:00:00.000Z"),
+    });
+    (prisma.documentDirectory.findUnique as jest.Mock).mockResolvedValue({ id: "dir-1" });
+    (prisma.document.update as jest.Mock).mockResolvedValue({
+      id: "doc-1",
+      displayName: "Neu",
+      originalFileName: "antrag.pdf",
+      storedFileName: "abc123.pdf",
+      mimeType: "application/pdf",
+      sizeBytes: 1024,
+      documentDate: new Date("2026-02-12T00:00:00.000Z"),
+      directoryId: "dir-1",
+      uploadedById: "admin-1",
+      createdAt: new Date("2026-02-10T10:00:00.000Z"),
+      updatedAt: new Date("2026-02-12T10:00:00.000Z"),
+      uploadedBy: {
+        id: "admin-1",
+        name: "Admin",
+        email: "admin@example.com",
+      },
+      directory: {
+        id: "dir-1",
+        name: "Anträge",
+      },
+    });
+
+    const request = new NextRequest("http://localhost:3000/api/admin/documents/doc-1", {
+      method: "PATCH",
+      body: JSON.stringify({ directoryId: "dir-1" }),
+      headers: { "content-type": "application/json" },
+    });
+
+    const response = await PATCH(request, { params: Promise.resolve({ id: "doc-1" }) });
+    expect(response.status).toBe(200);
+    expect(prisma.document.update).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ directoryId: "dir-1" }),
+    }));
+  });
+
+  it("rejects move when target directory does not exist", async () => {
+    (prisma.document.findUnique as jest.Mock).mockResolvedValue({
+      id: "doc-1",
+      displayName: "Alt",
+      documentDate: new Date("2026-02-10T00:00:00.000Z"),
+    });
+    (prisma.documentDirectory.findUnique as jest.Mock).mockResolvedValue(null);
+
+    const request = new NextRequest("http://localhost:3000/api/admin/documents/doc-1", {
+      method: "PATCH",
+      body: JSON.stringify({ directoryId: "dir-missing" }),
+      headers: { "content-type": "application/json" },
+    });
+
+    const response = await PATCH(request, { params: Promise.resolve({ id: "doc-1" }) });
+    const data = await response.json();
+
+    expect(response.status).toBe(400);
+    expect(data.error).toBe("Verzeichnis nicht gefunden");
   });
 
   it("returns validation error when patch payload types are invalid", async () => {

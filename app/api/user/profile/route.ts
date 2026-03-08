@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireAuth } from "@/lib/auth-utils";
+import { requireMember } from "@/lib/auth-utils";
 import { validateUpdateProfileRequest, type UpdateProfileRequest } from "@/lib/user-validation";
 import { Prisma } from "@prisma/client";
 import { BadRequestError, logApiError, parseJsonBody, validateRequestBody, validateCsrfHeaders } from "@/lib/api-utils";
@@ -30,6 +30,12 @@ function handleApiError(error: unknown, method: "GET" | "PUT") {
     return NextResponse.json(
       { error: "Nicht autorisiert" },
       { status: 401 }
+    );
+  }
+  if (error instanceof Error && error.name === "ForbiddenError") {
+    return NextResponse.json(
+      { error: "Keine Berechtigung" },
+      { status: 403 }
     );
   }
 
@@ -62,7 +68,7 @@ export async function PUT(request: NextRequest) {
   try {
     validateCsrfHeaders(request);
 
-    const user = await requireAuth();
+    const user = await requireMember();
     const body = await parseJsonBody<UpdateProfileRequest>(request);
 
     const bodyValidation = validateRequestBody(body as unknown as Record<string, unknown>, updateProfileSchema, { route: '/api/user/profile', method: 'PUT' });
@@ -158,7 +164,7 @@ export async function PUT(request: NextRequest) {
 
 export async function GET() {
   try {
-    const user = await requireAuth();
+    const user = await requireMember();
 
     const userData = await prisma.user.findUnique({
       where: { id: user.id },

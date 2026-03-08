@@ -13,17 +13,19 @@ describe("proxy-trust", () => {
   });
 
   describe("getClientIdentifier", () => {
-    it("uses x-real-ip when source IP is missing", () => {
+    it("uses deterministic fallback fingerprint when source IP is missing", () => {
       process.env.TRUSTED_PROXY_IPS = "192.168.1.100";
 
       const request = new NextRequest("http://example.com", {
         headers: {
           "x-forwarded-for": "203.0.113.1, 198.51.100.1",
           "x-real-ip": "192.168.1.100",
+          "user-agent": "Mozilla/5.0 (X11; Linux x86_64)",
+          "accept-language": "de-DE,de;q=0.9",
         },
       });
 
-      expect(getClientIdentifier(request)).toBe("192.168.1.100");
+      expect(getClientIdentifier(request)).toMatch(/^fallback:[0-9a-f]{24}$/);
     });
 
     it("returns fallback identifier when no IP headers are present", () => {
@@ -34,7 +36,7 @@ describe("proxy-trust", () => {
         },
       });
 
-      expect(getClientIdentifier(request)).toBe("fallback:unknown-client");
+      expect(getClientIdentifier(request)).toMatch(/^fallback:[0-9a-f]{24}$/);
     });
 
     it("handles missing user-agent and accept-language in fallback", () => {
@@ -47,11 +49,21 @@ describe("proxy-trust", () => {
       process.env.TRUSTED_PROXY_IPS = "192.168.0.0/16";
 
       const headers = new Headers({
-        "x-forwarded-for": "203.0.113.1",
+        "x-forwarded-for": "198.51.100.99, 203.0.113.1",
         "x-real-ip": "198.51.100.5",
       });
 
       expect(getClientIdentifierFromHeaders(headers, "192.168.1.50")).toBe("203.0.113.1");
+    });
+
+    it("uses the last valid forwarded IP to reduce spoofing risk", () => {
+      process.env.TRUSTED_PROXY_IPS = "10.0.0.0/8";
+
+      const headers = new Headers({
+        "x-forwarded-for": "198.51.100.200, 203.0.113.55",
+      });
+
+      expect(getClientIdentifierFromHeaders(headers, "10.20.30.40")).toBe("203.0.113.55");
     });
 
     it("returns source IP when proxy is not trusted", () => {

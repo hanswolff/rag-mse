@@ -12,6 +12,7 @@ export interface Event {
   timeFrom: string;
   timeTo: string;
   location: string;
+  locationDisplay?: string;
   description: string;
   latitude: number | null;
   longitude: number | null;
@@ -122,6 +123,11 @@ export interface DocumentItem {
   mimeType: string;
   sizeBytes: number;
   documentDate: string;
+  directoryId?: string | null;
+  directory?: {
+    id: string;
+    name: string;
+  } | null;
   createdAt: string;
   updatedAt: string;
   uploadedById?: string | null;
@@ -135,5 +141,12 @@ export interface DocumentItem {
 export interface NewDocumentInput {
   displayName: string;
   documentDate: string;
+  directoryId?: string | null;
   file: File | null;
+}
+
+export interface DocumentDirectoryItem {
+  id: string;
+  name: string;
+  documentCount: number;
 }

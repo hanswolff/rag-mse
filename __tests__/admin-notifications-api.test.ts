@@ -1,7 +1,7 @@
 import { GET } from "@/app/api/admin/notifications/route";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireAdmin } from "@/lib/auth-utils";
+import { requireAuth } from "@/lib/auth-utils";
 
 jest.mock("@/lib/prisma", () => ({
   prisma: {
@@ -13,13 +13,19 @@ jest.mock("@/lib/prisma", () => ({
 }));
 
 jest.mock("@/lib/auth-utils", () => ({
-  requireAdmin: jest.fn(),
+  requireAuth: jest.fn(),
+  ForbiddenError: class ForbiddenError extends Error {
+    constructor(message = "Keine Berechtigung") {
+      super(message);
+      this.name = "ForbiddenError";
+    }
+  },
 }));
 
 describe("/api/admin/notifications", () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    (requireAdmin as jest.Mock).mockResolvedValue({
+    (requireAuth as jest.Mock).mockResolvedValue({
       id: "admin-1",
       role: "ADMIN",
       email: "admin@example.com",
@@ -54,7 +60,7 @@ describe("/api/admin/notifications", () => {
     const data = await response.json();
 
     expect(response.status).toBe(200);
-    expect(requireAdmin).toHaveBeenCalled();
+    expect(requireAuth).toHaveBeenCalled();
     expect(data.notifications).toHaveLength(1);
     expect(data.notifications[0].event.date).toBe("2026-02-22");
     expect(data.notifications[0].user.name).toBe("Max Mustermann");
@@ -73,6 +79,7 @@ describe("/api/admin/notifications", () => {
     expect(firstCall.where.OR[0].sentAt.gte).toBeInstanceOf(Date);
     expect(firstCall.where.OR[1].sentAt).toBeNull();
     expect(firstCall.where.OR[1].queuedAt.gte).toBeInstanceOf(Date);
+    expect(firstCall.orderBy).toEqual([{ sentAt: "desc" }, { queuedAt: "desc" }, { id: "desc" }]);
   });
 
   it("applies search query for name or email", async () => {
@@ -101,5 +108,40 @@ describe("/api/admin/notifications", () => {
     const firstCall = (prisma.eventReminderDispatch.findMany as jest.Mock).mock.calls[0][0];
     expect(firstCall.take).toBe(100);
     expect(firstCall.skip).toBe(100);
+  });
+
+  it("uses requested sorting for user fields", async () => {
+    (prisma.eventReminderDispatch.findMany as jest.Mock).mockResolvedValue([]);
+    (prisma.eventReminderDispatch.count as jest.Mock).mockResolvedValue(0);
+
+    const request = new NextRequest("http://localhost:3000/api/admin/notifications?sortBy=userName&sortDir=asc");
+    await GET(request);
+
+    const firstCall = (prisma.eventReminderDispatch.findMany as jest.Mock).mock.calls[0][0];
+    expect(firstCall.orderBy).toEqual([{ user: { name: "asc" } }, { user: { email: "asc" } }, { id: "desc" }]);
+  });
+
+  it("falls back to default sort field for invalid sortBy", async () => {
+    (prisma.eventReminderDispatch.findMany as jest.Mock).mockResolvedValue([]);
+    (prisma.eventReminderDispatch.count as jest.Mock).mockResolvedValue(0);
+
+    const request = new NextRequest("http://localhost:3000/api/admin/notifications?sortBy=unknown&sortDir=asc");
+    await GET(request);
+
+    const firstCall = (prisma.eventReminderDispatch.findMany as jest.Mock).mock.calls[0][0];
+    expect(firstCall.orderBy).toEqual([{ sentAt: "asc" }, { queuedAt: "asc" }, { id: "desc" }]);
+  });
+
+  it("returns 403 for auditor role", async () => {
+    (requireAuth as jest.Mock).mockResolvedValue({
+      id: "auditor-1",
+      role: "AUDITOR",
+      email: "auditor@example.com",
+    });
+
+    const request = new NextRequest("http://localhost:3000/api/admin/notifications");
+    const response = await GET(request);
+
+    expect(response.status).toBe(403);
   });
 });

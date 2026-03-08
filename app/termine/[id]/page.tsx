@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, use } from "react";
+import { FormEvent, useState, useEffect, use } from "react";
 import { useSession } from "next-auth/react";
 import { formatDate, formatTime, isEventInPast } from "@/lib/date-utils";
 import { VoteType } from "@prisma/client";
@@ -210,6 +210,11 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
     } finally {
       setRegistrationActionKey(null);
     }
+  }
+
+  function handleSubmitAddRegistration(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    void addRegistration();
   }
 
   async function deleteRegistration(registration: EditableRegistration, voteId: string) {
@@ -482,13 +487,13 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
                       </a>
                     )}
                   </div>
-                  <p className="text-gray-700 mb-4">{event.location}</p>
+                  <p className="text-gray-700 mb-4">{event.locationDisplay || event.location}</p>
 
                   {event.latitude !== null && event.longitude !== null && (
                     <EventMap
                       latitude={event.latitude}
                       longitude={event.longitude}
-                      location={event.location}
+                      location={event.locationDisplay || event.location}
                     />
                   )}
                 </div>
@@ -621,7 +626,7 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
         title={`Anmeldung hinzufügen (${VOTE_OPTIONS.find((option) => option.value === addRegistrationVote)?.label ?? "Ja"})`}
         size="lg"
       >
-        <div className="space-y-5">
+        <form onSubmit={handleSubmitAddRegistration} className="space-y-5">
           <div className="flex flex-wrap gap-5">
             <label className="inline-flex items-center gap-2.5 text-base text-gray-800">
               <input
@@ -690,7 +695,7 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
               Abbrechen
             </button>
             <LoadingButton
-              onClick={addRegistration}
+              type="submit"
               loading={registrationActionKey === "create-registration"}
               loadingText="Speichern"
               className="btn-primary"
@@ -698,7 +703,7 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
               Hinzufügen
             </LoadingButton>
           </div>
-        </div>
+        </form>
       </Modal>
 
       <EventFormModal
@@ -714,6 +719,8 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
         isGeocoding={eventManagement.isGeocoding}
         onGeocode={eventManagement.handleGeocode}
         geocodeSuccess={eventManagement.geocodeSuccess}
+        onUseLastDescription={eventManagement.handleUseLatestDescription}
+        isLoadingLastDescription={eventManagement.isLoadingLatestDescription}
       />
     </main>
   );

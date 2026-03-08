@@ -45,6 +45,7 @@ describe("/api/notifications/rsvp/[token]", () => {
       user: {
         id: "user-1",
         name: "Max",
+        role: "MEMBER",
       },
     });
 
@@ -75,6 +76,7 @@ describe("/api/notifications/rsvp/[token]", () => {
       user: {
         id: "user-1",
         name: "Max",
+        role: "MEMBER",
       },
     });
     (prisma.vote.findUnique as jest.Mock).mockResolvedValue({
@@ -126,6 +128,7 @@ describe("/api/notifications/rsvp/[token]", () => {
       user: {
         id: "user-1",
         name: "Max",
+        role: "MEMBER",
       },
     });
     (prisma.vote.upsert as jest.Mock).mockResolvedValue({
@@ -148,5 +151,41 @@ describe("/api/notifications/rsvp/[token]", () => {
     expect(data.vote).toBe("VIELLEICHT");
     expect(response.headers.get("Cache-Control")).toBe("no-store, no-cache, must-revalidate");
     expect(prisma.vote.upsert).toHaveBeenCalled();
+  });
+
+  it("rejects token voting for auditor users", async () => {
+    (prisma.eventReminderDispatch.findUnique as jest.Mock).mockResolvedValue({
+      rsvpTokenExpiresAt: new Date(Date.now() + 60_000),
+      event: {
+        id: "event-1",
+        date: new Date(Date.now() + 24 * 60 * 60 * 1000),
+        timeFrom: "18:00",
+        timeTo: "20:00",
+        location: "Ulm",
+        description: "Test",
+        latitude: null,
+        longitude: null,
+        type: null,
+        visible: true,
+      },
+      user: {
+        id: "user-1",
+        name: "Max",
+        role: "AUDITOR",
+      },
+    });
+
+    const request = new NextRequest("http://localhost:3000/api/notifications/rsvp/abc", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ vote: "JA" }),
+    });
+
+    const response = await POST(request, { params: Promise.resolve({ token: "abc" }) });
+    const data = await response.json();
+
+    expect(response.status).toBe(403);
+    expect(data.error).toContain("ungültig");
+    expect(prisma.vote.upsert).not.toHaveBeenCalled();
   });
 });

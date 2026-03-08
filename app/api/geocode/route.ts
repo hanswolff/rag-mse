@@ -108,7 +108,7 @@ function transformNominatimResult(result: NominatimResponse): GeocodeResponse {
 
 export async function GET(request: NextRequest): Promise<NextResponse<GeocodeResponse | { error: string }>> {
   try {
-    await requireAdmin();
+    await requireAdmin("write");
 
     const clientId = getClientIdentifier(request);
     try {

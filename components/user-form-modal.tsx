@@ -8,8 +8,9 @@ import { ValidatedFieldGroup } from "./validated-field-group";
 import { useFormFieldValidation } from "@/lib/useFormFieldValidation";
 import { mapServerErrorToField, PROFILE_FIELD_KEYWORDS } from "@/lib/server-error-mapper";
 import { adminUserValidationConfig } from "@/lib/validation-schema";
+import { Permissions } from "@/lib/permissions";
 
-type UserRole = "ADMIN" | "MEMBER";
+type UserRole = "SITE_ADMINISTRATOR" | "ADMIN" | "AUDITOR" | "MEMBER";
 
 interface UserFormModalProps {
   isOpen: boolean;
@@ -366,8 +367,12 @@ export function UserFormModal({
               aria-invalid={!!getFieldError("role")}
               aria-describedby={getFieldError("role") ? "role-error" : undefined}
             >
-              <option value="MEMBER">Mitglied</option>
-              <option value="ADMIN">Administrator</option>
+              <option value="SITE_ADMINISTRATOR" disabled>
+                {Permissions.getRoleLabel("SITE_ADMINISTRATOR")}
+              </option>
+              <option value="MEMBER">{Permissions.getRoleLabel("MEMBER")}</option>
+              <option value="ADMIN">{Permissions.getRoleLabel("ADMIN")}</option>
+              <option value="AUDITOR">{Permissions.getRoleLabel("AUDITOR")}</option>
             </select>
             {getFieldError("role") && (
               <p id="role-error" className="form-help text-red-600">

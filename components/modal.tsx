@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { XIcon } from "@/components/icons";
 
 export const DEFAULT_MODAL_MAX_HEIGHT = "90vh";
 
@@ -168,19 +169,7 @@ export function Modal({
             className="shrink-0 text-gray-400 hover:text-gray-600 focus:outline-none focus:ring-2 focus:ring-brand-red-600/30 rounded-md p-1 transition-colors"
             aria-label="Schließen"
           >
-            <svg
-              className="h-6 w-6"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M6 18L18 6M6 6l12 12"
-              />
-            </svg>
+            <XIcon className="h-6 w-6" />
           </button>
         </div>
         <div className={`p-4 sm:p-6 ${contentOverflow === "visible" ? "overflow-visible" : "overflow-y-auto"}`}>{children}</div>

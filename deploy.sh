@@ -96,20 +96,28 @@ pnpm exec prisma generate
 echo "Building Next.js app on host..."
 pnpm run build
 
-echo "Building and starting containers..."
+PREV_APP_CONTAINER_ID="$(docker compose ps -q app | head -n 1)"
+
+echo "Building app container image..."
 set +e
-docker compose up --build -d 2>&1 | tee "$LOG_FILE"
+docker compose build app 2>&1 | tee "$LOG_FILE"
 status=${PIPESTATUS[0]}
 set -e
 
 if [ "$status" -ne 0 ]; then
-  echo "Deployment failed during container build/start. Existing running containers were not intentionally stopped." >&2
+  echo "Deployment failed during app image build. Existing running containers were not intentionally stopped." >&2
   exit "$status"
 fi
 
-if ! docker compose ps --services --filter status=running | grep -q .; then
-  echo "Deployment failed: no running services after startup." >&2
-  exit 1
+echo "Recreating app container with latest image..."
+set +e
+docker compose up -d --no-deps --force-recreate app 2>&1 | tee -a "$LOG_FILE"
+status=${PIPESTATUS[0]}
+set -e
+
+if [ "$status" -ne 0 ]; then
+  echo "Deployment failed during app container recreate. Existing running containers were not intentionally stopped." >&2
+  exit "$status"
 fi
 
 echo "Waiting for app container to become healthy..."
@@ -119,6 +127,11 @@ APP_CONTAINER_ID="$(docker compose ps -q app | head -n 1)"
 if [ -z "${APP_CONTAINER_ID:-}" ]; then
   echo "Deployment failed: app container for service 'app' not found." >&2
   docker compose ps >&2 || true
+  exit 1
+fi
+
+if [ -n "${PREV_APP_CONTAINER_ID:-}" ] && [ "$APP_CONTAINER_ID" = "$PREV_APP_CONTAINER_ID" ]; then
+  echo "Deployment failed: app container was not recreated (container ID unchanged)." >&2
   exit 1
 fi
 

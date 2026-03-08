@@ -1,0 +1,21 @@
+Subject: Ihre Rolle wurde geändert
+
+Hallo {{userName}},
+
+Ihre Rolle bei {{appName}} wurde geändert.
+
+Frühere Rolle: {{oldRole}}
+Neue Rolle: {{newRole}}
+
+Was bedeutet Ihre neue Rolle?
+
+{{roleDescription}}
+
+Sie können sich unter {{appUrl}} anmelden, um Ihre neuen Berechtigungen zu nutzen.
+
+Falls Sie Fragen zu dieser Änderung haben, wenden Sie sich bitte an einen Administrator.
+
+Diese Änderung wurde von {{changedByName}} vorgenommen.
+
+Mit freundlichen Grüßen
+{{appName}}

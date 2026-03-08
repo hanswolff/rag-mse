@@ -9,6 +9,7 @@ import {
   sendEventReminderEmail,
 } from "./notifications";
 import { logError, logInfo } from "./logger";
+import { Permissions } from "./permissions";
 
 const DEFAULT_POLL_INTERVAL_MS = 5 * 60 * 1000;
 const DEFAULT_NOTIFICATION_TIMEZONE = "Europe/Berlin";
@@ -331,12 +332,15 @@ export async function processEventReminders(now = new Date()): Promise<number> {
     select: {
       id: true,
       email: true,
+      role: true,
       eventReminderDaysBefore: true,
     },
   });
 
-  // Filter out users with pending invitations
-  const activeUsers = users.filter((user) => !excludedEmails.has(user.email.toLowerCase()));
+  // Filter out users with pending invitations and read-only roles.
+  const activeUsers = users.filter(
+    (user) => !excludedEmails.has(user.email.toLowerCase()) && Permissions.canVoteAttendance(user.role)
+  );
 
   let queued = 0;
 

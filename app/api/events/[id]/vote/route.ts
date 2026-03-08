@@ -1,14 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireAuth } from "@/lib/auth-utils";
+import { requireMember } from "@/lib/auth-utils";
 import { VoteType } from "@prisma/client";
 import { validateVote } from "@/lib/event-validation";
-import { isAdmin as checkIsAdmin } from "@/lib/role-utils";
-import { parseJsonBody, withApiErrorHandling, validateCsrfHeaders } from "@/lib/api-utils";
+import { canAccessAdminArea } from "@/lib/role-utils";
+import { parseJsonBody, validateRequestBody, withApiErrorHandling, validateCsrfHeaders } from "@/lib/api-utils";
 import { logInfo, logResourceNotFound, logValidationFailure } from "@/lib/logger";
 import { isEventInPast } from "@/lib/date-utils";
 
 type VoteRequest = { vote?: string };
+const voteSchema = {
+  vote: { type: "string" as const, optional: true },
+} as const;
 
 export const POST = withApiErrorHandling(async (
   request: NextRequest,
@@ -16,9 +19,17 @@ export const POST = withApiErrorHandling(async (
 ) => {
   validateCsrfHeaders(request);
 
-  const user = await requireAuth();
+  const user = await requireMember();
   const { id: eventId } = await ctx.params;
   const body = await parseJsonBody<VoteRequest>(request);
+  const bodyValidation = validateRequestBody(
+    body as unknown as Record<string, unknown>,
+    voteSchema,
+    { route: "/api/events/[id]/vote", method: "POST" }
+  );
+  if (!bodyValidation.isValid) {
+    return NextResponse.json({ error: bodyValidation.errors.join(". ") }, { status: 400 });
+  }
 
   const { vote } = body;
 
@@ -63,7 +74,7 @@ export const POST = withApiErrorHandling(async (
     );
   }
 
-  const canSeeAll = checkIsAdmin(user);
+  const canSeeAll = canAccessAdminArea(user);
   if (!event.visible && !canSeeAll && event.createdById !== user.id) {
     return NextResponse.json(
       { error: "Termin nicht gefunden" },
@@ -118,7 +129,7 @@ export const DELETE = withApiErrorHandling(async (
 ) => {
   validateCsrfHeaders(request);
 
-  const user = await requireAuth();
+  const user = await requireMember();
   const { id: eventId } = await ctx.params;
 
   const event = await prisma.event.findUnique({
@@ -153,7 +164,7 @@ export const DELETE = withApiErrorHandling(async (
     );
   }
 
-  const canSeeAll = checkIsAdmin(user);
+  const canSeeAll = canAccessAdminArea(user);
   if (!event.visible && !canSeeAll && event.createdById !== user.id) {
     logResourceNotFound('event', eventId, '/api/events/[id]/vote', 'DELETE', {
       reason: 'event not visible',

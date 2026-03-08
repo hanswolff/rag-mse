@@ -2,14 +2,18 @@ import { NextRequest, NextResponse } from "next/server";
 import { VoteType } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { checkTokenRateLimit, recordSuccessfulTokenUsage } from "@/lib/rate-limiter";
-import { getClientIp, getNoCacheHeaders, handleRateLimitBlocked, parseJsonBody, withApiErrorHandling, validateCsrfHeaders } from "@/lib/api-utils";
+import { getClientIp, getNoCacheHeaders, handleRateLimitBlocked, parseJsonBody, validateRequestBody, withApiErrorHandling, validateCsrfHeaders } from "@/lib/api-utils";
 import { hashNotificationToken } from "@/lib/notifications";
 import { formatDateForStorage } from "@/lib/date-picker-utils";
 import { validateVote } from "@/lib/event-validation";
 import { isEventInPast } from "@/lib/date-utils";
 import { logResourceNotFound, logValidationFailure, maskToken } from "@/lib/logger";
+import { Permissions } from "@/lib/permissions";
 
 type VoteRequest = { vote?: string };
+const voteSchema = {
+  vote: { type: "string" as const, optional: true },
+} as const;
 
 async function findValidDispatch(token: string) {
   const tokenHash = hashNotificationToken(token);
@@ -34,6 +38,7 @@ async function findValidDispatch(token: string) {
         select: {
           id: true,
           name: true,
+          role: true,
         },
       },
     },
@@ -141,6 +146,14 @@ export const POST = withApiErrorHandling(async (
   }
 
   const body = await parseJsonBody<VoteRequest>(request);
+  const bodyValidation = validateRequestBody(
+    body as unknown as Record<string, unknown>,
+    voteSchema,
+    { route: "/api/notifications/rsvp/[token]", method: "POST" }
+  );
+  if (!bodyValidation.isValid) {
+    return NextResponse.json({ error: bodyValidation.errors.join(". ") }, { status: 400 });
+  }
   const { vote } = body;
 
   if (!vote || !validateVote(vote)) {
@@ -161,6 +174,13 @@ export const POST = withApiErrorHandling(async (
     return NextResponse.json(
       { error: "Link ist ungültig oder abgelaufen" },
       { status: responseStatus, headers: getNoCacheHeaders() }
+    );
+  }
+
+  if (!Permissions.canVoteAttendance(dispatch.user.role)) {
+    return NextResponse.json(
+      { error: "Link ist ungültig oder abgelaufen" },
+      { status: 403, headers: getNoCacheHeaders() }
     );
   }
 

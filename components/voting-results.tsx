@@ -2,6 +2,7 @@ import { VoteType } from "@prisma/client";
 import { VOTE_OPTIONS } from "@/lib/vote-utils";
 import { VotingPieChart } from "@/components/voting-pie-chart";
 import { formatRegistrationCount } from "@/lib/registration-count";
+import { PlusIcon, CloseSmallIcon } from "@/components/icons";
 
 export type EditableRegistration =
   | {
@@ -85,15 +86,7 @@ export function VotingResults({
                           className="btn-icon"
                           aria-label={`${option.label}: Anmeldung hinzufügen`}
                         >
-                          <svg className="h-4 w-4" viewBox="0 0 20 20" fill="none" aria-hidden="true">
-                            <path
-                              d="M10 4.5v11m-5.5-5.5h11"
-                              stroke="currentColor"
-                              strokeWidth="1.8"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                            />
-                          </svg>
+                          <PlusIcon className="h-4 w-4" />
                         </button>
                       )}
                     </div>
@@ -114,15 +107,7 @@ export function VotingResults({
                               className="btn-icon-danger"
                               aria-label={`${vote.user.name}: Anmeldung entfernen`}
                             >
-                              <svg className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="none" aria-hidden="true">
-                                <path
-                                  d="M5.5 5.5l9 9m0-9l-9 9"
-                                  stroke="currentColor"
-                                  strokeWidth="1.8"
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                />
-                              </svg>
+                              <CloseSmallIcon className="h-3.5 w-3.5" />
                             </button>
                           )}
                         </li>

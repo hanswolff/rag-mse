@@ -112,7 +112,7 @@ describe("/api/auth/reset-password/[token] route - Security Regression Tests", (
         const blockedMinutes = Math.ceil((blockedUntil - Date.now()) / 60000);
         return NextResponse.json(
           {
-            error: `Zu viele fehlgeschlagene Versuche. Bitte versuchen Sie es in ${blockedMinutes} Minute(n) erneut.`
+            error: `Zu viele fehlgeschlagene Versuche. Bitte versuchen Sie es in ${blockedMinutes} Minuten erneut.`
           },
           { status: 429 }
         );

@@ -3,7 +3,9 @@
  * Pure functions for checking user roles - safe for client components
  */
 
-export type UserRole = "ADMIN" | "MEMBER" | undefined;
+import { Permissions } from "./permissions";
+
+export type UserRole = "SITE_ADMINISTRATOR" | "ADMIN" | "AUDITOR" | "MEMBER" | undefined;
 
 export type UserWithRole = {
   role?: UserRole | string;
@@ -14,15 +16,23 @@ export type UserWithRole = {
  * Safe for client components
  */
 export function isAdmin(user?: UserWithRole | null): boolean {
-  return user?.role === "ADMIN";
+  return Permissions.canManageAdminArea(user);
 }
 
 /**
- * Check if user has member role (MEMBER or ADMIN)
+ * Check if user can access admin area (read-only or write)
+ * Safe for client components
+ */
+export function canAccessAdminArea(user?: UserWithRole | null): boolean {
+  return Permissions.canAccessAdminArea(user);
+}
+
+/**
+ * Check if user can access member area
  * Safe for client components
  */
 export function isMember(user?: UserWithRole | null): boolean {
-  return user?.role === "MEMBER" || user?.role === "ADMIN";
+  return Permissions.canAccessMemberArea(user);
 }
 
 /**
@@ -46,7 +56,15 @@ export function isRole(userRole: UserRole, expectedRole: UserRole): boolean {
  * Safe for client components and middleware
  */
 export function hasAdminRole(role?: string): boolean {
-  return role === "ADMIN";
+  return Permissions.canManageAdminArea(role);
+}
+
+/**
+ * Check if role string can access admin area (read-only or write)
+ * Safe for client components and middleware
+ */
+export function hasAdminAccessRole(role?: string): boolean {
+  return Permissions.canAccessAdminArea(role);
 }
 
 /**
@@ -54,5 +72,5 @@ export function hasAdminRole(role?: string): boolean {
  * Safe for client components and middleware
  */
 export function hasMemberRole(role?: string): boolean {
-  return role === "MEMBER" || hasAdminRole(role);
+  return Permissions.canAccessMemberArea(role);
 }

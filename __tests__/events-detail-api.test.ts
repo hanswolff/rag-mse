@@ -8,6 +8,9 @@ jest.mock("@/lib/prisma", () => ({
     event: {
       findUnique: jest.fn(),
     },
+    shootingRange: {
+      findUnique: jest.fn(),
+    },
   },
 }));
 
@@ -39,6 +42,7 @@ describe("/api/events/[id]/route", () => {
 
     it("sets cache-control headers on 404 for non-existent event", async () => {
       (prisma.event.findUnique as jest.Mock).mockResolvedValue(null);
+      (prisma.shootingRange.findUnique as jest.Mock).mockResolvedValue(null);
       getServerSession.mockResolvedValue(null);
 
       const request = new NextRequest("http://localhost:3000/api/events/1");
@@ -53,6 +57,7 @@ describe("/api/events/[id]/route", () => {
         ...mockEvent,
         visible: false,
       });
+      (prisma.shootingRange.findUnique as jest.Mock).mockResolvedValue(null);
       getServerSession.mockResolvedValue(null);
 
       const request = new NextRequest("http://localhost:3000/api/events/1");
@@ -64,14 +69,22 @@ describe("/api/events/[id]/route", () => {
 
     it("sets cache-control and vary headers on successful response for non-authenticated user", async () => {
       (prisma.event.findUnique as jest.Mock).mockResolvedValue(mockEvent);
+      (prisma.shootingRange.findUnique as jest.Mock).mockResolvedValue({
+        name: "Test Location",
+        street: "Musterstraße 1",
+        postalCode: "12345",
+        city: "Musterstadt",
+      });
       getServerSession.mockResolvedValue(null);
 
       const request = new NextRequest("http://localhost:3000/api/events/1");
       const response = await GET(request, { params: { id: "1" } });
+      const json = await response.json();
 
       expect(response.status).toBe(200);
       expect(response.headers.get("Cache-Control")).toBe("no-store, no-cache, must-revalidate");
       expect(response.headers.get("Vary")).toBe("Authorization, Cookie");
+      expect(json.locationDisplay).toBe("Test Location, Musterstraße 1, 12345 Musterstadt");
     });
 
     it("sets cache-control and vary headers on successful response for authenticated member", async () => {
@@ -79,6 +92,7 @@ describe("/api/events/[id]/route", () => {
         ...mockEvent,
         votes: [],
       });
+      (prisma.shootingRange.findUnique as jest.Mock).mockResolvedValue(null);
       getServerSession.mockResolvedValue({
         user: { id: "user-123", email: "test@example.com", role: "MEMBER" },
       });
@@ -101,6 +115,7 @@ describe("/api/events/[id]/route", () => {
         guestRegistrations: [],
       };
       (prisma.event.findUnique as jest.Mock).mockResolvedValue(mockEventWithVotes);
+      (prisma.shootingRange.findUnique as jest.Mock).mockResolvedValue(null);
       getServerSession.mockResolvedValue({
         user: { id: "admin-123", email: "admin@example.com", role: "ADMIN" },
       });
@@ -124,6 +139,7 @@ describe("/api/events/[id]/route", () => {
         ],
       };
       (prisma.event.findUnique as jest.Mock).mockResolvedValue(mockEventWithVotes);
+      (prisma.shootingRange.findUnique as jest.Mock).mockResolvedValue(null);
       getServerSession.mockResolvedValue({
         user: { id: "user-1", email: "user@example.com", role: "MEMBER" },
       });
@@ -147,6 +163,7 @@ describe("/api/events/[id]/route", () => {
         ],
       };
       (prisma.event.findUnique as jest.Mock).mockResolvedValue(mockEventWithVotes);
+      (prisma.shootingRange.findUnique as jest.Mock).mockResolvedValue(null);
       getServerSession.mockResolvedValue({
         user: { id: "admin-1", email: "admin@example.com", role: "ADMIN" },
       });
@@ -175,6 +192,7 @@ describe("/api/events/[id]/route", () => {
         ],
       };
       (prisma.event.findUnique as jest.Mock).mockResolvedValue(mockEventWithVotes);
+      (prisma.shootingRange.findUnique as jest.Mock).mockResolvedValue(null);
       getServerSession.mockResolvedValue({
         user: { id: "user-123", email: "test@example.com", role: "MEMBER" },
       });
@@ -193,6 +211,7 @@ describe("/api/events/[id]/route", () => {
         visible: false,
         votes: [],
       });
+      (prisma.shootingRange.findUnique as jest.Mock).mockResolvedValue(null);
       getServerSession.mockResolvedValue({
         user: { id: "creator-123", email: "creator@example.com", role: "MEMBER" },
       });
@@ -211,6 +230,7 @@ describe("/api/events/[id]/route", () => {
         visible: false,
         votes: [],
       });
+      (prisma.shootingRange.findUnique as jest.Mock).mockResolvedValue(null);
       getServerSession.mockResolvedValue({
         user: { id: "other-user-123", email: "other@example.com", role: "MEMBER" },
       });

@@ -3,10 +3,11 @@ import { prisma } from "@/lib/prisma";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { VoteType } from "@prisma/client";
-import { isAdmin } from "@/lib/role-utils";
+import { canAccessAdminArea } from "@/lib/role-utils";
 import { withApiErrorHandling, getNoCacheHeaders, getAuthNoCacheHeaders } from "@/lib/api-utils";
 import { formatDateForStorage } from "@/lib/date-picker-utils";
 import { logResourceNotFound } from "@/lib/logger";
+import { createShootingRangeLookup, getEventLocationDisplay, getRangeNameFromLocation } from "@/lib/event-location";
 
 type EventWithVotes = {
   id: string;
@@ -51,7 +52,7 @@ export const GET = withApiErrorHandling(async (
   const { id } = await ctx.params;
   const session = await getServerSession(authOptions);
   const isAuthenticated = !!session?.user?.id;
-  const canSeeAll = isAdmin(session?.user);
+  const canSeeAll = canAccessAdminArea(session?.user);
   const userId = session?.user?.id;
 
   const event = await prisma.event.findUnique({
@@ -133,6 +134,21 @@ export const GET = withApiErrorHandling(async (
     ...event,
     date: formatDateForStorage(event.date),
   };
+  const rangeName = getRangeNameFromLocation(event.location);
+  const range = await prisma.shootingRange.findUnique({
+    where: { name: rangeName },
+    select: {
+      name: true,
+      street: true,
+      postalCode: true,
+      city: true,
+    },
+  });
+  const rangeLookup = createShootingRangeLookup(range ? [range] : []);
+  const formattedEventWithLocation = {
+    ...formattedEvent,
+    locationDisplay: getEventLocationDisplay(formattedEvent.location, rangeLookup),
+  };
 
   if (!isAuthenticated) {
     if (!event.visible) {
@@ -141,13 +157,13 @@ export const GET = withApiErrorHandling(async (
         { status: 404, headers: getNoCacheHeaders() }
       );
     }
-    const { createdById, ...publicEvent } = formattedEvent;
+    const { createdById, ...publicEvent } = formattedEventWithLocation;
     void createdById;
     return NextResponse.json(publicEvent, { headers: getAuthNoCacheHeaders() });
   }
 
-  if ("votes" in formattedEvent) {
-    const eventWithVotes = formattedEvent as unknown as EventWithVotes;
+  if ("votes" in formattedEventWithLocation) {
+    const eventWithVotes = formattedEventWithLocation as unknown as EventWithVotes;
     const guestRegistrations = eventWithVotes.guestRegistrations ?? [];
     const voteCounts: VoteCounts = eventWithVotes.votes.reduce(
       (acc, { vote }) => ({ ...acc, [vote]: acc[vote] + 1 }),
@@ -190,5 +206,5 @@ export const GET = withApiErrorHandling(async (
     );
   }
 
-  return NextResponse.json(formattedEvent, { headers: getAuthNoCacheHeaders() });
+  return NextResponse.json(formattedEventWithLocation, { headers: getAuthNoCacheHeaders() });
 }, { route: "/api/events/[id]", method: "GET" });

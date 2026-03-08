@@ -48,9 +48,14 @@ describe("event-validation", () => {
       expect(validateTimeString("23:59")).toBe(true);
     });
 
-    it("returns true for single-digit hours", () => {
-      expect(validateTimeString("9:30")).toBe(true);
-      expect(validateTimeString("1:00")).toBe(true);
+    it("returns false for single-digit hours (requires leading zero)", () => {
+      expect(validateTimeString("9:30")).toBe(false);
+      expect(validateTimeString("1:00")).toBe(false);
+    });
+
+    it("returns true for double-digit hours with leading zero", () => {
+      expect(validateTimeString("09:30")).toBe(true);
+      expect(validateTimeString("01:00")).toBe(true);
     });
 
     it("returns false for invalid time", () => {

@@ -50,7 +50,7 @@ function normalizeCoordinate(value?: string | number | null): number | null {
 }
 
 export const GET = withApiErrorHandling(async (request: NextRequest) => {
-  await requireAdmin();
+  await requireAdmin("read");
 
   const { searchParams } = new URL(request.url);
   const page = parsePageNumber(searchParams.get("page"));
@@ -108,7 +108,7 @@ export const GET = withApiErrorHandling(async (request: NextRequest) => {
 export const POST = withApiErrorHandling(async (request: NextRequest) => {
   validateCsrfHeaders(request);
 
-  const user = await requireAdmin();
+  const user = await requireAdmin("write");
   const body = await parseJsonBody<CreateEventRequest>(request, EVENT_REQUEST_BODY_SIZE);
 
   const bodyValidation = validateRequestBody(body as unknown as Record<string, unknown>, createEventSchema, { route: '/api/admin/events', method: 'POST' });

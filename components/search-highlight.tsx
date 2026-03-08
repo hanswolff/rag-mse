@@ -10,7 +10,7 @@ function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-export function SearchHighlight({ text, query, highlightClassName = "bg-yellow-200 text-inherit rounded-sm px-0.5" }: SearchHighlightProps) {
+export function SearchHighlight({ text, query, highlightClassName = "bg-yellow-200 text-inherit" }: SearchHighlightProps) {
   const source = text == null ? "" : String(text);
   const normalizedQuery = query.trim();
 
@@ -26,7 +26,11 @@ export function SearchHighlight({ text, query, highlightClassName = "bg-yellow-2
     <>
       {parts.map((part, index) => (
         part.toLowerCase() === lowerQuery
-          ? <mark key={`${part}-${index}`} className={highlightClassName}>{part}</mark>
+          ? (
+            <mark key={`${part}-${index}`} className={highlightClassName} style={{ padding: 0, margin: 0 }}>
+              {part}
+            </mark>
+          )
           : part
       ))}
     </>

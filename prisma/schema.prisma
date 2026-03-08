@@ -16,7 +16,9 @@ enum VoteType {
 }
 
 enum Role {
+  SITE_ADMINISTRATOR
   ADMIN
+  AUDITOR
   MEMBER
 }
 
@@ -212,13 +214,28 @@ model Document {
   mimeType         String
   sizeBytes        Int
   documentDate     DateTime @default(now())
+  directoryId      String?
   uploadedById     String?
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
+  directory  DocumentDirectory? @relation(fields: [directoryId], references: [id], onDelete: SetNull)
   uploadedBy User? @relation(fields: [uploadedById], references: [id], onDelete: SetNull)
 
   @@index([displayName])
   @@index([documentDate])
   @@index([createdAt])
+  @@index([directoryId])
+}
+
+model DocumentDirectory {
+  id             String     @id @default(cuid())
+  name           String
+  nameNormalized String     @unique
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+
+  documents Document[]
+
+  @@index([name])
 }

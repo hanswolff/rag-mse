@@ -19,6 +19,7 @@ describe("Seed Script", () => {
       user: {
         findUnique: jest.fn(),
         create: jest.fn(),
+        update: jest.fn(),
       },
       shootingRange: {
         upsert: jest.fn(),
@@ -56,7 +57,7 @@ describe("Seed Script", () => {
         email: "admin@rag-mse.de",
         password: "hashedPassword123",
         name: "Administrator",
-        role: "ADMIN",
+        role: "SITE_ADMINISTRATOR",
         createdAt: new Date(),
         updatedAt: new Date(),
       });
@@ -73,7 +74,7 @@ describe("Seed Script", () => {
           email: "admin@rag-mse.de",
           password: "hashedPassword123",
           name: "Administrator",
-          role: "ADMIN",
+          role: "SITE_ADMINISTRATOR",
         },
       });
     });
@@ -89,7 +90,7 @@ describe("Seed Script", () => {
         email: "custom@example.com",
         password: "hashedPassword123",
         name: "Custom Admin",
-        role: "ADMIN",
+        role: "SITE_ADMINISTRATOR",
         createdAt: new Date(),
         updatedAt: new Date(),
       });
@@ -106,7 +107,7 @@ describe("Seed Script", () => {
           email: "custom@example.com",
           password: "hashedPassword123",
           name: "Custom Admin",
-          role: "ADMIN",
+          role: "SITE_ADMINISTRATOR",
         },
       });
     });
@@ -204,7 +205,7 @@ describe("Seed Script", () => {
         email: "admin@example.com",
         password: "hashedPassword123",
         name: "Administrator",
-        role: "ADMIN",
+        role: "SITE_ADMINISTRATOR",
         createdAt: new Date(),
         updatedAt: new Date(),
       });
@@ -228,7 +229,7 @@ describe("Seed Script", () => {
         email: "admin@example.com",
         password: "existingHash",
         name: "Existing Admin",
-        role: "ADMIN",
+        role: "SITE_ADMINISTRATOR",
         createdAt: new Date(),
         updatedAt: new Date(),
       });
@@ -262,7 +263,7 @@ describe("Seed Script", () => {
         email: "admin@example.com",
         password: "hashedPassword123",
         name: "Administrator",
-        role: "ADMIN",
+        role: "SITE_ADMINISTRATOR",
         createdAt: new Date(),
         updatedAt: new Date(),
       });
@@ -280,7 +281,7 @@ describe("Seed Script", () => {
           email: "admin@example.com",
           password: "hashedPassword123",
           name: "Administrator",
-          role: "ADMIN",
+          role: "SITE_ADMINISTRATOR",
         },
       });
     });

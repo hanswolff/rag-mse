@@ -2,10 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { isAdmin } from "@/lib/role-utils";
+import { canAccessAdminArea } from "@/lib/role-utils";
 import { withApiErrorHandling, getAuthNoCacheHeaders } from "@/lib/api-utils";
 import { formatDateForStorage, getStartOfToday } from "@/lib/date-picker-utils";
 import { VoteType } from "@prisma/client";
+import { createShootingRangeLookup, getEventLocationDisplay, getRangeNameFromLocation } from "@/lib/event-location";
 
 const MAX_PAGE_SIZE = 50;
 
@@ -58,10 +59,16 @@ function getEventSelect(isAuthenticated: boolean) {
   } as const;
 }
 
-function formatEvents(events: Array<{ date: Date } & Record<string, unknown>>) {
+function formatEvents(
+  events: Array<{ date: Date } & Record<string, unknown>>,
+  rangeLookup: Map<string, { name: string; street: string | null; postalCode: string | null; city: string | null }>
+) {
   return events.map(event => ({
     ...event,
     date: formatDateForStorage(event.date),
+    locationDisplay: typeof event.location === "string"
+      ? getEventLocationDisplay(event.location, rangeLookup)
+      : event.location,
   }));
 }
 
@@ -100,7 +107,7 @@ export const GET = withApiErrorHandling(async (request: NextRequest) => {
   const session = await getServerSession(authOptions);
   const userId = session?.user?.id;
   const isAuthenticated = !!userId;
-  const canSeeAll = isAdmin(session?.user);
+  const canSeeAll = canAccessAdminArea(session?.user);
   const eventSelect = getEventSelect(isAuthenticated);
 
   const visibilityFilter = buildVisibilityFilter(userId, canSeeAll);
@@ -148,9 +155,30 @@ export const GET = withApiErrorHandling(async (request: NextRequest) => {
     ? addVoteCountsToEvents(pastEvents as unknown as EventWithVotes[])
     : pastEvents;
 
+  const rangeNames = [...eventsWithVoteCounts, ...pastEventsWithVoteCounts]
+    .map((event) => {
+      const location = (event as Record<string, unknown>).location;
+      return typeof location === "string" ? getRangeNameFromLocation(location) : "";
+    })
+    .filter((name) => name.length > 0);
+
+  const uniqueRangeNames = [...new Set(rangeNames)];
+  const ranges = uniqueRangeNames.length > 0
+    ? await prisma.shootingRange.findMany({
+        where: { name: { in: uniqueRangeNames } },
+        select: {
+          name: true,
+          street: true,
+          postalCode: true,
+          city: true,
+        },
+      })
+    : [];
+  const rangeLookup = createShootingRangeLookup(ranges);
+
   return NextResponse.json({
-    events: formatEvents(eventsWithVoteCounts as Array<{ date: Date } & Record<string, unknown>>),
-    pastEvents: formatEvents(pastEventsWithVoteCounts as Array<{ date: Date } & Record<string, unknown>>),
+    events: formatEvents(eventsWithVoteCounts as Array<{ date: Date } & Record<string, unknown>>, rangeLookup),
+    pastEvents: formatEvents(pastEventsWithVoteCounts as Array<{ date: Date } & Record<string, unknown>>, rangeLookup),
     pagination: {
       total,
       page,

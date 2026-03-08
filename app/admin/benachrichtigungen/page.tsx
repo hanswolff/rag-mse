@@ -3,12 +3,14 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { isAdmin } from "@/lib/role-utils";
 import { buildLoginUrlWithReturnUrl, getCurrentPathWithSearch } from "@/lib/return-url";
 import { BackLink } from "@/components/back-link";
 import { Pagination } from "@/components/pagination";
 import { SearchHighlight } from "@/components/search-highlight";
+import { SortableTableHeader } from "@/components/sortable-table-header";
 import { formatDate, formatTime } from "@/lib/date-utils";
+import { useTableSorting } from "@/lib/use-table-sorting";
+import { Permissions } from "@/lib/permissions";
 
 type NotificationItem = {
   id: string;
@@ -41,6 +43,10 @@ type NotificationsResponse = {
 };
 
 const PAGE_SIZE = 20;
+type NotificationSortField = "sentAt" | "status" | "userName" | "userEmail" | "eventDate" | "eventTime" | "location";
+const NOTIFICATION_DEFAULT_SORT_DIRECTIONS: Partial<Record<NotificationSortField, "asc" | "desc">> = {
+  sentAt: "desc",
+};
 
 function formatSentAt(value: string): string {
   const date = new Date(value);
@@ -68,6 +74,11 @@ export default function AdminNotificationsPage() {
   const [error, setError] = useState<string | null>(null);
   const [searchInput, setSearchInput] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
+  const { sortBy, sortDir, handleSortChange } = useTableSorting<NotificationSortField>(
+    "sentAt",
+    "desc",
+    NOTIFICATION_DEFAULT_SORT_DIRECTIONS,
+  );
   const showMobileCards =
     typeof window !== "undefined" &&
     typeof window.matchMedia === "function" &&
@@ -76,12 +87,17 @@ export default function AdminNotificationsPage() {
   useEffect(() => {
     if (status === "unauthenticated") {
       router.push(buildLoginUrlWithReturnUrl(getCurrentPathWithSearch()));
-    } else if (status === "authenticated" && !isAdmin(session.user)) {
+    } else if (status === "authenticated" && !Permissions.canReadNotificationsAdmin(session?.user)) {
       router.push("/");
     }
   }, [status, session, router]);
 
-  const loadNotifications = useCallback(async (targetPage: number, query: string) => {
+  const loadNotifications = useCallback(async (
+    targetPage: number,
+    query: string,
+    nextSortBy: NotificationSortField,
+    nextSortDir: "asc" | "desc",
+  ) => {
     setIsLoading(true);
     setError(null);
 
@@ -89,6 +105,8 @@ export default function AdminNotificationsPage() {
       const params = new URLSearchParams({
         page: String(targetPage),
         limit: String(PAGE_SIZE),
+        sortBy: nextSortBy,
+        sortDir: nextSortDir,
       });
 
       if (query.trim().length > 0) {
@@ -118,17 +136,22 @@ export default function AdminNotificationsPage() {
   }, []);
 
   useEffect(() => {
-    if (status !== "authenticated" || !session || !isAdmin(session.user)) {
+    if (status !== "authenticated" || !session || !Permissions.canReadNotificationsAdmin(session.user)) {
       return;
     }
-    void loadNotifications(page, searchQuery);
-  }, [status, session, page, searchQuery, loadNotifications]);
+    void loadNotifications(page, searchQuery, sortBy, sortDir);
+  }, [status, session, page, searchQuery, sortBy, sortDir, loadNotifications]);
 
   const handleSubmitSearch = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setPage(1);
     setSearchQuery(searchInput.trim());
   };
+
+  const handleTableSort = useCallback((field: NotificationSortField) => {
+    setPage(1);
+    handleSortChange(field);
+  }, [handleSortChange]);
 
   const tableContent = useMemo(() => {
     if (items.length === 0) {
@@ -262,13 +285,62 @@ export default function AdminNotificationsPage() {
             <table className="min-w-full">
               <thead className="bg-gray-50">
                 <tr>
-                  <th scope="col" className="px-4 py-3 text-left text-base font-semibold text-gray-700">Versendet am</th>
-                  <th scope="col" className="px-4 py-3 text-left text-base font-semibold text-gray-700">Status</th>
-                  <th scope="col" className="px-4 py-3 text-left text-base font-semibold text-gray-700">Name</th>
-                  <th scope="col" className="px-4 py-3 text-left text-base font-semibold text-gray-700">E-Mail</th>
-                  <th scope="col" className="px-4 py-3 text-left text-base font-semibold text-gray-700">Termin-Datum</th>
-                  <th scope="col" className="px-4 py-3 text-left text-base font-semibold text-gray-700">Uhrzeit</th>
-                  <th scope="col" className="px-4 py-3 text-left text-base font-semibold text-gray-700">Ort</th>
+                  <SortableTableHeader
+                    label="Versendet am"
+                    field="sentAt"
+                    activeField={sortBy}
+                    sortDir={sortDir}
+                    onSortChange={handleTableSort}
+                    className="px-4 py-3 text-left text-base font-semibold text-gray-700"
+                  />
+                  <SortableTableHeader
+                    label="Status"
+                    field="status"
+                    activeField={sortBy}
+                    sortDir={sortDir}
+                    onSortChange={handleTableSort}
+                    className="px-4 py-3 text-left text-base font-semibold text-gray-700"
+                  />
+                  <SortableTableHeader
+                    label="Name"
+                    field="userName"
+                    activeField={sortBy}
+                    sortDir={sortDir}
+                    onSortChange={handleTableSort}
+                    className="px-4 py-3 text-left text-base font-semibold text-gray-700"
+                  />
+                  <SortableTableHeader
+                    label="E-Mail"
+                    field="userEmail"
+                    activeField={sortBy}
+                    sortDir={sortDir}
+                    onSortChange={handleTableSort}
+                    className="px-4 py-3 text-left text-base font-semibold text-gray-700"
+                  />
+                  <SortableTableHeader
+                    label="Termin-Datum"
+                    field="eventDate"
+                    activeField={sortBy}
+                    sortDir={sortDir}
+                    onSortChange={handleTableSort}
+                    className="px-4 py-3 text-left text-base font-semibold text-gray-700"
+                  />
+                  <SortableTableHeader
+                    label="Uhrzeit"
+                    field="eventTime"
+                    activeField={sortBy}
+                    sortDir={sortDir}
+                    onSortChange={handleTableSort}
+                    className="px-4 py-3 text-left text-base font-semibold text-gray-700"
+                  />
+                  <SortableTableHeader
+                    label="Ort"
+                    field="location"
+                    activeField={sortBy}
+                    sortDir={sortDir}
+                    onSortChange={handleTableSort}
+                    className="px-4 py-3 text-left text-base font-semibold text-gray-700"
+                  />
                 </tr>
               </thead>
               <tbody>{tableContent}</tbody>

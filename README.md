@@ -650,6 +650,13 @@ DOCUMENT_UPLOAD_MAX_MB="15"
 - Adminansicht für Benachrichtigungs-Verlauf der letzten 30 Tage (`/admin/benachrichtigungen`)
 - Outbox-basierter E-Mail-Versand mit Retry-Logik und Admin-Einsicht (`/admin/e-mail-versand`)
 
+### Dokumentenverwaltung
+
+- Upload, Suche, Vorschau und Download von Dokumenten im Adminbereich
+- Verzeichnisstruktur mit genau einer Ebene: Dokumente liegen im `Root` oder in einem Verzeichnis
+- Verzeichnisse können im Adminbereich angelegt, umbenannt und gelöscht werden
+- Dokumente können beim Upload einem Verzeichnis zugeordnet und später zwischen Root/Verzeichnissen verschoben werden
+
 ### Datenschutz und Rechtliches
 
 - Impressum (Inhalte durch Organisation bereitgestellt)

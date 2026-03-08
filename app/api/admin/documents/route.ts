@@ -5,10 +5,12 @@ import {
   ALLOWED_DOCUMENT_MIME_TYPES,
   detectAllowedMimeTypeFromContent,
   getAllowedDocumentMimeTypesLabel,
+  getCurrentDocumentDate,
   getDefaultDisplayNameFromFileName,
   getMaxDocumentUploadSizeLabel,
   isAllowedDocumentMimeType,
   MAX_DOCUMENT_UPLOAD_BYTES,
+  normalizeDirectoryId,
   normalizeDocumentDisplayName,
   parseOptionalDocumentDate,
   validateCreateDocumentMetadata,
@@ -19,6 +21,9 @@ import { logInfo, logValidationFailure, logWarn } from "@/lib/logger";
 
 const MAX_PAGE_SIZE = 100;
 const DEFAULT_PAGE_SIZE = 20;
+const DOCUMENT_SORT_FIELDS = ["displayName", "documentDate", "updatedAt", "mimeType", "sizeBytes"] as const;
+type DocumentSortField = (typeof DOCUMENT_SORT_FIELDS)[number];
+type DocumentSortDirection = "asc" | "desc";
 
 function parsePageNumber(value: string | null): number {
   const parsed = Number.parseInt(value || "", 10);
@@ -36,33 +41,70 @@ function parsePageSize(value: string | null): number {
   return Math.min(parsed, MAX_PAGE_SIZE);
 }
 
+function parseSortField(value: string | null): DocumentSortField {
+  if (!value) {
+    return "documentDate";
+  }
+
+  if (DOCUMENT_SORT_FIELDS.includes(value as DocumentSortField)) {
+    return value as DocumentSortField;
+  }
+
+  return "documentDate";
+}
+
+function parseSortDirection(value: string | null): DocumentSortDirection {
+  return value === "asc" ? "asc" : "desc";
+}
+
 export const GET = withApiErrorHandling(async (request: NextRequest) => {
-  await requireAdmin();
+  await requireAdmin("read");
 
   const { searchParams } = new URL(request.url);
   const requestedPage = parsePageNumber(searchParams.get("page"));
   const limit = parsePageSize(searchParams.get("limit"));
   const query = (searchParams.get("q") || "").trim();
+  const directoryParam = (searchParams.get("directory") || "").trim();
+  const sortBy = parseSortField(searchParams.get("sortBy"));
+  const sortDir = parseSortDirection(searchParams.get("sortDir"));
 
-  const where = query
-    ? {
-        displayName: {
-          contains: query,
-        },
-      }
-    : undefined;
+  const where: {
+    displayName?: { contains: string };
+    directoryId?: string | null;
+  } = {};
 
-  const total = await prisma.document.count({ where });
+  if (query) {
+    where.displayName = { contains: query };
+  }
+
+  if (directoryParam === "root") {
+    if (!query) {
+      where.directoryId = null;
+    }
+  } else {
+    const normalizedDirectoryId = normalizeDirectoryId(directoryParam);
+    if (normalizedDirectoryId) {
+      where.directoryId = normalizedDirectoryId;
+    }
+  }
+
+  const total = await prisma.document.count({ where: Object.keys(where).length > 0 ? where : undefined });
   const pages = Math.ceil(total / limit);
   const page = pages > 0 ? Math.min(requestedPage, pages) : 1;
   const skip = (page - 1) * limit;
 
   const documents = await prisma.document.findMany({
-    where,
-    orderBy: [{ documentDate: "desc" }, { createdAt: "desc" }, { id: "desc" }],
+    where: Object.keys(where).length > 0 ? where : undefined,
+    orderBy: [{ [sortBy]: sortDir }, { id: "desc" }],
     skip,
     take: limit,
     include: {
+      directory: {
+        select: {
+          id: true,
+          name: true,
+        },
+      },
       uploadedBy: {
         select: {
           id: true,
@@ -96,7 +138,7 @@ export const GET = withApiErrorHandling(async (request: NextRequest) => {
 
 export const POST = withApiErrorHandling(async (request: NextRequest) => {
   validateCsrfHeaders(request);
-  const user = await requireAdmin();
+  const user = await requireAdmin("write");
 
   const contentLength = request.headers.get("content-length");
   if (contentLength) {
@@ -132,10 +174,13 @@ export const POST = withApiErrorHandling(async (request: NextRequest) => {
 
   const displayNameRaw = String(formData.get("displayName") || "");
   const documentDateRaw = String(formData.get("documentDate") || "");
+  const directoryIdRaw = formData.get("directoryId");
+  const normalizedDirectoryId = normalizeDirectoryId(typeof directoryIdRaw === "string" ? directoryIdRaw : null);
 
   const validation = validateCreateDocumentMetadata({
     displayName: displayNameRaw || undefined,
     documentDate: documentDateRaw || undefined,
+    directoryId: normalizedDirectoryId,
   });
 
   if (!validation.isValid) {
@@ -146,7 +191,17 @@ export const POST = withApiErrorHandling(async (request: NextRequest) => {
   const displayName = normalizeDocumentDisplayName(
     displayNameRaw || getDefaultDisplayNameFromFileName(file.name),
   );
-  const documentDate = parseOptionalDocumentDate(documentDateRaw) || new Date();
+  const documentDate = parseOptionalDocumentDate(documentDateRaw) || getCurrentDocumentDate();
+
+  if (normalizedDirectoryId) {
+    const existingDirectory = await prisma.documentDirectory.findUnique({
+      where: { id: normalizedDirectoryId },
+      select: { id: true },
+    });
+    if (!existingDirectory) {
+      return NextResponse.json({ error: "Verzeichnis nicht gefunden" }, { status: 400 });
+    }
+  }
 
   const arrayBuffer = await file.arrayBuffer();
   const fileContent = new Uint8Array(arrayBuffer);
@@ -174,9 +229,16 @@ export const POST = withApiErrorHandling(async (request: NextRequest) => {
         mimeType: sniffedMimeType,
         sizeBytes: file.size,
         documentDate,
+        directoryId: normalizedDirectoryId,
         uploadedById: user.id,
       },
       include: {
+        directory: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
         uploadedBy: {
           select: {
             id: true,
@@ -211,6 +273,19 @@ export const POST = withApiErrorHandling(async (request: NextRequest) => {
         storedFileName,
         error: cleanupError instanceof Error ? cleanupError.message : String(cleanupError),
       });
+    }
+
+    if (
+      error
+      && typeof error === "object"
+      && "code" in error
+      && error.code === "P2003"
+    ) {
+      logWarn("document_upload_directory_missing", "Directory was deleted during upload", {
+        storedFileName,
+        directoryId: normalizedDirectoryId,
+      });
+      return NextResponse.json({ error: "Verzeichnis nicht gefunden" }, { status: 400 });
     }
 
     logWarn("document_upload_rollback", "Failed to persist metadata after file upload", {

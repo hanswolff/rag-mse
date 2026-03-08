@@ -39,6 +39,8 @@ interface EventFormModalProps {
   isGeocoding?: boolean;
   onGeocode?: () => void;
   geocodeSuccess?: boolean;
+  onUseLastDescription?: () => void;
+  isLoadingLastDescription?: boolean;
 }
 
 export function EventFormModal({
@@ -54,6 +56,8 @@ export function EventFormModal({
   isGeocoding = false,
   onGeocode,
   geocodeSuccess = false,
+  onUseLastDescription,
+  isLoadingLastDescription = false,
 }: EventFormModalProps) {
   const {
     errors: validationErrors,
@@ -154,6 +158,10 @@ export function EventFormModal({
 
   const handleGeocode = () => {
     if (onGeocode) onGeocode();
+  };
+
+  const handleUseLastDescription = () => {
+    if (onUseLastDescription) onUseLastDescription();
   };
 
   const handleSelectRange = (range: ShootingRange, locationLabel: string) => {
@@ -348,9 +356,23 @@ export function EventFormModal({
         </div>
 
         <div>
-          <label htmlFor="modal-description" className="form-label">
-            Beschreibung *
-          </label>
+          <div className="mb-1 flex items-center justify-between gap-2">
+            <label htmlFor="modal-description" className="form-label mb-0">
+              Beschreibung *
+            </label>
+            {!isEditing && onUseLastDescription && (
+              <button
+                type="button"
+                onClick={handleUseLastDescription}
+                disabled={isSubmitting || isLoadingLastDescription}
+                className="text-xs px-2 py-1 border border-gray-300 rounded text-gray-700 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isLoadingLastDescription
+                  ? "Lade..."
+                  : "Beschreibung vom letzten Termin übernehmen"}
+              </button>
+            )}
+          </div>
           <RichTextEditor
             id="modal-description"
             value={eventData.description}

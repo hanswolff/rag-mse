@@ -109,7 +109,10 @@ export async function POST(request: NextRequest) {
         route: "/api/contact",
         method: "POST",
         status: 500,
-        adminEmails,
+        configuredRecipientCount: adminEmails
+          .split(",")
+          .map((email) => email.trim())
+          .filter((email) => email.length > 0).length,
       });
       return NextResponse.json(
         { error: "E-Mail-Konfiguration fehlerhaft. Bitte kontaktieren Sie den Administrator." },

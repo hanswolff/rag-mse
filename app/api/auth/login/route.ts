@@ -4,6 +4,7 @@ import { logError, logValidationFailure, maskEmail } from "@/lib/logger";
 import { parseJsonBody, BadRequestError, validateRequestBody, validateCsrfHeaders, getClientIp } from "@/lib/api-utils";
 import { withCorrelationId } from "@/lib/api-middleware";
 import { validateEmail } from "@/lib/validation-schema";
+import { pluralize } from "@/lib/pluralization";
 
 interface LoginRequest {
   email: string;
@@ -67,8 +68,10 @@ async function handleLogin(request: NextRequest): Promise<NextResponse> {
         throw error;
       }
       const minutes = errorMessage.split(":")[1] || "1";
+      const minuteCount = Number.parseInt(minutes, 10);
+      const minuteLabel = pluralize(Number.isFinite(minuteCount) ? minuteCount : 2, "Minute", "Minuten");
       return NextResponse.json(
-        { error: `Zu viele fehlgeschlagene Anmeldeversuche. Bitte versuchen Sie es in ${minutes} Minute(n) erneut.` },
+        { error: `Zu viele fehlgeschlagene Anmeldeversuche. Bitte versuchen Sie es in ${minutes} ${minuteLabel} erneut.` },
         { status: 429 }
       );
     }

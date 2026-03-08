@@ -1,15 +1,17 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { isAdmin } from "@/lib/role-utils";
+import { canAccessAdminArea, isAdmin } from "@/lib/role-utils";
 import { buildLoginUrlWithReturnUrl, getCurrentPathWithSearch } from "@/lib/return-url";
 import { useUserManagement } from "@/lib/use-user-management";
 import { formatDate } from "@/lib/date-utils";
 import { UserFormModal } from "@/components/user-form-modal";
 import { LoadingButton } from "@/components/loading-button";
 import { BackLink } from "@/components/back-link";
+import { Permissions } from "@/lib/permissions";
+import { UsersIcon } from "@/components/icons";
 import type { User } from "@/types";
 
 function InviteForm({
@@ -66,12 +68,33 @@ function InviteForm({
   );
 }
 
-function UserList({ users, onEdit, onDelete, canDeleteUser }: { users: User[]; onEdit: (u: User) => void; onDelete: (id: string) => void; canDeleteUser: (id: string) => boolean }) {
+function UserList({
+  users,
+  onEdit,
+  onDelete,
+  canDeleteUser,
+  canManage,
+  canEditSiteAdministrator,
+  canImpersonateUser,
+  onImpersonate,
+  impersonatingUserId,
+}: {
+  users: User[];
+  onEdit: (u: User) => void;
+  onDelete: (id: string) => void;
+  canDeleteUser: (id: string) => boolean;
+  canManage: boolean;
+  canEditSiteAdministrator: boolean;
+  canImpersonateUser: (u: User) => boolean;
+  onImpersonate: (u: User) => Promise<void>;
+  impersonatingUserId: string | null;
+}) {
   if (users.length === 0) return <p className="text-gray-500">Keine Benutzer gefunden</p>;
   return (
     <div className="space-y-3">
       {users.map((user) => {
         const canDelete = canDeleteUser(user.id);
+        const canEdit = user.role !== "SITE_ADMINISTRATOR" || canEditSiteAdministrator;
         return (
           <div key={user.id} className="border border-gray-200 rounded-md p-4">
             <div className="flex flex-col gap-2">
@@ -81,38 +104,63 @@ function UserList({ users, onEdit, onDelete, canDeleteUser }: { users: User[]; o
                     <h3 className="font-medium text-gray-900">{user.name}</h3>
                     <span
                       className={`px-2 py-1 text-base font-medium rounded ${
-                        user.role === "ADMIN"
+                        user.role === "SITE_ADMINISTRATOR"
+                          ? "bg-amber-100 text-amber-800"
+                          : user.role === "ADMIN"
                           ? "bg-purple-100 text-purple-800"
+                          : user.role === "AUDITOR"
+                            ? "bg-slate-100 text-slate-800"
                           : "bg-brand-blue-50 text-brand-blue-800"
                       }`}
                     >
-                      {user.role === "ADMIN" ? "Admin" : "Mitglied"}
+                      {Permissions.getRoleLabel(user.role)}
                     </span>
                   </div>
                   <p className="text-base text-gray-600">{user.email}</p>
                   {user.address && <p className="text-base text-gray-500">{user.address}</p>}
                   {user.phone && <p className="text-base text-gray-500">{user.phone}</p>}
                 </div>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => onEdit(user)}
-                    className="px-3 py-2 text-base bg-brand-blue-50 text-brand-blue-800 rounded hover:bg-brand-blue-100 focus:outline-none focus:ring-2 focus:ring-brand-red-600/30 touch-manipulation"
-                  >
-                    Bearbeiten
-                  </button>
-                  <button
-                    onClick={() => onDelete(user.id)}
-                    disabled={!canDelete}
-                    title={!canDelete ? "Der letzte Administrator darf nicht gelöscht werden" : undefined}
-                    className={`px-3 py-2 text-base rounded focus:outline-none focus:ring-2 focus:ring-red-500 touch-manipulation ${
-                      canDelete
-                        ? "bg-red-100 text-red-700 hover:bg-red-200"
-                        : "bg-gray-100 text-gray-400 cursor-not-allowed"
-                    }`}
-                  >
-                    Löschen
-                  </button>
-                </div>
+                {canManage && (
+                  <div className="flex gap-2">
+                    {canImpersonateUser(user) && (
+                      <button
+                        onClick={() => void onImpersonate(user)}
+                        disabled={impersonatingUserId !== null}
+                        className={`px-3 py-2 text-base rounded focus:outline-none focus:ring-2 focus:ring-brand-red-600/30 touch-manipulation ${
+                          impersonatingUserId === null
+                            ? "bg-amber-100 text-amber-800 hover:bg-amber-200"
+                            : "bg-gray-100 text-gray-400 cursor-not-allowed"
+                        }`}
+                      >
+                        {impersonatingUserId === user.id ? "Wechsel läuft..." : "Als Benutzer anmelden"}
+                      </button>
+                    )}
+                    <button
+                      onClick={() => onEdit(user)}
+                      disabled={!canEdit}
+                      title={!canEdit ? "Der SiteAdministrator kann nur vom SiteAdministrator bearbeitet werden" : undefined}
+                      className={`px-3 py-2 text-base rounded focus:outline-none focus:ring-2 focus:ring-brand-red-600/30 touch-manipulation ${
+                        canEdit
+                          ? "bg-brand-blue-50 text-brand-blue-800 hover:bg-brand-blue-100"
+                          : "bg-gray-100 text-gray-400 cursor-not-allowed"
+                      }`}
+                    >
+                      Bearbeiten
+                    </button>
+                    <button
+                      onClick={() => onDelete(user.id)}
+                      disabled={!canDelete}
+                      title={!canDelete ? "Benutzer kann nicht gelöscht werden" : undefined}
+                      className={`px-3 py-2 text-base rounded focus:outline-none focus:ring-2 focus:ring-red-500 touch-manipulation ${
+                        canDelete
+                          ? "bg-red-100 text-red-700 hover:bg-red-200"
+                          : "bg-gray-100 text-gray-400 cursor-not-allowed"
+                      }`}
+                    >
+                      Löschen
+                    </button>
+                  </div>
+                )}
               </div>
               <div className="w-full mt-1 text-xs sm:text-sm text-gray-400 text-left break-words">
                 <p className="leading-relaxed">
@@ -129,13 +177,18 @@ function UserList({ users, onEdit, onDelete, canDeleteUser }: { users: User[]; o
 
 export default function BenutzerverwaltungPage() {
   const router = useRouter();
-  const { data: session, status } = useSession();
+  const { data: session, status, update } = useSession();
   const userManagement = useUserManagement();
+  const [impersonationError, setImpersonationError] = useState("");
+  const [impersonatingUserId, setImpersonatingUserId] = useState<string | null>(null);
+  const canManage = session ? isAdmin(session.user) : false;
+  const isSiteAdministrator = session ? Permissions.isSiteAdministrator(session.user) : false;
+  const canEditSiteAdministrator = session ? Permissions.isSiteAdministrator(session.user) : false;
 
   useEffect(() => {
     if (status === "unauthenticated") {
       router.push(buildLoginUrlWithReturnUrl(getCurrentPathWithSearch()));
-    } else if (status === "authenticated" && !isAdmin(session.user)) {
+    } else if (status === "authenticated" && !canAccessAdminArea(session.user)) {
       router.push("/");
     }
   }, [status, session, router]);
@@ -180,6 +233,15 @@ export default function BenutzerverwaltungPage() {
             {userManagement.error}
           </div>
         )}
+        {impersonationError && (
+          <div
+            role="alert"
+            aria-live="assertive"
+            className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4"
+          >
+            {impersonationError}
+          </div>
+        )}
 
         {userManagement.success && (
           <div
@@ -193,50 +255,44 @@ export default function BenutzerverwaltungPage() {
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           <div className="space-y-6">
-            <div className="card-compact">
-              <h2 className="text-lg sm:text-xl font-semibold mb-4">Benutzer hinzufügen</h2>
-              <p className="text-base text-gray-600 mb-4">
-                Erstellen Sie neue Benutzerkonten oder bearbeiten Sie vorhandene.
-              </p>
-              <button
-                onClick={userManagement.openCreateModal}
-                className="w-full btn-primary py-2.5 sm:py-2 text-base sm:text-base touch-manipulation"
-              >
-                Neuen Benutzer erstellen
-              </button>
-            </div>
-            <InviteForm
-              email={userManagement.inviteEmail}
-              setEmail={userManagement.setInviteEmail}
-              onSubmit={userManagement.handleSendInvite}
-              isSubmitting={userManagement.isSendingInvite}
-              error={userManagement.inviteError}
-            />
+            {canManage && (
+              <>
+                <div className="card-compact">
+                  <h2 className="text-lg sm:text-xl font-semibold mb-4">Benutzer hinzufügen</h2>
+                  <p className="text-base text-gray-600 mb-4">
+                    Erstellen Sie neue Benutzerkonten oder bearbeiten Sie vorhandene.
+                  </p>
+                  <button
+                    onClick={userManagement.openCreateModal}
+                    className="w-full btn-primary py-2.5 sm:py-2 text-base sm:text-base touch-manipulation"
+                  >
+                    Neuen Benutzer erstellen
+                  </button>
+                </div>
+                <InviteForm
+                  email={userManagement.inviteEmail}
+                  setEmail={userManagement.setInviteEmail}
+                  onSubmit={userManagement.handleSendInvite}
+                  isSubmitting={userManagement.isSendingInvite}
+                  error={userManagement.inviteError}
+                />
+              </>
+            )}
           </div>
           <div className="card-compact">
             <h2 className="text-lg sm:text-xl font-semibold mb-4">Benutzerliste</h2>
             {userManagement.users.length === 0 ? (
               <div className="text-center py-12">
-                <svg
-                  className="mx-auto h-12 w-12 text-gray-400 mb-4"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"
-                  />
-                </svg>
+                <UsersIcon className="mx-auto h-12 w-12 text-gray-400 mb-4" />
                 <p className="text-gray-500 mb-4">Noch keine Benutzer vorhanden</p>
-                <button
-                  onClick={userManagement.openCreateModal}
-                  className="btn-primary"
-                >
-                  Ersten Benutzer erstellen
-                </button>
+                {canManage && (
+                  <button
+                    onClick={userManagement.openCreateModal}
+                    className="btn-primary"
+                  >
+                    Ersten Benutzer erstellen
+                  </button>
+                )}
               </div>
             ) : (
               <UserList
@@ -244,22 +300,58 @@ export default function BenutzerverwaltungPage() {
                 onEdit={userManagement.startEditingUser}
                 onDelete={userManagement.handleDeleteUser}
                 canDeleteUser={userManagement.canDeleteUser}
+                canManage={canManage}
+                canEditSiteAdministrator={canEditSiteAdministrator}
+                canImpersonateUser={(user) => isSiteAdministrator && session?.user?.id !== user.id}
+                onImpersonate={async (user) => {
+                  setImpersonationError("");
+                  setImpersonatingUserId(user.id);
+                  try {
+                    if (typeof update !== "function") {
+                      setImpersonationError("Impersonierung ist derzeit nicht verfügbar");
+                      return;
+                    }
+                    const response = await fetch(`/api/admin/users/${user.id}/impersonate`, {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                    });
+                    const data = await response.json();
+                    if (!response.ok || typeof data.proof !== "string") {
+                      setImpersonationError(data.error || "Impersonierung konnte nicht gestartet werden");
+                      return;
+                    }
+                    const updatedSession = await update({ impersonationStartProof: data.proof });
+                    if (!updatedSession?.user?.id || updatedSession.user.id !== user.id) {
+                      setImpersonationError("Impersonierung konnte nicht gestartet werden");
+                      return;
+                    }
+                    router.push("/profil");
+                    router.refresh();
+                  } catch {
+                    setImpersonationError("Impersonierung konnte nicht gestartet werden");
+                  } finally {
+                    setImpersonatingUserId(null);
+                  }
+                }}
+                impersonatingUserId={impersonatingUserId}
               />
             )}
           </div>
         </div>
 
-        <UserFormModal
-          isOpen={userManagement.isModalOpen}
-          onClose={userManagement.closeModal}
-          onSubmit={userManagement.editingUser ? userManagement.handleUpdateUser : userManagement.handleCreateUser}
-          isSubmitting={userManagement.isCreatingUser || userManagement.isUpdatingUser}
-          userData={userManagement.modalUserData}
-          setUserData={userManagement.setModalUserData}
-          isEditing={!!userManagement.editingUser}
-          errors={userManagement.error ? { general: userManagement.error } : {}}
-          initialUserData={userManagement.initialUserData}
-        />
+        {canManage && (
+          <UserFormModal
+            isOpen={userManagement.isModalOpen}
+            onClose={userManagement.closeModal}
+            onSubmit={userManagement.editingUser ? userManagement.handleUpdateUser : userManagement.handleCreateUser}
+            isSubmitting={userManagement.isCreatingUser || userManagement.isUpdatingUser}
+            userData={userManagement.modalUserData}
+            setUserData={userManagement.setModalUserData}
+            isEditing={!!userManagement.editingUser}
+            errors={userManagement.error ? { general: userManagement.error } : {}}
+            initialUserData={userManagement.initialUserData}
+          />
+        )}
       </div>
     </main>
   );

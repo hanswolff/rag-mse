@@ -61,6 +61,7 @@ describe("TerminePage", () => {
         timeFrom: "18:00",
         timeTo: "20:00",
         location: "Test Location",
+        locationDisplay: "Test Location, Musterstraße 1, 12345 Musterstadt",
         description: "Test Description",
         latitude: null,
         longitude: null,
@@ -88,7 +89,7 @@ describe("TerminePage", () => {
 
     expect(screen.getByText("15.02.2026")).toBeInTheDocument();
     expect(screen.getByText("18:00 - 20:00")).toBeInTheDocument();
-    expect(screen.getByText("Test Location")).toBeInTheDocument();
+    expect(screen.getByText("Test Location, Musterstraße 1, 12345 Musterstadt")).toBeInTheDocument();
     expect(screen.getByText("Test Description")).toBeInTheDocument();
     expect(mockFetch).toHaveBeenCalledTimes(1);
   });

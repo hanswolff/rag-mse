@@ -4,20 +4,21 @@ import EventDetailPage from "@/app/termine/[id]/page";
 
 const mockFetch = jest.fn();
 const mockPush = jest.fn();
+const mockSessionState = {
+  data: {
+    user: {
+      id: "user-1",
+      email: "test@example.com",
+      role: "MEMBER",
+    },
+  },
+  status: "authenticated",
+};
 
 global.fetch = mockFetch as jest.MockedFunction<typeof fetch>;
 
 jest.mock("next-auth/react", () => ({
-  useSession: jest.fn(() => ({
-    data: {
-      user: {
-        id: "user-1",
-        email: "test@example.com",
-        role: "MEMBER",
-      },
-    },
-    status: "authenticated",
-  })),
+  useSession: jest.fn(() => mockSessionState),
 }));
 
 jest.mock("next/navigation", () => ({
@@ -58,7 +59,9 @@ jest.mock("@/lib/use-event-management", () => ({
     startEditingEvent: jest.fn(),
     cancelEditingEvent: jest.fn(),
     handleGeocode: jest.fn(),
+    handleUseLatestDescription: jest.fn(),
     handlePublishEvent: jest.fn(),
+    isLoadingLatestDescription: false,
     openCreateModal: jest.fn(),
     closeModal: jest.fn(),
   }),
@@ -67,6 +70,14 @@ jest.mock("@/lib/use-event-management", () => ({
 describe("EventDetailPage", () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockSessionState.data = {
+      user: {
+        id: "user-1",
+        email: "test@example.com",
+        role: "MEMBER",
+      },
+    };
+    mockSessionState.status = "authenticated";
   });
 
   it("displays loading state initially", async () => {
@@ -86,6 +97,7 @@ describe("EventDetailPage", () => {
       timeFrom: "18:00",
       timeTo: "20:00",
       location: "Test Location",
+      locationDisplay: "Test Location, Musterstraße 1, 12345 Musterstadt",
       description: "Test Description",
       latitude: null,
       longitude: null,
@@ -110,7 +122,7 @@ describe("EventDetailPage", () => {
 
     expect(screen.getByText("15.02.2026")).toBeInTheDocument();
     expect(screen.getByText("18:00 - 20:00")).toBeInTheDocument();
-    expect(screen.getByText("Test Location")).toBeInTheDocument();
+    expect(screen.getByText("Test Location, Musterstraße 1, 12345 Musterstadt")).toBeInTheDocument();
     expect(screen.getByText("Test Description")).toBeInTheDocument();
   });
 
@@ -759,5 +771,83 @@ describe("EventDetailPage", () => {
     });
 
     expect(screen.queryByText("Bearbeiten")).not.toBeInTheDocument();
+  });
+
+  it("submits guest registration with Enter in guest-name input for admins", async () => {
+    const user = userEvent.setup();
+    const futureDate = new Date();
+    futureDate.setDate(futureDate.getDate() + 1);
+
+    mockSessionState.data = {
+      user: {
+        id: "admin-1",
+        email: "admin@example.com",
+        role: "ADMIN",
+      },
+    };
+
+    mockFetch.mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      const method = init?.method;
+
+      if (url.includes("/api/admin/events/1/registrations") && method === "POST") {
+        return {
+          ok: true,
+          json: async () => ({ success: true }),
+        } as Response;
+      }
+
+      if (url.includes("/api/admin/events/1/registrations")) {
+        return {
+          ok: true,
+          json: async () => ({
+            members: [{ userId: "member-2", name: "Member 2", vote: null }],
+            guests: [],
+          }),
+        } as Response;
+      }
+
+      if (url.includes("/api/events/1")) {
+        return {
+          ok: true,
+          json: async () => ({
+            id: "1",
+            date: futureDate.toISOString(),
+            timeFrom: "18:00",
+            timeTo: "20:00",
+            location: "Test Location",
+            description: "Test Description",
+            latitude: null,
+            longitude: null,
+            createdAt: "2026-01-31T10:00:00.000Z",
+            updatedAt: "2026-01-31T10:00:00.000Z",
+            votes: [],
+            voteCounts: { JA: 0, NEIN: 0, VIELLEICHT: 0 },
+          }),
+        } as Response;
+      }
+
+      return {
+        ok: false,
+        json: async () => ({ error: "Nicht erwartet" }),
+      } as Response;
+    });
+
+    await act(async () => {
+      render(<EventDetailPage params={Promise.resolve({ id: "1" })} />);
+    });
+
+    const addRegistrationButton = await screen.findByRole("button", { name: "Ja: Anmeldung hinzufügen" });
+    await user.click(addRegistrationButton);
+    await user.click(screen.getByLabelText("Gast"));
+    const guestNameInput = screen.getByLabelText("Gastname");
+    await user.type(guestNameInput, "Max Gast{enter}");
+
+    await waitFor(() => {
+      expect(mockFetch).toHaveBeenCalledWith(
+        "/api/admin/events/1/registrations",
+        expect.objectContaining({ method: "POST" })
+      );
+    });
   });
 });

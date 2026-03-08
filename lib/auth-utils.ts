@@ -1,6 +1,7 @@
 import { getServerSession } from "next-auth";
 import { authOptions } from "./auth";
-import { hasAdminRole, hasMemberRole } from "./role-utils";
+import { hasAdminAccessRole, hasAdminRole, hasMemberRole } from "./role-utils";
+import { Permissions } from "./permissions";
 
 export class UnauthorizedError extends Error {
   constructor(message = "Nicht autorisiert") {
@@ -8,6 +9,8 @@ export class UnauthorizedError extends Error {
     this.name = "UnauthorizedError";
   }
 }
+
+const FORBIDDEN_ADMIN_MESSAGE = "Keine Admin-Berechtigung";
 
 export class ForbiddenError extends Error {
   constructor(message = "Keine Berechtigung") {
@@ -29,10 +32,25 @@ export async function requireAuth() {
   return user;
 }
 
-export async function requireAdmin() {
+export async function requireAdmin(mode: "read" | "write" = "write") {
+  if (mode === "read") {
+    return requireAdminRead();
+  }
+  return requireAdminWrite();
+}
+
+async function requireAdminRead() {
+  const user = await requireAuth();
+  if (!hasAdminAccessRole(user.role)) {
+    throw new ForbiddenError(FORBIDDEN_ADMIN_MESSAGE);
+  }
+  return user;
+}
+
+async function requireAdminWrite() {
   const user = await requireAuth();
   if (!hasAdminRole(user.role)) {
-    throw new ForbiddenError("Keine Admin-Berechtigung");
+    throw new ForbiddenError(FORBIDDEN_ADMIN_MESSAGE);
   }
   return user;
 }
@@ -50,7 +68,7 @@ export function shouldRedirectToLogin(pathname: string, userRole: string | undef
     return false;
   }
 
-  if (pathname.startsWith("/admin") && !hasAdminRole(userRole)) {
+  if (pathname.startsWith("/admin") && !Permissions.canAccessAdminArea(userRole)) {
     return true;
   }
 

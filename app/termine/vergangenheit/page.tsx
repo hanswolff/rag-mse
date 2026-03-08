@@ -144,7 +144,7 @@ export default function VergangeneTerminePage() {
                       {formatTime(event.timeFrom)} - {formatTime(event.timeTo)}
                     </p>
                     <p className="text-gray-600 mb-2 font-medium text-base sm:text-base">
-                      {event.location}
+                      {event.locationDisplay || event.location}
                     </p>
                     <p className="text-gray-600 line-clamp-2 text-base sm:text-base">
                       {getEventDescriptionPreview(event.description)}

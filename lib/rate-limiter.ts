@@ -1,12 +1,5 @@
 import { getRedisClient } from "./redis-client";
 
-interface RateLimitEntry {
-  count: number;
-  resetAt: number;
-  lastAttemptAt: number;
-  blockedUntil?: number;
-}
-
 const LOGIN_WINDOW_MS = 15 * 60 * 1000;
 const IP_WINDOW_MS = 15 * 60 * 1000;
 const TOKEN_WINDOW_MS = 15 * 60 * 1000;
@@ -39,38 +32,42 @@ const TOKEN_PREFIX = `${RATE_LIMIT_PREFIX}token:`;
 const FORGOT_PASSWORD_PREFIX = `${RATE_LIMIT_PREFIX}forgot:`;
 const CONTACT_PREFIX = `${RATE_LIMIT_PREFIX}contact:`;
 const GEOCODE_PREFIX = `${RATE_LIMIT_PREFIX}geocode:`;
-
-async function getRateLimitEntry(key: string): Promise<RateLimitEntry | null> {
-  const redis = getRedisClient();
-  const data = await redis.get(key);
-  if (!data) return null;
-  try {
-    return JSON.parse(data) as RateLimitEntry;
-  } catch {
-    return null;
-  }
-}
-
-async function setRateLimitEntry(key: string, entry: RateLimitEntry, ttlMs: number): Promise<void> {
-  const redis = getRedisClient();
-  const ttlSec = Math.ceil(ttlMs / 1000);
-  await redis.set(key, JSON.stringify(entry), "EX", ttlSec);
-}
+const BLOCKED_UNTIL_PREFIX = `${RATE_LIMIT_PREFIX}blocked:`;
 
 async function deleteRateLimitEntry(key: string): Promise<void> {
   const redis = getRedisClient();
   await redis.del(key);
 }
 
+async function getCounterValue(key: string): Promise<number> {
+  const redis = getRedisClient();
+  const value = await redis.get(key);
+  if (!value) {
+    return 0;
+  }
+
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+async function incrementFixedWindowCounter(key: string, windowMs: number): Promise<number> {
+  const redis = getRedisClient();
+  const count = await redis.incr(key);
+
+  if (count === 1) {
+    await redis.pexpire(key, windowMs);
+  }
+
+  return count;
+}
+
 async function decrementIpCounter(ip: string): Promise<void> {
   const ipKey = `${IP_PREFIX}${ip}`;
-  const ipEntry = await getRateLimitEntry(ipKey);
-  if (ipEntry) {
-    ipEntry.count = Math.max(0, ipEntry.count - 1);
-    const ttlSec = Math.ceil((ipEntry.resetAt - Date.now()) / 1000);
-    if (ttlSec > 0) {
-      await setRateLimitEntry(ipKey, ipEntry, ttlSec * 1000);
-    }
+  const redis = getRedisClient();
+  const decremented = await redis.decr(ipKey);
+
+  if (decremented <= 0) {
+    await redis.del(ipKey);
   }
 }
 
@@ -103,21 +100,15 @@ interface ThresholdConfig {
 }
 
 async function incrementIpAttempt(ip: string): Promise<{ allowed: boolean; attemptCount: number }> {
-  const now = Date.now();
   const ipKey = `${IP_PREFIX}${ip}`;
-  const ipEntry = await getRateLimitEntry(ipKey);
-  if (!ipEntry || ipEntry.resetAt <= now) {
-    const newEntry: RateLimitEntry = { count: 1, resetAt: now + IP_WINDOW_MS, lastAttemptAt: now };
-    await setRateLimitEntry(ipKey, newEntry, IP_WINDOW_MS);
-    return { allowed: true, attemptCount: 1 };
+  const count = await incrementFixedWindowCounter(ipKey, IP_WINDOW_MS);
+
+  if (count > IP_MAX_ATTEMPTS) {
+    await decrementIpCounter(ip);
+    return { allowed: false, attemptCount: IP_MAX_ATTEMPTS };
   }
-  if (ipEntry.count >= IP_MAX_ATTEMPTS) {
-    return { allowed: false, attemptCount: ipEntry.count };
-  }
-  ipEntry.count += 1;
-  ipEntry.lastAttemptAt = now;
-  await setRateLimitEntry(ipKey, ipEntry, ipEntry.resetAt - now);
-  return { allowed: true, attemptCount: ipEntry.count };
+
+  return { allowed: true, attemptCount: count };
 }
 
 function checkThresholds(attemptCount: number, thresholds: ThresholdConfig[]): number {
@@ -144,29 +135,28 @@ async function checkRateLimit(
   }
 
   const key = `${keyPrefix}${keySuffix}`;
-  const entry = await getRateLimitEntry(key);
-  if (!entry || entry.resetAt <= now) {
-    const newEntry: RateLimitEntry = { count: 1, resetAt: now + windowMs, lastAttemptAt: now };
-    await setRateLimitEntry(key, newEntry, windowMs);
-    return { allowed: true, attemptCount: 1 };
+  const blockedUntilKey = `${BLOCKED_UNTIL_PREFIX}${keyPrefix}${keySuffix}`;
+  const redis = getRedisClient();
+  const blockedUntilRaw = await redis.get(blockedUntilKey);
+  const blockedUntil = blockedUntilRaw ? Number.parseInt(blockedUntilRaw, 10) : NaN;
+  const currentCount = await getCounterValue(key);
+
+  if (Number.isFinite(blockedUntil) && blockedUntil > now) {
+    return { allowed: false, blockedUntil, attemptCount: currentCount };
   }
 
-  if (entry.blockedUntil && entry.blockedUntil > now) {
-    return { allowed: false, blockedUntil: entry.blockedUntil, attemptCount: entry.count };
-  }
+  const attemptCount = await incrementFixedWindowCounter(key, windowMs);
 
-  entry.count += 1;
-  entry.lastAttemptAt = now;
-
-  const blockDuration = checkThresholds(entry.count, thresholds);
+  const blockDuration = checkThresholds(attemptCount, thresholds);
   if (blockDuration > 0) {
-    entry.blockedUntil = now + blockDuration;
-    await setRateLimitEntry(key, entry, entry.resetAt - now);
-    return { allowed: false, blockedUntil: entry.blockedUntil, attemptCount: entry.count };
+    const nextBlockedUntil = now + blockDuration;
+    const counterTtlMs = await redis.pttl(key);
+    const effectiveTtlMs = Math.max(windowMs, blockDuration, counterTtlMs > 0 ? counterTtlMs : 0);
+    await redis.set(blockedUntilKey, `${nextBlockedUntil}`, "PX", effectiveTtlMs);
+    return { allowed: false, blockedUntil: nextBlockedUntil, attemptCount };
   }
 
-  await setRateLimitEntry(key, entry, entry.resetAt - now);
-  return { allowed: true, attemptCount: entry.count };
+  return { allowed: true, attemptCount };
 }
 
 async function checkFixedWindowRateLimit(
@@ -175,13 +165,8 @@ async function checkFixedWindowRateLimit(
   windowMs: number,
   maxAttempts: number
 ): Promise<FixedWindowAttemptResult> {
-  const redis = getRedisClient();
   const key = `${keyPrefix}${keySuffix}`;
-  const currentCount = await redis.incr(key);
-
-  if (currentCount === 1) {
-    await redis.pexpire(key, windowMs);
-  }
+  const currentCount = await incrementFixedWindowCounter(key, windowMs);
 
   return {
     allowed: currentCount <= maxAttempts,
@@ -203,6 +188,7 @@ export async function checkLoginRateLimit(ip: string, email?: string): Promise<L
 export async function recordSuccessfulLogin(ip: string, email: string): Promise<void> {
   const key = `${LOGIN_PREFIX}${ip}:${email.toLowerCase()}`;
   await deleteRateLimitEntry(key);
+  await deleteRateLimitEntry(`${BLOCKED_UNTIL_PREFIX}${key}`);
   await decrementIpCounter(ip);
 }
 
@@ -214,6 +200,7 @@ export async function checkTokenRateLimit(ip: string, tokenHash: string): Promis
 export async function recordSuccessfulTokenUsage(tokenHash: string, ip: string): Promise<void> {
   const tokenKey = `${TOKEN_PREFIX}${tokenHash}`;
   await deleteRateLimitEntry(tokenKey);
+  await deleteRateLimitEntry(`${BLOCKED_UNTIL_PREFIX}${tokenKey}`);
   await decrementIpCounter(ip);
 }
 

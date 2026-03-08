@@ -6,7 +6,7 @@ import { withApiErrorHandling } from "@/lib/api-utils";
 import { logResourceNotFound } from "@/lib/logger";
 
 export const GET = withApiErrorHandling(async (_request: Request, ctx: RouteContext<"/api/admin/documents/[id]/download">) => {
-  await requireAdmin();
+  await requireAdmin("read");
 
   const { id } = await ctx.params;
   const document = await prisma.document.findUnique({ where: { id } });
@@ -16,7 +16,19 @@ export const GET = withApiErrorHandling(async (_request: Request, ctx: RouteCont
     return NextResponse.json({ error: "Dokument nicht gefunden" }, { status: 404 });
   }
 
-  const content = await readDocumentFile(document.storedFileName);
+  let content: Buffer;
+  try {
+    content = await readDocumentFile(document.storedFileName);
+  } catch (error: unknown) {
+    if (error && typeof error === "object" && "code" in error && error.code === "ENOENT") {
+      logResourceNotFound("documentFile", document.storedFileName, "/api/admin/documents/[id]/download", "GET", {
+        documentId: id,
+      });
+      return NextResponse.json({ error: "Dokument nicht gefunden" }, { status: 404 });
+    }
+    throw error;
+  }
+
   const body = new Uint8Array(content);
 
   return new NextResponse(body, {

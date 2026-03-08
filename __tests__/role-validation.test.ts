@@ -10,6 +10,10 @@ describe("validateRole", () => {
       expect(validateRole("MEMBER")).toBe(true);
     });
 
+    it("should accept AUDITOR role", () => {
+      expect(validateRole("AUDITOR")).toBe(true);
+    });
+
     it("should accept all defined VALID_ROLES", () => {
       VALID_ROLES.forEach(role => {
         expect(validateRole(role)).toBe(true);
@@ -45,6 +49,7 @@ describe("validateRole", () => {
       expect(validateRole("MODERATOR")).toBe(false);
       expect(validateRole("GUEST")).toBe(false);
       expect(validateRole("USER")).toBe(false);
+      expect(validateRole("SITE_ADMINISTRATOR")).toBe(false);
     });
 
     it("should reject role with spaces", () => {
@@ -112,8 +117,8 @@ describe("VALID_ROLES constant", () => {
     expect(Array.isArray(VALID_ROLES)).toBe(true);
   });
 
-  it("should contain exactly two roles", () => {
-    expect(VALID_ROLES).toHaveLength(2);
+  it("should contain exactly three assignable roles", () => {
+    expect(VALID_ROLES).toHaveLength(3);
   });
 
   it("should contain ADMIN", () => {
@@ -122,5 +127,9 @@ describe("VALID_ROLES constant", () => {
 
   it("should contain MEMBER", () => {
     expect(VALID_ROLES).toContain("MEMBER");
+  });
+
+  it("should contain AUDITOR", () => {
+    expect(VALID_ROLES).toContain("AUDITOR");
   });
 });

@@ -2,13 +2,18 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/auth-utils";
 import { deleteDocumentFile, readDocumentFile, restoreDocumentFile } from "@/lib/document-storage";
-import { normalizeDocumentDisplayName, parseAndValidateUpdateDocumentRequest, parseOptionalDocumentDate } from "@/lib/document-validation";
+import {
+  normalizeDirectoryId,
+  normalizeDocumentDisplayName,
+  parseAndValidateUpdateDocumentRequest,
+  parseOptionalDocumentDate,
+} from "@/lib/document-validation";
 import { parseJsonBody, validateCsrfHeaders, withApiErrorHandling } from "@/lib/api-utils";
 import { logInfo, logResourceNotFound, logValidationFailure, logWarn } from "@/lib/logger";
 
 export const PATCH = withApiErrorHandling(async (request: NextRequest, ctx: RouteContext<"/api/admin/documents/[id]">) => {
   validateCsrfHeaders(request);
-  await requireAdmin();
+  await requireAdmin("write");
 
   const { id } = await ctx.params;
   const rawBody = await parseJsonBody<unknown>(request);
@@ -30,6 +35,7 @@ export const PATCH = withApiErrorHandling(async (request: NextRequest, ctx: Rout
   const updateData: {
     displayName?: string;
     documentDate?: Date;
+    directoryId?: string | null;
   } = {};
 
   if (body.displayName !== undefined) {
@@ -43,10 +49,32 @@ export const PATCH = withApiErrorHandling(async (request: NextRequest, ctx: Rout
     }
   }
 
+  if (body.directoryId !== undefined) {
+    const normalizedDirectoryId = normalizeDirectoryId(body.directoryId);
+    if (!normalizedDirectoryId) {
+      updateData.directoryId = null;
+    } else {
+      const existingDirectory = await prisma.documentDirectory.findUnique({
+        where: { id: normalizedDirectoryId },
+        select: { id: true },
+      });
+      if (!existingDirectory) {
+        return NextResponse.json({ error: "Verzeichnis nicht gefunden" }, { status: 400 });
+      }
+      updateData.directoryId = normalizedDirectoryId;
+    }
+  }
+
   const updatedDocument = await prisma.document.update({
     where: { id },
     data: updateData,
     include: {
+      directory: {
+        select: {
+          id: true,
+          name: true,
+        },
+      },
       uploadedBy: {
         select: {
           id: true,
@@ -71,7 +99,7 @@ export const PATCH = withApiErrorHandling(async (request: NextRequest, ctx: Rout
 
 export const DELETE = withApiErrorHandling(async (request: NextRequest, ctx: RouteContext<"/api/admin/documents/[id]">) => {
   validateCsrfHeaders(request);
-  await requireAdmin();
+  await requireAdmin("write");
 
   const { id } = await ctx.params;
 

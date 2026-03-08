@@ -11,7 +11,7 @@ const pathways = [
     actions: [
       {
         label: "Aufnahmeantrag herunterladen",
-        href: "/dokumente/Aufnahmeantrag.pdf",
+        href: "/dokumente/Antrag_Mitgliedschaft_RAG.pdf",
         className: "btn-secondary"
       }
     ]

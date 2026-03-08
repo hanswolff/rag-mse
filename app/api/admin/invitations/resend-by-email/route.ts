@@ -38,7 +38,7 @@ async function rollbackInvitationToken(invitationId: string, previousTokenHash: 
 
 export const POST = withApiErrorHandling(async (request: NextRequest) => {
   validateCsrfHeaders(request);
-  await requireAdmin();
+  await requireAdmin("write");
   const body = await parseJsonBody<ResendByEmailRequest>(request);
   const bodyValidation = validateRequestBody(
     body as unknown as Record<string, unknown>,

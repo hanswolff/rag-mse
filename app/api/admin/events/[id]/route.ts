@@ -36,7 +36,7 @@ function normalizeCoordinate(value?: string | number | null): number | null | un
 }
 
 export const GET = withApiErrorHandling(async (request: NextRequest, ctx: RouteContext<'/api/admin/events/[id]'>) => {
-  await requireAdmin();
+  await requireAdmin("read");
 
   const { id } = await ctx.params;
 
@@ -82,7 +82,7 @@ export const GET = withApiErrorHandling(async (request: NextRequest, ctx: RouteC
 export const PUT = withApiErrorHandling(async (request: NextRequest, ctx: RouteContext<'/api/admin/events/[id]'>) => {
   validateCsrfHeaders(request);
 
-  await requireAdmin();
+  await requireAdmin("write");
 
   const { id } = await ctx.params;
   const body = await parseJsonBody<UpdateEventRequest>(request, EVENT_REQUEST_BODY_SIZE);
@@ -209,7 +209,7 @@ export const PUT = withApiErrorHandling(async (request: NextRequest, ctx: RouteC
 export const DELETE = withApiErrorHandling(async (request: NextRequest, ctx: RouteContext<'/api/admin/events/[id]'>) => {
   validateCsrfHeaders(request);
 
-  await requireAdmin();
+  await requireAdmin("write");
 
   const { id } = await ctx.params;
 

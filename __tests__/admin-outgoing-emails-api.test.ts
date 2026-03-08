@@ -3,7 +3,7 @@ import { OutgoingEmailStatus } from "@prisma/client";
 import { GET } from "@/app/api/admin/outgoing-emails/route";
 import { POST } from "@/app/api/admin/outgoing-emails/[id]/retry/route";
 import { prisma } from "@/lib/prisma";
-import { requireAdmin } from "@/lib/auth-utils";
+import { requireAdmin, requireAuth } from "@/lib/auth-utils";
 import { processDueEmailOutboxBatch } from "@/lib/email-sender";
 
 jest.mock("@/lib/prisma", () => ({
@@ -19,6 +19,13 @@ jest.mock("@/lib/prisma", () => ({
 
 jest.mock("@/lib/auth-utils", () => ({
   requireAdmin: jest.fn(),
+  requireAuth: jest.fn(),
+  ForbiddenError: class ForbiddenError extends Error {
+    constructor(message = "Keine Berechtigung") {
+      super(message);
+      this.name = "ForbiddenError";
+    }
+  },
 }));
 
 jest.mock("@/lib/email-sender", () => ({
@@ -28,6 +35,11 @@ jest.mock("@/lib/email-sender", () => ({
 describe("/api/admin/outgoing-emails", () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    (requireAuth as jest.Mock).mockResolvedValue({
+      id: "admin-1",
+      role: "ADMIN",
+      email: "admin@example.com",
+    });
     (requireAdmin as jest.Mock).mockResolvedValue({
       id: "admin-1",
       role: "ADMIN",
@@ -59,7 +71,7 @@ describe("/api/admin/outgoing-emails", () => {
     const data = await response.json();
 
     expect(response.status).toBe(200);
-    expect(requireAdmin).toHaveBeenCalled();
+    expect(requireAuth).toHaveBeenCalled();
     expect(data.emails).toHaveLength(1);
     expect(data.emails[0].subject).toBe("Kontaktanfrage");
     expect(data.emails[0].attemptCount).toBe(1);
@@ -72,6 +84,7 @@ describe("/api/admin/outgoing-emails", () => {
 
     const firstCall = (prisma.outgoingEmail.findMany as jest.Mock).mock.calls[0][0];
     expect(firstCall.where.createdAt.gte).toBeInstanceOf(Date);
+    expect(firstCall.orderBy).toEqual([{ createdAt: "desc" }, { id: "desc" }]);
   });
 
   it("applies search query to subject, recipient and template", async () => {
@@ -99,6 +112,41 @@ describe("/api/admin/outgoing-emails", () => {
     const firstCall = (prisma.outgoingEmail.findMany as jest.Mock).mock.calls[0][0];
     expect(firstCall.take).toBe(100);
     expect(firstCall.skip).toBe(100);
+  });
+
+  it("uses requested sorting for supported fields", async () => {
+    (prisma.outgoingEmail.findMany as jest.Mock).mockResolvedValue([]);
+    (prisma.outgoingEmail.count as jest.Mock).mockResolvedValue(0);
+
+    const request = new NextRequest("http://localhost:3000/api/admin/outgoing-emails?sortBy=attemptCount&sortDir=asc");
+    await GET(request);
+
+    const firstCall = (prisma.outgoingEmail.findMany as jest.Mock).mock.calls[0][0];
+    expect(firstCall.orderBy).toEqual([{ attemptCount: "asc" }, { id: "desc" }]);
+  });
+
+  it("falls back to default sort field for invalid sortBy", async () => {
+    (prisma.outgoingEmail.findMany as jest.Mock).mockResolvedValue([]);
+    (prisma.outgoingEmail.count as jest.Mock).mockResolvedValue(0);
+
+    const request = new NextRequest("http://localhost:3000/api/admin/outgoing-emails?sortBy=unknown&sortDir=asc");
+    await GET(request);
+
+    const firstCall = (prisma.outgoingEmail.findMany as jest.Mock).mock.calls[0][0];
+    expect(firstCall.orderBy).toEqual([{ createdAt: "asc" }, { id: "desc" }]);
+  });
+
+  it("returns 403 for auditor role", async () => {
+    (requireAuth as jest.Mock).mockResolvedValue({
+      id: "auditor-1",
+      role: "AUDITOR",
+      email: "auditor@example.com",
+    });
+
+    const request = new NextRequest("http://localhost:3000/api/admin/outgoing-emails");
+    const response = await GET(request);
+
+    expect(response.status).toBe(403);
   });
 });
 

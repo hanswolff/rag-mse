@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { GET, PUT } from "@/app/api/user/notifications/route";
 import { prisma } from "@/lib/prisma";
-import { requireAuth } from "@/lib/auth-utils";
+import { requireMember } from "@/lib/auth-utils";
 
 jest.mock("@/lib/prisma", () => ({
   prisma: {
@@ -13,13 +13,13 @@ jest.mock("@/lib/prisma", () => ({
 }));
 
 jest.mock("@/lib/auth-utils", () => ({
-  requireAuth: jest.fn(),
+  requireMember: jest.fn(),
 }));
 
 describe("/api/user/notifications", () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    (requireAuth as jest.Mock).mockResolvedValue({
+    (requireMember as jest.Mock).mockResolvedValue({
       id: "user-1",
       email: "test@example.com",
       role: "MEMBER",

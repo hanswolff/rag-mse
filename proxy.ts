@@ -21,10 +21,11 @@ export async function proxy(req: NextRequest) {
     console.error("Fehler beim Lesen des Auth-Tokens:", error);
     return NextResponse.redirect(loginUrl);
   }
-  const userRole = token?.role;
   const pathname = req.nextUrl.pathname;
 
-  if (shouldRedirectToLogin(pathname, userRole)) {
+  // Role-based checks are enforced on server routes/pages.
+  // In proxy we only guard unauthenticated access to protected routes.
+  if (!token?.sub && shouldRedirectToLogin(pathname, undefined)) {
     return NextResponse.redirect(loginUrl);
   }
 

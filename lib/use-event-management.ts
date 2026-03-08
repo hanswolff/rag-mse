@@ -61,6 +61,7 @@ export function useEventManagement(options: UseEventManagementOptions = {}) {
   const [isCreatingEvent, setIsCreatingEvent] = useState(false);
   const [isEditingEvent, setIsEditingEvent] = useState(false);
   const [isGeocoding, setIsGeocoding] = useState(false);
+  const [isLoadingLatestDescription, setIsLoadingLatestDescription] = useState(false);
   const [publishingEventId, setPublishingEventId] = useState<string | null>(null);
   const [geocodeSuccess, setGeocodeSuccess] = useState(false);
   const [error, setError] = useState("");
@@ -255,6 +256,40 @@ export function useEventManagement(options: UseEventManagementOptions = {}) {
     }
   }, [modalEventData]);
 
+  const handleUseLatestDescription = useCallback(async () => {
+    setError("");
+    setIsLoadingLatestDescription(true);
+
+    try {
+      const response = await fetch("/api/admin/events?page=1&limit=1", {
+        cache: "no-store",
+      });
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Fehler beim Laden der letzten Beschreibung");
+      }
+
+      const latestDescription = typeof data?.events?.[0]?.description === "string"
+        ? data.events[0].description
+        : "";
+
+      if (!latestDescription.trim()) {
+        setError("Kein letzter Termin mit Beschreibung gefunden");
+        return;
+      }
+
+      setModalEventData((prev) => ({
+        ...prev,
+        description: latestDescription,
+      }));
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Ein Fehler ist aufgetreten");
+    } finally {
+      setIsLoadingLatestDescription(false);
+    }
+  }, []);
+
   const handlePublishEvent = useCallback(async (eventId: string, published: boolean) => {
     const publish = createPublishHandler(setSuccess, setError, () => fetchEvents(currentPage));
     setPublishingEventId(eventId);
@@ -291,6 +326,7 @@ export function useEventManagement(options: UseEventManagementOptions = {}) {
     isEditingEvent,
     publishingEventId,
     isGeocoding,
+    isLoadingLatestDescription,
     geocodeSuccess,
     error,
     success,
@@ -305,6 +341,7 @@ export function useEventManagement(options: UseEventManagementOptions = {}) {
     startEditingEvent,
     cancelEditingEvent,
     handleGeocode,
+    handleUseLatestDescription,
     handlePublishEvent,
     handlePageChange,
     openCreateModal,

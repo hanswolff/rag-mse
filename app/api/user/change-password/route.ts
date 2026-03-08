@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireAuth } from "@/lib/auth-utils";
+import { requireMember } from "@/lib/auth-utils";
 import { validateChangePasswordRequest, type ChangePasswordRequest } from "@/lib/user-validation";
 import { BadRequestError, logApiError, parseJsonBody, validateRequestBody, validateCsrfHeaders } from "@/lib/api-utils";
 import { hash, compare } from "bcryptjs";
@@ -16,7 +16,7 @@ export async function PUT(request: NextRequest) {
   try {
     validateCsrfHeaders(request);
 
-    const user = await requireAuth();
+    const user = await requireMember();
     const body = await parseJsonBody<ChangePasswordRequest>(request);
 
     const bodyValidation = validateRequestBody(body as unknown as Record<string, unknown>, changePasswordSchema, { route: '/api/user/change-password', method: 'PUT' });
@@ -78,6 +78,12 @@ export async function PUT(request: NextRequest) {
   } catch (error: unknown) {
     if (error instanceof BadRequestError) {
       return NextResponse.json({ error: error.message }, { status: 400 });
+    }
+    if (error instanceof Error && error.name === "UnauthorizedError") {
+      return NextResponse.json({ error: "Nicht autorisiert" }, { status: 401 });
+    }
+    if (error instanceof Error && error.name === "ForbiddenError") {
+      return NextResponse.json({ error: "Keine Berechtigung" }, { status: 403 });
     }
 
     logApiError(error, {

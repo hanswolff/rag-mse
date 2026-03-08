@@ -25,7 +25,7 @@ const BCRYPT_SALT_ROUNDS = 10;
 const DEFAULT_ADMIN_EMAIL = "admin@rag-mse.de";
 const DEFAULT_ADMIN_PASSWORD = "AdminPass123";
 const DEFAULT_ADMIN_NAME = "Administrator";
-const ADMIN_ROLE: Role = "ADMIN";
+const INITIAL_ADMIN_ROLE: Role = "SITE_ADMINISTRATOR";
 
 function validateEmail(email: string): boolean {
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -76,6 +76,13 @@ export async function main(prismaOverride?: PrismaClient) {
   });
 
   if (existingAdmin) {
+    if (existingAdmin.role === "ADMIN") {
+      await prismaClient.user.update({
+        where: { id: existingAdmin.id },
+        data: { role: INITIAL_ADMIN_ROLE },
+      });
+      console.log(`Existing admin user ${adminEmail} upgraded to role ${INITIAL_ADMIN_ROLE}.`);
+    }
     console.log(
       `Admin user with email ${adminEmail} already exists. Skipping creation.`
     );
@@ -87,7 +94,7 @@ export async function main(prismaOverride?: PrismaClient) {
         email: adminEmail,
         password: hashedPassword,
         name: adminName,
-        role: ADMIN_ROLE,
+        role: INITIAL_ADMIN_ROLE,
       },
     });
 

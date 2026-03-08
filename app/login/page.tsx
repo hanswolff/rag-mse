@@ -3,11 +3,12 @@
 import { signIn, useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
-import { isAdmin } from "@/lib/role-utils";
+import { canAccessAdminArea } from "@/lib/role-utils";
 import { sanitizeReturnUrl } from "@/lib/return-url";
 import { LoadingButton } from "@/components/loading-button";
 import { loginFormSchema } from "@/lib/validation-schema";
 import { getFieldErrors } from "@/lib/zod-form-errors";
+import { pluralize } from "@/lib/pluralization";
 
 interface UseLoginFormResult {
   email: string;
@@ -63,7 +64,7 @@ function useLoginForm(): UseLoginFormResult {
     if (shouldRedirect && session?.user) {
       if (returnUrl) {
         router.push(returnUrl);
-      } else if (isAdmin(session.user)) {
+      } else if (canAccessAdminArea(session.user)) {
         router.push("/admin");
       } else {
         router.push("/");
@@ -122,7 +123,9 @@ function useLoginForm(): UseLoginFormResult {
 
         if (result?.error?.startsWith("RATE_LIMITED:")) {
           const minutes = result.error.split(":")[1] || "1";
-          setError(`Zu viele fehlgeschlagene Anmeldeversuche. Bitte versuchen Sie es in ${minutes} Minute(n) erneut.`);
+          const minuteCount = Number.parseInt(minutes, 10);
+          const minuteLabel = pluralize(Number.isFinite(minuteCount) ? minuteCount : 2, "Minute", "Minuten");
+          setError(`Zu viele fehlgeschlagene Anmeldeversuche. Bitte versuchen Sie es in ${minutes} ${minuteLabel} erneut.`);
         } else if (result?.error === "RATE_LIMIT_UNAVAILABLE") {
           setError("Anmeldung ist vorübergehend nicht verfügbar. Bitte versuchen Sie es erneut.");
         } else if (result?.error) {

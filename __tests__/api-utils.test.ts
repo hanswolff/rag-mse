@@ -556,9 +556,13 @@ describe("withApiErrorHandling", () => {
 
   describe("validateCsrfHeaders", () => {
     const originalAppUrl = process.env.APP_URL;
+    const originalNodeEnv = process.env.NODE_ENV;
+    const originalDevelopmentDeployment = process.env.DEVELOPMENT_DEPLOYMENT;
 
     afterEach(() => {
       process.env.APP_URL = originalAppUrl;
+      process.env.NODE_ENV = originalNodeEnv;
+      process.env.DEVELOPMENT_DEPLOYMENT = originalDevelopmentDeployment;
     });
 
     describe("with APP_URL configured", () => {
@@ -761,7 +765,8 @@ describe("withApiErrorHandling", () => {
         delete process.env.APP_URL;
       });
 
-      it("does not validate when APP_URL is not configured", () => {
+      it("does not validate in development when APP_URL is not configured", () => {
+        process.env.NODE_ENV = "development";
         const mockRequest = new Request("http://localhost:3000/api/test", {
           method: "POST",
           headers: {
@@ -772,6 +777,37 @@ describe("withApiErrorHandling", () => {
         });
 
         expect(() => validateCsrfHeaders(mockRequest)).not.toThrow();
+      });
+
+      it("rejects browser requests in production when APP_URL is missing", () => {
+        process.env.NODE_ENV = "production";
+        delete process.env.DEVELOPMENT_DEPLOYMENT;
+
+        const mockRequest = new Request("http://localhost:3000/api/test", {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            "user-agent": "Mozilla/5.0 (Test Browser)",
+          },
+        });
+
+        expect(() => validateCsrfHeaders(mockRequest)).toThrow(CsrfError);
+      });
+
+      it("rejects browser requests in production when APP_URL is invalid", () => {
+        process.env.NODE_ENV = "production";
+        delete process.env.DEVELOPMENT_DEPLOYMENT;
+        process.env.APP_URL = "not-a-url";
+
+        const mockRequest = new Request("http://localhost:3000/api/test", {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            "user-agent": "Mozilla/5.0 (Test Browser)",
+          },
+        });
+
+        expect(() => validateCsrfHeaders(mockRequest)).toThrow(CsrfError);
       });
     });
 

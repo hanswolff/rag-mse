@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
   try {
     validateCsrfHeaders(request);
 
-    const admin = await requireAdmin();
+    const admin = await requireAdmin("write");
     const body = await parseJsonBody<InviteRequest>(request);
 
     const bodyValidation = validateRequestBody(body as unknown as Record<string, unknown>, inviteSchema, { route: '/api/admin/invitations', method: 'POST' });

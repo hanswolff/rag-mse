@@ -2,12 +2,16 @@ import { render, screen, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom";
 import BenutzerverwaltungPage from "../app/admin/benutzerverwaltung/page";
+import { useSession } from "next-auth/react";
+
+const mockUseSessionState = {
+  data: { user: { id: "admin-1", role: "ADMIN" } },
+  status: "authenticated",
+  update: jest.fn(),
+};
 
 jest.mock("next-auth/react", () => ({
-  useSession: jest.fn(() => ({
-    data: { user: { role: "ADMIN" } },
-    status: "authenticated",
-  })),
+  useSession: jest.fn(() => mockUseSessionState),
 }));
 
 jest.mock("next/navigation", () => ({
@@ -100,6 +104,10 @@ describe("BenutzerverwaltungPage", () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    mockUseSessionState.data = { user: { id: "admin-1", role: "ADMIN" } };
+    mockUseSessionState.status = "authenticated";
+    mockUseSessionState.update = jest.fn();
+    (useSession as jest.Mock).mockImplementation(() => mockUseSessionState);
     (useUserManagement as jest.Mock).mockReturnValue(defaultMockHook);
   });
 
@@ -296,7 +304,7 @@ describe("BenutzerverwaltungPage", () => {
     it("should render user roles", () => {
       render(<BenutzerverwaltungPage />);
 
-      const adminBadges = screen.getAllByText("Admin");
+      const adminBadges = screen.getAllByText("Administrator");
       const memberBadges = screen.getAllByText("Mitglied");
 
       expect(adminBadges.length).toBeGreaterThan(0);
@@ -333,6 +341,20 @@ describe("BenutzerverwaltungPage", () => {
 
       const deleteButtons = screen.getAllByText("Löschen");
       expect(deleteButtons[0]).toBeDisabled();
+    });
+  });
+
+  describe("Impersonation actions", () => {
+    it("shows impersonation button only for site administrators", () => {
+      mockUseSessionState.data = { user: { id: "site-1", role: "SITE_ADMINISTRATOR" } };
+      render(<BenutzerverwaltungPage />);
+      expect(screen.getAllByRole("button", { name: "Als Benutzer anmelden" }).length).toBeGreaterThan(0);
+    });
+
+    it("hides impersonation button for normal administrators", () => {
+      mockUseSessionState.data = { user: { id: "admin-1", role: "ADMIN" } };
+      render(<BenutzerverwaltungPage />);
+      expect(screen.queryByRole("button", { name: "Als Benutzer anmelden" })).not.toBeInTheDocument();
     });
   });
 

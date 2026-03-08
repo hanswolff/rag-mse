@@ -22,7 +22,7 @@ export async function GET(
   ctx: RouteContext<'/api/admin/news/[id]'>
 ) {
   try {
-    await requireAdmin();
+    await requireAdmin("read");
 
     const { id } = await ctx.params;
     const news = await prisma.news.findUnique({
@@ -68,7 +68,7 @@ export async function PUT(
   try {
     validateCsrfHeaders(request);
 
-    await requireAdmin();
+    await requireAdmin("write");
 
     const { id } = await ctx.params;
     const body = await parseJsonBody<UpdateNewsRequest>(request);
@@ -156,7 +156,7 @@ export async function DELETE(
   try {
     validateCsrfHeaders(request);
 
-    await requireAdmin();
+    await requireAdmin("write");
 
     const { id } = await ctx.params;
     const existingNews = await prisma.news.findUnique({

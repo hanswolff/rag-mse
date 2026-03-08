@@ -13,6 +13,7 @@ describe("SearchHighlight", () => {
     render(<SearchHighlight text="Mitgliedsantrag Max Mustermann" query="max" />);
     const highlighted = screen.getByText("Max", { selector: "mark" });
     expect(highlighted).toBeInTheDocument();
+    expect(highlighted).toHaveStyle({ padding: "0", margin: "0" });
   });
 
   it("escapes special regex characters in query", () => {

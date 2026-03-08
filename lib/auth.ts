@@ -3,7 +3,7 @@ import CredentialsProvider from "next-auth/providers/credentials";
 import { prisma } from "./prisma";
 import { compare } from "bcryptjs";
 import { Role } from "@prisma/client";
-import { logInfo, logError, logWarn, maskEmail } from "./logger";
+import { logInfo, logError, logWarn, maskEmail, maskToken } from "./logger";
 import { checkLoginRateLimit, recordSuccessfulLogin } from "./rate-limiter";
 import { getClientIdentifierFromHeaders } from "./proxy-trust";
 import { shouldFailOpenOnRateLimiterError } from "./rate-limit-policy";
@@ -25,6 +25,15 @@ interface LoginProof {
   expiresAt: number;
 }
 
+interface ImpersonationProof {
+  version: 1;
+  action: "start" | "stop";
+  actorUserId: string;
+  targetUserId?: string;
+  effectiveUserId?: string;
+  expiresAt: number;
+}
+
 type RequestLikeHeaders =
   | Headers
   | Record<string, string | string[] | undefined>
@@ -32,6 +41,8 @@ type RequestLikeHeaders =
 
 const LOGIN_PROOF_TTL_MS = 60_000;
 const LOGIN_PROOF_VERSION = "v1";
+const IMPERSONATION_PROOF_TTL_MS = 60_000;
+const IMPERSONATION_PROOF_VERSION = "v1i";
 
 function hashLoginPassword(password: string): string {
   return crypto.createHash("sha256").update(password).digest("hex");
@@ -70,6 +81,97 @@ export function createLoginProof(email: string, clientIp: string, password: stri
   const payloadSegment = Buffer.from(JSON.stringify(payload), "utf8").toString("base64url");
   const signatureSegment = signLoginProof(payloadSegment, secret);
   return `${LOGIN_PROOF_VERSION}.${payloadSegment}.${signatureSegment}`;
+}
+
+function createSignedImpersonationProof(payload: ImpersonationProof): string {
+  const secret = getLoginProofSecret();
+  const payloadSegment = Buffer.from(JSON.stringify(payload), "utf8").toString("base64url");
+  const signatureSegment = signLoginProof(payloadSegment, secret);
+  return `${IMPERSONATION_PROOF_VERSION}.${payloadSegment}.${signatureSegment}`;
+}
+
+function parseAndValidateImpersonationProof(token: string): ImpersonationProof | null {
+  if (!token) {
+    return null;
+  }
+
+  const parts = token.split(".");
+  if (parts.length !== 3 || parts[0] !== IMPERSONATION_PROOF_VERSION) {
+    return null;
+  }
+
+  const [, payloadSegment, signatureSegment] = parts;
+  let secret = "";
+  try {
+    secret = getLoginProofSecret();
+  } catch {
+    return null;
+  }
+
+  if (!verifyLoginProofSignature(payloadSegment, signatureSegment, secret)) {
+    return null;
+  }
+
+  let payload: ImpersonationProof | null = null;
+  try {
+    payload = JSON.parse(Buffer.from(payloadSegment, "base64url").toString("utf8")) as ImpersonationProof;
+  } catch {
+    return null;
+  }
+
+  if (!payload || payload.version !== 1 || payload.expiresAt <= Date.now()) {
+    return null;
+  }
+
+  return payload;
+}
+
+export function createImpersonationStartProof(actorUserId: string, targetUserId: string): string {
+  return createSignedImpersonationProof({
+    version: 1,
+    action: "start",
+    actorUserId,
+    targetUserId,
+    expiresAt: Date.now() + IMPERSONATION_PROOF_TTL_MS,
+  });
+}
+
+export function createImpersonationStopProof(actorUserId: string, effectiveUserId: string): string {
+  return createSignedImpersonationProof({
+    version: 1,
+    action: "stop",
+    actorUserId,
+    effectiveUserId,
+    expiresAt: Date.now() + IMPERSONATION_PROOF_TTL_MS,
+  });
+}
+
+function verifyImpersonationStartProof(token: string, actorUserId: string): { targetUserId: string } | null {
+  const payload = parseAndValidateImpersonationProof(token);
+  if (
+    !payload
+    || payload.action !== "start"
+    || payload.actorUserId !== actorUserId
+    || !payload.targetUserId
+  ) {
+    return null;
+  }
+
+  return { targetUserId: payload.targetUserId };
+}
+
+function verifyImpersonationStopProof(token: string, actorUserId: string, effectiveUserId: string): boolean {
+  const payload = parseAndValidateImpersonationProof(token);
+  if (
+    !payload
+    || payload.action !== "stop"
+    || payload.actorUserId !== actorUserId
+    || payload.effectiveUserId !== effectiveUserId
+  ) {
+    return false;
+  }
+
+  return true;
 }
 
 function validateLoginProof(token: string, email: string, clientIp: string, password: string): boolean {
@@ -331,7 +433,130 @@ export const authOptions: NextAuthOptions = {
         token.role = user.role;
         token.name = user.name || "";
       }
+      if (!user && token.id) {
+        const currentUser = await prisma.user.findUnique({
+          where: { id: String(token.id) },
+          select: { role: true, name: true },
+        });
+        if (currentUser) {
+          token.role = currentUser.role;
+          token.name = currentUser.name || "";
+        }
+      }
       if (trigger === "update") {
+        const updatePayload = session as Record<string, unknown> | undefined;
+        const impersonationStartProof = typeof updatePayload?.impersonationStartProof === "string"
+          ? updatePayload.impersonationStartProof
+          : "";
+        const impersonationStopProof = typeof updatePayload?.impersonationStopProof === "string"
+          ? updatePayload.impersonationStopProof
+          : "";
+
+        if (impersonationStartProof) {
+          const actorUserId = String(token.id || "");
+          const verifiedStart = verifyImpersonationStartProof(impersonationStartProof, actorUserId);
+          const alreadyImpersonating = Boolean((token as Record<string, unknown>).impersonatedById);
+
+          if (!verifiedStart || token.role !== "SITE_ADMINISTRATOR" || alreadyImpersonating || verifiedStart.targetUserId === actorUserId) {
+            logWarn("impersonation_start_denied", "Rejected impersonation start proof in JWT callback", {
+              actorUserId,
+              tokenRole: token.role,
+              alreadyImpersonating,
+              proofPreview: maskToken(impersonationStartProof),
+            });
+            return token;
+          }
+
+          const targetUser = await prisma.user.findUnique({
+            where: { id: verifiedStart.targetUserId },
+            select: { id: true, role: true, name: true, email: true },
+          });
+
+          if (!targetUser) {
+            logWarn("impersonation_start_target_missing", "Impersonation target missing during JWT update", {
+              actorUserId,
+              targetUserId: verifiedStart.targetUserId,
+            });
+            return token;
+          }
+
+          const actorName = typeof token.name === "string" ? token.name : "";
+          const actorEmail = typeof token.email === "string" ? token.email : "";
+
+          (token as Record<string, unknown>).impersonatedById = actorUserId;
+          (token as Record<string, unknown>).impersonatedByRole = String(token.role || "");
+          (token as Record<string, unknown>).impersonatedByName = actorName;
+          (token as Record<string, unknown>).impersonatedByEmail = actorEmail;
+
+          token.id = targetUser.id;
+          token.role = targetUser.role;
+          token.name = targetUser.name || "";
+          token.email = targetUser.email;
+
+          logInfo("impersonation_started", "User impersonation activated", {
+            actorUserId,
+            targetUserId: targetUser.id,
+            targetRole: targetUser.role,
+          });
+          return token;
+        }
+
+        if (impersonationStopProof) {
+          const storedActorUserId = String((token as Record<string, unknown>).impersonatedById || "");
+          const effectiveUserId = String(token.id || "");
+
+          if (!storedActorUserId) {
+            logWarn("impersonation_stop_denied", "Stop impersonation requested without active impersonation", {
+              effectiveUserId,
+              proofPreview: maskToken(impersonationStopProof),
+            });
+            return token;
+          }
+
+          const isValidStopProof = verifyImpersonationStopProof(
+            impersonationStopProof,
+            storedActorUserId,
+            effectiveUserId
+          );
+          if (!isValidStopProof) {
+            logWarn("impersonation_stop_denied", "Rejected impersonation stop proof in JWT callback", {
+              storedActorUserId,
+              effectiveUserId,
+              proofPreview: maskToken(impersonationStopProof),
+            });
+            return token;
+          }
+
+          const actorUser = await prisma.user.findUnique({
+            where: { id: storedActorUserId },
+            select: { id: true, role: true, name: true, email: true },
+          });
+
+          if (!actorUser) {
+            logWarn("impersonation_stop_actor_missing", "Original actor missing during impersonation stop", {
+              storedActorUserId,
+              effectiveUserId,
+            });
+            return token;
+          }
+
+          token.id = actorUser.id;
+          token.role = actorUser.role;
+          token.name = actorUser.name || "";
+          token.email = actorUser.email;
+
+          delete (token as Record<string, unknown>).impersonatedById;
+          delete (token as Record<string, unknown>).impersonatedByRole;
+          delete (token as Record<string, unknown>).impersonatedByName;
+          delete (token as Record<string, unknown>).impersonatedByEmail;
+
+          logInfo("impersonation_stopped", "User impersonation deactivated", {
+            actorUserId: actorUser.id,
+            previousEffectiveUserId: effectiveUserId,
+          });
+          return token;
+        }
+
         if (session?.user?.name) {
           token.name = String(session.user.name);
         } else if (session?.name) {
@@ -345,6 +570,24 @@ export const authOptions: NextAuthOptions = {
         session.user.id = token.id as string;
         session.user.role = token.role as string;
         session.user.name = token.name as string;
+        session.user.email = token.email as string;
+        const impersonatedById = (token as Record<string, unknown>).impersonatedById;
+        const impersonatedByRole = (token as Record<string, unknown>).impersonatedByRole;
+        const impersonatedByName = (token as Record<string, unknown>).impersonatedByName;
+        const impersonatedByEmail = (token as Record<string, unknown>).impersonatedByEmail;
+
+        if (typeof impersonatedById === "string" && impersonatedById.length > 0) {
+          session.user.isImpersonating = true;
+          session.user.impersonatedBy = {
+            id: impersonatedById,
+            role: typeof impersonatedByRole === "string" ? impersonatedByRole : "",
+            name: typeof impersonatedByName === "string" ? impersonatedByName : "",
+            email: typeof impersonatedByEmail === "string" ? impersonatedByEmail : "",
+          };
+        } else {
+          session.user.isImpersonating = false;
+          session.user.impersonatedBy = undefined;
+        }
       }
       return session;
     },

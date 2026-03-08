@@ -2,11 +2,17 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/auth-utils";
 import { validateCreateNewsRequest, type CreateNewsRequest } from "@/lib/news-validation";
-import { parseJsonBody, withApiErrorHandling, validateCsrfHeaders } from "@/lib/api-utils";
+import { parseJsonBody, validateRequestBody, withApiErrorHandling, validateCsrfHeaders } from "@/lib/api-utils";
 import { logInfo, logValidationFailure } from "@/lib/logger";
 import { parseIsoDateOnlyToUtcDate } from "@/lib/date-picker-utils";
 
 const MAX_PAGE_SIZE = 100;
+const createNewsSchema = {
+  title: { type: "string" as const },
+  content: { type: "string" as const },
+  newsDate: { type: "string" as const },
+  published: { type: "boolean" as const, optional: true },
+} as const;
 
 function parseNewsDate(newsDate: string | undefined): Date {
   if (!newsDate) return new Date();
@@ -26,7 +32,7 @@ function parsePageNumber(value: string | null) {
 }
 
 export const GET = withApiErrorHandling(async (request: NextRequest) => {
-  await requireAdmin();
+  await requireAdmin("read");
 
   const { searchParams } = new URL(request.url);
   const page = parsePageNumber(searchParams.get("page"));
@@ -55,9 +61,21 @@ export const GET = withApiErrorHandling(async (request: NextRequest) => {
 
 export const POST = withApiErrorHandling(async (request: NextRequest) => {
   validateCsrfHeaders(request);
-  await requireAdmin();
+  await requireAdmin("write");
 
   const body = await parseJsonBody<CreateNewsRequest>(request);
+  const bodyValidation = validateRequestBody(
+    body as unknown as Record<string, unknown>,
+    createNewsSchema,
+    { route: "/api/admin/news", method: "POST" }
+  );
+  if (!bodyValidation.isValid) {
+    return NextResponse.json(
+      { error: bodyValidation.errors.join(". ") },
+      { status: 400 }
+    );
+  }
+
   const validation = validateCreateNewsRequest(body);
 
   if (!validation.isValid) {

@@ -19,6 +19,7 @@ import { validateRole, validateDateString } from "@/lib/validation-schema";
 import { Role } from "@prisma/client";
 import { logResourceNotFound, logInfo, logValidationFailure } from "@/lib/logger";
 import { formatDateInputValue } from "@/lib/date-picker-utils";
+import { sendRoleChangeEmail } from "@/lib/role-change-email";
 
 interface UpdateUserRequest {
   email?: string;
@@ -65,7 +66,7 @@ const updateUserSchema = {
   reservistsAssociation: { type: 'string' as const, optional: true },
   associationMemberNumber: { type: 'string' as const, optional: true },
   hasPossessionCard: { type: 'boolean' as const, optional: true },
-  adminNotes: { type: 'string' as const, optional: true },
+  adminNotes: { type: 'string' as const, optional: true, nullable: true },
 } as const;
 
 export const PATCH = withApiErrorHandling(async (
@@ -74,7 +75,7 @@ export const PATCH = withApiErrorHandling(async (
 ) => {
   validateCsrfHeaders(request);
 
-  await requireAdmin();
+  const actingUser = await requireAdmin("write");
 
   const { id } = await context.params;
   const body = await parseJsonBody<UpdateUserRequest>(request);
@@ -97,6 +98,13 @@ export const PATCH = withApiErrorHandling(async (
     return NextResponse.json(
       { error: "Benutzer nicht gefunden" },
       { status: 404 }
+    );
+  }
+
+  if (user.role === "SITE_ADMINISTRATOR" && actingUser.role !== "SITE_ADMINISTRATOR") {
+    return NextResponse.json(
+      { error: "Der SiteAdministrator darf nur vom SiteAdministrator geändert werden" },
+      { status: 403 }
     );
   }
 
@@ -166,6 +174,13 @@ export const PATCH = withApiErrorHandling(async (
   }
 
   if (body.role !== undefined) {
+    if (body.role === "SITE_ADMINISTRATOR") {
+      return NextResponse.json(
+        { error: "Die Rolle SiteAdministrator darf nicht vergeben werden" },
+        { status: 403 }
+      );
+    }
+
     if (!validateRole(body.role)) {
       logValidationFailure('/api/admin/users/[id]', 'PATCH', 'Ungültige Rolle', {
         userId: id,
@@ -291,6 +306,14 @@ export const PATCH = withApiErrorHandling(async (
   } as const;
 
   const isAdminDemotion = user.role === "ADMIN" && updates.role !== undefined && updates.role !== "ADMIN";
+  const isSiteAdminRoleChange = user.role === "SITE_ADMINISTRATOR" && updates.role !== undefined && updates.role !== "SITE_ADMINISTRATOR";
+
+  if (isSiteAdminRoleChange) {
+    return NextResponse.json(
+      { error: "Der SiteAdministrator darf nicht herabgestuft werden" },
+      { status: 403 }
+    );
+  }
 
   let updatedUser: {
     id: string;
@@ -365,6 +388,23 @@ export const PATCH = withApiErrorHandling(async (
     updatedBy: 'admin',
   });
 
+  // Send role change email if role was changed
+  if (updates.role && user.role !== updates.role) {
+    await sendRoleChangeEmail({
+      email: updatedUser.email,
+      userName: updatedUser.name || updatedUser.email,
+      oldRole: user.role,
+      newRole: updates.role,
+      changedByName: actingUser.name || actingUser.email || "Ein Administrator",
+      logContext: {
+        route: "/api/admin/users/[id]",
+        method: "PATCH",
+        userId: updatedUser.id,
+        userEmail: actingUser.email || undefined,
+      },
+    });
+  }
+
   return NextResponse.json({
     ...updatedUser,
     memberSince: formatDateInputValue(updatedUser.memberSince),
@@ -378,7 +418,7 @@ export const DELETE = withApiErrorHandling(async (
 ) => {
   validateCsrfHeaders(request);
 
-  await requireAdmin();
+  await requireAdmin("write");
 
   const { id } = await context.params;
 
@@ -392,6 +432,13 @@ export const DELETE = withApiErrorHandling(async (
     return NextResponse.json(
       { error: "Benutzer nicht gefunden" },
       { status: 404 }
+    );
+  }
+
+  if (user.role === "SITE_ADMINISTRATOR") {
+    return NextResponse.json(
+      { error: "Der SiteAdministrator darf nicht gelöscht werden" },
+      { status: 403 }
     );
   }
 

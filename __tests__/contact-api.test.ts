@@ -268,7 +268,7 @@ describe("/api/contact/route", () => {
       'contact_failed',
       'ADMIN_EMAILS contains no valid recipients',
       expect.objectContaining({
-        adminEmails: ", , ,",
+        configuredRecipientCount: 0,
       })
     );
     expect(sendTemplateEmail).not.toHaveBeenCalled();
@@ -294,7 +294,7 @@ describe("/api/contact/route", () => {
       'contact_failed',
       'ADMIN_EMAILS contains no valid recipients',
       expect.objectContaining({
-        adminEmails: "   ",
+        configuredRecipientCount: 0,
       })
     );
     expect(sendTemplateEmail).not.toHaveBeenCalled();

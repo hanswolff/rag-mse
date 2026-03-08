@@ -99,6 +99,53 @@ describe("EventFormModal", () => {
 
       expect(screen.getByRole("button", { name: "Erstellen" })).toBeInTheDocument();
     });
+
+    it("should render button to copy description from last event in create mode", () => {
+      const mockCopyDescription = jest.fn();
+
+      render(
+        <EventFormModal
+          isOpen={true}
+          onClose={mockOnClose}
+          onSubmit={mockOnSubmit}
+          isSubmitting={false}
+          eventData={defaultEventData}
+          setEventData={jest.fn()}
+          isEditing={false}
+          initialEventData={undefined}
+          onUseLastDescription={mockCopyDescription}
+        />
+      );
+
+      expect(
+        screen.getByRole("button", { name: "Beschreibung vom letzten Termin übernehmen" })
+      ).toBeInTheDocument();
+    });
+
+    it("should call callback when copy-description button is clicked", async () => {
+      const mockCopyDescription = jest.fn();
+      const user = userEvent.setup();
+
+      render(
+        <EventFormModal
+          isOpen={true}
+          onClose={mockOnClose}
+          onSubmit={mockOnSubmit}
+          isSubmitting={false}
+          eventData={defaultEventData}
+          setEventData={jest.fn()}
+          isEditing={false}
+          initialEventData={undefined}
+          onUseLastDescription={mockCopyDescription}
+        />
+      );
+
+      await user.click(
+        screen.getByRole("button", { name: "Beschreibung vom letzten Termin übernehmen" })
+      );
+
+      expect(mockCopyDescription).toHaveBeenCalledTimes(1);
+    });
   });
 
   describe("Edit Mode", () => {
@@ -134,6 +181,26 @@ describe("EventFormModal", () => {
       );
 
       expect(screen.getByRole("button", { name: "Aktualisieren" })).toBeInTheDocument();
+    });
+
+    it("should not render button to copy description from last event in edit mode", () => {
+      render(
+        <EventFormModal
+          isOpen={true}
+          onClose={mockOnClose}
+          onSubmit={mockOnSubmit}
+          isSubmitting={false}
+          eventData={defaultEventData}
+          setEventData={jest.fn()}
+          isEditing={true}
+          initialEventData={initialEventData}
+          onUseLastDescription={jest.fn()}
+        />
+      );
+
+      expect(
+        screen.queryByRole("button", { name: "Beschreibung vom letzten Termin übernehmen" })
+      ).not.toBeInTheDocument();
     });
   });
 
