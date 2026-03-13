@@ -6,19 +6,17 @@ Tabelle `_AppMigration`.
 
 ## Initiale Datenbank erstellen
 
-1. Leere SQLite-Datei anlegen (z. B. `./data/dev.db`).
-2. Initial-Skript ausführen:
-
-```bash
-sqlite3 ./data/dev.db < create_admin.sql
-```
-
-3. Danach optional die Migrationskette laufen lassen (sollte bei frischer DB
-   keine weiteren Änderungen mehr vornehmen):
+1. Leere SQLite-Datei anlegen oder nur `DATABASE_URL` auf einen noch nicht vorhandenen Pfad zeigen lassen.
+2. Migrationsskript ausführen:
 
 ```bash
 pnpm run db:migrate
 ```
+
+Das Skript initialisiert bei einer frischen Datenbank zuerst die Baseline aus
+`create_admin.sql` und wendet anschließend alle fehlenden Migrationen aus
+`prisma/migrations` an. `create_admin.sql` ist eine interne Bootstrap-Baseline
+und muss im Regelfall nicht manuell ausgeführt werden.
 
 ## Schema ändern (Entwicklung)
 
@@ -30,7 +28,7 @@ pnpm run db:migrate
 pnpm run db:migrate
 ```
 
-4. Optional lokale Entwicklungs-DB mit Prisma synchronisieren:
+4. Optional lokale Entwicklungs-DB direkt mit Prisma synchronisieren:
 
 ```bash
 pnpm run db:push
@@ -39,6 +37,8 @@ pnpm run db:push
 ## Produktion
 
 - Beim Containerstart wird automatisch `pnpm run db:migrate` ausgeführt.
+- Bei einer leeren Datenbank wird dabei zuerst die Baseline geladen; bei
+  bestehenden Datenbanken werden nur fehlende Migrationen angewendet.
 - Migrationen sind versionsgeführt und werden nur einmal angewendet.
 - Bereits angewendete Migrationen mit verändertem Inhalt werden erkannt und
   brechen mit Fehler ab, um Dateninkonsistenzen zu verhindern.

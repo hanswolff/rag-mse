@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { GET, POST } from "@/app/api/notifications/rsvp/[token]/route";
 import { prisma } from "@/lib/prisma";
 import { checkTokenRateLimit, recordSuccessfulTokenUsage } from "@/lib/rate-limiter";
+import { logWarn } from "@/lib/logger";
 
 jest.mock("@/lib/prisma", () => ({
   prisma: {
@@ -18,6 +19,13 @@ jest.mock("@/lib/prisma", () => ({
 jest.mock("@/lib/rate-limiter", () => ({
   checkTokenRateLimit: jest.fn(),
   recordSuccessfulTokenUsage: jest.fn(),
+}));
+
+jest.mock("@/lib/logger", () => ({
+  logResourceNotFound: jest.fn(),
+  logValidationFailure: jest.fn(),
+  logWarn: jest.fn(),
+  maskToken: jest.fn((value: string) => `${value.slice(0, 3)}...`),
 }));
 
 describe("/api/notifications/rsvp/[token]", () => {
@@ -153,7 +161,7 @@ describe("/api/notifications/rsvp/[token]", () => {
     expect(prisma.vote.upsert).toHaveBeenCalled();
   });
 
-  it("rejects token voting for auditor users", async () => {
+  it("allows token voting for auditor users", async () => {
     (prisma.eventReminderDispatch.findUnique as jest.Mock).mockResolvedValue({
       rsvpTokenExpiresAt: new Date(Date.now() + 60_000),
       event: {
@@ -174,6 +182,12 @@ describe("/api/notifications/rsvp/[token]", () => {
         role: "AUDITOR",
       },
     });
+    (prisma.vote.upsert as jest.Mock).mockResolvedValue({
+      id: "vote-2",
+      vote: "JA",
+      eventId: "event-1",
+      userId: "user-1",
+    });
 
     const request = new NextRequest("http://localhost:3000/api/notifications/rsvp/abc", {
       method: "POST",
@@ -184,8 +198,45 @@ describe("/api/notifications/rsvp/[token]", () => {
     const response = await POST(request, { params: Promise.resolve({ token: "abc" }) });
     const data = await response.json();
 
-    expect(response.status).toBe(403);
-    expect(data.error).toContain("ungültig");
-    expect(prisma.vote.upsert).not.toHaveBeenCalled();
+    expect(response.status).toBe(200);
+    expect(data.vote).toBe("JA");
+    expect(prisma.vote.upsert).toHaveBeenCalled();
+  });
+
+  it("fails open on GET when token rate limiter is unavailable outside production", async () => {
+    delete process.env.RATE_LIMIT_FAIL_OPEN;
+    process.env.NODE_ENV = "development";
+    (checkTokenRateLimit as jest.Mock).mockRejectedValue(new Error("redis down"));
+    (prisma.eventReminderDispatch.findUnique as jest.Mock).mockResolvedValue({
+      rsvpTokenExpiresAt: new Date(Date.now() + 60_000),
+      event: {
+        id: "event-1",
+        date: new Date("2026-03-01T00:00:00.000Z"),
+        timeFrom: "18:00",
+        timeTo: "20:00",
+        location: "Ulm",
+        description: "Test",
+        latitude: null,
+        longitude: null,
+        type: null,
+        visible: true,
+      },
+      user: {
+        id: "user-1",
+        name: "Max",
+        role: "MEMBER",
+      },
+    });
+    (prisma.vote.findUnique as jest.Mock).mockResolvedValue(null);
+
+    const request = new NextRequest("http://localhost:3000/api/notifications/rsvp/abc");
+    const response = await GET(request, { params: Promise.resolve({ token: "abc" }) });
+
+    expect(response.status).toBe(200);
+    expect(logWarn).toHaveBeenCalledWith(
+      "token_rate_limit_unavailable",
+      expect.stringContaining("continuing due fail-open policy"),
+      expect.any(Object)
+    );
   });
 });

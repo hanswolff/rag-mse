@@ -243,7 +243,7 @@ describe("/api/events/route", () => {
       expect(data.pastPagination.pages).toBe(1);
     });
 
-    it("sets cache-control headers on successful response", async () => {
+    it("sets public cache-control headers on successful unauthenticated response", async () => {
       (prisma.event.findMany as jest.Mock).mockResolvedValue([]);
       (prisma.event.count as jest.Mock).mockResolvedValue(0);
       (prisma.shootingRange.findMany as jest.Mock).mockResolvedValue([]);
@@ -252,8 +252,8 @@ describe("/api/events/route", () => {
       const request = new NextRequest("http://localhost:3000/api/events");
       const response = await GET(request);
 
-      expect(response.headers.get("Cache-Control")).toBe("no-store, no-cache, must-revalidate");
-      expect(response.headers.get("Vary")).toBe("Authorization, Cookie");
+      expect(response.headers.get("Cache-Control")).toBe("public, max-age=60, s-maxage=300, stale-while-revalidate=300");
+      expect(response.headers.get("Vary")).toBeFalsy();
     });
   });
 

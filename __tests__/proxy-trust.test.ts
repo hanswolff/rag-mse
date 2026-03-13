@@ -56,14 +56,24 @@ describe("proxy-trust", () => {
       expect(getClientIdentifierFromHeaders(headers, "192.168.1.50")).toBe("203.0.113.1");
     });
 
-    it("uses the last valid forwarded IP to reduce spoofing risk", () => {
+    it("resolves client IP from forwarded chain by skipping trusted proxy hops", () => {
       process.env.TRUSTED_PROXY_IPS = "10.0.0.0/8";
 
       const headers = new Headers({
-        "x-forwarded-for": "198.51.100.200, 203.0.113.55",
+        "x-forwarded-for": "198.51.100.200, 10.3.4.5",
       });
 
-      expect(getClientIdentifierFromHeaders(headers, "10.20.30.40")).toBe("203.0.113.55");
+      expect(getClientIdentifierFromHeaders(headers, "10.20.30.40")).toBe("198.51.100.200");
+    });
+
+    it("falls back to source IP when chain contains only trusted proxies", () => {
+      process.env.TRUSTED_PROXY_IPS = "10.0.0.0/8";
+
+      const headers = new Headers({
+        "x-forwarded-for": "10.1.1.1, 10.2.2.2",
+      });
+
+      expect(getClientIdentifierFromHeaders(headers, "10.20.30.40")).toBe("10.20.30.40");
     });
 
     it("returns source IP when proxy is not trusted", () => {

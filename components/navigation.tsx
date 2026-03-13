@@ -5,7 +5,7 @@ import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { useState, useRef, useEffect } from "react";
 import { useSession, signOut } from "next-auth/react";
-import { canAccessAdminArea, isMember } from "@/lib/role-utils";
+import { canAccessAdminArea, canManageOwnProfile, canReadMemberDocuments } from "@/lib/role-utils";
 import { MenuIcon, XIcon, UserIcon, ChevronDownIcon } from "./icons";
 
 const NAV_ITEMS = [
@@ -22,6 +22,8 @@ const INFO_ITEMS = [
   { href: "/info/sicherheitsbelehrung", label: "Sicherheitsbelehrung" },
   { href: "/info/formulare", label: "Formulare" },
 ] as const;
+
+const MEMBER_DOCUMENTS_ITEM = { href: "/mitglieder-dokumente", label: "Dokumente für Mitglieder" };
 
 const ACTIVE_CLASSES = "text-brand-red-700 border-brand-red-600";
 const INACTIVE_CLASSES = "text-brand-blue-900 hover:text-brand-red-700 border-transparent";
@@ -64,7 +66,7 @@ export function Navigation() {
   }, []);
 
   const userName = session?.user?.name || "Benutzer";
-  const canAccessMemberMenu = !!session && isMember(session.user);
+  const canAccessSelfServiceMenu = !!session && canManageOwnProfile(session.user);
   const isImpersonating = !!session?.user?.isImpersonating && !!session.user.impersonatedBy?.id;
   const impersonatedBy = session?.user?.impersonatedBy;
 
@@ -121,7 +123,7 @@ export function Navigation() {
     }
   };
 
-  const isInfoActive = INFO_ITEMS.some((item) => isActive(item.href));
+  const isInfoActive = INFO_ITEMS.some((item) => isActive(item.href)) || isActive(MEMBER_DOCUMENTS_ITEM.href);
 
   return (
     <nav className="bg-white text-brand-blue-900 shadow-sm sticky top-0 z-header border-b-4 border-brand-red-600">
@@ -207,6 +209,18 @@ export function Navigation() {
                         {item.label}
                       </Link>
                     ))}
+                    {status === "authenticated" && session && canReadMemberDocuments(session.user) && (
+                      <>
+                        <div className="border-t border-gray-200 my-1" />
+                        <Link
+                          href={MEMBER_DOCUMENTS_ITEM.href}
+                          onClick={handleInfoMenuItemClick}
+                          className="block px-4 py-2 text-base text-gray-700 hover:bg-gray-100 transition-colors"
+                        >
+                          {MEMBER_DOCUMENTS_ITEM.label}
+                        </Link>
+                      </>
+                    )}
                   </div>
                 )}
               </div>
@@ -245,7 +259,7 @@ export function Navigation() {
                           <div className="border-t border-gray-200 my-1" />
                         </>
                       )}
-                      {canAccessMemberMenu && (
+                      {canAccessSelfServiceMenu && (
                         <>
                           <Link
                             href="/profil"
@@ -337,6 +351,15 @@ export function Navigation() {
               {item.label}
             </Link>
           ))}
+          {status === "authenticated" && session && canReadMemberDocuments(session.user) && (
+            <Link
+              href={MEMBER_DOCUMENTS_ITEM.href}
+              className={`${getLinkClasses(MEMBER_DOCUMENTS_ITEM.href, true)} pl-6`}
+              onClick={() => setIsMenuOpen(false)}
+            >
+              {MEMBER_DOCUMENTS_ITEM.label}
+            </Link>
+          )}
 
           <Link
             href="/kontakt"
@@ -366,7 +389,7 @@ export function Navigation() {
                   <div className="border-t border-brand-blue-100 my-2" />
                 </>
               )}
-              {canAccessMemberMenu && (
+              {canAccessSelfServiceMenu && (
                 <>
                   <Link
                     href="/profil"

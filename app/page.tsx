@@ -2,11 +2,14 @@ import Link from "next/link";
 import { access } from "node:fs/promises";
 import path from "node:path";
 import { unstable_noStore as noStore } from "next/cache";
+import { getServerSession } from "next-auth";
 import { CalendarIcon, NewsIcon, FileDocumentIcon } from "@/components/icons";
 import { prisma } from "@/lib/prisma";
 import { getStartOfToday } from "@/lib/date-picker-utils";
+import { authOptions } from "@/lib/auth";
+import { canReadMemberDocuments } from "@/lib/role-utils";
 
-const FEATURE_CARDS = [
+const CORE_FEATURE_CARDS = [
   {
     href: "/termine",
     icon: <CalendarIcon />,
@@ -21,14 +24,25 @@ const FEATURE_CARDS = [
     description:
       "Bleiben Sie auf dem Laufenden mit den aktuellen Neuigkeiten und Meldungen aus unserem Verband.",
   },
-  {
-    href: "/info/formulare",
-    icon: <FileDocumentIcon />,
-    title: "Formulare",
-    description:
-      "Hier finden Sie alle relevanten Formulare der RAG MSE sowie waffenrechtliche Formulare.",
-  },
 ] as const;
+
+const FORMULAR_CARD = {
+  href: "/info/formulare",
+  icon: <FileDocumentIcon />,
+  title: "Formulare",
+  description:
+    "Hier finden Sie alle relevanten Formulare der RAG MSE sowie waffenrechtliche Formulare.",
+} as const;
+
+const MEMBER_DOCUMENTS_CARD = {
+  href: "/mitglieder-dokumente",
+  icon: <FileDocumentIcon />,
+  title: "Dokumente für Mitglieder",
+  description:
+    "Interne Dokumente und Veröffentlichungen für Mitglieder der RAG MSE.",
+} as const;
+
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://rag-mse.de";
 
 async function getNextEvent() {
   return prisma.event.findFirst({
@@ -68,13 +82,40 @@ function formatEventDate(date: Date) {
 
 export default async function Home() {
   noStore();
+  const session = await getServerSession(authOptions);
+  const canShowMemberDocuments = session?.user ? canReadMemberDocuments(session.user) : false;
+
   const [nextEvent, annualPlanning] = await Promise.all([
     getNextEvent(),
     getAnnualPlanningForCurrentYear(),
   ]);
 
+  const visibleCards = [
+    ...CORE_FEATURE_CARDS,
+    canShowMemberDocuments ? MEMBER_DOCUMENTS_CARD : FORMULAR_CARD,
+  ];
+
+  const organizationJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "SportsOrganization",
+    name: "RAG Schießsport MSE",
+    url: siteUrl,
+    logo: `${siteUrl}/og-logo.png`,
+    sameAs: ["https://github.com/hanswolff/rag-mse"],
+    contactPoint: {
+      "@type": "ContactPoint",
+      contactType: "customer support",
+      availableLanguage: ["de"],
+      url: `${siteUrl}/kontakt`,
+    },
+  };
+
   return (
     <main className="flex-grow">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationJsonLd) }}
+      />
       <section className="bg-gradient-to-b from-brand-blue-900 to-brand-blue-800 text-white py-8 sm:py-10 md:py-12">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold mb-3 sm:mb-4">
@@ -103,7 +144,7 @@ export default async function Home() {
       <section className="py-12 sm:py-16 bg-gray-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 sm:gap-8">
-            {FEATURE_CARDS.map((card) => (
+            {visibleCards.map((card) => (
               <article key={card.href} className="card-elevated group">
                 <Link href={card.href} className="block relative">
                   {card.href === "/termine" && (

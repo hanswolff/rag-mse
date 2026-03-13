@@ -16,7 +16,7 @@ Website für die RAG Schießsport MSE mit Mitgliederverwaltung, Admin-gestellten
 ### Voraussetzungen
 
 - Node.js 22 LTS+ und pnpm
-- Docker und Docker Compose (für Datenbank-Container)
+- Docker und Docker Compose (für den vollständigen lokalen Stack mit App und Redis)
 
 ### Installation
 
@@ -36,8 +36,10 @@ Die `.env`-Datei enthält alle benötigten Konfigurationen:
 
 - Datenbank-URL
 - NextAuth Secret und URL
+- App-URLs und Zeitzone
 - SMTP-Konfiguration für Kontaktformular
 - Admin-E-Mail-Adressen
+- Redis- und Proxy-Konfiguration
 
 ### Entwicklungserver starten
 
@@ -58,9 +60,9 @@ Die Anwendung läuft unter `http://localhost:3000`.
 - `pnpm run test:watch` - Führt Tests im Watch-Modus aus
 - `pnpm run test:coverage` - Führt Tests mit Coverage aus
 
-### Datenbank-Seed (Initialer Admin-User)
+### Datenbank-Seed (initialer Site-Administrator)
 
-Der Seed-Script erstellt einen initialen Admin-User in der Datenbank:
+Der Seed-Script erstellt einen initialen Benutzer mit der Rolle `SITE_ADMINISTRATOR` in der Datenbank:
 
 ```bash
 pnpm run db:seed
@@ -125,7 +127,7 @@ node -e "console.log(require('bcryptjs').hashSync('IhrPasswort123', 10))"
 3. Admin-Benutzer in Datenbank einfügen:
 ```sql
 INSERT INTO User (id, email, password, name, role, createdAt, updatedAt)
-VALUES ('admin001', 'admin@rag-mse.de', '<BCRYPT_HASH_AUS_SCHRITT_2>', 'Administrator', 'ADMIN', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
+VALUES ('admin001', 'admin@rag-mse.de', '<BCRYPT_HASH_AUS_SCHRITT_2>', 'Administrator', 'SITE_ADMINISTRATOR', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
 ```
 
 4. Überprüfen:
@@ -137,50 +139,47 @@ SELECT id, email, name, role FROM User;
 
 ## Datenbank-Setup
 
-Die Datenbank wird initial mit dem gesquashten Skript `create_admin.sql` erstellt.
-Schema-Aenderungen werden in der Entwicklung per `db:push` angewendet. Details siehe
+Für frische Datenbanken verwendet `pnpm run db:migrate` intern die Baseline aus `create_admin.sql`
+und wendet anschließend die SQL-Migrationskette aus `prisma/migrations/*/migration.sql` an.
+Im normalen Betrieb müssen Sie `create_admin.sql` daher nicht manuell ausführen. Details siehe
 [MIGRATIONS.md](./MIGRATIONS.md).
 
 ### Datenbank-Operationen in Produktion
 
-Aus Sicherheitsgründen sind automatische Datenbank-Operationen (`db push` und `db seed`)
-in der Produktion standardmäßig deaktiviert.
+In Produktion ist `prisma db push` nicht Teil des vorgesehenen Betriebswegs. Verwenden Sie
+versionsgeführte SQL-Migrationen (`pnpm run db:migrate`), die beim Containerstart automatisch
+ausgeführt werden. Das Seed-Skript wird nur bei leerer Datenbank und `ALLOW_DB_SEED=true`
+automatisch gestartet.
 
-**WICHTIG:** In der Produktion werden folgende Umgebungsvariablen benötigt, um Datenbank-Operationen zu aktivieren:
+**WICHTIG:** Für das initiale Seeding in Produktion werden folgende Umgebungsvariablen benötigt:
 
-- `ALLOW_DB_PUSH=true` - Aktiviert `prisma db push` (Schema-Änderungen)
-- `ALLOW_DB_SEED=true` - Aktiviert `pnpm run db:seed` (Initialer Admin-User)
+- `ALLOW_DB_SEED=true` - aktiviert `pnpm run db:seed` beim ersten Start mit leerer Datenbank
+- `SEED_ADMIN_EMAIL`, `SEED_ADMIN_PASSWORD`, `SEED_ADMIN_NAME` - müssen dabei explizit und sicher gesetzt sein
 
 #### Empfohlener Migrations-Pfad für Produktion
 
 1. **Schema-Änderungen:**
    ```bash
-   # Auf dem Development-Server Änderungen an prisma/schema.prisma vornehmen
-   pnpm run db:push
+   # Schema anpassen und neue SQL-Migration unter prisma/migrations anlegen
 
-   # Schema-Änderungen testen
+   # Migration lokal anwenden und testen
+   pnpm run db:migrate
    pnpm run test
 
-   # Für Produktion: Migrations-Skript erstellen oder manuell anwenden
+   # Optional zusätzlich Lint/Build lokal prüfen
+   pnpm run lint
+   pnpm run build
    ```
 
 2. **Produktion aktualisieren:**
    ```bash
-   # Container stoppen
-   docker-compose down
-
    # Datenbank sichern (online-backup, gzip, retention)
    ./scripts/backup-sqlite.sh
 
-   # Nur wenn Schema-Änderungen erforderlich:
+   # Aktualisierte Anwendung bereitstellen
    docker-compose up -d
-   docker-compose exec app sh -c "ALLOW_DB_PUSH=true pnpm exec prisma db push"
 
-   # Für initiale Daten (nur beim ersten Setup):
-   docker-compose exec app sh -c "ALLOW_DB_SEED=true pnpm run db:seed"
-
-   # Container neu starten
-   docker-compose restart app
+   # Migrationen laufen beim Containerstart automatisch
    ```
 
 3. **Verifikation:**
@@ -194,7 +193,7 @@ in der Produktion standardmäßig deaktiviert.
 
 **SICHERHEITSHINWEIS:**
 - Stellen Sie immer ein Backup der Datenbank her, bevor Sie Schema-Änderungen anwenden
-- Verwenden Sie `ALLOW_DB_PUSH` und `ALLOW_DB_SEED` nur mit Bedacht in der Produktion
+- Verwenden Sie `ALLOW_DB_SEED` nur beim initialen Setup und entfernen Sie die Variable danach wieder
 - Testen Sie alle Schema-Änderungen in einer Staging-Umgebung vor dem Produktions-Einsatz
 
 ## Docker Compose
@@ -230,6 +229,8 @@ Starten Sie dann die Anwendung:
 ```bash
 docker-compose up -d
 ```
+
+Der Docker-Build erstellt die Next.js-Artefakte jetzt vollständig im Container. Ein vorheriger Host-Build ist nicht erforderlich.
 
 Hinweis: Der Dockerfile nutzt BuildKit-Cache fuer pnpm. Falls BuildKit deaktiviert ist, bauen Sie so:
 
@@ -285,6 +286,10 @@ docker-compose logs -f app
 ```bash
 docker-compose restart app
 ```
+
+### Erstes Produktions-Setup
+
+Wenn Sie eine leere Produktionsdatenbank initialisieren wollen, setzen Sie `ALLOW_DB_SEED="true"` nur temporaer und nur zusammen mit expliziten, sicheren Werten fuer `SEED_ADMIN_EMAIL`, `SEED_ADMIN_PASSWORD` und `SEED_ADMIN_NAME`. Platzhalter- oder Standardwerte werden beim Produktionsstart abgewiesen.
 
 ## HAProxy Reverse Proxy Konfiguration
 
@@ -569,13 +574,13 @@ RATE_LIMIT_FAIL_OPEN="false"
 REDIS_URL="redis://localhost:6379"
 
 # Datenbank-Operationen in Produktion (SICHERHEIT!)
-ALLOW_DB_PUSH=false     # Erlaubt prisma db push in Produktion
-ALLOW_DB_SEED=false     # Erlaubt pnpm run db:seed in Produktion
+ALLOW_DB_SEED=false     # Aktiviert einmaliges Seed beim ersten Start mit leerer DB
 
 # Anwendungseinstellungen
 APP_NAME="RAG Schießsport MSE"
 APP_URL="http://localhost:3000"
 APP_TIMEZONE="Europe/Berlin"
+NEXT_PUBLIC_SITE_URL="http://localhost:3000"
 
 # Termin-Benachrichtigungen
 EVENT_REMINDER_POLL_INTERVAL_MS="3600000"
@@ -602,7 +607,7 @@ DOCUMENT_UPLOAD_MAX_MB="15"
 ### Authentifizierung
 
 - E-Mail/Passwort-Login mit NextAuth (Credentials)
-- Rollenbasierte Zugriffskontrolle (Admin vs. Mitglied)
+- Rollenbasierte Zugriffskontrolle (`SITE_ADMINISTRATOR`, `ADMIN`, `AUDITOR`, `MEMBER`)
 - Passwort zurücksetzen per E-Mail-Token
 - Passwort ändern für eingeloggte Mitglieder
 - Einladungseinlösung über Token-Link (keine öffentliche Registrierung)
@@ -623,8 +628,9 @@ DOCUMENT_UPLOAD_MAX_MB="15"
 
 ### Benutzerverwaltung (Admin)
 
-- Benutzer erstellen, bearbeiten und löschen
-- Rollenverwaltung (Admin/Mitglied) inkl. Schutz vor Löschung des letzten Admins
+- Benutzer anlegen, bearbeiten und löschen
+- Neue Zugänge werden per Einladung vorbereitet; die Passwortvergabe erfolgt über den Einladungslink
+- Rollenverwaltung (`ADMIN`, `AUDITOR`, `MEMBER`) inkl. Schutz vor Löschung des letzten Administrators
 - Einladungen versenden und erneut versenden
 - Erweiterte Profildaten verwalten (u.a. Adresse, Telefon, Geburtsdatum, Dienstgrad, Verbandsdaten)
 
@@ -643,25 +649,79 @@ DOCUMENT_UPLOAD_MAX_MB="15"
 
 ### Benachrichtigungen
 
-- Mitglieder können persönliche E-Mail-Erinnerungen für offene Terminanmeldungen im Profil konfigurieren
+- Mitglieder können persönliche E-Mail-Erinnerungen für offene Terminanmeldungen über `/benachrichtigungen` konfigurieren
 - Erinnerung erfolgt per Token-Link zur Anmeldung (`/anmeldung/[token]`)
 - Abmeldung von Erinnerungen per Token-Link (`/benachrichtigungen/abmelden/[token]`)
 - RSVP-Links unterstützen direkte Zu-/Absage ohne Login (`/api/notifications/rsvp/[token]`)
 - Adminansicht für Benachrichtigungs-Verlauf der letzten 30 Tage (`/admin/benachrichtigungen`)
 - Outbox-basierter E-Mail-Versand mit Retry-Logik und Admin-Einsicht (`/admin/e-mail-versand`)
 
+### Rollen und Berechtigungen
+
+Die Anwendung verwendet ein rollenbasiertes Zugriffskontrollsystem mit vier Rollen:
+
+| Rolle | Beschreibung | Zuweisbar |
+|-------|--------------|-----------|
+| **SITE_ADMINISTRATOR** | Super-Admin mit vollen Rechten | Nein (nur via Datenbank/Migration) |
+| **ADMIN** | Administrator mit vollem Zugriff auf Adminbereich | Ja |
+| **AUDITOR** | Lesezugriff auf Adminbereich, kein Schreibzugriff | Ja |
+| **MEMBER** | Einfaches Mitglied mit Zugriff auf Mitgliederbereich | Ja |
+
+#### Berechtigungsübersicht
+
+| Funktion | MEMBER | AUDITOR | ADMIN | SITE_ADMINISTRATOR |
+|----------|--------|---------|-------|-------------------|
+| Öffentliche Seiten | ✓ | ✓ | ✓ | ✓ |
+| Mitglieder-Dokumente (lesen) | ✓ | ✓ | ✓ | ✓ |
+| Mitglieder-Dokumente (verwalten) | ✗ | ✗ | ✓ | ✓ |
+| Admin-Dokumente (lesen) | ✗ | ✓ | ✓ | ✓ |
+| Admin-Dokumente (verwalten) | ✗ | ✗ | ✓ | ✓ |
+| Admin-Bereich (lesen) | ✗ | ✓ | ✓ | ✓ |
+| Admin-Bereich (verwalten) | ✗ | ✗ | ✓ | ✓ |
+| Termine abstimmen | ✓ | ✓ | ✓ | ✓ |
+| Eigenes Profil verwalten | ✓ | ✓ | ✓ | ✓ |
+
+**Hinweis:** Die Rolle `SITE_ADMINISTRATOR` kann nicht über die Benutzeroberfläche vergeben werden. Sie wird ausschließlich über Datenbank-Migrationen oder direkte Datenbankänderungen gesetzt.
+
 ### Dokumentenverwaltung
 
-- Upload, Suche, Vorschau und Download von Dokumenten im Adminbereich
+Die Anwendung bietet zwei getrennte Dokumentenbereiche:
+
+#### Admin-Dokumente (`/admin/dokumente`)
+- **Zugriff:** ADMIN, SITE_ADMINISTRATOR (Vollzugriff), AUDITOR (nur Lesen)
+- **Verwendung:** Interne Dokumente für die Vereinsführung
+- **Funktionen:** Upload, Verzeichnisverwaltung, Bearbeitung, Löschen
+
+#### Mitglieder-Dokumente (`/mitglieder-dokumente`)
+- **Zugriff:** MEMBER, AUDITOR, ADMIN, SITE_ADMINISTRATOR
+- **Verwendung:** Dokumente für alle Mitglieder (z. B. Formulare, Satzungen)
+- **Funktionen für MEMBER/AUDITOR:** Nur Lesen und Herunterladen
+- **Funktionen für ADMIN/SITE_ADMINISTRATOR:** Volle Verwaltung
+
+#### Gemeinsame Features
+- Upload, Suche, Vorschau und Download von Dokumenten
 - Verzeichnisstruktur mit genau einer Ebene: Dokumente liegen im `Root` oder in einem Verzeichnis
 - Verzeichnisse können im Adminbereich angelegt, umbenannt und gelöscht werden
 - Dokumente können beim Upload einem Verzeichnis zugeordnet und später zwischen Root/Verzeichnissen verschoben werden
+
+#### Verwaltung beider Bereiche
+Administratoren verwalten die Bereiche über zwei getrennte Admin-Seiten:
+- `/admin/dokumente` für Admin-Dokumente
+- `/admin/mitglied-dokumente` für Mitglieder-Dokumente
+- Beide Seiten verwenden dasselbe Bedienkonzept; Dokumente und Verzeichnisse bleiben strikt nach Bereich getrennt
 
 ### Datenschutz und Rechtliches
 
 - Impressum (Inhalte durch Organisation bereitgestellt)
 - Datenschutzerklärung (Inhalte durch Organisation bereitgestellt)
 - Cookie-Banner (falls Cookies verwendet werden)
+
+### Content Security Policy
+
+- Die Produktions-CSP erlaubt bewusst `script-src 'self' 'unsafe-inline'`.
+- Grund: Next.js App Router erzeugt Inline-Bootstrap-/Hydration-Skripte; ein striktes `script-src 'self'` deaktiviert interaktive UI wie Navigation, Menüs und Login-bezogene Client-Funktionen.
+- Als Ausgleich ist die Policy an anderer Stelle gehärtet, insbesondere mit `object-src 'none'`, `base-uri 'self'`, `form-action 'self'` und `frame-ancestors 'self'`.
+- Jede spätere CSP-Verschärfung muss an einer realen Produktionsantwort verifiziert werden: keine blockierten Inline-Skripte in der Browser-Konsole und funktionsfähige interaktive Navigation.
 
 ## Deployment
 

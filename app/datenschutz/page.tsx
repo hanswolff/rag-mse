@@ -2,7 +2,7 @@ import { BackLink } from "@/components/back-link";
 
 export default function DatenschutzPage() {
   return (
-    <main className="min-h-screen bg-gray-100">
+    <main className="flex-1 bg-gray-100">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
         <div className="card">
           <h1 className="text-2xl sm:text-3xl font-bold text-center mb-6 sm:mb-8 text-gray-900">Datenschutzerklärung</h1>
@@ -33,14 +33,31 @@ export default function DatenschutzPage() {
             <p className="text-base sm:text-base text-gray-800">
               Wir hosten die Inhalte unserer Website bei folgendem Anbieter:
             </p>
-            <p className="mt-2 text-base sm:text-base text-gray-800">
-              <strong className="text-gray-900">Anbieter:</strong> Keyweb AG
-            </p>
+            <address
+              className="mt-2 not-italic text-base text-gray-800 leading-snug space-y-0.5"
+              itemScope
+              itemType="https://schema.org/Organization"
+            >
+              <p><strong className="text-gray-900">Anbieter:</strong> <span itemProp="name">dedimax solutions GmbH</span></p>
+              <div itemProp="address" itemScope itemType="https://schema.org/PostalAddress">
+                <p><strong>Adresse:</strong></p>
+                <p><span itemProp="streetAddress">Wieseneck 32</span></p>
+                <p>
+                  <span itemProp="postalCode">17192</span>{" "}
+                  <span itemProp="addressLocality">Waren (Müritz)</span>
+                </p>
+              </div>
+            </address>
             <p className="text-base sm:text-base text-gray-800">
-              <strong>Adresse:</strong> Neuwerkstraße 45/46, D-99084 Erfurt
-            </p>
-            <p className="text-base sm:text-base text-gray-800">
-              <strong>Website:</strong> https://keyweb.de
+              <strong>Website:</strong>{" "}
+              <a
+                href="https://dedimax.de"
+                target="_blank"
+                rel="noopener"
+                className="text-blue-700 hover:text-blue-800 underline"
+              >
+                https://dedimax.de
+              </a>
             </p>
             <p className="mt-4 text-base sm:text-base text-gray-800">
               Beim Aufruf der Website verarbeiten wir Server-Logdaten (z. B. IP-Adresse, Zeitpunkt, aufgerufene Seite,
@@ -172,15 +189,21 @@ export default function DatenschutzPage() {
                 className="inline-block align-middle"
               />
             </div>
-            <p className="text-base sm:text-base text-gray-800">
-              <strong className="text-gray-900">Postanschrift:</strong>
-              <br />
-              Hans Wolff
-              <br />
-              Wieseneck 32
-              <br />
-              17192 Waren (Müritz)
-            </p>
+            <address
+              className="not-italic text-base text-gray-800 leading-snug space-y-0.5"
+              itemScope
+              itemType="https://schema.org/Person"
+            >
+              <p><strong className="text-gray-900">Postanschrift:</strong></p>
+              <p className="font-medium text-gray-900" itemProp="name">Hans Wolff</p>
+              <div itemProp="address" itemScope itemType="https://schema.org/PostalAddress">
+                <p><span itemProp="streetAddress">Wieseneck 32</span></p>
+                <p>
+                  <span itemProp="postalCode">17192</span>{" "}
+                  <span itemProp="addressLocality">Waren (Müritz)</span>
+                </p>
+              </div>
+            </address>
           </section>
         </div>
 

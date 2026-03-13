@@ -56,10 +56,13 @@ export const PATCH = withApiErrorHandling(async (request: NextRequest, ctx: Rout
     } else {
       const existingDirectory = await prisma.documentDirectory.findUnique({
         where: { id: normalizedDirectoryId },
-        select: { id: true },
+        select: { id: true, area: true },
       });
       if (!existingDirectory) {
         return NextResponse.json({ error: "Verzeichnis nicht gefunden" }, { status: 400 });
+      }
+      if (existingDirectory.area !== existingDocument.area) {
+        return NextResponse.json({ error: "Verzeichnis gehört nicht zum Dokumentbereich" }, { status: 400 });
       }
       updateData.directoryId = normalizedDirectoryId;
     }

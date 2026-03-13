@@ -2,6 +2,11 @@
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const INSECURE_PASSWORDS = new Set(["AdminPass123", "admin123", "password"]);
+const PLACEHOLDER_PREFIXES = ["CHANGE_ME", "YOUR_"];
+
+function hasPlaceholderPrefix(value) {
+  return PLACEHOLDER_PREFIXES.some((prefix) => value.startsWith(prefix));
+}
 
 function validateProductionConfig() {
   const result = {
@@ -37,6 +42,26 @@ function validateProductionConfig() {
     } catch {
       result.isValid = false;
       result.errors.push(`${name} (${description}) ist keine gültige URL: ${value}`);
+    }
+  };
+
+  const requireValidRedisUrl = () => {
+    const value = process.env.REDIS_URL;
+    if (!value || !value.trim()) {
+      result.isValid = false;
+      result.errors.push("REDIS_URL (Redis-Verbindungsstring) muss in Produktion gesetzt sein");
+      return;
+    }
+
+    try {
+      const url = new URL(value);
+      if (url.protocol !== "redis:" && url.protocol !== "rediss:") {
+        result.isValid = false;
+        result.errors.push(`REDIS_URL muss redis:// oder rediss:// verwenden (aktuell: ${value})`);
+      }
+    } catch {
+      result.isValid = false;
+      result.errors.push(`REDIS_URL ist keine gültige URL: ${value}`);
     }
   };
 
@@ -83,7 +108,7 @@ function validateProductionConfig() {
   validatePositiveIntegerEnvVar("APP_GID");
   validatePositiveIntegerEnvVar("NOTIFICATION_TOKEN_VALIDITY_DAYS");
   validatePositiveIntegerEnvVar("EVENT_REMINDER_POLL_INTERVAL_MS");
-  validateBooleanEnvVar("CSP_ALLOW_UNSAFE_INLINE_SCRIPTS");
+  validatePositiveIntegerEnvVar("MAX_REQUEST_BODY_SIZE");
 
   if ((process.env.APP_UID && !process.env.APP_GID) || (!process.env.APP_UID && process.env.APP_GID)) {
     result.warnings.push(
@@ -111,10 +136,12 @@ function validateProductionConfig() {
     requireEnv("SMTP_PASSWORD", "SMTP-Passwort");
     requireEnv("SMTP_FROM", "Absender-E-Mail");
     requireEnv("ADMIN_EMAILS", "Admin-Empfänger-Liste");
+    requireValidRedisUrl();
 
     const seedAdminEmail = process.env.SEED_ADMIN_EMAIL;
     const seedAdminPassword = process.env.SEED_ADMIN_PASSWORD;
     const seedAdminName = process.env.SEED_ADMIN_NAME;
+    const seedEnabled = process.env.ALLOW_DB_SEED === "true";
 
     if (seedAdminEmail || seedAdminPassword || seedAdminName) {
       if (!seedAdminEmail || !seedAdminPassword || !seedAdminName) {
@@ -136,17 +163,28 @@ function validateProductionConfig() {
       }
     }
 
+    if (seedEnabled) {
+      if (!seedAdminEmail || !seedAdminPassword || !seedAdminName) {
+        result.errors.push(
+          "ALLOW_DB_SEED=true erfordert explizit gesetzte Werte für SEED_ADMIN_EMAIL, SEED_ADMIN_PASSWORD und SEED_ADMIN_NAME"
+        );
+        result.isValid = false;
+      }
+
+      if (seedAdminPassword && (INSECURE_PASSWORDS.has(seedAdminPassword) || hasPlaceholderPrefix(seedAdminPassword))) {
+        result.errors.push(
+          "SEED_ADMIN_PASSWORD darf bei ALLOW_DB_SEED=true in Produktion kein Standard- oder Platzhalterwert sein"
+        );
+        result.isValid = false;
+      }
+    }
+
     rejectLocalhost("NEXTAUTH_URL", process.env.NEXTAUTH_URL);
     rejectLocalhost("APP_URL", process.env.APP_URL);
 
     validateBooleanEnvVar("ALLOW_DB_PUSH");
     validateBooleanEnvVar("ALLOW_DB_SEED");
 
-    if (process.env.CSP_ALLOW_UNSAFE_INLINE_SCRIPTS === "true") {
-      result.warnings.push(
-        "CSP_ALLOW_UNSAFE_INLINE_SCRIPTS=true reduziert die Wirksamkeit der Content-Security-Policy."
-      );
-    }
   } else {
     if (!process.env.NEXTAUTH_URL) {
       result.warnings.push("NEXTAUTH_URL ist nicht gesetzt, verwendet Default");

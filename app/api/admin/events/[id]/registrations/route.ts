@@ -100,7 +100,7 @@ export const POST = withApiErrorHandling(async (request: NextRequest, ctx: Route
   const { id: eventId } = await ctx.params;
   const body = await parseJsonBody<RegistrationRequest>(request);
 
-  const bodyValidation = validateRequestBody(body as unknown as Record<string, unknown>, registrationSchema, {
+  const bodyValidation = validateRequestBody(body, registrationSchema, {
     route: "/api/admin/events/[id]/registrations",
     method: "POST",
   });
@@ -233,7 +233,7 @@ export const DELETE = withApiErrorHandling(async (request: NextRequest, ctx: Rou
   const { id: eventId } = await ctx.params;
   const body = await parseJsonBody<RegistrationRequest>(request);
 
-  const bodyValidation = validateRequestBody(body as unknown as Record<string, unknown>, registrationSchema, {
+  const bodyValidation = validateRequestBody(body, registrationSchema, {
     route: "/api/admin/events/[id]/registrations",
     method: "DELETE",
   });

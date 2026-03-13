@@ -1,57 +1,67 @@
-"use client";
-
-import { useState, useEffect, use } from "react";
 import Link from "next/link";
-import { useSession } from "next-auth/react";
+import { notFound } from "next/navigation";
+import { getServerSession } from "next-auth";
+import { prisma } from "@/lib/prisma";
 import { formatDate } from "@/lib/date-utils";
 import { isAdmin } from "@/lib/role-utils";
+import { authOptions } from "@/lib/auth";
 import { BackLink } from "@/components/back-link";
-import type { News } from "@/types";
 
-export default function NewsDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = use(params);
-  const { data: session } = useSession();
-  const [newsItem, setNewsItem] = useState<News | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState("");
+export const revalidate = 300;
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://rag-mse.de";
 
-  useEffect(() => {
-    fetchNews(id);
-  }, [id]);
+export default async function NewsDetailPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id } = await params;
 
-  async function fetchNews(id: string) {
-    setIsLoading(true);
-    setError("");
+  const [session, newsItem] = await Promise.all([
+    getServerSession(authOptions),
+    prisma.news.findUnique({ where: { id } }),
+  ]);
 
-    try {
-      const response = await fetch(`/api/news/${id}`);
-
-      if (!response.ok) {
-        if (response.status === 404) {
-          setError("News nicht gefunden");
-        } else {
-          throw new Error("Fehler beim Laden der News");
-        }
-        return;
-      }
-
-      const data: News = await response.json();
-      setNewsItem(data);
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Ein Fehler ist aufgetreten");
-    } finally {
-      setIsLoading(false);
-    }
+  if (!newsItem || !newsItem.published) {
+    notFound();
   }
 
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@type": "NewsArticle",
+    headline: newsItem.title,
+    datePublished: newsItem.newsDate.toISOString(),
+    dateModified: newsItem.updatedAt.toISOString(),
+    inLanguage: "de-DE",
+    author: {
+      "@type": "Organization",
+      name: "RAG Schießsport MSE",
+    },
+    publisher: {
+      "@type": "Organization",
+      name: "RAG Schießsport MSE",
+      logo: {
+        "@type": "ImageObject",
+        url: `${siteUrl}/og-logo.png`,
+      },
+    },
+    mainEntityOfPage: `${siteUrl}/news/${id}`,
+    description: newsItem.content.slice(0, 180),
+  };
+
   return (
-    <main className="min-h-screen bg-gray-50">
+    <main className="flex-1 bg-gray-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        />
+
         <div className="mb-8 flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
           <BackLink href="/news" className="inline-flex items-center">
             Zurück zur News-Übersicht
           </BackLink>
-          {session && isAdmin(session.user) && newsItem && (
+          {session && isAdmin(session.user) && (
             <Link
               href={`/admin/news/${id}/edit`}
               className="btn-primary text-base w-full sm:w-auto"
@@ -61,34 +71,23 @@ export default function NewsDetailPage({ params }: { params: Promise<{ id: strin
           )}
         </div>
 
-        {isLoading ? (
-          <div className="text-gray-600 text-center py-8">Laden...</div>
-        ) : error ? (
-          <div className="card text-center">
-            <p className="text-red-600 mb-4">{error}</p>
-            <BackLink href="/news">
-              Zurück zur News-Übersicht
-            </BackLink>
-          </div>
-        ) : newsItem ? (
-          <article className="card">
-            <div className="p-0">
-              <h1 className="text-3xl font-bold text-gray-900 mb-4">
-                {newsItem.title}
-              </h1>
-              <p className="text-base text-gray-500 mb-6">
-                Veröffentlicht am {formatDate(newsItem.newsDate)}
-                {newsItem.updatedAt !== newsItem.createdAt &&
-                  `, aktualisiert am ${formatDate(newsItem.updatedAt)}`}
+        <article className="card">
+          <div className="p-0">
+            <h1 className="text-3xl font-bold text-gray-900 mb-4">
+              {newsItem.title}
+            </h1>
+            <p className="text-base text-gray-500 mb-6">
+              Veröffentlicht am {formatDate(newsItem.newsDate.toISOString())}
+              {newsItem.updatedAt !== newsItem.createdAt &&
+                `, aktualisiert am ${formatDate(newsItem.updatedAt.toISOString())}`}
+            </p>
+            <div className="prose prose-slate max-w-none">
+              <p className="text-gray-700 whitespace-pre-wrap leading-relaxed">
+                {newsItem.content}
               </p>
-              <div className="prose prose-slate max-w-none">
-                <p className="text-gray-700 whitespace-pre-wrap leading-relaxed">
-                  {newsItem.content}
-                </p>
-              </div>
             </div>
-          </article>
-        ) : null}
+          </div>
+        </article>
       </div>
     </main>
   );

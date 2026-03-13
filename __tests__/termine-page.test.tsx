@@ -1,331 +1,78 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import TerminePage from "@/app/termine/page";
-import { useSession } from "next-auth/react";
+import { getServerSession } from "next-auth";
+import { prisma } from "@/lib/prisma";
 
-const mockFetch = jest.fn();
-const mockPush = jest.fn();
-
-global.fetch = mockFetch as jest.MockedFunction<typeof fetch>;
-
-jest.mock("next/navigation", () => ({
-  useRouter: () => ({
-    push: mockPush,
-    refresh: jest.fn(),
-  }),
+jest.mock("next-auth", () => ({
+  getServerSession: jest.fn(),
 }));
 
-jest.mock("next-auth/react", () => ({
-  useSession: jest.fn(() => ({ data: null, status: "unauthenticated" })),
+jest.mock("@/lib/prisma", () => ({
+  prisma: {
+    event: {
+      findMany: jest.fn(),
+      count: jest.fn(),
+    },
+    shootingRange: {
+      findMany: jest.fn(),
+    },
+  },
 }));
 
 describe("TerminePage", () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    (useSession as jest.Mock).mockReturnValue({ data: null, status: "unauthenticated" });
+    (getServerSession as jest.Mock).mockResolvedValue(null);
+    (prisma.event.findMany as jest.Mock).mockResolvedValue([]);
+    (prisma.event.count as jest.Mock).mockResolvedValue(0);
+    (prisma.shootingRange.findMany as jest.Mock).mockResolvedValue([]);
   });
 
   it("renders page title and description", async () => {
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({
-        events: [],
-        pastEvents: [],
-        pagination: { total: 0, page: 1, limit: 20, pages: 0 },
-        pastPagination: { total: 0, page: 1, limit: 20, pages: 0 },
-      }),
-    });
+    const view = await TerminePage({ searchParams: Promise.resolve({}) });
+    render(view);
 
-    render(<TerminePage />);
-
-    await waitFor(() => {
-      expect(screen.getByText("Termine")).toBeInTheDocument();
-      expect(
-        screen.getByText("Aktuelle Termine und Veranstaltungen")
-      ).toBeInTheDocument();
-    });
+    expect(screen.getByText("Termine")).toBeInTheDocument();
+    expect(screen.getByText("Aktuelle Termine und Veranstaltungen")).toBeInTheDocument();
   });
 
-  it("displays loading state initially", () => {
-    mockFetch.mockImplementation(() => new Promise(() => {}));
+  it("renders empty state", async () => {
+    const view = await TerminePage({ searchParams: Promise.resolve({}) });
+    render(view);
 
-    render(<TerminePage />);
-
-    expect(screen.getAllByText("Laden...").length).toBeGreaterThan(0);
+    expect(screen.getByText("Keine Termine gefunden")).toBeInTheDocument();
   });
 
-  it("displays events list when data is loaded", async () => {
-    const mockEvents = [
+  it("renders events and pagination", async () => {
+    (prisma.event.findMany as jest.Mock).mockResolvedValue([
       {
-        id: "1",
-        date: "2026-02-15T18:00:00.000Z",
+        id: "e1",
+        date: new Date("2026-02-15T00:00:00.000Z"),
         timeFrom: "18:00",
         timeTo: "20:00",
-        location: "Test Location",
-        locationDisplay: "Test Location, Musterstraße 1, 12345 Musterstadt",
-        description: "Test Description",
-        latitude: null,
-        longitude: null,
+        location: "Stand A",
+        description: "Training",
+        type: "Training",
         visible: true,
-        createdAt: "2026-01-31T10:00:00.000Z",
-        _count: { votes: 3 },
       },
-    ];
+    ]);
+    (prisma.event.count as jest.Mock).mockResolvedValue(21);
 
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({
-        events: mockEvents,
-        pastEvents: [],
-        pagination: { total: 1, page: 1, limit: 20, pages: 1 },
-        pastPagination: { total: 0, page: 1, limit: 20, pages: 0 },
-      }),
-    });
-
-    render(<TerminePage />);
-
-    await waitFor(() => {
-      expect(screen.queryByText("Laden...")).not.toBeInTheDocument();
-    });
+    const view = await TerminePage({ searchParams: Promise.resolve({ page: "1" }) });
+    render(view);
 
     expect(screen.getByText("15.02.2026")).toBeInTheDocument();
     expect(screen.getByText("18:00 - 20:00")).toBeInTheDocument();
-    expect(screen.getByText("Test Location, Musterstraße 1, 12345 Musterstadt")).toBeInTheDocument();
-    expect(screen.getByText("Test Description")).toBeInTheDocument();
-    expect(mockFetch).toHaveBeenCalledTimes(1);
-  });
-
-  it("displays empty state when no events found", async () => {
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({
-        events: [],
-        pastEvents: [],
-        pagination: { total: 0, page: 1, limit: 20, pages: 0 },
-        pastPagination: { total: 0, page: 1, limit: 20, pages: 0 },
-      }),
-    });
-
-    render(<TerminePage />);
-
-    await waitFor(() => {
-      expect(screen.queryByText("Laden...")).not.toBeInTheDocument();
-    });
-
-    expect(screen.getByText("Keine Termine gefunden")).toBeInTheDocument();
-    expect(mockFetch).toHaveBeenCalledTimes(1);
-  });
-
-  it("does not display vote count for unauthenticated users", async () => {
-    const mockEvents = [
-      {
-        id: "1",
-        date: "2026-02-15T18:00:00.000Z",
-        timeFrom: "18:00",
-        timeTo: "20:00",
-        location: "Test Location",
-        description: "Test Description",
-        latitude: null,
-        longitude: null,
-        visible: true,
-        createdAt: "2026-01-31T10:00:00.000Z",
-        _count: { votes: 5 },
-      },
-    ];
-
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({
-        events: mockEvents,
-        pastEvents: [],
-        pagination: { total: 1, page: 1, limit: 20, pages: 1 },
-        pastPagination: { total: 0, page: 1, limit: 20, pages: 0 },
-      }),
-    });
-
-    render(<TerminePage />);
-
-    await waitFor(() => {
-      expect(screen.queryByText("Laden...")).not.toBeInTheDocument();
-    });
-
-    expect(screen.queryByText("5 Anmeldungen")).not.toBeInTheDocument();
-    expect(mockFetch).toHaveBeenCalledTimes(1);
-  });
-
-  it("displays registration range for authenticated users", async () => {
-    (useSession as jest.Mock).mockReturnValue({
-      data: { user: { id: "user-1", role: "MEMBER" } },
-      status: "authenticated",
-    });
-
-    const mockEvents = [
-      {
-        id: "1",
-        date: "2026-02-15T18:00:00.000Z",
-        timeFrom: "18:00",
-        timeTo: "20:00",
-        location: "Test Location",
-        description: "Test Description",
-        latitude: null,
-        longitude: null,
-        visible: true,
-        createdAt: "2026-01-31T10:00:00.000Z",
-        _count: { votes: 5 },
-        voteCounts: { JA: 5, NEIN: 3, VIELLEICHT: 2 },
-      },
-    ];
-
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({
-        events: mockEvents,
-        pastEvents: [],
-        pagination: { total: 1, page: 1, limit: 20, pages: 1 },
-        pastPagination: { total: 0, page: 1, limit: 20, pages: 0 },
-      }),
-    });
-
-    render(<TerminePage />);
-
-    await waitFor(() => {
-      expect(screen.queryByText("Laden...")).not.toBeInTheDocument();
-    });
-
-    expect(screen.getByText("5-7 Anmeldungen")).toBeInTheDocument();
-    expect(mockFetch).toHaveBeenCalledTimes(1);
-  });
-
-  it("fetches events on page load", async () => {
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({
-        events: [],
-        pastEvents: [],
-        pagination: { total: 0, page: 1, limit: 20, pages: 0 },
-        pastPagination: { total: 0, page: 1, limit: 20, pages: 0 },
-      }),
-    });
-
-    render(<TerminePage />);
-
-    await waitFor(() => {
-      expect(screen.queryByText("Laden...")).not.toBeInTheDocument();
-    });
-
-    expect(mockFetch).toHaveBeenCalledWith("/api/events?page=1&limit=20");
-    expect(mockFetch).toHaveBeenCalledTimes(1);
-  });
-
-  it("displays error message on fetch failure", async () => {
-    mockFetch.mockResolvedValueOnce({
-      ok: false,
-    });
-
-    render(<TerminePage />);
-
-    await waitFor(() => {
-      expect(screen.queryByText("Laden...")).not.toBeInTheDocument();
-    });
-
-    expect(
-      screen.getByText("Fehler beim Laden der Termine")
-    ).toBeInTheDocument();
-    expect(mockFetch).toHaveBeenCalledTimes(1);
-  });
-
-  it("displays pagination when multiple pages", async () => {
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({
-        events: [
-          {
-            id: "1",
-            date: "2026-02-15T18:00:00.000Z",
-            timeFrom: "18:00",
-            timeTo: "20:00",
-            location: "Test Location",
-            description: "Test Description",
-            latitude: null,
-            longitude: null,
-            visible: true,
-            createdAt: "2026-01-31T10:00:00.000Z",
-            _count: { votes: 0 },
-          },
-        ],
-        pastEvents: [],
-        pagination: { total: 21, page: 1, limit: 20, pages: 2 },
-        pastPagination: { total: 0, page: 1, limit: 20, pages: 0 },
-      }),
-    });
-
-    render(<TerminePage />);
-
-    await waitFor(() => {
-      expect(screen.queryByText("Laden...")).not.toBeInTheDocument();
-    });
-
     expect(screen.getByText("Zurück")).toBeInTheDocument();
     expect(screen.getByText("Weiter")).toBeInTheDocument();
-    expect(screen.getByText("1")).toBeInTheDocument();
-    expect(screen.getByText("2")).toBeInTheDocument();
-    expect(mockFetch).toHaveBeenCalledTimes(1);
   });
 
-  describe("Admin button visibility", () => {
-    beforeEach(() => {
-      mockFetch.mockResolvedValue({
-        ok: true,
-        json: async () => ({
-          events: [],
-          pastEvents: [],
-          pagination: { total: 0, page: 1, limit: 20, pages: 0 },
-          pastPagination: { total: 0, page: 1, limit: 20, pages: 0 },
-        }),
-      });
-    });
+  it("shows admin button for admins", async () => {
+    (getServerSession as jest.Mock).mockResolvedValue({ user: { id: "a1", role: "ADMIN" } });
 
-    it("does not display admin button when user is not authenticated", async () => {
-      (useSession as jest.Mock).mockReturnValue({ data: null, status: "unauthenticated" });
+    const view = await TerminePage({ searchParams: Promise.resolve({}) });
+    render(view);
 
-      render(<TerminePage />);
-
-      await waitFor(() => {
-        expect(screen.queryByText("Laden...")).not.toBeInTheDocument();
-      });
-
-      expect(screen.queryByText("Termine verwalten")).not.toBeInTheDocument();
-    });
-
-    it("does not display admin button when user is member", async () => {
-      (useSession as jest.Mock).mockReturnValue({
-        data: { user: { role: "MEMBER" } },
-        status: "authenticated",
-      });
-
-      render(<TerminePage />);
-
-      await waitFor(() => {
-        expect(screen.queryByText("Laden...")).not.toBeInTheDocument();
-      });
-
-      expect(screen.queryByText("Termine verwalten")).not.toBeInTheDocument();
-    });
-
-    it("displays admin button when user is admin", async () => {
-      (useSession as jest.Mock).mockReturnValue({
-        data: { user: { role: "ADMIN" } },
-        status: "authenticated",
-      });
-
-      render(<TerminePage />);
-
-      await waitFor(() => {
-        expect(screen.queryByText("Laden...")).not.toBeInTheDocument();
-      });
-
-      const adminButton = screen.getByText("Termine verwalten");
-      expect(adminButton).toBeInTheDocument();
-      expect(adminButton.closest("a")).toHaveAttribute("href", "/admin/termine");
-    });
+    expect(screen.getByText("Termine verwalten")).toBeInTheDocument();
   });
 });

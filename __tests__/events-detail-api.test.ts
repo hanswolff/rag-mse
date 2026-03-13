@@ -67,7 +67,7 @@ describe("/api/events/[id]/route", () => {
       expect(response.headers.get("Cache-Control")).toBe("no-store, no-cache, must-revalidate");
     });
 
-    it("sets cache-control and vary headers on successful response for non-authenticated user", async () => {
+    it("sets public cache-control headers on successful response for non-authenticated user", async () => {
       (prisma.event.findUnique as jest.Mock).mockResolvedValue(mockEvent);
       (prisma.shootingRange.findUnique as jest.Mock).mockResolvedValue({
         name: "Test Location",
@@ -82,8 +82,8 @@ describe("/api/events/[id]/route", () => {
       const json = await response.json();
 
       expect(response.status).toBe(200);
-      expect(response.headers.get("Cache-Control")).toBe("no-store, no-cache, must-revalidate");
-      expect(response.headers.get("Vary")).toBe("Authorization, Cookie");
+      expect(response.headers.get("Cache-Control")).toBe("public, max-age=60, s-maxage=300, stale-while-revalidate=300");
+      expect(response.headers.get("Vary")).toBeFalsy();
       expect(json.locationDisplay).toBe("Test Location, Musterstraße 1, 12345 Musterstadt");
     });
 

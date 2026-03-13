@@ -368,7 +368,7 @@ describe("event-reminder-worker", () => {
     );
   });
 
-  it("does not send reminders to auditors", async () => {
+  it("sends reminders to auditors", async () => {
     (prisma.user.findMany as jest.Mock).mockResolvedValue([
       { id: "auditor-1", email: "audit@example.org", role: "AUDITOR", eventReminderDaysBefore: 7 },
     ]);
@@ -383,10 +383,19 @@ describe("event-reminder-worker", () => {
       },
     ]);
 
+    (prisma.eventReminderDispatch.create as jest.Mock).mockResolvedValue({ id: "dispatch-1" });
+    (prisma.eventReminderDispatch.update as jest.Mock).mockResolvedValue({ id: "dispatch-1" });
+    (sendEventReminderEmail as jest.Mock).mockResolvedValue({ success: true });
+
     const queued = await processEventReminders(new Date("2026-02-01T16:56:00.000Z"));
 
-    expect(queued).toBe(0);
-    expect(prisma.event.findMany).not.toHaveBeenCalled();
-    expect(sendEventReminderEmail).not.toHaveBeenCalled();
+    expect(queued).toBe(1);
+    expect(prisma.event.findMany).toHaveBeenCalled();
+    expect(sendEventReminderEmail).toHaveBeenCalledTimes(1);
+    expect(sendEventReminderEmail).toHaveBeenCalledWith(
+      expect.objectContaining({
+        email: "audit@example.org",
+      })
+    );
   });
 });

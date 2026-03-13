@@ -41,7 +41,7 @@ export const POST = withApiErrorHandling(async (request: NextRequest) => {
   await requireAdmin("write");
   const body = await parseJsonBody<ResendByEmailRequest>(request);
   const bodyValidation = validateRequestBody(
-    body as unknown as Record<string, unknown>,
+    body,
     resendByEmailSchema,
     { route: '/api/admin/invitations/resend-by-email', method: 'POST' }
   );

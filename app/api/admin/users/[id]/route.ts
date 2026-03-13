@@ -5,21 +5,15 @@ import { parseJsonBody, withApiErrorHandling, validateCsrfHeaders, validateReque
 import {
   validateEmail,
   normalizeOptionalField,
-  validateAddress,
-  validatePhone,
   validateName,
-  validateRank,
-  validatePk,
-  validateReservistsAssociation,
-  validateAssociationMemberNumber,
-  validateDateOfBirth,
   validateAdminNotes,
 } from "@/lib/user-validation";
-import { validateRole, validateDateString } from "@/lib/validation-schema";
+import { validateRole } from "@/lib/validation-schema";
 import { Role } from "@prisma/client";
 import { logResourceNotFound, logInfo, logValidationFailure } from "@/lib/logger";
 import { formatDateInputValue } from "@/lib/date-picker-utils";
 import { sendRoleChangeEmail } from "@/lib/role-change-email";
+import { validateOptionalProfileFields } from "@/lib/profile-fields";
 
 interface UpdateUserRequest {
   email?: string;
@@ -56,8 +50,8 @@ interface UpdateUserData {
 const updateUserSchema = {
   email: { type: 'string' as const, optional: true },
   name: { type: 'string' as const, optional: true },
-  address: { type: 'string' as const, optional: true },
-  phone: { type: 'string' as const, optional: true },
+  address: { type: 'string' as const, optional: true, nullable: true },
+  phone: { type: 'string' as const, optional: true, nullable: true },
   role: { type: 'string' as const, optional: true },
   memberSince: { type: 'string' as const, optional: true },
   dateOfBirth: { type: 'string' as const, optional: true },
@@ -80,7 +74,7 @@ export const PATCH = withApiErrorHandling(async (
   const { id } = await context.params;
   const body = await parseJsonBody<UpdateUserRequest>(request);
   const bodyValidation = validateRequestBody(
-    body as unknown as Record<string, unknown>,
+    body,
     updateUserSchema,
     { route: '/api/admin/users/[id]', method: 'PATCH' }
   );
@@ -150,27 +144,11 @@ export const PATCH = withApiErrorHandling(async (
   }
 
   if (body.address !== undefined) {
-    const address = normalizeOptionalField(body.address);
-    if (address !== null) {
-      const addressValidation = validateAddress(address);
-      if (!addressValidation.isValid) {
-        logValidationFailure('/api/admin/users/[id]', 'PATCH', addressValidation.error || 'Invalid address', { userId: id });
-        return NextResponse.json({ error: addressValidation.error }, { status: 400 });
-      }
-    }
-    updates.address = address;
+    updates.address = normalizeOptionalField(body.address);
   }
 
   if (body.phone !== undefined) {
-    const phone = normalizeOptionalField(body.phone);
-    if (phone !== null) {
-      const phoneValidation = validatePhone(phone);
-      if (!phoneValidation.isValid) {
-        logValidationFailure('/api/admin/users/[id]', 'PATCH', phoneValidation.error || 'Invalid phone', { userId: id });
-        return NextResponse.json({ error: phoneValidation.error }, { status: 400 });
-      }
-    }
-    updates.phone = phone;
+    updates.phone = normalizeOptionalField(body.phone);
   }
 
   if (body.role !== undefined) {
@@ -203,54 +181,22 @@ export const PATCH = withApiErrorHandling(async (
   const associationMemberNumber = typeof body.associationMemberNumber === "string" ? body.associationMemberNumber : undefined;
   const hasPossessionCard = typeof body.hasPossessionCard === "boolean" ? body.hasPossessionCard : undefined;
 
-  // Validate new profile fields
-  if (memberSince !== undefined) {
-    if (typeof memberSince !== "string" || !memberSince.trim()) {
-      // Empty is fine
-    } else if (!validateDateString(memberSince)) {
-      logValidationFailure('/api/admin/users/[id]', 'PATCH', 'Ungültiges Mitglied-seit-Datum', { userId: id });
-      return NextResponse.json({ error: "Ungültiges Mitglied-seit-Datum" }, { status: 400 });
-    }
-  }
-
-  if (dateOfBirth !== undefined) {
-    const dateOfBirthValidation = validateDateOfBirth(dateOfBirth);
-    if (!dateOfBirthValidation.isValid) {
-      logValidationFailure('/api/admin/users/[id]', 'PATCH', dateOfBirthValidation.error || 'Ungültiges Geburtsdatum', { userId: id });
-      return NextResponse.json({ error: dateOfBirthValidation.error || "Ungültiges Geburtsdatum" }, { status: 400 });
-    }
-  }
-
-  if (rank !== undefined) {
-    const rankValidation = validateRank(rank);
-    if (!rankValidation.isValid) {
-      logValidationFailure('/api/admin/users/[id]', 'PATCH', rankValidation.error || 'Ungültiger Dienstgrad', { userId: id });
-      return NextResponse.json({ error: rankValidation.error }, { status: 400 });
-    }
-  }
-
-  if (pk !== undefined) {
-    const pkValidation = validatePk(pk);
-    if (!pkValidation.isValid) {
-      logValidationFailure('/api/admin/users/[id]', 'PATCH', pkValidation.error || 'Ungültige PK', { userId: id });
-      return NextResponse.json({ error: pkValidation.error }, { status: 400 });
-    }
-  }
-
-  if (reservistsAssociation !== undefined) {
-    const reservistsAssociationValidation = validateReservistsAssociation(reservistsAssociation);
-    if (!reservistsAssociationValidation.isValid) {
-      logValidationFailure('/api/admin/users/[id]', 'PATCH', reservistsAssociationValidation.error || 'Ungültige Reservistenkameradschaft', { userId: id });
-      return NextResponse.json({ error: reservistsAssociationValidation.error }, { status: 400 });
-    }
-  }
-
-  if (associationMemberNumber !== undefined) {
-    const associationMemberNumberValidation = validateAssociationMemberNumber(associationMemberNumber);
-    if (!associationMemberNumberValidation.isValid) {
-      logValidationFailure('/api/admin/users/[id]', 'PATCH', associationMemberNumberValidation.error || 'Ungültige Mitgliedsnummer im Verband', { userId: id });
-      return NextResponse.json({ error: associationMemberNumberValidation.error }, { status: 400 });
-    }
+  const optionalProfileFieldError = validateOptionalProfileFields({
+    address: updates.address,
+    phone: updates.phone,
+    memberSince,
+    dateOfBirth,
+    rank,
+    pk,
+    reservistsAssociation,
+    associationMemberNumber,
+  });
+  if (optionalProfileFieldError) {
+    logValidationFailure('/api/admin/users/[id]', 'PATCH', optionalProfileFieldError.message, {
+      userId: id,
+      field: optionalProfileFieldError.field,
+    });
+    return NextResponse.json({ error: optionalProfileFieldError.message }, { status: 400 });
   }
 
   const adminNotes = typeof body.adminNotes === "string" || body.adminNotes === null ? body.adminNotes : undefined;

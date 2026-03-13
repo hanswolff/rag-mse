@@ -2,6 +2,7 @@ import { render, screen } from "@testing-library/react";
 import Home from "@/app/page";
 import { prisma } from "@/lib/prisma";
 import { access } from "node:fs/promises";
+import { getServerSession } from "next-auth";
 
 jest.mock("next/cache", () => ({
   unstable_noStore: jest.fn(),
@@ -19,11 +20,20 @@ jest.mock("node:fs/promises", () => ({
   access: jest.fn(),
 }));
 
+jest.mock("next-auth", () => ({
+  getServerSession: jest.fn(),
+}));
+
+jest.mock("@/lib/auth", () => ({
+  authOptions: {},
+}));
+
 describe("Home", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     (prisma.event.findFirst as jest.Mock).mockResolvedValue(null);
     (access as jest.Mock).mockRejectedValue(new Error("not found"));
+    (getServerSession as jest.Mock).mockResolvedValue(null);
   });
 
   it("renders hero section with title and description", async () => {
@@ -98,5 +108,57 @@ describe("Home", () => {
       "href",
       `/dokumente/Jahresplanung${currentYear}.pdf`
     );
+  });
+});
+
+describe("Home - Member Documents Card Visibility", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    (prisma.event.findFirst as jest.Mock).mockResolvedValue(null);
+    (access as jest.Mock).mockRejectedValue(new Error("not found"));
+  });
+
+  it("does not show member documents card for unauthenticated users", async () => {
+    (getServerSession as jest.Mock).mockResolvedValue(null);
+
+    render(await Home());
+
+    expect(screen.getByText("Termine")).toBeInTheDocument();
+    expect(screen.getByText("News")).toBeInTheDocument();
+    expect(screen.getByText("Formulare")).toBeInTheDocument();
+    expect(screen.queryByText("Dokumente für Mitglieder")).not.toBeInTheDocument();
+  });
+
+  it.each(["MEMBER", "AUDITOR", "ADMIN", "SITE_ADMINISTRATOR"] as const)(
+    "shows member documents card for %s role",
+    async (role) => {
+      (getServerSession as jest.Mock).mockResolvedValue({
+        user: { id: "1", role },
+      });
+
+      render(await Home());
+
+      expect(screen.getByText("Dokumente für Mitglieder")).toBeInTheDocument();
+      expect(screen.queryByText("Formulare")).not.toBeInTheDocument();
+
+      const visibleFeatureHeadings = [
+        screen.queryByRole("heading", { name: "Termine" }),
+        screen.queryByRole("heading", { name: "News" }),
+        screen.queryByRole("heading", { name: "Formulare" }),
+        screen.queryByRole("heading", { name: "Dokumente für Mitglieder" }),
+      ].filter(Boolean);
+      expect(visibleFeatureHeadings).toHaveLength(3);
+    }
+  );
+
+  it("member documents card links to /mitglieder-dokumente", async () => {
+    (getServerSession as jest.Mock).mockResolvedValue({
+      user: { id: "1", role: "MEMBER" },
+    });
+
+    render(await Home());
+
+    const link = screen.getByRole("link", { name: /Dokumente für Mitglieder/ });
+    expect(link).toHaveAttribute("href", "/mitglieder-dokumente");
   });
 });

@@ -29,14 +29,14 @@ export default function AdminDashboardPage() {
 
   if (status === "loading") {
     return (
-      <main className="min-h-screen flex items-center justify-center">
+      <main className="flex flex-1 items-center justify-center">
         <div className="text-gray-600">Laden...</div>
       </main>
     );
   }
 
   return (
-    <main className="min-h-screen bg-gray-50">
+    <main className="flex-1 bg-gray-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
         <div className="mb-8">
           <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Adminbereich Dashboard</h1>
@@ -83,6 +83,32 @@ export default function AdminDashboardPage() {
             </p>
           </Link>
 
+          <Link
+            href="/admin/dokumente"
+            className="block p-6 bg-white border border-gray-200 rounded-lg hover:shadow-md transition-shadow"
+          >
+            <div className="flex items-center gap-3 mb-3">
+              <span className="text-2xl sm:text-3xl">📄</span>
+              <h2 className="text-lg sm:text-xl font-semibold text-gray-900">Admin-Dokumente</h2>
+            </div>
+            <p className="text-sm sm:text-base text-gray-600">
+              Verwalten Sie Admin-Dokumente inklusive Upload, Vorschau, Download und Umbenennung.
+            </p>
+          </Link>
+
+          <Link
+            href="/admin/mitglied-dokumente"
+            className="block p-6 bg-white border border-gray-200 rounded-lg hover:shadow-md transition-shadow"
+          >
+            <div className="flex items-center gap-3 mb-3">
+              <span className="text-2xl sm:text-3xl">📁</span>
+              <h2 className="text-lg sm:text-xl font-semibold text-gray-900">Dokumente für Mitglieder</h2>
+            </div>
+            <p className="text-sm sm:text-base text-gray-600">
+              Verwalten Sie Dokumente für Mitglieder inklusive Upload, Vorschau, Download und Umbenennung.
+            </p>
+          </Link>
+
           {canReadNotificationsAdmin && (
             <Link
               href="/admin/benachrichtigungen"
@@ -112,19 +138,6 @@ export default function AdminDashboardPage() {
               </p>
             </Link>
           )}
-
-          <Link
-            href="/admin/dokumente"
-            className="block p-6 bg-white border border-gray-200 rounded-lg hover:shadow-md transition-shadow"
-          >
-            <div className="flex items-center gap-3 mb-3">
-              <span className="text-2xl sm:text-3xl">📄</span>
-              <h2 className="text-lg sm:text-xl font-semibold text-gray-900">Dokumente</h2>
-            </div>
-            <p className="text-sm sm:text-base text-gray-600">
-              Verwalten Sie Mitgliedsdokumente inklusive Upload, Vorschau, Download und Umbenennung.
-            </p>
-          </Link>
         </div>
       </div>
     </main>

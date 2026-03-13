@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { POST } from "@/app/api/notifications/unsubscribe/[token]/route";
 import { prisma } from "@/lib/prisma";
 import { checkTokenRateLimit, recordSuccessfulTokenUsage } from "@/lib/rate-limiter";
+import { logError } from "@/lib/logger";
 
 jest.mock("@/lib/prisma", () => ({
   prisma: {
@@ -17,6 +18,12 @@ jest.mock("@/lib/prisma", () => ({
 jest.mock("@/lib/rate-limiter", () => ({
   checkTokenRateLimit: jest.fn(),
   recordSuccessfulTokenUsage: jest.fn(),
+}));
+
+jest.mock("@/lib/logger", () => ({
+  logError: jest.fn(),
+  logWarn: jest.fn(),
+  maskToken: jest.fn((value: string) => `${value.slice(0, 3)}...`),
 }));
 
 describe("/api/notifications/unsubscribe/[token]", () => {
@@ -81,7 +88,7 @@ describe("/api/notifications/unsubscribe/[token]", () => {
     expect(recordSuccessfulTokenUsage).toHaveBeenCalled();
   });
 
-  it("rejects unsubscribe for auditor users", async () => {
+  it("allows unsubscribe for auditor users", async () => {
     (prisma.eventReminderDispatch.findUnique as jest.Mock).mockResolvedValue({
       userId: "user-1",
       unsubscribeTokenExpiresAt: new Date(Date.now() + 60_000),
@@ -89,13 +96,34 @@ describe("/api/notifications/unsubscribe/[token]", () => {
         role: "AUDITOR",
       },
     });
+    (prisma.user.update as jest.Mock).mockResolvedValue({});
 
     const request = new NextRequest("http://localhost:3000/api/notifications/unsubscribe/token");
     const response = await POST(request, { params: Promise.resolve({ token: "token" }) });
     const data = await response.json();
 
-    expect(response.status).toBe(403);
-    expect(data.error).toContain("ungültig");
-    expect(prisma.user.update).not.toHaveBeenCalled();
+    expect(response.status).toBe(200);
+    expect(data.success).toBe(true);
+    expect(prisma.user.update).toHaveBeenCalledWith({
+      where: { id: "user-1" },
+      data: { eventReminderEnabled: false },
+    });
+  });
+
+  it("returns 503 when token rate limiter is unavailable in fail-closed mode", async () => {
+    process.env.RATE_LIMIT_FAIL_OPEN = "false";
+    (checkTokenRateLimit as jest.Mock).mockRejectedValue(new Error("redis down"));
+
+    const request = new NextRequest("http://localhost:3000/api/notifications/unsubscribe/token");
+    const response = await POST(request, { params: Promise.resolve({ token: "token" }) });
+    const data = await response.json();
+
+    expect(response.status).toBe(503);
+    expect(data.error).toContain("Dienst aktuell nicht verfügbar");
+    expect(logError).toHaveBeenCalledWith(
+      "token_rate_limit_unavailable",
+      expect.stringContaining("blocking request"),
+      expect.any(Object)
+    );
   });
 });

@@ -161,7 +161,7 @@ export default function ResetPasswordPage({ params }: { params: Promise<{ token:
 
   if (tokenError) {
     return (
-      <main className="flex min-h-screen flex-col items-center justify-center p-4 sm:p-6">
+      <main className="flex flex-1 flex-col items-center justify-center p-4 sm:p-6">
         <div className="w-full max-w-md">
           <div className="card">
             <h1 className="text-2xl sm:text-3xl font-bold text-center mb-4 sm:mb-6 text-brand-blue-900">
@@ -192,7 +192,7 @@ export default function ResetPasswordPage({ params }: { params: Promise<{ token:
 
   if (!isValidToken && !tokenError) {
     return (
-      <main className="flex min-h-screen flex-col items-center justify-center p-4 sm:p-6">
+      <main className="flex flex-1 flex-col items-center justify-center p-4 sm:p-6">
         <div className="w-full max-w-md">
           <div className="card">
             <h1 className="text-2xl sm:text-3xl font-bold text-center mb-4 sm:mb-6 text-brand-blue-900">
@@ -211,7 +211,7 @@ export default function ResetPasswordPage({ params }: { params: Promise<{ token:
 
   if (isChanged) {
     return (
-      <main className="flex min-h-screen flex-col items-center justify-center p-4 sm:p-6">
+      <main className="flex flex-1 flex-col items-center justify-center p-4 sm:p-6">
         <div className="w-full max-w-md">
           <div className="card">
             <h1 className="text-2xl sm:text-3xl font-bold text-center mb-4 sm:mb-6 text-brand-blue-900">
@@ -235,7 +235,7 @@ export default function ResetPasswordPage({ params }: { params: Promise<{ token:
   }
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center p-4 sm:p-6">
+    <main className="flex flex-1 flex-col items-center justify-center p-4 sm:p-6">
       <div className="w-full max-w-md">
         <div className="card">
           <h1 className="text-2xl sm:text-3xl font-bold text-center mb-4 sm:mb-6 text-brand-blue-900">

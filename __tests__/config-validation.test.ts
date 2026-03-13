@@ -15,6 +15,7 @@ describe("Configuration Validation", () => {
     process.env.SMTP_PASSWORD = "password";
     process.env.SMTP_FROM = "noreply@example.com";
     process.env.ADMIN_EMAILS = "admin@example.com";
+    process.env.REDIS_URL = "redis://redis:6379";
     Object.assign(process.env, overrides);
   };
 
@@ -111,6 +112,21 @@ describe("Configuration Validation", () => {
       expect(result.errors.some(e => e.includes("EMAIL_DEV_MODE"))).toBe(true);
     });
 
+    it("should require REDIS_URL in production", () => {
+      setProductionEnv();
+      delete process.env.REDIS_URL;
+      const result = validateProductionConfig();
+      expect(result.isValid).toBe(false);
+      expect(result.errors.some(e => e.includes("REDIS_URL"))).toBe(true);
+    });
+
+    it("should reject invalid REDIS_URL protocols in production", () => {
+      setProductionEnv({ REDIS_URL: "http://redis:6379" });
+      const result = validateProductionConfig();
+      expect(result.isValid).toBe(false);
+      expect(result.errors.some(e => e.includes("REDIS_URL") && e.includes("redis://"))).toBe(true);
+    });
+
     it("should reject localhost URLs in production", () => {
       setProductionEnv({ APP_URL: "http://localhost:3000" });
       const result = validateProductionConfig();
@@ -127,6 +143,28 @@ describe("Configuration Validation", () => {
       const result = validateProductionConfig();
       expect(result.isValid).toBe(true);
       expect(result.warnings.some(w => w.includes("unsicheres Standardpasswort"))).toBe(true);
+    });
+
+    it("should require explicit secure seed values when ALLOW_DB_SEED is enabled", () => {
+      setProductionEnv({ ALLOW_DB_SEED: "true" });
+      delete process.env.SEED_ADMIN_EMAIL;
+      delete process.env.SEED_ADMIN_PASSWORD;
+      delete process.env.SEED_ADMIN_NAME;
+      const result = validateProductionConfig();
+      expect(result.isValid).toBe(false);
+      expect(result.errors.some(e => e.includes("ALLOW_DB_SEED=true"))).toBe(true);
+    });
+
+    it("should reject placeholder seed passwords when ALLOW_DB_SEED is enabled", () => {
+      setProductionEnv({
+        ALLOW_DB_SEED: "true",
+        SEED_ADMIN_EMAIL: "admin@example.com",
+        SEED_ADMIN_PASSWORD: "CHANGE_ME_STRONG_PASSWORD_MIN_8_CHARS",
+        SEED_ADMIN_NAME: "Administrator",
+      });
+      const result = validateProductionConfig();
+      expect(result.isValid).toBe(false);
+      expect(result.errors.some(e => e.includes("SEED_ADMIN_PASSWORD") && e.includes("Platzhalterwert"))).toBe(true);
     });
 
     it("should require all seed variables together or none", () => {
@@ -183,6 +221,13 @@ describe("Configuration Validation", () => {
       const result = validateProductionConfig();
       expect(result.isValid).toBe(false);
       expect(result.errors.some(e => e.includes("APP_GID") && e.includes("positive Ganzzahl"))).toBe(true);
+    });
+
+    it("should reject invalid MAX_REQUEST_BODY_SIZE values", () => {
+      setProductionEnv({ MAX_REQUEST_BODY_SIZE: "abc" });
+      const result = validateProductionConfig();
+      expect(result.isValid).toBe(false);
+      expect(result.errors.some(e => e.includes("MAX_REQUEST_BODY_SIZE") && e.includes("positive Ganzzahl"))).toBe(true);
     });
 
     it("should warn when only APP_UID or APP_GID is set", () => {

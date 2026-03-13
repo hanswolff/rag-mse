@@ -46,6 +46,22 @@ type TimeZoneDateParts = {
   second: number;
 };
 
+type ReminderUser = {
+  id: string;
+  email: string;
+  role: string;
+  eventReminderDaysBefore: number;
+};
+
+type CandidateEvent = {
+  id: string;
+  date: Date;
+  timeFrom: string;
+  timeTo: string;
+  location: string;
+  votes: { userId: string }[];
+};
+
 function getTimeZoneDateParts(date: Date, timeZone: string): TimeZoneDateParts {
   const formatter = new Intl.DateTimeFormat("en-CA", {
     timeZone,
@@ -307,6 +323,18 @@ function shouldSendReminder(eventDateTime: Date, daysBefore: number, now: Date, 
   return timeDiff >= -REMINDER_GRACE_PERIOD_MS && timeDiff < pollIntervalMs;
 }
 
+function groupUsersByReminderDays(users: ReminderUser[]): Map<number, ReminderUser[]> {
+  const groupedUsers = new Map<number, ReminderUser[]>();
+
+  for (const user of users) {
+    const usersForDays = groupedUsers.get(user.eventReminderDaysBefore) || [];
+    usersForDays.push(user);
+    groupedUsers.set(user.eventReminderDaysBefore, usersForDays);
+  }
+
+  return groupedUsers;
+}
+
 export async function processEventReminders(now = new Date()): Promise<number> {
   const appUrl = process.env.APP_URL;
   if (!appUrl) {
@@ -343,9 +371,10 @@ export async function processEventReminders(now = new Date()): Promise<number> {
   );
 
   let queued = 0;
+  const usersByReminderDays = groupUsersByReminderDays(activeUsers);
 
-  for (const user of activeUsers) {
-    const hoursBefore = user.eventReminderDaysBefore * 24;
+  for (const [daysBefore, usersForDays] of usersByReminderDays) {
+    const hoursBefore = daysBefore * 24;
     const searchWindowMs = pollIntervalMs + REMINDER_GRACE_PERIOD_MS;
 
     const minEventTime = new Date(now.getTime() + hoursBefore * 60 * 60 * 1000 - REMINDER_GRACE_PERIOD_MS);
@@ -357,17 +386,14 @@ export async function processEventReminders(now = new Date()): Promise<number> {
     const maxEventDate = new Date(maxEventTime);
     maxEventDate.setHours(23, 59, 59, 999);
 
+    const userIds = usersForDays.map((user) => user.id);
+
     const eventsForRange = await prisma.event.findMany({
       where: {
         visible: true,
         date: {
           gte: minEventDate,
           lte: maxEventDate,
-        },
-        votes: {
-          none: {
-            userId: user.id,
-          },
         },
       },
       select: {
@@ -376,34 +402,57 @@ export async function processEventReminders(now = new Date()): Promise<number> {
         timeFrom: true,
         timeTo: true,
         location: true,
+        votes: {
+          where: {
+            userId: {
+              in: userIds,
+            },
+          },
+          select: {
+            userId: true,
+          },
+        },
       },
     });
 
-    for (const event of eventsForRange) {
-      const eventDateTime = buildEventDateTime(event.date, event.timeFrom, notificationTimeZone);
-      if (!shouldSendReminder(eventDateTime, user.eventReminderDaysBefore, now, pollIntervalMs)) {
-        continue;
-      }
-
-      try {
-        const queuedForEvent = await queueReminderForUserEvent({
-          userId: user.id,
-          userEmail: user.email,
-          event,
-          daysBefore: user.eventReminderDaysBefore,
-          appUrl,
-          now,
-        });
-
-        if (queuedForEvent) {
-          queued += 1;
+    for (const user of usersForDays) {
+      for (const event of eventsForRange as CandidateEvent[]) {
+        const eventVotes = event.votes ?? [];
+        if (eventVotes.some((vote) => vote.userId === user.id)) {
+          continue;
         }
-      } catch (error) {
-        logError("event_reminder_queue_failed", "Failed to queue reminder for user/event", {
-          userId: user.id,
-          eventId: event.id,
-          error: error instanceof Error ? error.message : String(error),
-        });
+
+        const eventDateTime = buildEventDateTime(event.date, event.timeFrom, notificationTimeZone);
+        if (!shouldSendReminder(eventDateTime, daysBefore, now, pollIntervalMs)) {
+          continue;
+        }
+
+        try {
+          const queuedForEvent = await queueReminderForUserEvent({
+            userId: user.id,
+            userEmail: user.email,
+            event: {
+              id: event.id,
+              date: event.date,
+              timeFrom: event.timeFrom,
+              timeTo: event.timeTo,
+              location: event.location,
+            },
+            daysBefore,
+            appUrl,
+            now,
+          });
+
+          if (queuedForEvent) {
+            queued += 1;
+          }
+        } catch (error) {
+          logError("event_reminder_queue_failed", "Failed to queue reminder for user/event", {
+            userId: user.id,
+            eventId: event.id,
+            error: error instanceof Error ? error.message : String(error),
+          });
+        }
       }
     }
   }

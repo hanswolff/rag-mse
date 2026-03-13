@@ -7,6 +7,7 @@ const LEGAL_LINKS = [
 ] as const;
 
 const EXTERNAL_LINKS = [
+  { href: "/info", label: "Infos" },
   { href: "https://github.com/hanswolff/rag-mse", label: "GitHub" },
 ] as const;
 
@@ -35,14 +36,20 @@ export function Footer() {
             <ul className="space-y-0.5 sm:space-y-1 text-sm">
               {EXTERNAL_LINKS.map((link) => (
                 <li key={link.href}>
-                  <a
-                    href={link.href}
-                    className={FOOTER_LINK_CLASS}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    {link.label}
-                  </a>
+                  {link.href.startsWith("http") ? (
+                    <a
+                      href={link.href}
+                      className={FOOTER_LINK_CLASS}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      {link.label}
+                    </a>
+                  ) : (
+                    <Link href={link.href} className={FOOTER_LINK_CLASS}>
+                      {link.label}
+                    </Link>
+                  )}
                 </li>
               ))}
             </ul>

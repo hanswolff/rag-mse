@@ -77,21 +77,20 @@ Testen Sie Zugriff auf geschützte Seiten ohne Login:
 
 ### 2.1 Neuen Benutzer erstellen
 - [ ] Melden Sie sich als Admin an
-- [ ] Navigieren Sie zum Adminbereich (`/admin/users`)
+- [ ] Navigieren Sie zum Adminbereich (`/admin/benutzerverwaltung`)
 - [ ] Klicken Sie auf "Neuen Benutzer erstellen"
 - [ ] Füllen Sie alle Pflichtfelder:
   - [ ] Name: "Test Benutzer"
   - [ ] E-Mail: `test@example.com`
-  - [ ] Passwort: Mindestens 6 Zeichen
-  - [ ] Rolle: "MEMBER" oder "ADMIN"
+  - [ ] Rolle: "MEMBER", "AUDITOR" oder "ADMIN"
 - [ ] Klicken Sie auf "Speichern"
 - [ ] **Erwartet**: Erfolgsmeldung wird angezeigt
 - [ ] **Erwartet**: Neuer Benutzer erscheint in der Benutzerliste
-- [ ] **Erwartet**: Benutzer kann sich anmelden
+- [ ] **Erwartet**: Für den Benutzer wurde ein Einladungslink erzeugt und per E-Mail versendet
 
 ### 2.2 Benutzer bearbeiten
 - [ ] Melden Sie sich als Admin an
-- [ ] Navigieren Sie zum Adminbereich (`/admin/users`)
+- [ ] Navigieren Sie zum Adminbereich (`/admin/benutzerverwaltung`)
 - [ ] Klicken Sie auf "Bearbeiten" bei einem Testbenutzer
 - [ ] Ändern Sie den Namen: "Test Benutzer Geändert"
 - [ ] Ändern Sie die Rolle: "MEMBER" → "ADMIN"
@@ -102,7 +101,7 @@ Testen Sie Zugriff auf geschützte Seiten ohne Login:
 
 ### 2.3 Benutzer löschen
 - [ ] Melden Sie sich als Admin an
-- [ ] Navigieren Sie zum Adminbereich (`/admin/users`)
+- [ ] Navigieren Sie zum Adminbereich (`/admin/benutzerverwaltung`)
 - [ ] Klicken Sie auf "Löschen" bei einem Testbenutzer
 - [ ] Bestätigen Sie die Löschung (falls Bestätigungsdialog)
 - [ ] **Erwartet**: Erfolgsmeldung wird angezeigt
@@ -111,7 +110,7 @@ Testen Sie Zugriff auf geschützte Seiten ohne Login:
 
 ### 2.4 Benutzerliste und Pagination
 - [ ] Melden Sie sich als Admin an
-- [ ] Navigieren Sie zum Adminbereich (`/admin/users`)
+- [ ] Navigieren Sie zum Adminbereich (`/admin/benutzerverwaltung`)
 - [ ] **Erwartet**: Alle Benutzer werden angezeigt
 - [ ] Erstellen Sie mehr als 10 Benutzer (falls Paginierung aktiviert)
 - [ ] **Erwartet**: Paginierung wird angezeigt
@@ -121,7 +120,7 @@ Testen Sie Zugriff auf geschützte Seiten ohne Login:
 
 ### 3.1 Neuen Termin erstellen
 - [ ] Melden Sie sich als Admin an
-- [ ] Navigieren Sie zum Adminbereich (`/admin/events`)
+- [ ] Navigieren Sie zum Adminbereich (`/admin/termine`)
 - [ ] Klicken Sie auf "Neuen Termin erstellen"
 - [ ] Füllen Sie alle Pflichtfelder:
   - [ ] Datum: Wählen Sie ein zukünftiges Datum
@@ -137,7 +136,7 @@ Testen Sie Zugriff auf geschützte Seiten ohne Login:
 
 ### 3.2 Termin bearbeiten
 - [ ] Melden Sie sich als Admin an
-- [ ] Navigieren Sie zum Adminbereich (`/admin/events`)
+- [ ] Navigieren Sie zum Adminbereich (`/admin/termine`)
 - [ ] Klicken Sie auf "Bearbeiten" bei einem Testtermin
 - [ ] Ändern Sie das Datum
 - [ ] Ändern Sie den Ort
@@ -149,7 +148,7 @@ Testen Sie Zugriff auf geschützte Seiten ohne Login:
 
 ### 3.3 Termin löschen
 - [ ] Melden Sie sich als Admin an
-- [ ] Navigieren Sie zum Adminbereich (`/admin/events`)
+- [ ] Navigieren Sie zum Adminbereich (`/admin/termine`)
 - [ ] Klicken Sie auf "Löschen" bei einem Testtermin
 - [ ] Bestätigen Sie die Löschung
 - [ ] **Erwartet**: Erfolgsmeldung wird angezeigt
@@ -158,7 +157,7 @@ Testen Sie Zugriff auf geschützte Seiten ohne Login:
 
 ### 3.4 Termin mit Karte erstellen (OpenStreetMap)
 - [ ] Melden Sie sich als Admin an
-- [ ] Navigieren Sie zum Adminbereich (`/admin/events`)
+- [ ] Navigieren Sie zum Adminbereich (`/admin/termine`)
 - [ ] Klicken Sie auf "Neuen Termin erstellen"
 - [ ] Geben Sie Adresse ein: "Brandenburger Tor, Berlin"
 - [ ] Optional: GPS-Koordinaten: `52.516266, 13.377775`
@@ -483,18 +482,20 @@ Testen Sie die Validierung bei der Profilveränderung:
 ### 9.1 Header-Navigation
 - [ ] Prüfen Sie alle Links im Header:
   - [ ] Startseite
+  - [ ] Über uns
   - [ ] Termine
-  - [ ] News
+  - [ ] Infos
   - [ ] Kontakt
 - [ ] **Erwartet**: Alle Links funktionieren
 - [ ] **Erwartet**: Aktuelle Seite ist hervorgehoben
 - [ ] **Erwartet**: Dropdown-Menüs funktionieren (falls vorhanden)
+- [ ] **Erwartet**: Keine CSP-Fehler zu blockierten Inline-Skripten in der Browser-Console
 
 ### 9.2 Footer-Navigation
 - [ ] Prüfen Sie alle Links im Footer:
   - [ ] Impressum
   - [ ] Datenschutzerklärung
-  - [ ] Kontakt
+  - [ ] GitHub
 - [ ] **Erwartet**: Alle Links funktionieren
 
 ### 9.3 Breadcrumbs (falls vorhanden)
@@ -527,8 +528,8 @@ Testen Sie die Validierung bei der Profilveränderung:
 ### 10.1 Admin-Zugriffskontrolle
 - [ ] Melden Sie sich als Admin an
 - [ ] Prüfen Sie Zugriff auf Admin-Seiten:
-  - [ ] `/admin/users` → Zugriff erlaubt
-  - [ ] `/admin/events` → Zugriff erlaubt
+  - [ ] `/admin/benutzerverwaltung` → Zugriff erlaubt
+  - [ ] `/admin/termine` → Zugriff erlaubt
   - [ ] `/admin/news` → Zugriff erlaubt
 - [ ] Prüfen Sie, ob Admin-Buttons sichtbar sind:
   - [ ] Erstellen-Button für Termine
@@ -538,8 +539,8 @@ Testen Sie die Validierung bei der Profilveränderung:
 ### 10.2 Mitglied-Zugriffskontrolle
 - [ ] Melden Sie sich als Mitglied (nicht Admin) an
 - [ ] Versuchen Sie, auf Admin-Seiten zuzugreifen:
-  - [ ] `/admin/users` → Weiterleitung oder "Zugriff verweigert"
-  - [ ] `/admin/events` → Weiterleitung oder "Zugriff verweigert"
+  - [ ] `/admin/benutzerverwaltung` → Weiterleitung oder "Zugriff verweigert"
+  - [ ] `/admin/termine` → Weiterleitung oder "Zugriff verweigert"
   - [ ] `/admin/news` → Weiterleitung oder "Zugriff verweigert"
 - [ ] Prüfen Sie, ob Admin-Buttons NICHT sichtbar sind:
   - [ ] Kein Erstellen-Button für Termine
@@ -550,7 +551,7 @@ Testen Sie die Validierung bei der Profilveränderung:
 - [ ] Melden Sie sich ab
 - [ ] Prüfen Sie Zugriff auf geschützte Seiten:
   - [ ] `/profil` → Weiterleitung zu `/login`
-  - [ ] `/admin/users` → Weiterleitung zu `/login`
+  - [ ] `/admin/benutzerverwaltung` → Weiterleitung zu `/login`
 - [ ] Prüfen Sie Zugriff auf öffentliche Seiten:
   - [ ] `/` → Zugriff erlaubt
   - [ ] `/termine` → Zugriff erlaubt
@@ -697,7 +698,7 @@ Testen Sie die Validierung bei der Profilveränderung:
 - [ ] **Erwartet**: Zähler pro Verzeichnis/Root werden korrekt aktualisiert
 
 ### 17.3 Dokument verschieben
-- [ ] Öffnen Sie „Dokument bearbeiten“
+- [ ] Öffnen Sie "Dokument bearbeiten"
 - [ ] Verschieben Sie ein Dokument von Root in ein Verzeichnis
 - [ ] Verschieben Sie ein Dokument zurück in Root
 - [ ] **Erwartet**: Dokument erscheint nach dem Speichern im Zielbereich
@@ -709,6 +710,115 @@ Testen Sie die Validierung bei der Profilveränderung:
 - [ ] Verschieben oder löschen Sie alle Dokumente im Verzeichnis
 - [ ] Löschen Sie danach das Verzeichnis
 - [ ] **Erwartet**: Leeres Verzeichnis wird erfolgreich gelöscht
+
+## 18. Dokumentenbereiche (Admin vs. Mitglieder)
+
+Die Anwendung unterscheidet zwei Dokumentenbereiche mit unterschiedlichen Zugriffsberechtigungen.
+
+### 18.1 Rollen- und Bereichsübersicht
+
+| Rolle | Admin-Dokumente | Mitglieder-Dokumente |
+|-------|-----------------|---------------------|
+| MEMBER | Kein Zugriff | Nur Lesen |
+| AUDITOR | Nur Lesen | Nur Lesen |
+| ADMIN | Lesen + Verwalten | Lesen + Verwalten |
+| SITE_ADMINISTRATOR | Lesen + Verwalten | Lesen + Verwalten |
+
+### 18.2 Admin-Dokumente - Zugriff als ADMIN
+
+- [ ] Melden Sie sich als ADMIN an
+- [ ] Navigieren Sie zu `/admin/dokumente`
+- [ ] **Erwartet**: Bereich "Admin-Dokumente" ist sichtbar
+- [ ] Laden Sie ein Dokument hoch
+- [ ] Erstellen Sie ein Verzeichnis
+- [ ] **Erwartet**: Upload und Verzeichniserstellung funktionieren
+- [ ] Bearbeiten Sie ein Dokument
+- [ ] Löschen Sie ein Dokument
+- [ ] **Erwartet**: Alle Verwaltungsfunktionen sind verfügbar
+
+### 18.3 Admin-Dokumente - Zugriff als AUDITOR
+
+- [ ] Melden Sie sich als AUDITOR an
+- [ ] Navigieren Sie zu `/admin/dokumente`
+- [ ] **Erwartet**: Dokumentliste ist sichtbar
+- [ ] Laden Sie ein Dokument herunter
+- [ ] **Erwartet**: Download funktioniert
+- [ ] Prüfen Sie auf Upload-/Lösch-Buttons
+- [ ] **Erwartet**: Keine Upload-/Lösch-/Bearbeiten-Buttons sichtbar
+- [ ] Versuchen Sie, direkt auf `/api/admin/documents` (POST) zuzugreifen
+- [ ] **Erwartet**: Zugriff verweigert (403)
+
+### 18.4 Admin-Dokumente - Zugriff als MEMBER
+
+- [ ] Melden Sie sich als MEMBER an
+- [ ] Versuchen Sie, auf `/admin/dokumente` zuzugreifen
+- [ ] **Erwartet**: Weiterleitung oder "Zugriff verweigert"
+- [ ] **Erwartet**: Kein Menü-Eintrag für Admin-Dokumente sichtbar
+
+### 18.5 Mitglieder-Dokumente - Zugriff als MEMBER
+
+- [ ] Melden Sie sich als MEMBER an
+- [ ] Navigieren Sie zu `/mitglieder-dokumente`
+- [ ] **Erwartet**: Dokumentliste ist sichtbar
+- [ ] Laden Sie ein Dokument herunter
+- [ ] **Erwartet**: Download funktioniert
+- [ ] Prüfen Sie auf Upload-/Lösch-Buttons
+- [ ] **Erwartet**: Keine Upload-/Lösch-/Bearbeiten-Buttons sichtbar
+- [ ] Prüfen Sie auf Verzeichnisverwaltung
+- [ ] **Erwartet**: Keine Verzeichnisverwaltungs-Buttons sichtbar
+
+### 18.6 Mitglieder-Dokumente - Verwaltung als ADMIN
+
+- [ ] Melden Sie sich als ADMIN an
+- [ ] Navigieren Sie zu `/admin/mitglied-dokumente`
+- [ ] **Erwartet**: Seite "Mitglieder-Dokumente verwalten" ist sichtbar
+- [ ] Laden Sie ein Dokument hoch
+- [ ] Erstellen Sie ein Verzeichnis
+- [ ] **Erwartet**: Upload und Verzeichniserstellung funktionieren
+- [ ] Bearbeiten Sie ein Dokument
+- [ ] Löschen Sie ein Dokument
+- [ ] **Erwartet**: Alle Verwaltungsfunktionen sind verfügbar
+- [ ] Navigieren Sie zu `/admin/dashboard`
+- [ ] **Erwartet**: Karte "Mitglieder-Dokumente" ist sichtbar
+
+### 18.7 Mitglieder-Dokumente - Zugriff als AUDITOR
+
+- [ ] Melden Sie sich als AUDITOR an
+- [ ] Navigieren Sie zu `/mitglieder-dokumente`
+- [ ] **Erwartet**: Dokumentliste ist sichtbar
+- [ ] Laden Sie ein Dokument herunter
+- [ ] **Erwartet**: Download funktioniert
+- [ ] Prüfen Sie auf Upload-/Lösch-Buttons
+- [ ] **Erwartet**: Keine Upload-/Lösch-/Bearbeiten-Buttons sichtbar
+
+### 18.8 Navigation - Mitglieder-Dokumente
+
+- [ ] Melden Sie sich als eingeloggter Nutzer an
+- [ ] Prüfen Sie die Startseite
+- [ ] **Erwartet**: Karte "Mitglieder-Dokumente" ist sichtbar (nicht "Formulare")
+- [ ] Prüfen Sie das Menü "Infos"
+- [ ] **Erwartet**: Eintrag "Mitglieder-Dokumente" ist ganz unten sichtbar
+- [ ] Melden Sie sich ab
+- [ ] **Erwartet**: Eintrag "Mitglieder-Dokumente" ist nicht mehr sichtbar
+
+### 18.9 Dokumentbereich-Trennung
+
+- [ ] Melden Sie sich als ADMIN an
+- [ ] Erstellen Sie ein Dokument im Admin-Bereich
+- [ ] Erstellen Sie ein Dokument im Mitglieder-Bereich
+- [ ] Melden Sie sich als MEMBER an
+- [ ] Navigieren Sie zu `/mitglieder-dokumente`
+- [ ] **Erwartet**: Nur Mitglieder-Dokumente sind sichtbar
+- [ ] **Erwartet**: Admin-Dokumente sind nicht sichtbar
+
+### 18.10 API-Berechtigungen (Mitglieder-Dokumente)
+
+- [ ] Melden Sie sich als MEMBER an
+- [ ] Ermitteln Sie die ID eines Mitglieder-Dokuments
+- [ ] Versuchen Sie, `DELETE /api/admin/documents/[id]` mit einem MEMBER-Dokument aufzurufen
+- [ ] **Erwartet**: Zugriff verweigert (403) da MEMBER keinen Admin-Zugriff hat
+- [ ] Versuchen Sie, `POST /api/admin/documents` mit `area=MEMBER` aufzurufen
+- [ ] **Erwartet**: Zugriff verweigert (403) da MEMBER keinen Admin-Zugriff hat
 
 ## Test-Ergebnisse dokumentieren
 

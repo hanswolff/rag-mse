@@ -1,6 +1,7 @@
 import { getGermanDateString, parseIsoDateOnlyToUtcDate } from "@/lib/date-picker-utils";
 import { validateDateString } from "@/lib/validation-schema";
 import { inflateRawSync } from "node:zlib";
+import { DocumentArea } from "@prisma/client";
 
 const DEFAULT_MAX_DOCUMENT_UPLOAD_MB = 15;
 
@@ -15,6 +16,12 @@ function parseMaxDocumentUploadMb(value: string | undefined): number {
 export const MAX_DOCUMENT_UPLOAD_MB = parseMaxDocumentUploadMb(process.env.DOCUMENT_UPLOAD_MAX_MB);
 
 export const MAX_DOCUMENT_UPLOAD_BYTES = MAX_DOCUMENT_UPLOAD_MB * 1024 * 1024;
+
+export function parseDocumentArea(value: string | null): DocumentArea | undefined {
+  if (value === "ADMIN") return DocumentArea.ADMIN;
+  if (value === "MEMBER") return DocumentArea.MEMBER;
+  return undefined;
+}
 
 export const ALLOWED_DOCUMENT_MIME_TYPES = [
   "application/pdf",
@@ -35,6 +42,8 @@ const DOCX_MIME_TYPE = "application/vnd.openxmlformats-officedocument.wordproces
 const XLSX_MIME_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 const ODT_MIME_TYPE = "application/vnd.oasis.opendocument.text";
 const ODS_MIME_TYPE = "application/vnd.oasis.opendocument.spreadsheet";
+const MAX_ZIP_ENTRY_UNCOMPRESSED_BYTES = 4096;
+const MAX_ZIP_ENTRY_COMPRESSED_BYTES = 4096;
 
 type ZipEntry = {
   fileName: string;
@@ -61,10 +70,19 @@ export type CreateDocumentMetadata = {
 
 export type CreateDocumentDirectoryRequest = {
   name: string;
+  area?: DocumentArea;
 };
 
 export type ParsedDocumentDirectoryRequest =
   | { isValid: true; data: CreateDocumentDirectoryRequest; errors: [] }
+  | { isValid: false; errors: string[] };
+
+export type UpdateDocumentDirectoryRequest = {
+  name: string;
+};
+
+export type ParsedUpdateDocumentDirectoryRequest =
+  | { isValid: true; data: UpdateDocumentDirectoryRequest; errors: [] }
   | { isValid: false; errors: string[] };
 
 export type ValidationResult = {
@@ -242,6 +260,13 @@ function getZipEntries(content: Uint8Array): ZipEntry[] | null {
 }
 
 function getZipEntryContent(content: Uint8Array, entry: ZipEntry): Uint8Array | null {
+  if (
+    entry.uncompressedSize > MAX_ZIP_ENTRY_UNCOMPRESSED_BYTES
+    || entry.compressedSize > MAX_ZIP_ENTRY_COMPRESSED_BYTES
+  ) {
+    return null;
+  }
+
   const localHeaderOffset = entry.localHeaderOffset;
   const signature = readUint32LE(content, localHeaderOffset);
   if (signature !== 0x04034b50) {
@@ -262,7 +287,7 @@ function getZipEntryContent(content: Uint8Array, entry: ZipEntry): Uint8Array | 
 
   const compressedContent = content.slice(compressedDataOffset, compressedDataEnd);
   if (entry.compressionMethod === 0) {
-    return compressedContent;
+    return compressedContent.length === entry.uncompressedSize ? compressedContent : null;
   }
 
   if (entry.compressionMethod === 8) {
@@ -519,6 +544,52 @@ export function parseAndValidateUpdateDocumentRequest(input: unknown): ParsedUpd
 }
 
 export function parseAndValidateDocumentDirectoryRequest(input: unknown): ParsedDocumentDirectoryRequest {
+  if (!input || typeof input !== "object" || Array.isArray(input)) {
+    return { isValid: false, errors: ["Ungültiger Request-Body"] };
+  }
+
+  const body = input as Record<string, unknown>;
+  const errors: string[] = [];
+  const allowedKeys = new Set(["name", "area"]);
+
+  for (const key of Object.keys(body)) {
+    if (!allowedKeys.has(key)) {
+      errors.push(`Unerwartetes Feld: ${key}`);
+    }
+  }
+
+  if (typeof body.name !== "string") {
+    errors.push("name muss ein String sein");
+  }
+
+  if ("area" in body) {
+    if (typeof body.area !== "string") {
+      errors.push("area muss ein String sein");
+    } else if (!parseDocumentArea(body.area)) {
+      errors.push("area muss ADMIN oder MEMBER sein");
+    }
+  }
+
+  if (errors.length > 0) {
+    return { isValid: false, errors };
+  }
+
+  validateDirectoryName(body.name as string, errors);
+  if (errors.length > 0) {
+    return { isValid: false, errors };
+  }
+
+  return {
+    isValid: true,
+    data: {
+      name: normalizeDirectoryName(body.name as string),
+      area: typeof body.area === "string" ? parseDocumentArea(body.area) : undefined,
+    },
+    errors: [],
+  };
+}
+
+export function parseAndValidateUpdateDocumentDirectoryRequest(input: unknown): ParsedUpdateDocumentDirectoryRequest {
   if (!input || typeof input !== "object" || Array.isArray(input)) {
     return { isValid: false, errors: ["Ungültiger Request-Body"] };
   }

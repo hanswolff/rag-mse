@@ -102,7 +102,7 @@ export default function TokenRsvpPage({ params }: { params: Promise<{ token: str
 
   if (isLoading) {
     return (
-      <main className="min-h-screen flex items-center justify-center">
+      <main className="flex flex-1 items-center justify-center">
         <div className="text-gray-600">Laden...</div>
       </main>
     );
@@ -110,7 +110,7 @@ export default function TokenRsvpPage({ params }: { params: Promise<{ token: str
 
   if (error && !data) {
     return (
-      <main className="min-h-screen bg-gray-50">
+      <main className="flex-1 bg-gray-50">
         <div className="max-w-3xl mx-auto px-4 py-10">
           <div className="card text-center">
             <h1 className="text-2xl font-bold text-gray-900 mb-4">Terminanmeldung</h1>
@@ -128,7 +128,7 @@ export default function TokenRsvpPage({ params }: { params: Promise<{ token: str
   const isPast = isEventInPast(data.event.date);
 
   return (
-    <main className="min-h-screen bg-gray-50">
+    <main className="flex-1 bg-gray-50">
       <div className="max-w-3xl mx-auto px-4 py-10 space-y-6">
         <article className="card">
           <h1 className="text-2xl font-bold text-gray-900 mb-2">Terminanmeldung</h1>

@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/auth-utils";
-import { readDocumentFile } from "@/lib/document-storage";
+import { serveDocumentFile } from "@/lib/document-response";
 import { withApiErrorHandling } from "@/lib/api-utils";
 import { logResourceNotFound } from "@/lib/logger";
+
+const ROUTE = "/api/admin/documents/[id]/download";
 
 export const GET = withApiErrorHandling(async (_request: Request, ctx: RouteContext<"/api/admin/documents/[id]/download">) => {
   await requireAdmin("read");
@@ -12,33 +14,19 @@ export const GET = withApiErrorHandling(async (_request: Request, ctx: RouteCont
   const document = await prisma.document.findUnique({ where: { id } });
 
   if (!document) {
-    logResourceNotFound("document", id, "/api/admin/documents/[id]/download", "GET");
+    logResourceNotFound("document", id, ROUTE, "GET");
     return NextResponse.json({ error: "Dokument nicht gefunden" }, { status: 404 });
   }
 
-  let content: Buffer;
-  try {
-    content = await readDocumentFile(document.storedFileName);
-  } catch (error: unknown) {
-    if (error && typeof error === "object" && "code" in error && error.code === "ENOENT") {
-      logResourceNotFound("documentFile", document.storedFileName, "/api/admin/documents/[id]/download", "GET", {
-        documentId: id,
-      });
-      return NextResponse.json({ error: "Dokument nicht gefunden" }, { status: 404 });
-    }
-    throw error;
-  }
-
-  const body = new Uint8Array(content);
-
-  return new NextResponse(body, {
-    status: 200,
-    headers: {
-      "Content-Type": document.mimeType,
-      "Content-Length": `${body.byteLength}`,
-      "Cache-Control": "no-store, no-cache, must-revalidate",
-      "X-Content-Type-Options": "nosniff",
-      "Content-Disposition": `attachment; filename*=UTF-8''${encodeURIComponent(document.originalFileName)}`,
+  return serveDocumentFile({
+    document: {
+      id: document.id,
+      storedFileName: document.storedFileName,
+      mimeType: document.mimeType,
+      originalFileName: document.originalFileName,
     },
+    disposition: "attachment",
+    route: ROUTE,
+    method: "GET",
   });
-}, { route: "/api/admin/documents/[id]/download", method: "GET" });
+}, { route: ROUTE, method: "GET" });

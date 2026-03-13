@@ -9,6 +9,9 @@ jest.mock("@/lib/prisma", () => ({
     user: {
       findUnique: jest.fn(),
     },
+    invitation: {
+      findFirst: jest.fn(),
+    },
     $transaction: jest.fn(),
   },
 }));
@@ -43,10 +46,11 @@ describe("/api/auth/forgot-password/route", () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    process.env.NEXT_PUBLIC_APP_URL = "http://localhost:3000";
+    process.env.APP_URL = "http://localhost:3000";
   });
 
   afterEach(() => {
+    delete process.env.APP_URL;
     delete process.env.NEXT_PUBLIC_APP_URL;
   });
 
@@ -232,7 +236,7 @@ describe("/api/auth/forgot-password/route", () => {
 
       expect(prisma.user.findUnique).toHaveBeenCalledWith({
         where: { email: "test@example.com" },
-        select: { id: true, email: true },
+        select: { id: true, email: true, role: true, passwordUpdatedAt: true },
       });
     });
 
@@ -260,8 +264,28 @@ describe("/api/auth/forgot-password/route", () => {
   });
 
   describe("Password Reset Flow", () => {
+    it("does not create reset tokens for pre-provisioned users with pending invitation", async () => {
+      const mockUser = {
+        id: "1",
+        email: "test@example.com",
+        role: "MEMBER",
+        passwordUpdatedAt: null,
+      };
+      (prisma.user.findUnique as jest.Mock).mockResolvedValue(mockUser);
+      (prisma.invitation.findFirst as jest.Mock).mockResolvedValue({ id: "inv-1" });
+
+      const request = createMockRequest({ email: "test@example.com" });
+      const response = await POST(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(data.message).toBe(SUCCESS_MESSAGE);
+      expect(prisma.$transaction).not.toHaveBeenCalled();
+      expect(sendTemplateEmail).not.toHaveBeenCalled();
+    });
+
     it("deletes existing password resets before creating new one", async () => {
-      const mockUser = { id: "1", email: "test@example.com" };
+      const mockUser = { id: "1", email: "test@example.com", role: "MEMBER", passwordUpdatedAt: new Date() };
       (prisma.user.findUnique as jest.Mock).mockResolvedValue(mockUser);
       const mockDeleteMany = jest.fn().mockResolvedValue({ count: 1 });
       const mockCreate = jest.fn().mockResolvedValue({});
@@ -288,7 +312,7 @@ describe("/api/auth/forgot-password/route", () => {
     });
 
     it("sends email with correct template and variables", async () => {
-      const mockUser = { id: "1", email: "test@example.com" };
+      const mockUser = { id: "1", email: "test@example.com", role: "MEMBER", passwordUpdatedAt: new Date() };
       (prisma.user.findUnique as jest.Mock).mockResolvedValue(mockUser);
       (prisma.$transaction as jest.Mock).mockImplementation(async (callback) => {
         const mockTx = {
@@ -319,11 +343,10 @@ describe("/api/auth/forgot-password/route", () => {
       );
     });
 
-    it("uses APP_URL as fallback when NEXT_PUBLIC_APP_URL not set", async () => {
-      delete process.env.NEXT_PUBLIC_APP_URL;
+    it("uses APP_URL for reset links", async () => {
       process.env.APP_URL = "https://example.com";
 
-      const mockUser = { id: "1", email: "test@example.com" };
+      const mockUser = { id: "1", email: "test@example.com", role: "MEMBER", passwordUpdatedAt: new Date() };
       (prisma.user.findUnique as jest.Mock).mockResolvedValue(mockUser);
       (prisma.$transaction as jest.Mock).mockImplementation(async (callback) => {
         const mockTx = {
@@ -353,11 +376,42 @@ describe("/api/auth/forgot-password/route", () => {
       delete process.env.APP_URL;
     });
 
-    it("uses localhost as final fallback", async () => {
-      delete process.env.NEXT_PUBLIC_APP_URL;
+    it("ignores NEXT_PUBLIC_APP_URL when APP_URL is set", async () => {
+      process.env.NEXT_PUBLIC_APP_URL = "https://wrong.example.org";
+      process.env.APP_URL = "https://example.com";
+
+      const mockUser = { id: "1", email: "test@example.com", role: "MEMBER", passwordUpdatedAt: new Date() };
+      (prisma.user.findUnique as jest.Mock).mockResolvedValue(mockUser);
+      (prisma.$transaction as jest.Mock).mockImplementation(async (callback) => {
+        const mockTx = {
+          passwordReset: {
+            deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+            create: jest.fn().mockResolvedValue({}),
+          },
+        };
+        await callback(mockTx);
+        return "generated-token";
+      });
+      (sendTemplateEmail as jest.Mock).mockResolvedValue({ messageId: "test-id" });
+
+      const request = createMockRequest({ email: "test@example.com" });
+      await POST(request);
+
+      expect(sendTemplateEmail).toHaveBeenCalledWith(
+        expect.objectContaining({
+          variables: expect.objectContaining({
+            resetUrl: expect.stringMatching(
+              /^https:\/\/example\.com\/passwort-zuruecksetzen\/[a-f0-9]{64}$/
+            ),
+          }),
+        })
+      );
+    });
+
+    it("uses localhost as final fallback when APP_URL is missing", async () => {
       delete process.env.APP_URL;
 
-      const mockUser = { id: "1", email: "test@example.com" };
+      const mockUser = { id: "1", email: "test@example.com", role: "MEMBER", passwordUpdatedAt: new Date() };
       (prisma.user.findUnique as jest.Mock).mockResolvedValue(mockUser);
       (prisma.$transaction as jest.Mock).mockImplementation(async (callback) => {
         const mockTx = {
@@ -387,7 +441,7 @@ describe("/api/auth/forgot-password/route", () => {
   });
 
   describe("Error Handling", () => {
-    it("handles database errors gracefully without leaking information", async () => {
+    it("returns generic success for internal database errors to prevent enumeration side-channels", async () => {
       (prisma.user.findUnique as jest.Mock).mockRejectedValue(new Error("Database connection failed"));
 
       const request = createMockRequest({ email: "test@example.com" });
@@ -405,7 +459,7 @@ describe("/api/auth/forgot-password/route", () => {
       );
     });
 
-    it("handles JSON parse errors gracefully", async () => {
+    it("returns generic success for unexpected runtime errors", async () => {
       (prisma.user.findUnique as jest.Mock).mockImplementation(() => {
         throw new Error("Unexpected token");
       });
@@ -419,8 +473,8 @@ describe("/api/auth/forgot-password/route", () => {
       expect(logError).toHaveBeenCalled();
     });
 
-    it("handles transaction errors gracefully", async () => {
-      const mockUser = { id: "1", email: "test@example.com" };
+    it("returns generic success for transaction errors", async () => {
+      const mockUser = { id: "1", email: "test@example.com", role: "MEMBER", passwordUpdatedAt: new Date() };
       (prisma.user.findUnique as jest.Mock).mockResolvedValue(mockUser);
       (prisma.$transaction as jest.Mock).mockRejectedValue(new Error("Transaction failed"));
 
@@ -449,7 +503,7 @@ describe("/api/auth/forgot-password/route", () => {
     });
 
     it("logs info when password reset email is sent successfully", async () => {
-      const mockUser = { id: "1", email: "test@example.com" };
+      const mockUser = { id: "1", email: "test@example.com", role: "MEMBER", passwordUpdatedAt: new Date() };
       (prisma.user.findUnique as jest.Mock).mockResolvedValue(mockUser);
       (prisma.$transaction as jest.Mock).mockImplementation(async (callback) => {
         const mockTx = {
@@ -476,7 +530,7 @@ describe("/api/auth/forgot-password/route", () => {
     });
 
     it("logs error when email fails to send", async () => {
-      const mockUser = { id: "1", email: "test@example.com" };
+      const mockUser = { id: "1", email: "test@example.com", role: "MEMBER", passwordUpdatedAt: new Date() };
       (prisma.user.findUnique as jest.Mock).mockResolvedValue(mockUser);
       (prisma.$transaction as jest.Mock).mockImplementation(async (callback) => {
         const mockTx = {

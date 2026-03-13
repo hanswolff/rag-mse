@@ -5,7 +5,7 @@
 - Purpose: website for RAG Schießsport MSE with member login, admin-managed events, attendance polls, news, and contact.
 - Tech: Next.js app in Docker (docker compose), SQLite database with persistent volume mount.
 - Language: German-only UI.
-- Branding: align with RAG-Schießsport look; use “Wir sind die Reserve” logo (from internet).
+- Branding: align with RAG-Schießsport look.
 - Task tracking: see TODO.md for implementation checklist, mark tasks as done when a task is finished
 - Code: use best practices and clean coding standards, avoid many comments in code (make code concise enough so no comments are needed)
 - Styling: prefer global styling (theme tokens, shared utility classes) over per-component/local styling whenever practical

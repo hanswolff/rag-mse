@@ -1,9 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { checkTokenRateLimit, recordSuccessfulTokenUsage } from "@/lib/rate-limiter";
-import { getClientIp, getNoCacheHeaders, handleRateLimitBlocked, validateCsrfHeaders, withApiErrorHandling } from "@/lib/api-utils";
+import {
+  getClientIp,
+  getNoCacheHeaders,
+  handleRateLimitBlocked,
+  validateCsrfHeaders,
+  withApiErrorHandling,
+  checkTokenRateLimitWithPolicy,
+  recordSuccessfulTokenUsageWithPolicy,
+} from "@/lib/api-utils";
 import { hashNotificationToken } from "@/lib/notifications";
 import { Permissions } from "@/lib/permissions";
+import { maskToken } from "@/lib/logger";
 
 export const POST = withApiErrorHandling(async (
   request: NextRequest,
@@ -18,7 +26,13 @@ export const POST = withApiErrorHandling(async (
 
   const clientIp = getClientIp(request);
   const tokenHash = hashNotificationToken(token);
-  const rateLimitResult = await checkTokenRateLimit(clientIp, tokenHash);
+  const rateLimitResult = await checkTokenRateLimitWithPolicy(
+    "/api/notifications/unsubscribe/[token]",
+    "POST",
+    clientIp,
+    tokenHash,
+    maskToken(token)
+  );
 
   if (!rateLimitResult.allowed) {
     return handleRateLimitBlocked(
@@ -57,7 +71,7 @@ export const POST = withApiErrorHandling(async (
     return NextResponse.json({ error: "Link ist abgelaufen" }, { status: 410, headers: getNoCacheHeaders() });
   }
 
-  if (!Permissions.canManageOwnProfile(dispatch.user.role)) {
+  if (!Permissions.canManageOwnNotifications(dispatch.user.role)) {
     return NextResponse.json(
       { error: "Link ist ungültig oder abgelaufen" },
       { status: 403, headers: getNoCacheHeaders() }
@@ -69,7 +83,13 @@ export const POST = withApiErrorHandling(async (
     data: { eventReminderEnabled: false },
   });
 
-  await recordSuccessfulTokenUsage(tokenHash, clientIp);
+  await recordSuccessfulTokenUsageWithPolicy(
+    "/api/notifications/unsubscribe/[token]",
+    "POST",
+    tokenHash,
+    clientIp,
+    maskToken(token)
+  );
 
   return NextResponse.json({ success: true }, { headers: getNoCacheHeaders() });
 }, { route: "/api/notifications/unsubscribe/[token]", method: "POST" });

@@ -87,7 +87,7 @@ export const PUT = withApiErrorHandling(async (request: NextRequest, ctx: RouteC
   const { id } = await ctx.params;
   const body = await parseJsonBody<UpdateEventRequest>(request, EVENT_REQUEST_BODY_SIZE);
 
-  const bodyValidation = validateRequestBody(body as unknown as Record<string, unknown>, updateEventSchema, { route: '/api/admin/events/[id]', method: 'PUT' });
+  const bodyValidation = validateRequestBody(body, updateEventSchema, { route: '/api/admin/events/[id]', method: 'PUT' });
   if (!bodyValidation.isValid) {
     return NextResponse.json({ error: bodyValidation.errors.join(". ") }, { status: 400 });
   }

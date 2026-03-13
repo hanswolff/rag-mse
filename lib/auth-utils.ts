@@ -1,6 +1,6 @@
 import { getServerSession } from "next-auth";
 import { authOptions } from "./auth";
-import { hasAdminAccessRole, hasAdminRole, hasMemberRole } from "./role-utils";
+import { hasAdminAccessRole, hasAdminRole, hasMemberRole, hasSelfServiceRole } from "./role-utils";
 import { Permissions } from "./permissions";
 
 export class UnauthorizedError extends Error {
@@ -63,6 +63,14 @@ export async function requireMember() {
   return user;
 }
 
+export async function requireSelfServiceAccess() {
+  const user = await requireAuth();
+  if (!hasSelfServiceRole(user.role)) {
+    throw new ForbiddenError("Keine Berechtigung für eigene Kontoeinstellungen");
+  }
+  return user;
+}
+
 export function shouldRedirectToLogin(pathname: string, userRole: string | undefined): boolean {
   if (pathname.startsWith("/benachrichtigungen/abmelden")) {
     return false;
@@ -76,6 +84,7 @@ export function shouldRedirectToLogin(pathname: string, userRole: string | undef
     (
       pathname.startsWith("/profil")
       || pathname.startsWith("/passwort-aendern")
+      || pathname.startsWith("/mitglieder-dokumente")
       || pathname.startsWith("/benachrichtigungen")
     )
     && !hasMemberRole(userRole)

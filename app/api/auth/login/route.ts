@@ -22,7 +22,7 @@ async function handleLogin(request: NextRequest): Promise<NextResponse> {
 
     const body = await parseJsonBody<LoginRequest>(request);
 
-    const bodyValidation = validateRequestBody(body as unknown as Record<string, unknown>, loginSchema, { route: '/api/auth/login', method: 'POST' });
+    const bodyValidation = validateRequestBody(body, loginSchema, { route: '/api/auth/login', method: 'POST' });
     if (!bodyValidation.isValid) {
       return NextResponse.json(
         { error: bodyValidation.errors.join(". ") },

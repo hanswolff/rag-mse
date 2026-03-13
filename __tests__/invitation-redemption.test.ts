@@ -4,7 +4,6 @@ import { prisma } from "@/lib/prisma";
 import { getInvitationExpiryDate } from "@/lib/invitations";
 import { logInfo, logValidationFailure, logResourceNotFound } from "@/lib/logger";
 import { logApiError, parseJsonBody } from "@/lib/api-utils";
-import { checkTokenRateLimit } from "@/lib/rate-limiter";
 
 jest.mock("@/lib/prisma", () => ({
   prisma: {
@@ -39,11 +38,8 @@ jest.mock("@/lib/api-utils", () => ({
   getNoCacheHeaders: jest.fn(() => ({ "Cache-Control": "no-store, no-cache, must-revalidate" })),
   validateRequestBody: jest.fn().mockReturnValue({ isValid: true, errors: [] }),
   validateCsrfHeaders: jest.fn(),
-}));
-
-jest.mock("@/lib/rate-limiter", () => ({
-  checkTokenRateLimit: jest.fn(),
-  recordSuccessfulTokenUsage: jest.fn(),
+  checkTokenRateLimitWithPolicy: jest.fn(),
+  recordSuccessfulTokenUsageWithPolicy: jest.fn(),
 }));
 
 function createMockRequest(body: Record<string, unknown>) {
@@ -71,7 +67,8 @@ describe("/api/invitations/[token] route", () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    (checkTokenRateLimit as jest.Mock).mockReturnValue({ allowed: true, attemptCount: 1 });
+    const { checkTokenRateLimitWithPolicy } = jest.requireMock("@/lib/api-utils");
+    checkTokenRateLimitWithPolicy.mockResolvedValue({ allowed: true, attemptCount: 1 });
     (prisma.$transaction as jest.Mock).mockImplementation(async (callback: (tx: typeof prisma) => Promise<unknown>) => {
       const tx = {
         invitation: prisma.invitation,

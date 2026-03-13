@@ -6,15 +6,15 @@ import {
   handleRateLimitBlocked,
   logApiError,
   parseJsonBody,
+  checkTokenRateLimitWithPolicy,
+  recordSuccessfulTokenUsageWithPolicy,
   validateRequestBody,
   validateCsrfHeaders,
 } from "@/lib/api-utils";
 import { hash } from "bcryptjs";
 import { validatePassword } from "@/lib/password-validation";
 import { hashResetToken } from "@/lib/password-reset";
-import { logInfo, logValidationFailure, logResourceNotFound, maskToken, logWarn } from "@/lib/logger";
-import { checkTokenRateLimit, recordSuccessfulTokenUsage } from "@/lib/rate-limiter";
-import { shouldFailOpenOnRateLimiterError } from "@/lib/rate-limit-policy";
+import { logInfo, logValidationFailure, logResourceNotFound, maskToken } from "@/lib/logger";
 
 const BCRYPT_SALT_ROUNDS = 10;
 
@@ -97,36 +97,13 @@ export async function POST(
 
     const clientIp = getClientIp(request);
     const tokenHash = hashResetToken(token);
-    let rateLimitResult = { allowed: true, attemptCount: 0 } as {
-      allowed: boolean;
-      blockedUntil?: number;
-      attemptCount: number;
-    };
-    try {
-      rateLimitResult = await checkTokenRateLimit(clientIp, tokenHash);
-    } catch (rateLimitError) {
-      if (!shouldFailOpenOnRateLimiterError()) {
-        logWarn("password_reset_rate_limit_unavailable", "Rate limiter unavailable for password reset route, blocking request", {
-          route: "/api/auth/reset-password/[token]",
-          method: "POST",
-          clientIp,
-          token: maskToken(token),
-          error: rateLimitError instanceof Error ? rateLimitError.message : String(rateLimitError),
-        });
-        return NextResponse.json(
-          { error: "Dienst aktuell nicht verfügbar. Bitte später erneut versuchen." },
-          { status: 503 }
-        );
-      }
-
-      logWarn('password_reset_rate_limit_unavailable', 'Rate limiter unavailable for password reset route, continuing due fail-open policy', {
-        route: "/api/auth/reset-password/[token]",
-        method: "POST",
-        clientIp,
-        token: maskToken(token),
-        error: rateLimitError instanceof Error ? rateLimitError.message : String(rateLimitError),
-      });
-    }
+    const rateLimitResult = await checkTokenRateLimitWithPolicy(
+      "/api/auth/reset-password/[token]",
+      "POST",
+      clientIp,
+      tokenHash,
+      maskToken(token)
+    );
 
     if (!rateLimitResult.allowed) {
       return handleRateLimitBlocked(
@@ -141,7 +118,7 @@ export async function POST(
 
     const body = await parseJsonBody<ResetPasswordRequest>(request);
 
-    const bodyValidation = validateRequestBody(body as unknown as Record<string, unknown>, resetPasswordSchema, { route: '/api/auth/reset-password/[token]', method: 'POST' });
+    const bodyValidation = validateRequestBody(body, resetPasswordSchema, { route: '/api/auth/reset-password/[token]', method: 'POST' });
     if (!bodyValidation.isValid) {
       return NextResponse.json(
         { error: bodyValidation.errors.join(". ") },
@@ -199,17 +176,13 @@ export async function POST(
       });
     });
 
-    try {
-      await recordSuccessfulTokenUsage(tokenHash, clientIp);
-    } catch (rateLimitError) {
-      logWarn('password_reset_rate_limit_cleanup_failed', 'Failed to clear token rate limit state after successful password reset', {
-        route: "/api/auth/reset-password/[token]",
-        method: "POST",
-        clientIp,
-        token: maskToken(token),
-        error: rateLimitError instanceof Error ? rateLimitError.message : String(rateLimitError),
-      });
-    }
+    await recordSuccessfulTokenUsageWithPolicy(
+      "/api/auth/reset-password/[token]",
+      "POST",
+      tokenHash,
+      clientIp,
+      maskToken(token)
+    );
 
     logInfo('password_reset_completed', 'Password reset completed', {
       email: reset.email,

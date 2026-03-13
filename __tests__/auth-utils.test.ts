@@ -54,9 +54,9 @@ describe("auth-utils", () => {
       expect(isMember(user)).toBe(true);
     });
 
-    it("should return false for auditor user", () => {
+    it("should return true for auditor user", () => {
       const user = { role: "AUDITOR" as Role };
-      expect(isMember(user)).toBe(false);
+      expect(isMember(user)).toBe(true);
     });
 
     it("should return true for member user", () => {

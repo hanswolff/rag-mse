@@ -1,15 +1,28 @@
 # syntax=docker/dockerfile:1.4
-FROM node:22 AS scripts-builder
+FROM node:22 AS base
 
-WORKDIR /build
+ENV PNPM_HOME=/pnpm
+ENV PATH="${PNPM_HOME}:${PATH}"
 
-COPY scripts ./scripts
-COPY tsconfig.build.json ./tsconfig.build.json
+RUN corepack enable \
+  && corepack prepare pnpm@10.0.0 --activate
 
-RUN npm install -g pnpm@10.0.0 \
-  && printf '{ "name": "scripts-builder", "private": true }' > package.json \
-  && pnpm add --save-dev typescript@5.9.3 @types/node@25.2.0 \
-  && pnpm exec tsc -p /build/tsconfig.build.json
+WORKDIR /app
+
+FROM base AS deps
+
+COPY package.json pnpm-lock.yaml ./
+COPY scripts/check-node-version.js ./scripts/check-node-version.js
+
+RUN pnpm install --frozen-lockfile
+
+FROM deps AS builder
+
+COPY . .
+
+RUN pnpm exec prisma generate \
+  && pnpm run build:scripts \
+  && pnpm run build
 
 FROM node:22 AS runner
 
@@ -21,18 +34,14 @@ ARG APP_GID=1000
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV DATABASE_URL="file:/app/data/dev.db"
 
-RUN npm install -g pnpm@10.0.0
-
-COPY --chown=${APP_UID}:${APP_GID} public ./public
-COPY --chown=${APP_UID}:${APP_GID} emails ./emails
-COPY --chown=${APP_UID}:${APP_GID} lib ./lib
-COPY --chown=${APP_UID}:${APP_GID} scripts ./scripts
-COPY --chown=${APP_UID}:${APP_GID} .next/standalone ./
-COPY --chown=${APP_UID}:${APP_GID} .next/static ./.next/static
-COPY --chown=${APP_UID}:${APP_GID} prisma ./prisma
-COPY --chown=${APP_UID}:${APP_GID} prisma.config.ts ./prisma.config.ts
-COPY --chown=${APP_UID}:${APP_GID} --from=scripts-builder /build/scripts-dist/run-db-migrations.js ./scripts-dist/run-db-migrations.js
-COPY --chown=${APP_UID}:${APP_GID} docker-entrypoint.sh /app/docker-entrypoint.sh
+COPY --chown=${APP_UID}:${APP_GID} --from=builder /app/.next/standalone ./
+COPY --chown=${APP_UID}:${APP_GID} --from=builder /app/.next/static ./.next/static
+COPY --chown=${APP_UID}:${APP_GID} --from=builder /app/public ./public
+COPY --chown=${APP_UID}:${APP_GID} --from=builder /app/emails ./emails
+COPY --chown=${APP_UID}:${APP_GID} --from=builder /app/prisma ./prisma
+COPY --chown=${APP_UID}:${APP_GID} --from=builder /app/prisma.config.ts ./prisma.config.ts
+COPY --chown=${APP_UID}:${APP_GID} --from=builder /app/scripts-dist ./scripts-dist
+COPY --chown=${APP_UID}:${APP_GID} --from=builder /app/docker-entrypoint.sh ./docker-entrypoint.sh
 
 RUN chmod +x /app/docker-entrypoint.sh
 

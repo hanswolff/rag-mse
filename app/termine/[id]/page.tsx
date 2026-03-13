@@ -413,9 +413,30 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
 
   // Check if event is in the past
   const isPast = event ? isEventInPast(event.date) : false;
+  const eventJsonLd = event
+    ? {
+        "@context": "https://schema.org",
+        "@type": "Event",
+        name: `Termin am ${formatDate(event.date)}`,
+        startDate: `${event.date}T${event.timeFrom}:00`,
+        endDate: `${event.date}T${event.timeTo}:00`,
+        eventStatus: "https://schema.org/EventScheduled",
+        eventAttendanceMode: "https://schema.org/OfflineEventAttendanceMode",
+        location: {
+          "@type": "Place",
+          name: event.locationDisplay || event.location,
+          address: event.locationDisplay || event.location,
+        },
+        organizer: {
+          "@type": "Organization",
+          name: "RAG Schießsport MSE",
+        },
+        description: event.description.replace(/\s+/g, " ").trim().slice(0, 220),
+      }
+    : null;
 
   return (
-    <main className="min-h-screen bg-gray-50">
+    <main className="flex-1 bg-gray-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
         <div className="mb-8 flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
           <BackLink href="/termine" className="inline-flex items-center">
@@ -450,6 +471,12 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
 
         {event && (
           <div className="space-y-6">
+            {eventJsonLd && (
+              <script
+                type="application/ld+json"
+                dangerouslySetInnerHTML={{ __html: JSON.stringify(eventJsonLd) }}
+              />
+            )}
             <article className="card">
               <div className="p-0">
                 <div className="mb-4">

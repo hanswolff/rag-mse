@@ -1,8 +1,9 @@
-import "dotenv/config";
 import { PrismaClient, Role } from "@prisma/client";
 import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
 import { hash } from "bcryptjs";
 import { validatePassword } from "../lib/password-validation";
+
+void import("dotenv/config").catch(() => undefined);
 
 let prisma: PrismaClient;
 
@@ -26,6 +27,7 @@ const DEFAULT_ADMIN_EMAIL = "admin@rag-mse.de";
 const DEFAULT_ADMIN_PASSWORD = "AdminPass123";
 const DEFAULT_ADMIN_NAME = "Administrator";
 const INITIAL_ADMIN_ROLE: Role = "SITE_ADMINISTRATOR";
+const PLACEHOLDER_PREFIXES = ["CHANGE_ME", "YOUR_"];
 
 function validateEmail(email: string): boolean {
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -38,12 +40,30 @@ async function getAdminCredentials(): Promise<{
   name: string;
 }> {
   const isProduction = process.env.NODE_ENV === "production";
-  const email = process.env.SEED_ADMIN_EMAIL || DEFAULT_ADMIN_EMAIL;
-  const password = process.env.SEED_ADMIN_PASSWORD || DEFAULT_ADMIN_PASSWORD;
-  const name = process.env.SEED_ADMIN_NAME || DEFAULT_ADMIN_NAME;
+  const seedEnabledInProduction = isProduction && process.env.ALLOW_DB_SEED === "true";
+  const rawEmail = process.env.SEED_ADMIN_EMAIL;
+  const rawPassword = process.env.SEED_ADMIN_PASSWORD;
+  const rawName = process.env.SEED_ADMIN_NAME;
+
+  if (seedEnabledInProduction) {
+    if (!rawEmail?.trim() || !rawPassword?.trim() || !rawName?.trim()) {
+      throw new Error("SEED_ADMIN_EMAIL, SEED_ADMIN_PASSWORD und SEED_ADMIN_NAME müssen für ALLOW_DB_SEED=true in Produktion explizit gesetzt sein");
+    }
+  }
+
+  const email = rawEmail || DEFAULT_ADMIN_EMAIL;
+  const password = rawPassword || DEFAULT_ADMIN_PASSWORD;
+  const name = rawName || DEFAULT_ADMIN_NAME;
 
   if (isProduction && (!email || !password || !name)) {
     throw new Error("SEED_ADMIN_EMAIL, SEED_ADMIN_PASSWORD und SEED_ADMIN_NAME sind in Produktion erforderlich");
+  }
+
+  if (seedEnabledInProduction) {
+    const usesPlaceholderPassword = PLACEHOLDER_PREFIXES.some((prefix) => password.startsWith(prefix));
+    if (password === DEFAULT_ADMIN_PASSWORD || usesPlaceholderPassword) {
+      throw new Error("SEED_ADMIN_PASSWORD muss in Produktion explizit gesetzt sein und darf kein Standard- oder Platzhalterwert sein");
+    }
   }
 
   const normalizedEmail = email.trim().toLowerCase();

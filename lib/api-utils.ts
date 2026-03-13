@@ -4,9 +4,15 @@ import { addCorrelationIdHeaders } from "@/lib/api-middleware";
 import { getClientIdentifier } from "./proxy-trust";
 import { getCorrelationId, withNewCorrelationId } from "./correlation-id";
 import { pluralize } from "./pluralization";
+import { checkTokenRateLimit, recordSuccessfulTokenUsage } from "./rate-limiter";
+import { shouldFailOpenOnRateLimiterError } from "./rate-limit-policy";
 
 const DEFAULT_MAX_REQUEST_BODY_SIZE = 1048576;
-export const MAX_REQUEST_BODY_SIZE = parseInt(process.env.MAX_REQUEST_BODY_SIZE || `${DEFAULT_MAX_REQUEST_BODY_SIZE}`, 10);
+const parsedMaxRequestBodySize = parseInt(process.env.MAX_REQUEST_BODY_SIZE || `${DEFAULT_MAX_REQUEST_BODY_SIZE}`, 10);
+export const MAX_REQUEST_BODY_SIZE =
+  Number.isFinite(parsedMaxRequestBodySize) && parsedMaxRequestBodySize > 0
+    ? parsedMaxRequestBodySize
+    : DEFAULT_MAX_REQUEST_BODY_SIZE;
 
 export function getMaxSizeMB(maxBytes = MAX_REQUEST_BODY_SIZE): string {
   return (maxBytes / 1024 / 1024).toFixed(1);
@@ -157,7 +163,7 @@ export interface FieldDefinition {
 export type BodySchema = Record<string, FieldDefinition>;
 
 export function validateRequestBody(
-  body: Record<string, unknown>,
+  body: unknown,
   schema: BodySchema,
   context: { route: string; method: string }
 ): { isValid: boolean; errors: string[] } {
@@ -302,6 +308,12 @@ export function getNoCacheHeaders() {
   };
 }
 
+export function getPublicCacheHeaders(maxAgeSeconds = 60, sMaxAgeSeconds = 300) {
+  return {
+    "Cache-Control": `public, max-age=${maxAgeSeconds}, s-maxage=${sMaxAgeSeconds}, stale-while-revalidate=${sMaxAgeSeconds}`,
+  };
+}
+
 export function getAuthNoCacheHeaders() {
   return {
     ...getNoCacheHeaders(),
@@ -341,6 +353,59 @@ export function handleRateLimitBlocked(
   );
 }
 
+export async function checkTokenRateLimitWithPolicy(
+  route: string,
+  method: string,
+  clientIp: string,
+  tokenHash: string,
+  maskedToken: string
+): Promise<{ allowed: boolean; blockedUntil?: number; attemptCount: number }> {
+  try {
+    return await checkTokenRateLimit(clientIp, tokenHash);
+  } catch (rateLimitError) {
+    if (!shouldFailOpenOnRateLimiterError()) {
+      logError("token_rate_limit_unavailable", "Rate limiter unavailable for token-based route, blocking request", {
+        route,
+        method,
+        clientIp,
+        token: maskedToken,
+        error: rateLimitError instanceof Error ? rateLimitError.message : String(rateLimitError),
+      });
+      throw new Error("TOKEN_RATE_LIMIT_UNAVAILABLE");
+    }
+
+    logWarn("token_rate_limit_unavailable", "Rate limiter unavailable for token-based route, continuing due fail-open policy", {
+      route,
+      method,
+      clientIp,
+      token: maskedToken,
+      error: rateLimitError instanceof Error ? rateLimitError.message : String(rateLimitError),
+    });
+
+    return { allowed: true, attemptCount: 0 };
+  }
+}
+
+export async function recordSuccessfulTokenUsageWithPolicy(
+  route: string,
+  method: string,
+  tokenHash: string,
+  clientIp: string,
+  maskedToken: string
+): Promise<void> {
+  try {
+    await recordSuccessfulTokenUsage(tokenHash, clientIp);
+  } catch (rateLimitError) {
+    logWarn("token_rate_limit_cleanup_failed", "Failed to clear token rate limit state after successful token usage", {
+      route,
+      method,
+      clientIp,
+      token: maskedToken,
+      error: rateLimitError instanceof Error ? rateLimitError.message : String(rateLimitError),
+    });
+  }
+}
+
 type ApiHandler<T = unknown, Args extends unknown[] = unknown[]> = (...args: Args) => Promise<T> | T;
 
 type RouteInfo = {
@@ -378,6 +443,8 @@ function handleApiError(error: unknown, routeInfo: RouteInfo): NextResponse {
     response = NextResponse.json({ error: error.message }, { status: 400 });
   } else if (error instanceof PayloadTooLargeError) {
     response = NextResponse.json({ error: error.message }, { status: 413 });
+  } else if (error instanceof Error && error.message === "TOKEN_RATE_LIMIT_UNAVAILABLE") {
+    response = NextResponse.json({ error: "Dienst aktuell nicht verfügbar. Bitte später erneut versuchen." }, { status: 503 });
   } else if (error instanceof CsrfError) {
     logAccessDenied(routeInfo.route, routeInfo.method, 'CSRF validation failed', {
       name: error.name,

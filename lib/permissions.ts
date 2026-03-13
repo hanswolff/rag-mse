@@ -41,7 +41,7 @@ export class Permissions {
 
   static canAccessMemberArea(userOrRole: UserWithRole | string | undefined): boolean {
     const role = this.getRole(userOrRole);
-    return role === "MEMBER" || role === "ADMIN" || role === "SITE_ADMINISTRATOR";
+    return role === "MEMBER" || role === "ADMIN" || role === "SITE_ADMINISTRATOR" || role === "AUDITOR";
   }
 
   static canAccessAdminArea(userOrRole: UserWithRole | string | undefined): boolean {
@@ -90,6 +90,14 @@ export class Permissions {
     return this.canManageAdminArea(userOrRole);
   }
 
+  static canReadMemberDocuments(userOrRole: UserWithRole | string | undefined): boolean {
+    return this.canAccessMemberArea(userOrRole);
+  }
+
+  static canManageMemberDocuments(userOrRole: UserWithRole | string | undefined): boolean {
+    return this.canManageAdminArea(userOrRole);
+  }
+
   static canReadNotificationsAdmin(userOrRole: UserWithRole | string | undefined): boolean {
     return this.canManageAdminArea(userOrRole);
   }
@@ -116,6 +124,10 @@ export class Permissions {
 
   static canManageOwnProfile(userOrRole: UserWithRole | string | undefined): boolean {
     return this.canAccessMemberArea(userOrRole);
+  }
+
+  static canManageOwnNotifications(userOrRole: UserWithRole | string | undefined): boolean {
+    return this.canManageOwnProfile(userOrRole);
   }
 
   static getRoleLabel(role?: string): string {

@@ -1,67 +1,48 @@
-"use client";
-
-import { useState, useEffect } from "react";
 import Link from "next/link";
-import { useSession } from "next-auth/react";
+import { getServerSession } from "next-auth";
 import { formatDate } from "@/lib/date-utils";
-import { Pagination } from "@/components/pagination";
+import { prisma } from "@/lib/prisma";
+import { authOptions } from "@/lib/auth";
 import { isAdmin } from "@/lib/role-utils";
-import type { News } from "@/types";
+import { PaginationLinks } from "@/components/pagination-links";
 
-interface NewsListResponse {
-  news: News[];
-  pagination: {
-    total: number;
-    page: number;
-    limit: number;
-    pages: number;
-  };
+const PAGE_SIZE = 10;
+
+function parsePageParam(value: string | undefined): number {
+  const parsed = Number.parseInt(value || "", 10);
+  if (!Number.isFinite(parsed) || parsed < 1) {
+    return 1;
+  }
+  return parsed;
 }
 
-export default function NewsPage() {
-  const { data: session } = useSession();
-  const [newsData, setNewsData] = useState<News[]>([]);
-  const [pagination, setPagination] = useState<{
-    total: number;
-    page: number;
-    limit: number;
-    pages: number;
-  }>({ total: 0, page: 1, limit: 10, pages: 0 });
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [currentPage, setCurrentPage] = useState(1);
+export const revalidate = 300;
 
-  useEffect(() => {
-    fetchNews(currentPage);
-  }, [currentPage]);
+export default async function NewsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ page?: string }>;
+}) {
+  const { page } = await searchParams;
+  const currentPage = parsePageParam(page);
+  const skip = (currentPage - 1) * PAGE_SIZE;
 
-  async function fetchNews(page: number) {
-    setIsLoading(true);
-    setError("");
+  const session = await getServerSession(authOptions);
 
-    try {
-      const response = await fetch(`/api/news?page=${page}&limit=10`);
+  const [newsItems, total] = await Promise.all([
+    prisma.news.findMany({
+      where: { published: true },
+      orderBy: [{ newsDate: "desc" }, { createdAt: "desc" }],
+      skip,
+      take: PAGE_SIZE,
+    }),
+    prisma.news.count({ where: { published: true } }),
+  ]);
 
-      if (!response.ok) {
-        throw new Error("Fehler beim Laden der News");
-      }
-
-      const data: NewsListResponse = await response.json();
-      setNewsData(data.news);
-      setPagination(data.pagination);
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Ein Fehler ist aufgetreten");
-    } finally {
-      setIsLoading(false);
-    }
-  }
-
-  function handlePageChange(newPage: number) {
-    setCurrentPage(newPage);
-  }
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   return (
-    <main className="min-h-screen bg-gray-50">
+    <main className="flex-1 bg-gray-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
         <div className="mb-6 sm:mb-8">
           <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">News</h1>
@@ -77,21 +58,13 @@ export default function NewsPage() {
           )}
         </div>
 
-        {error && (
-          <div className="bg-red-100 border border-red-400 text-red-700 px-3 sm:px-4 py-3 rounded mb-4 text-base">
-            {error}
-          </div>
-        )}
-
-        {isLoading ? (
-          <div className="text-gray-600 text-center py-8">Laden...</div>
-        ) : newsData.length === 0 ? (
+        {newsItems.length === 0 ? (
           <div className="card text-center">
             <p className="text-gray-500 text-base sm:text-base">Keine News gefunden</p>
           </div>
         ) : (
           <div className="space-y-4 sm:space-y-6">
-            {newsData.map((newsItem) => (
+            {newsItems.map((newsItem) => (
               <article
                 key={newsItem.id}
                 className="card-compact overflow-hidden hover:shadow-md transition-shadow"
@@ -101,8 +74,10 @@ export default function NewsPage() {
                     <h2 className="text-base sm:text-xl font-semibold text-gray-900 hover:text-brand-red-600 transition-colors">
                       {newsItem.title}
                     </h2>
-                    <p className="text-base sm:text-base text-gray-500 mt-1">{formatDate(newsItem.newsDate)}</p>
-                    <p className="text-gray-600 mt-3 line-clamp-3 text-base sm:text-base">{newsItem.content}</p>
+                    <p className="text-base sm:text-base text-gray-500 mt-1">{formatDate(newsItem.newsDate.toISOString())}</p>
+                    <p className="text-gray-600 mt-3 line-clamp-3 text-base sm:text-base whitespace-pre-wrap">
+                      {newsItem.content}
+                    </p>
                   </div>
                 </Link>
               </article>
@@ -110,12 +85,7 @@ export default function NewsPage() {
           </div>
         )}
 
-        <Pagination
-          currentPage={currentPage}
-          totalPages={pagination.pages}
-          onPageChange={handlePageChange}
-          disabled={isLoading || newsData.length === 0}
-        />
+        <PaginationLinks basePath="/news" currentPage={currentPage} totalPages={totalPages} />
       </div>
     </main>
   );

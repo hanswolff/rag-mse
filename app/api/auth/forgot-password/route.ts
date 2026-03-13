@@ -27,8 +27,21 @@ const forgotPasswordSchema = {
 async function findUserByEmail(email: string) {
   return prisma.user.findUnique({
     where: { email },
-    select: { id: true, email: true },
+    select: { id: true, email: true, role: true, passwordUpdatedAt: true },
   });
+}
+
+async function hasPendingInvitation(email: string): Promise<boolean> {
+  const invitation = await prisma.invitation.findFirst({
+    where: {
+      email,
+      usedAt: null,
+      expiresAt: { gt: new Date() },
+    },
+    select: { id: true },
+  });
+
+  return Boolean(invitation);
 }
 
 async function createPasswordReset(email: string) {
@@ -59,7 +72,7 @@ export async function POST(request: NextRequest) {
 
     const body = await parseJsonBody<ForgotPasswordRequest>(request);
 
-    const bodyValidation = validateRequestBody(body as unknown as Record<string, unknown>, forgotPasswordSchema, { route: '/api/auth/forgot-password', method: 'POST' });
+    const bodyValidation = validateRequestBody(body, forgotPasswordSchema, { route: '/api/auth/forgot-password', method: 'POST' });
     if (!bodyValidation.isValid) {
       return NextResponse.json(
         { error: bodyValidation.errors.join(". ") },
@@ -123,8 +136,16 @@ export async function POST(request: NextRequest) {
     const user = await findUserByEmail(email);
 
     if (user) {
+      const userNeedsActivation = !user.passwordUpdatedAt && await hasPendingInvitation(email);
+
+      if (userNeedsActivation) {
+        return NextResponse.json({
+          message: SUCCESS_MESSAGE,
+        });
+      }
+
       const token = await createPasswordReset(email);
-      const appUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.APP_URL || "http://localhost:3000";
+      const appUrl = process.env.APP_URL || "http://localhost:3000";
       const resetUrl = buildResetUrl(appUrl, token);
 
       try {

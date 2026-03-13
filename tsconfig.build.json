@@ -1,7 +1,7 @@
 {
   "compilerOptions": {
     "outDir": "./scripts-dist",
-    "rootDir": "./scripts",
+    "rootDir": ".",
     "noEmit": false,
     "declaration": false,
     "sourceMap": false,
@@ -13,8 +13,14 @@
     "esModuleInterop": true,
     "resolveJsonModule": true,
     "allowSyntheticDefaultImports": true,
+    "skipLibCheck": true,
     "strict": true
   },
-  "include": ["scripts/run-db-migrations.ts", "scripts/types/**/*.d.ts"],
+  "include": [
+    "scripts/run-db-migrations.ts",
+    "scripts/validate-config.ts",
+    "prisma/seed.ts",
+    "scripts/types/**/*.d.ts"
+  ],
   "exclude": ["node_modules", ".next", "scripts-dist"]
 }

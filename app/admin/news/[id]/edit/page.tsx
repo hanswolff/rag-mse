@@ -153,14 +153,14 @@ export default function NewsEditPage({ params }: { params: Promise<{ id: string 
 
   if (status === "loading" || isLoading) {
     return (
-      <main className="min-h-screen flex items-center justify-center">
+      <main className="flex flex-1 items-center justify-center">
         <div className="text-gray-600">Laden...</div>
       </main>
     );
   }
 
   return (
-    <main className="min-h-screen bg-gray-50">
+    <main className="flex-1 bg-gray-50">
       <div className="max-w-4xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
         <div className="mb-8">
           <BackLink href={`/news/${id}`} className="text-base">

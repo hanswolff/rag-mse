@@ -33,6 +33,13 @@ describe("DatenschutzPage", () => {
       name: "3. Hosting und Server-Logs",
     });
     expect(heading).toBeInTheDocument();
+    expect(screen.getByText("dedimax solutions GmbH")).toBeInTheDocument();
+    const link = screen.getByRole("link", { name: "https://dedimax.de" });
+    expect(link).toHaveAttribute("href", "https://dedimax.de");
+    expect(link).toHaveAttribute("target", "_blank");
+    expect(link).toHaveAttribute("rel", "noopener");
+    expect(link.getAttribute("rel")).not.toMatch(/noreferrer/i);
+    expect(link.getAttribute("rel")).not.toMatch(/nofollow/i);
   });
 
   it("renders contact form section", () => {

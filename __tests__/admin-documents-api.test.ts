@@ -308,6 +308,169 @@ describe("/api/admin/documents", () => {
     expect(response.status).toBe(500);
     expect(deleteDocumentFile).toHaveBeenCalledWith("stored-file.pdf");
   });
+
+  it("filters documents by area", async () => {
+    (prisma.document.findMany as jest.Mock).mockResolvedValue([]);
+    (prisma.document.count as jest.Mock).mockResolvedValue(0);
+
+    const request = new NextRequest("http://localhost:3000/api/admin/documents?area=MEMBER");
+    await GET(request);
+
+    const firstCall = (prisma.document.findMany as jest.Mock).mock.calls[0][0];
+    expect(firstCall.where).toEqual({ area: "MEMBER" });
+  });
+
+  it("rejects invalid area filter", async () => {
+    const request = new NextRequest("http://localhost:3000/api/admin/documents?area=INVALID");
+    const response = await GET(request);
+    const data = await response.json();
+
+    expect(response.status).toBe(400);
+    expect(data.error).toBe("area muss ADMIN oder MEMBER sein");
+    expect(prisma.document.findMany).not.toHaveBeenCalled();
+    expect(prisma.document.count).not.toHaveBeenCalled();
+  });
+
+  it("rejects empty area filter", async () => {
+    const request = new NextRequest("http://localhost:3000/api/admin/documents?area=");
+    const response = await GET(request);
+    const data = await response.json();
+
+    expect(response.status).toBe(400);
+    expect(data.error).toBe("area muss ADMIN oder MEMBER sein");
+    expect(prisma.document.findMany).not.toHaveBeenCalled();
+    expect(prisma.document.count).not.toHaveBeenCalled();
+  });
+
+  it("creates document with MEMBER area when area is specified", async () => {
+    (writeDocumentFile as jest.Mock).mockResolvedValue({
+      storedFileName: "stored-file.pdf",
+      filePath: "/tmp/stored-file.pdf",
+    });
+    (prisma.document.create as jest.Mock).mockImplementation(async (args: { data: { area: string } }) => ({
+      id: "doc-1",
+      displayName: "Mitglieder-Dok",
+      originalFileName: "mitglied.pdf",
+      storedFileName: "stored-file.pdf",
+      mimeType: "application/pdf",
+      sizeBytes: 6,
+      area: args.data.area,
+      documentDate: new Date("2026-02-10T00:00:00.000Z"),
+      directoryId: null,
+      uploadedById: "admin-1",
+      createdAt: new Date("2026-02-10T10:00:00.000Z"),
+      updatedAt: new Date("2026-02-10T10:00:00.000Z"),
+      directory: null,
+      uploadedBy: {
+        id: "admin-1",
+        name: "Admin",
+        email: "admin@example.com",
+      },
+    }));
+
+    const fileBytes = new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d, 0x31]);
+    const file = new File([fileBytes], "mitglied.pdf", { type: "application/pdf" });
+    Object.defineProperty(file, "arrayBuffer", {
+      value: async () => fileBytes.buffer,
+    });
+
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("displayName", "Mitglieder-Dok");
+    formData.append("area", "MEMBER");
+
+    const request = new NextRequest("http://localhost:3000/api/admin/documents", { method: "POST" });
+    Object.defineProperty(request, "formData", {
+      value: async () => formData,
+    });
+
+    const response = await POST(request);
+    expect(response.status).toBe(201);
+
+    const createCall = (prisma.document.create as jest.Mock).mock.calls[0][0];
+    expect(createCall.data.area).toBe("MEMBER");
+  });
+
+  it("rejects upload when directory area does not match document area", async () => {
+    (prisma.documentDirectory.findUnique as jest.Mock).mockResolvedValue({
+      id: "dir-1",
+      area: "ADMIN",
+    });
+
+    const fileBytes = new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d, 0x31]);
+    const file = new File([fileBytes], "mitglied.pdf", { type: "application/pdf" });
+    Object.defineProperty(file, "arrayBuffer", {
+      value: async () => fileBytes.buffer,
+    });
+
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("displayName", "Mitglieder-Dok");
+    formData.append("area", "MEMBER");
+    formData.append("directoryId", "dir-1");
+
+    const request = new NextRequest("http://localhost:3000/api/admin/documents", { method: "POST" });
+    Object.defineProperty(request, "formData", {
+      value: async () => formData,
+    });
+
+    const response = await POST(request);
+    const data = await response.json();
+
+    expect(response.status).toBe(400);
+    expect(data.error).toContain("Bereich");
+    expect(writeDocumentFile).not.toHaveBeenCalled();
+  });
+
+  it("rejects upload when area is invalid", async () => {
+    const fileBytes = new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d, 0x31]);
+    const file = new File([fileBytes], "mitglied.pdf", { type: "application/pdf" });
+    Object.defineProperty(file, "arrayBuffer", {
+      value: async () => fileBytes.buffer,
+    });
+
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("displayName", "Mitglieder-Dok");
+    formData.append("area", "INVALID");
+
+    const request = new NextRequest("http://localhost:3000/api/admin/documents", { method: "POST" });
+    Object.defineProperty(request, "formData", {
+      value: async () => formData,
+    });
+
+    const response = await POST(request);
+    const data = await response.json();
+
+    expect(response.status).toBe(400);
+    expect(data.error).toBe("area muss ADMIN oder MEMBER sein");
+    expect(writeDocumentFile).not.toHaveBeenCalled();
+  });
+
+  it("rejects upload when area is not a string", async () => {
+    const fileBytes = new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d, 0x31]);
+    const file = new File([fileBytes], "mitglied.pdf", { type: "application/pdf" });
+    Object.defineProperty(file, "arrayBuffer", {
+      value: async () => fileBytes.buffer,
+    });
+
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("displayName", "Mitglieder-Dok");
+    formData.append("area", new File([new Uint8Array([1])], "area.txt", { type: "text/plain" }));
+
+    const request = new NextRequest("http://localhost:3000/api/admin/documents", { method: "POST" });
+    Object.defineProperty(request, "formData", {
+      value: async () => formData,
+    });
+
+    const response = await POST(request);
+    const data = await response.json();
+
+    expect(response.status).toBe(400);
+    expect(data.error).toBe("area muss ADMIN oder MEMBER sein");
+    expect(writeDocumentFile).not.toHaveBeenCalled();
+  });
 });
 
 describe("/api/admin/documents/[id]", () => {
@@ -402,8 +565,9 @@ describe("/api/admin/documents/[id]", () => {
       id: "doc-1",
       displayName: "Alt",
       documentDate: new Date("2026-02-10T00:00:00.000Z"),
+      area: "ADMIN",
     });
-    (prisma.documentDirectory.findUnique as jest.Mock).mockResolvedValue({ id: "dir-1" });
+    (prisma.documentDirectory.findUnique as jest.Mock).mockResolvedValue({ id: "dir-1", area: "ADMIN" });
     (prisma.document.update as jest.Mock).mockResolvedValue({
       id: "doc-1",
       displayName: "Neu",
@@ -438,6 +602,29 @@ describe("/api/admin/documents/[id]", () => {
     expect(prisma.document.update).toHaveBeenCalledWith(expect.objectContaining({
       data: expect.objectContaining({ directoryId: "dir-1" }),
     }));
+  });
+
+  it("rejects move when target directory area does not match document area", async () => {
+    (prisma.document.findUnique as jest.Mock).mockResolvedValue({
+      id: "doc-1",
+      displayName: "Alt",
+      documentDate: new Date("2026-02-10T00:00:00.000Z"),
+      area: "MEMBER",
+    });
+    (prisma.documentDirectory.findUnique as jest.Mock).mockResolvedValue({ id: "dir-1", area: "ADMIN" });
+
+    const request = new NextRequest("http://localhost:3000/api/admin/documents/doc-1", {
+      method: "PATCH",
+      body: JSON.stringify({ directoryId: "dir-1" }),
+      headers: { "content-type": "application/json" },
+    });
+
+    const response = await PATCH(request, { params: Promise.resolve({ id: "doc-1" }) });
+    const data = await response.json();
+
+    expect(response.status).toBe(400);
+    expect(data.error).toBe("Verzeichnis gehört nicht zum Dokumentbereich");
+    expect(prisma.document.update).not.toHaveBeenCalled();
   });
 
   it("rejects move when target directory does not exist", async () => {

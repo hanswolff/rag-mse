@@ -23,9 +23,9 @@ Status: Verbindliche Ziel-Spezifikation (Stand: 2026-03-06)
 |---|---:|---:|---:|---:|
 | Login | Ja | Ja | Ja | Ja |
 | Öffentliche Seiten (Start, Termine, News, Kontakt, Rechtliches) | Ja | Ja | Ja | Ja |
-| Profil verwalten (eigene Daten) | Ja | Ja | Nein | Ja |
-| Passwort ändern (eigenes Konto) | Ja | Ja | Nein | Ja |
-| Termin-Abstimmung (Ja/Nein/Vielleicht) | Ja | Ja | Nein | Ja |
+| Profil verwalten (eigene Daten) | Ja | Ja | Ja | Ja |
+| Passwort ändern (eigenes Konto) | Ja | Ja | Ja | Ja |
+| Termin-Abstimmung (Ja/Nein/Vielleicht) | Ja | Ja | Ja | Ja |
 | Adminbereich betreten | Ja | Ja | Ja | Nein |
 | Admin-Lesezugriff: Benutzerliste, Termine, News, Dokumente | Ja | Ja | Ja | Nein |
 | Admin-Schreibzugriff: Benutzer, Termine, News, Dokumente | Ja | Ja | Nein | Nein |
@@ -57,7 +57,7 @@ Status: Verbindliche Ziel-Spezifikation (Stand: 2026-03-06)
 - Darf **nicht** auf folgende Bereiche zugreifen:
 - Ausgehende E-Mails (`/admin/e-mail-versand`, entsprechende APIs)
 - Admin-Benachrichtigungen (`/admin/benachrichtigungen`, entsprechende APIs)
-- Darf keine Member-spezifischen Funktionen nutzen (Profil/Passwort/Abstimmung).
+- Darf Member-spezifische Funktionen ebenfalls nutzen (Profil/Passwort/Abstimmung).
 
 ## `MEMBER`
 

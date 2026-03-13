@@ -103,20 +103,29 @@ function isTrustedProxy(ip: string): boolean {
   return false;
 }
 
-function extractLastValidForwardedIp(xForwardedFor: string | null): string | null {
+function parseValidForwardedIps(xForwardedFor: string | null): string[] {
   if (!xForwardedFor) {
+    return [];
+  }
+
+  return xForwardedFor
+    .split(",")
+    .map((ip) => ip.trim())
+    .filter((ip) => ip.length > 0 && isIP(ip));
+}
+
+function extractClientIpFromForwardedChain(xForwardedFor: string | null): string | null {
+  const forwardedIps = parseValidForwardedIps(xForwardedFor);
+  if (forwardedIps.length === 0) {
     return null;
   }
 
-  const forwardedIps = xForwardedFor
-    .split(",")
-    .map((ip) => ip.trim())
-    .filter((ip) => ip.length > 0);
-
+  // Walk from right to left and skip trusted proxies.
+  // The first untrusted IP is treated as the originating client.
   for (let index = forwardedIps.length - 1; index >= 0; index -= 1) {
-    const forwardedIp = forwardedIps[index];
-    if (isIP(forwardedIp)) {
-      return forwardedIp;
+    const currentIp = forwardedIps[index];
+    if (!isTrustedProxy(currentIp)) {
+      return currentIp;
     }
   }
 
@@ -152,7 +161,7 @@ export function getClientIdentifierFromHeaders(headers: Headers, sourceIp: strin
   const isProxyTrusted = sourceIp ? isTrustedProxy(sourceIp) : false;
 
   if (isProxyTrusted && xForwardedFor) {
-    const forwardedIp = extractLastValidForwardedIp(xForwardedFor);
+    const forwardedIp = extractClientIpFromForwardedChain(xForwardedFor);
     if (forwardedIp) {
       return forwardedIp;
     }

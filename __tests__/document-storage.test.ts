@@ -38,6 +38,20 @@ describe("document-storage", () => {
     expect(Array.from(loaded)).toEqual(Array.from(pdfBytes));
   });
 
+  it("writes and reads an office document file", async () => {
+    const docxBytes = new Uint8Array([0x50, 0x4b, 0x03, 0x04, 0x14, 0x00]);
+    const { storedFileName } = await writeDocumentFile({
+      originalFileName: "einladung",
+      mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      content: docxBytes,
+    });
+
+    expect(storedFileName).toMatch(/\.docx$/);
+
+    const loaded = await readDocumentFile(storedFileName);
+    expect(Array.from(loaded)).toEqual(Array.from(docxBytes));
+  });
+
   it("rejects unsafe stored file names", () => {
     expect(() => getDocumentFilePath("../evil.pdf")).toThrow("Ungültiger Dateiname");
   });

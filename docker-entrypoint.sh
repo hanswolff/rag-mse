@@ -4,14 +4,6 @@ set -e
 echo "Starting application..."
 echo "Environment: ${NODE_ENV:-development}"
 
-# Validate configuration before starting
-echo "Validating configuration..."
-node scripts/validate-config.js
-
-# Run idempotent SQL migrations for existing databases
-echo "Running database migrations..."
-node scripts-dist/run-db-migrations.js
-
 # Resolve database file path from DATABASE_URL (SQLite file URL expected)
 DB_URL="${DATABASE_URL:-file:./data/dev.db}"
 case "$DB_URL" in
@@ -29,48 +21,29 @@ case "$DB_URL" in
     ;;
 esac
 
-# Check if database exists, if not create it
+DB_WAS_MISSING=0
 if [ ! -f "$DB_FILE" ]; then
-  echo "Database not found, creating..."
+  DB_WAS_MISSING=1
+  echo "Database not found at $DB_FILE, preparing directory..."
   mkdir -p "$(dirname "$DB_FILE")"
+fi
 
-  # In production, require explicit flags for database operations
-  if [ "${NODE_ENV}" = "production" ] && [ "${DEVELOPMENT_DEPLOYMENT}" != "true" ]; then
-    echo "WARNING: Production mode detected."
-    echo "Database initialization is disabled in production for safety."
-    echo ""
-    echo "To enable database operations in production, set the following environment variables:"
-    echo "  - ALLOW_DB_PUSH=true  (to enable prisma db push)"
-    echo "  - ALLOW_DB_SEED=true  (to enable database seeding)"
-    echo ""
-    echo "Recommended: Use controlled migrations instead of automatic db push."
-    echo "See README.md for more information on the migration process."
-    echo ""
-    echo "Exiting with error. Please configure database initialization properly."
-    exit 1
-  fi
+# Validate configuration before starting
+echo "Validating configuration..."
+node scripts-dist/scripts/validate-config.js
 
-  # Check for explicit flags
-  if [ "${ALLOW_DB_PUSH}" = "true" ]; then
-    echo "ALLOW_DB_PUSH is set to true. Running prisma db push..."
-    pnpm exec prisma db push
-    echo "Database schema pushed successfully"
-  else
-    echo "ALLOW_DB_PUSH is not set or set to false. Skipping prisma db push."
-    echo "Database initialization may be incomplete without a schema."
-    echo "Set ALLOW_DB_PUSH=true to enable schema pushing."
-  fi
+# Run idempotent SQL migrations for existing databases
+echo "Running database migrations..."
+node scripts-dist/scripts/run-db-migrations.js
 
-  echo "Database created successfully"
-
+if [ "$DB_WAS_MISSING" -eq 1 ]; then
+  echo "Database initialized at $DB_FILE."
   if [ "${ALLOW_DB_SEED}" = "true" ]; then
     echo "ALLOW_DB_SEED is set to true. Running database seed..."
-    pnpm run db:seed
+    node scripts-dist/prisma/seed.js
     echo "Database seeded successfully"
   else
-    echo "ALLOW_DB_SEED is not set or set to false. Skipping database seeding."
-    echo "You may need to create an initial admin user manually."
-    echo "Set ALLOW_DB_SEED=true to enable database seeding."
+    echo "Skipping database seed (ALLOW_DB_SEED is not true)."
   fi
 fi
 

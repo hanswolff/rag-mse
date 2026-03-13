@@ -55,8 +55,8 @@ describe("middleware helpers", () => {
       expect(hasMemberRole("SITE_ADMINISTRATOR")).toBe(true);
     });
 
-    it("should return false for AUDITOR role", () => {
-      expect(hasMemberRole("AUDITOR")).toBe(false);
+    it("should return true for AUDITOR role", () => {
+      expect(hasMemberRole("AUDITOR")).toBe(true);
     });
 
     it("should return true for MEMBER role", () => {
@@ -90,6 +90,7 @@ describe("middleware helpers", () => {
 
     it("should not redirect to login when accessing profil with member role", () => {
       expect(shouldRedirectToLogin("/profil", "MEMBER")).toBe(false);
+      expect(shouldRedirectToLogin("/profil", "AUDITOR")).toBe(false);
     });
 
     it("should not redirect to login when accessing profil with admin role", () => {
@@ -102,6 +103,7 @@ describe("middleware helpers", () => {
 
     it("should not redirect to login when accessing passwort-aendern with member role", () => {
       expect(shouldRedirectToLogin("/passwort-aendern", "MEMBER")).toBe(false);
+      expect(shouldRedirectToLogin("/passwort-aendern", "AUDITOR")).toBe(false);
     });
 
     it("should not redirect to login when accessing passwort-aendern with admin role", () => {
@@ -114,6 +116,7 @@ describe("middleware helpers", () => {
 
     it("should not redirect to login when accessing benachrichtigungen with member role", () => {
       expect(shouldRedirectToLogin("/benachrichtigungen", "MEMBER")).toBe(false);
+      expect(shouldRedirectToLogin("/benachrichtigungen", "AUDITOR")).toBe(false);
       expect(shouldRedirectToLogin("/benachrichtigungen", "ADMIN")).toBe(false);
     });
 
@@ -149,6 +152,21 @@ describe("middleware helpers", () => {
 
     it("should redirect to login when accessing passwort-aendern sub-paths without member role", () => {
       expect(shouldRedirectToLogin("/passwort-aendern/security", undefined)).toBe(true);
+    });
+
+    it("should redirect to login when accessing mitglieder-dokumente without member role", () => {
+      expect(shouldRedirectToLogin("/mitglieder-dokumente", undefined)).toBe(true);
+    });
+
+    it("should not redirect to login when accessing mitglieder-dokumente with member role", () => {
+      expect(shouldRedirectToLogin("/mitglieder-dokumente", "MEMBER")).toBe(false);
+      expect(shouldRedirectToLogin("/mitglieder-dokumente", "AUDITOR")).toBe(false);
+      expect(shouldRedirectToLogin("/mitglieder-dokumente", "ADMIN")).toBe(false);
+      expect(shouldRedirectToLogin("/mitglieder-dokumente", "SITE_ADMINISTRATOR")).toBe(false);
+    });
+
+    it("should redirect to login when accessing mitglieder-dokumente sub-paths without member role", () => {
+      expect(shouldRedirectToLogin("/mitglieder-dokumente/details", undefined)).toBe(true);
     });
 
     it("should not redirect to login when accessing termine sub-paths (public routes)", () => {

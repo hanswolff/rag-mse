@@ -55,7 +55,7 @@ export default function RootLayout({
       <body className="antialiased flex flex-col min-h-screen">
         <Providers>
           <Navigation />
-          <div className="flex-grow">{children}</div>
+          <div className="flex flex-1 flex-col">{children}</div>
           <Footer />
           <CookieBanner />
         </Providers>

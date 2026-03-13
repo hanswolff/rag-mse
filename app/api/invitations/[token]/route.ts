@@ -7,45 +7,31 @@ import {
   handleRateLimitBlocked,
   logApiError,
   parseJsonBody,
+  checkTokenRateLimitWithPolicy,
+  recordSuccessfulTokenUsageWithPolicy,
   validateRequestBody,
   validateCsrfHeaders,
 } from "@/lib/api-utils";
-import { hash } from "bcryptjs";
 import { validatePassword } from "@/lib/password-validation";
 import { hashInvitationToken } from "@/lib/invitations";
 import { logInfo, logValidationFailure, logResourceNotFound, maskToken } from "@/lib/logger";
-import { Role } from "@prisma/client";
 import type { Prisma } from "@prisma/client";
-import { checkTokenRateLimit, recordSuccessfulTokenUsage } from "@/lib/rate-limiter";
 import {
   normalizeOptionalField,
-  validateAddress,
   validateName,
-  validatePhone,
-  validateRank,
-  validatePk,
-  validateReservistsAssociation,
-  validateAssociationMemberNumber,
-  validateDateOfBirth,
 } from "@/lib/user-validation";
 import { formatDateInputValue } from "@/lib/date-picker-utils";
-
-const BCRYPT_SALT_ROUNDS = 10;
-
-const INVITATION_NOT_FOUND = "INVITATION_NOT_FOUND";
-const INVITATION_ALREADY_USED = "INVITATION_ALREADY_USED";
-const INVITATION_EXPIRED = "INVITATION_EXPIRED";
-
-const ERROR_MESSAGES = {
-  invalidToken: "Einladung ungültig",
-  tokenExpired: "Einladung ist abgelaufen",
-  tokenAlreadyUsed: "Einladung wurde bereits verwendet",
-  nameRequired: "Name ist erforderlich",
-  passwordMismatch: "Passwörter stimmen nicht überein",
-  serverError: "Ein Fehler ist aufgetreten",
-  accountCreated: "Konto wurde erstellt",
-  accountUpdated: "Konto wurde aktualisiert",
-} as const;
+import { validateOptionalProfileFields } from "@/lib/profile-fields";
+import {
+  findValidInvitation,
+  INVITATION_ALREADY_USED,
+  INVITATION_ERROR_MESSAGES,
+  INVITATION_EXPIRED,
+  INVITATION_NOT_FOUND,
+  redeemInvitationInTransaction,
+  type RedemptionResult,
+  validateInvitationInTransaction,
+} from "@/lib/invitation-redemption";
 
 interface InviteAcceptanceRequest {
   name: string;
@@ -75,151 +61,9 @@ const inviteAcceptanceSchema = {
   hasPossessionCard: { type: 'boolean' as const, optional: true },
 } as const;
 
-function normalizeName(value: string): string {
-  return value.trim();
-}
-
-interface Invitation {
-  email: string;
-  id: string;
-  role: Role;
-}
-
-interface User {
-  id: string;
-  email: string;
-  name: string | null;
-  address?: string | null;
-  phone?: string | null;
-}
-
-interface RedemptionResult {
-  user: User;
-  isNew: boolean;
-}
-
-async function redeemInvitationForExistingUser(
-  tx: Prisma.TransactionClient,
-  userId: string,
-  invitationId: string,
-  name: string,
-  address: string,
-  phone: string,
-  password: string,
-  dateOfBirth?: string,
-  rank?: string,
-  pk?: string,
-  reservistsAssociation?: string,
-  associationMemberNumber?: string,
-  hasPossessionCard?: boolean
-): Promise<RedemptionResult> {
-  const user = await tx.user.update({
-    where: { id: userId },
-    data: {
-      name: normalizeName(name),
-      address: address || null,
-      phone: phone || null,
-      password: await hash(password, BCRYPT_SALT_ROUNDS),
-      passwordUpdatedAt: new Date(),
-      dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : null,
-      rank: rank || null,
-      pk: pk || null,
-      reservistsAssociation: reservistsAssociation || null,
-      associationMemberNumber: associationMemberNumber || null,
-      hasPossessionCard: hasPossessionCard || false,
-    },
-    select: { id: true, email: true, name: true },
-  });
-
-  await tx.invitation.update({
-    where: { id: invitationId },
-    data: { usedAt: new Date() },
-  });
-
-  return { user, isNew: false };
-}
-
-async function createUserWithInvitation(
-  tx: Prisma.TransactionClient,
-  invitation: Invitation,
-  name: string,
-  address: string,
-  phone: string,
-  password: string,
-  dateOfBirth?: string,
-  rank?: string,
-  pk?: string,
-  reservistsAssociation?: string,
-  associationMemberNumber?: string,
-  hasPossessionCard?: boolean
-): Promise<RedemptionResult> {
-  const hashedPassword = await hash(password, BCRYPT_SALT_ROUNDS);
-  const normalizedName = normalizeName(name);
-
-  const user = await tx.user.create({
-    data: {
-      email: invitation.email,
-      name: normalizedName,
-      address: address || null,
-      phone: phone || null,
-      password: hashedPassword,
-      passwordUpdatedAt: new Date(),
-      role: invitation.role,
-      dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : null,
-      rank: rank || null,
-      pk: pk || null,
-      reservistsAssociation: reservistsAssociation || null,
-      associationMemberNumber: associationMemberNumber || null,
-      hasPossessionCard: hasPossessionCard || false,
-    },
-    select: { id: true, email: true, name: true },
-  });
-
-  await tx.invitation.update({
-    where: { id: invitation.id },
-    data: { usedAt: new Date() },
-  });
-
-  return { user, isNew: true };
-}
-
-async function validateInvitationInTransaction(
-  tx: Prisma.TransactionClient,
-  invitationId: string,
-  token: string
-) {
-  const invitation = await tx.invitation.findUnique({
-    where: { id: invitationId },
-    select: { usedAt: true, expiresAt: true },
-  });
-
-  if (!invitation) {
-    logResourceNotFound('invitation', maskToken(token), '/api/invitations/[token]', 'POST', {
-      reason: 'not_found_in_transaction',
-    });
-    throw new Error(INVITATION_NOT_FOUND);
-  }
-
-  if (invitation.usedAt) {
-    logResourceNotFound('invitation', maskToken(token), '/api/invitations/[token]', 'POST', {
-      reason: 'already_used',
-    });
-    throw new Error(INVITATION_ALREADY_USED);
-  }
-
-  if (invitation.expiresAt <= new Date()) {
-    logResourceNotFound('invitation', maskToken(token), '/api/invitations/[token]', 'POST', {
-      reason: 'expired',
-    });
-    throw new Error(INVITATION_EXPIRED);
-  }
-
-  return invitation;
-}
-
 function createInvitationSuccessResponse(result: RedemptionResult) {
   const action = result.isNew ? 'created' : 'updated';
-  const message = result.isNew ? ERROR_MESSAGES.accountCreated : ERROR_MESSAGES.accountUpdated;
+  const message = result.isNew ? INVITATION_ERROR_MESSAGES.accountCreated : INVITATION_ERROR_MESSAGES.accountUpdated;
 
   logInfo('invitation_accepted', `Invitation accepted and account ${action}`, {
     userId: result.user.id,
@@ -232,26 +76,6 @@ function createInvitationSuccessResponse(result: RedemptionResult) {
   });
 }
 
-async function findValidInvitation(token: string) {
-  const tokenHash = hashInvitationToken(token);
-  const invitation = await prisma.invitation.findUnique({
-    where: { tokenHash },
-  });
-
-  if (!invitation) {
-    return { invitation: null, status: 404 };
-  }
-
-  if (invitation.usedAt) {
-    return { invitation: null, status: 410 };
-  }
-
-  if (invitation.expiresAt <= new Date()) {
-    return { invitation: null, status: 410 };
-  }
-
-  return { invitation, status: 200 };
-}
 
 export async function GET(
   _request: NextRequest,
@@ -260,12 +84,12 @@ export async function GET(
   try {
     const { token } = await context.params;
     if (!token) {
-      return NextResponse.json({ error: ERROR_MESSAGES.invalidToken }, { status: 400, headers: getNoCacheHeaders() });
+      return NextResponse.json({ error: INVITATION_ERROR_MESSAGES.invalidToken }, { status: 400, headers: getNoCacheHeaders() });
     }
 
     const { invitation, status } = await findValidInvitation(token);
     if (!invitation) {
-      const message = status === 410 ? ERROR_MESSAGES.tokenExpired : ERROR_MESSAGES.invalidToken;
+      const message = status === 410 ? INVITATION_ERROR_MESSAGES.tokenExpired : INVITATION_ERROR_MESSAGES.invalidToken;
       return NextResponse.json({ error: message }, { status, headers: getNoCacheHeaders() });
     }
 
@@ -309,7 +133,7 @@ export async function GET(
       method: "GET",
       status: 500,
     });
-    return NextResponse.json({ error: ERROR_MESSAGES.serverError }, { status: 500, headers: getNoCacheHeaders() });
+    return NextResponse.json({ error: INVITATION_ERROR_MESSAGES.serverError }, { status: 500, headers: getNoCacheHeaders() });
   }
 }
 
@@ -323,12 +147,18 @@ export async function POST(
     validateCsrfHeaders(request);
 
     if (!token) {
-      return NextResponse.json({ error: ERROR_MESSAGES.invalidToken }, { status: 400 });
+      return NextResponse.json({ error: INVITATION_ERROR_MESSAGES.invalidToken }, { status: 400 });
     }
 
     const clientIp = getClientIp(request);
     const tokenHash = hashInvitationToken(token);
-    const rateLimitResult = await checkTokenRateLimit(clientIp, tokenHash);
+    const rateLimitResult = await checkTokenRateLimitWithPolicy(
+      "/api/invitations/[token]",
+      "POST",
+      clientIp,
+      tokenHash,
+      maskToken(token)
+    );
 
     if (!rateLimitResult.allowed) {
       return handleRateLimitBlocked(
@@ -343,7 +173,7 @@ export async function POST(
 
     const body = await parseJsonBody<InviteAcceptanceRequest>(request);
 
-    const bodyValidation = validateRequestBody(body as unknown as Record<string, unknown>, inviteAcceptanceSchema, { route: '/api/invitations/[token]', method: 'POST' });
+    const bodyValidation = validateRequestBody(body, inviteAcceptanceSchema, { route: '/api/invitations/[token]', method: 'POST' });
     if (!bodyValidation.isValid) {
       return NextResponse.json(
         { error: bodyValidation.errors.join(". ") },
@@ -365,65 +195,25 @@ export async function POST(
 
     const nameValidation = validateName(name);
     if (!nameValidation.isValid) {
-      logValidationFailure('/api/invitations/[token]', 'POST', nameValidation.error || ERROR_MESSAGES.nameRequired, { token: maskToken(token) });
-      return NextResponse.json({ error: nameValidation.error || ERROR_MESSAGES.nameRequired }, { status: 400 });
+      logValidationFailure('/api/invitations/[token]', 'POST', nameValidation.error || INVITATION_ERROR_MESSAGES.nameRequired, { token: maskToken(token) });
+      return NextResponse.json({ error: nameValidation.error || INVITATION_ERROR_MESSAGES.nameRequired }, { status: 400 });
     }
 
-    if (address !== null) {
-      const addressValidation = validateAddress(address);
-      if (!addressValidation.isValid) {
-        logValidationFailure('/api/invitations/[token]', 'POST', addressValidation.error || "Ungültige Adresse", { token: maskToken(token) });
-        return NextResponse.json({ error: addressValidation.error || "Ungültige Adresse" }, { status: 400 });
-      }
-    }
-
-    if (phone !== null) {
-      const phoneValidation = validatePhone(phone);
-      if (!phoneValidation.isValid) {
-        logValidationFailure('/api/invitations/[token]', 'POST', phoneValidation.error || "Ungültige Telefonnummer", { token: maskToken(token) });
-        return NextResponse.json({ error: phoneValidation.error || "Ungültige Telefonnummer" }, { status: 400 });
-      }
-    }
-
-    // Validate new profile fields
-    if (dateOfBirth !== null) {
-      const dateOfBirthValidation = validateDateOfBirth(dateOfBirth);
-      if (!dateOfBirthValidation.isValid) {
-        logValidationFailure('/api/invitations/[token]', 'POST', dateOfBirthValidation.error || 'Ungültiges Geburtsdatum', { token: maskToken(token) });
-        return NextResponse.json({ error: dateOfBirthValidation.error || "Ungültiges Geburtsdatum" }, { status: 400 });
-      }
-    }
-
-    if (rank !== null) {
-      const rankValidation = validateRank(rank);
-      if (!rankValidation.isValid) {
-        logValidationFailure('/api/invitations/[token]', 'POST', rankValidation.error || 'Ungültiger Dienstgrad', { token: maskToken(token) });
-        return NextResponse.json({ error: rankValidation.error }, { status: 400 });
-      }
-    }
-
-    if (pk !== null) {
-      const pkValidation = validatePk(pk);
-      if (!pkValidation.isValid) {
-        logValidationFailure('/api/invitations/[token]', 'POST', pkValidation.error || 'Ungültige PK', { token: maskToken(token) });
-        return NextResponse.json({ error: pkValidation.error }, { status: 400 });
-      }
-    }
-
-    if (reservistsAssociation !== null) {
-      const reservistsAssociationValidation = validateReservistsAssociation(reservistsAssociation);
-      if (!reservistsAssociationValidation.isValid) {
-        logValidationFailure('/api/invitations/[token]', 'POST', reservistsAssociationValidation.error || 'Ungültige Reservistenkameradschaft', { token: maskToken(token) });
-        return NextResponse.json({ error: reservistsAssociationValidation.error }, { status: 400 });
-      }
-    }
-
-    if (associationMemberNumber !== null) {
-      const associationMemberNumberValidation = validateAssociationMemberNumber(associationMemberNumber);
-      if (!associationMemberNumberValidation.isValid) {
-        logValidationFailure('/api/invitations/[token]', 'POST', associationMemberNumberValidation.error || 'Ungültige Mitgliedsnummer im Verband', { token: maskToken(token) });
-        return NextResponse.json({ error: associationMemberNumberValidation.error }, { status: 400 });
-      }
+    const optionalProfileFieldError = validateOptionalProfileFields({
+      address,
+      phone,
+      dateOfBirth,
+      rank,
+      pk,
+      reservistsAssociation,
+      associationMemberNumber,
+    });
+    if (optionalProfileFieldError) {
+      logValidationFailure('/api/invitations/[token]', 'POST', optionalProfileFieldError.message, {
+        token: maskToken(token),
+        field: optionalProfileFieldError.field,
+      });
+      return NextResponse.json({ error: optionalProfileFieldError.message }, { status: 400 });
     }
 
     const passwordValidation = validatePassword(password);
@@ -433,13 +223,13 @@ export async function POST(
     }
 
     if (password !== confirmPassword) {
-      logValidationFailure('/api/invitations/[token]', 'POST', ERROR_MESSAGES.passwordMismatch, { token: maskToken(token) });
-      return NextResponse.json({ error: ERROR_MESSAGES.passwordMismatch }, { status: 400 });
+      logValidationFailure('/api/invitations/[token]', 'POST', INVITATION_ERROR_MESSAGES.passwordMismatch, { token: maskToken(token) });
+      return NextResponse.json({ error: INVITATION_ERROR_MESSAGES.passwordMismatch }, { status: 400 });
     }
 
     const { invitation, status } = await findValidInvitation(token);
     if (!invitation) {
-      const message = status === 410 ? ERROR_MESSAGES.tokenExpired : ERROR_MESSAGES.invalidToken;
+      const message = status === 410 ? INVITATION_ERROR_MESSAGES.tokenExpired : INVITATION_ERROR_MESSAGES.invalidToken;
       logResourceNotFound('invitation', maskToken(token), '/api/invitations/[token]', 'POST', {
         reason: status === 410 ? 'expired' : 'invalid',
       });
@@ -448,47 +238,31 @@ export async function POST(
 
     const result = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       await validateInvitationInTransaction(tx, invitation.id, token);
-
-      const existingUser = await tx.user.findUnique({
-        where: { email: invitation.email },
-        select: { id: true },
-      });
-
-      if (existingUser) {
-        return redeemInvitationForExistingUser(
-          tx,
-          existingUser.id,
-          invitation.id,
-          name,
-          address ?? "",
-          phone ?? "",
-          password,
-          dateOfBirth ?? undefined,
-          rank ?? undefined,
-          pk ?? undefined,
-          reservistsAssociation ?? undefined,
-          associationMemberNumber ?? undefined,
-          hasPossessionCard
-        );
-      }
-
-      return createUserWithInvitation(
+      return redeemInvitationInTransaction(
         tx,
         invitation,
-        name,
-        address ?? "",
-        phone ?? "",
-        password,
-        dateOfBirth ?? undefined,
-        rank ?? undefined,
-        pk ?? undefined,
-        reservistsAssociation ?? undefined,
-        associationMemberNumber ?? undefined,
-        hasPossessionCard
+        {
+          name,
+          address,
+          phone,
+          password,
+          dateOfBirth,
+          rank,
+          pk,
+          reservistsAssociation,
+          associationMemberNumber,
+          hasPossessionCard,
+        }
       );
     });
 
-    await recordSuccessfulTokenUsage(tokenHash, clientIp);
+    await recordSuccessfulTokenUsageWithPolicy(
+      "/api/invitations/[token]",
+      "POST",
+      tokenHash,
+      clientIp,
+      maskToken(token)
+    );
 
     return createInvitationSuccessResponse(result);
   } catch (error: unknown) {
@@ -497,15 +271,15 @@ export async function POST(
     }
 
     if (error instanceof Error && error.message === INVITATION_NOT_FOUND) {
-      return NextResponse.json({ error: ERROR_MESSAGES.invalidToken }, { status: 404 });
+      return NextResponse.json({ error: INVITATION_ERROR_MESSAGES.invalidToken }, { status: 404 });
     }
 
     if (error instanceof Error && error.message === INVITATION_ALREADY_USED) {
-      return NextResponse.json({ error: ERROR_MESSAGES.tokenAlreadyUsed }, { status: 410 });
+      return NextResponse.json({ error: INVITATION_ERROR_MESSAGES.tokenAlreadyUsed }, { status: 410 });
     }
 
     if (error instanceof Error && error.message === INVITATION_EXPIRED) {
-      return NextResponse.json({ error: ERROR_MESSAGES.tokenExpired }, { status: 410 });
+      return NextResponse.json({ error: INVITATION_ERROR_MESSAGES.tokenExpired }, { status: 410 });
     }
 
     logApiError(error, {
@@ -513,6 +287,6 @@ export async function POST(
       method: "POST",
       status: 500,
     });
-    return NextResponse.json({ error: ERROR_MESSAGES.serverError }, { status: 500 });
+    return NextResponse.json({ error: INVITATION_ERROR_MESSAGES.serverError }, { status: 500 });
   }
 }

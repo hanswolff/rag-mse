@@ -22,7 +22,7 @@ export default function AdminPage() {
 
   if (status === "loading") {
     return (
-      <main className="min-h-screen flex items-center justify-center">
+      <main className="flex flex-1 items-center justify-center">
         <div className="text-gray-600">Laden...</div>
       </main>
     );

@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom";
 import AdminDocumentsPage from "@/app/admin/dokumente/page";
@@ -21,8 +21,15 @@ describe("AdminDocumentsPage", () => {
   beforeEach(() => {
     jest.clearAllMocks();
 
-    global.fetch = jest.fn(async (input: RequestInfo | URL) => {
+    global.fetch = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
+
+      if (url.includes("/api/admin/documents/") && init?.method === "PATCH") {
+        return {
+          ok: true,
+          json: async () => ({}),
+        } as Response;
+      }
 
       if (url.includes("/api/admin/document-directories")) {
         return {
@@ -43,52 +50,51 @@ describe("AdminDocumentsPage", () => {
       return {
         ok: true,
         json: async () => ({
-          documents: [
-            {
-              id: "doc-1",
-              displayName: "Mitgliedsantrag Max",
-              originalFileName: "antrag-max.pdf",
-              mimeType: "application/pdf",
-              sizeBytes: 4096,
-              documentDate: "2026-02-10T00:00:00.000Z",
-              directoryId: "dir-1",
-              directory: {
-                id: "dir-1",
-                name: "Anträge",
+          documents: url.includes("q=ohnetreffer")
+            ? []
+            : [
+              {
+                id: "doc-1",
+                displayName: "Mitgliedsantrag Max",
+                originalFileName: "antrag-max.pdf",
+                mimeType: "application/pdf",
+                sizeBytes: 4096,
+                documentDate: "2026-02-10T00:00:00.000Z",
+                directoryId: null,
+                directory: null,
+                createdAt: "2026-02-10T10:00:00.000Z",
+                updatedAt: "2026-02-10T10:00:00.000Z",
+                uploadedById: "admin-1",
+                uploadedBy: {
+                  id: "admin-1",
+                  name: "Admin",
+                  email: "admin@example.com",
+                },
               },
-              createdAt: "2026-02-10T10:00:00.000Z",
-              updatedAt: "2026-02-10T10:00:00.000Z",
-              uploadedById: "admin-1",
-              uploadedBy: {
-                id: "admin-1",
-                name: "Admin",
-                email: "admin@example.com",
+              {
+                id: "doc-2",
+                displayName: "Teilnehmerliste März",
+                originalFileName: "teilnehmerliste-maerz.xlsx",
+                mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                sizeBytes: 8192,
+                documentDate: "2026-02-12T00:00:00.000Z",
+                directoryId: "dir-1",
+                directory: {
+                  id: "dir-1",
+                  name: "Anträge",
+                },
+                createdAt: "2026-02-12T10:00:00.000Z",
+                updatedAt: "2026-02-12T10:00:00.000Z",
+                uploadedById: "admin-1",
+                uploadedBy: {
+                  id: "admin-1",
+                  name: "Admin",
+                  email: "admin@example.com",
+                },
               },
-            },
-            {
-              id: "doc-2",
-              displayName: "Teilnehmerliste März",
-              originalFileName: "teilnehmerliste-maerz.xlsx",
-              mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-              sizeBytes: 8192,
-              documentDate: "2026-02-12T00:00:00.000Z",
-              directoryId: "dir-1",
-              directory: {
-                id: "dir-1",
-                name: "Anträge",
-              },
-              createdAt: "2026-02-12T10:00:00.000Z",
-              updatedAt: "2026-02-12T10:00:00.000Z",
-              uploadedById: "admin-1",
-              uploadedBy: {
-                id: "admin-1",
-                name: "Admin",
-                email: "admin@example.com",
-              },
-            },
-          ],
+            ],
           pagination: {
-            total: 1,
+            total: url.includes("q=ohnetreffer") ? 0 : 1,
             page: 1,
             limit: 20,
             pages: 1,
@@ -102,14 +108,51 @@ describe("AdminDocumentsPage", () => {
     render(<AdminDocumentsPage />);
 
     await waitFor(() => {
-      expect(screen.getByText("Dokumente verwalten")).toBeInTheDocument();
+      expect(screen.getByText("Admin-Dokumente verwalten")).toBeInTheDocument();
     });
 
     expect(screen.getByText("Neues Dokument hochladen")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Dokument hochladen" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Dokumente" })).toBeInTheDocument();
+    expect(screen.getByText("Datei hierhin ziehen oder anklicken")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Admin-Dokumente" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Verzeichnis erstellen" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "/" })).toBeInTheDocument();
+  });
+
+  it("shows selected file name in drop zone", async () => {
+    render(<AdminDocumentsPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Admin-Dokumente verwalten")).toBeInTheDocument();
+    });
+
+    const input = screen.getByLabelText("Datei", { selector: "input" });
+    const file = new File(["hello"], "neues-dokument.pdf", { type: "application/pdf" });
+
+    fireEvent.change(input, { target: { files: [file] } });
+
+    expect(screen.getByText("neues-dokument.pdf")).toBeInTheDocument();
+  });
+
+  it("shows validation error for invalid drop type", async () => {
+    render(<AdminDocumentsPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Admin-Dokumente verwalten")).toBeInTheDocument();
+    });
+
+    const invalidFile = new File(["hello"], "script.exe", { type: "application/x-msdownload" });
+    const dropZone = screen.getByRole("button", { name: /Datei hierhin ziehen oder anklicken/i });
+
+    fireEvent.drop(dropZone, {
+      dataTransfer: {
+        files: [invalidFile],
+      },
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText(/Dateiformat nicht erlaubt/)).toBeInTheDocument();
+    });
   });
 
   it("renders loaded document list", async () => {
@@ -141,7 +184,73 @@ describe("AdminDocumentsPage", () => {
       expect(global.fetch).toHaveBeenCalled();
     });
 
+    expect(screen.getByText('Suche aktiv:')).toBeInTheDocument();
+    expect(screen.getByText('"Max"')).toBeInTheDocument();
     expect(screen.getByText("Max", { selector: "mark" })).toBeInTheDocument();
+  });
+
+  it("hides directories in active search and allows reset", async () => {
+    const user = userEvent.setup();
+    render(<AdminDocumentsPage />);
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Verzeichnis umbenennen" })).toBeInTheDocument();
+    });
+
+    await user.type(screen.getByPlaceholderText("Suche nach Dokumentenname"), "Max");
+    await user.click(screen.getByRole("button", { name: "Suchen" }));
+
+    await waitFor(() => {
+      expect(screen.queryByRole("button", { name: "Verzeichnis umbenennen" })).not.toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole("button", { name: "Suche zurücksetzen" }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Verzeichnis umbenennen" })).toBeInTheDocument();
+    });
+  });
+
+  it("shows clear no-result message for active search", async () => {
+    const user = userEvent.setup();
+    render(<AdminDocumentsPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Mitgliedsantrag Max")).toBeInTheDocument();
+    });
+
+    await user.type(screen.getByPlaceholderText("Suche nach Dokumentenname"), "ohnetreffer");
+    await user.click(screen.getByRole("button", { name: "Suchen" }));
+
+    await waitFor(() => {
+      expect(screen.getByText('Keine Suchergebnisse für "ohnetreffer" gefunden.')).toBeInTheDocument();
+    });
+  });
+
+  it("moves a root document into a directory via drag and drop", async () => {
+    render(<AdminDocumentsPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Mitgliedsantrag Max")).toBeInTheDocument();
+    });
+
+    const documentRow = screen.getByText("Mitgliedsantrag Max").closest("tr");
+    const directoryRow = screen.getByRole("cell", { name: "Anträge" }).closest("tr");
+
+    expect(documentRow).toBeTruthy();
+    expect(directoryRow).toBeTruthy();
+
+    fireEvent.dragStart(documentRow!);
+    fireEvent.dragOver(directoryRow!);
+    fireEvent.drop(directoryRow!);
+    fireEvent.dragEnd(documentRow!);
+
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalledWith(
+        expect.stringContaining("/api/admin/documents/doc-1"),
+        expect.objectContaining({ method: "PATCH" })
+      );
+    });
   });
 
   it("navigates into directory on click", async () => {

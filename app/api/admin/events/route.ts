@@ -111,7 +111,7 @@ export const POST = withApiErrorHandling(async (request: NextRequest) => {
   const user = await requireAdmin("write");
   const body = await parseJsonBody<CreateEventRequest>(request, EVENT_REQUEST_BODY_SIZE);
 
-  const bodyValidation = validateRequestBody(body as unknown as Record<string, unknown>, createEventSchema, { route: '/api/admin/events', method: 'POST' });
+  const bodyValidation = validateRequestBody(body, createEventSchema, { route: '/api/admin/events', method: 'POST' });
   if (!bodyValidation.isValid) {
     return NextResponse.json({ error: bodyValidation.errors.join(". ") }, { status: 400 });
   }

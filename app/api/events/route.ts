@@ -3,10 +3,11 @@ import { prisma } from "@/lib/prisma";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { canAccessAdminArea } from "@/lib/role-utils";
-import { withApiErrorHandling, getAuthNoCacheHeaders } from "@/lib/api-utils";
+import { withApiErrorHandling, getAuthNoCacheHeaders, getPublicCacheHeaders } from "@/lib/api-utils";
 import { formatDateForStorage, getStartOfToday } from "@/lib/date-picker-utils";
 import { VoteType } from "@prisma/client";
 import { createShootingRangeLookup, getEventLocationDisplay, getRangeNameFromLocation } from "@/lib/event-location";
+import { buildVisibilityFilter } from "@/lib/event-list-utils";
 
 const MAX_PAGE_SIZE = 50;
 
@@ -20,12 +21,6 @@ function parsePageNumber(value: string | null) {
   const parsed = Number.parseInt(value || "", 10);
   if (!Number.isFinite(parsed) || parsed <= 0) return 1;
   return parsed;
-}
-
-function buildVisibilityFilter(userId: string | undefined, canSeeAll: boolean) {
-  if (canSeeAll) return {};
-  if (userId) return { OR: [{ visible: true }, { createdById: userId }] };
-  return { visible: true };
 }
 
 const BASE_EVENT_SELECT = {
@@ -191,5 +186,5 @@ export const GET = withApiErrorHandling(async (request: NextRequest) => {
       limit,
       pages: Math.ceil(pastTotal / limit),
     },
-  }, { headers: getAuthNoCacheHeaders() });
+  }, { headers: isAuthenticated ? getAuthNoCacheHeaders() : getPublicCacheHeaders() });
 }, { route: "/api/events", method: "GET" });

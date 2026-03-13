@@ -315,7 +315,7 @@ describe("BenutzerverwaltungPage", () => {
       const user = userEvent.setup();
       render(<BenutzerverwaltungPage />);
 
-      const editButtons = screen.getAllByText("Bearbeiten");
+      const editButtons = screen.getAllByRole("button", { name: /Benutzer bearbeiten:/ });
       await user.click(editButtons[0]);
 
       expect(defaultMockHook.startEditingUser).toHaveBeenCalledTimes(1);
@@ -325,7 +325,7 @@ describe("BenutzerverwaltungPage", () => {
       const user = userEvent.setup();
       render(<BenutzerverwaltungPage />);
 
-      const deleteButtons = screen.getAllByText("Löschen");
+      const deleteButtons = screen.getAllByRole("button", { name: /Benutzer löschen:/ });
       await user.click(deleteButtons[0]);
 
       expect(defaultMockHook.handleDeleteUser).toHaveBeenCalledTimes(1);
@@ -339,7 +339,7 @@ describe("BenutzerverwaltungPage", () => {
 
       render(<BenutzerverwaltungPage />);
 
-      const deleteButtons = screen.getAllByText("Löschen");
+      const deleteButtons = screen.getAllByRole("button", { name: /Benutzer löschen:/ });
       expect(deleteButtons[0]).toBeDisabled();
     });
   });
@@ -348,13 +348,13 @@ describe("BenutzerverwaltungPage", () => {
     it("shows impersonation button only for site administrators", () => {
       mockUseSessionState.data = { user: { id: "site-1", role: "SITE_ADMINISTRATOR" } };
       render(<BenutzerverwaltungPage />);
-      expect(screen.getAllByRole("button", { name: "Als Benutzer anmelden" }).length).toBeGreaterThan(0);
+      expect(screen.getAllByRole("button", { name: /Als Benutzer anmelden:/ }).length).toBeGreaterThan(0);
     });
 
     it("hides impersonation button for normal administrators", () => {
       mockUseSessionState.data = { user: { id: "admin-1", role: "ADMIN" } };
       render(<BenutzerverwaltungPage />);
-      expect(screen.queryByRole("button", { name: "Als Benutzer anmelden" })).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: /Als Benutzer anmelden:/ })).not.toBeInTheDocument();
     });
   });
 

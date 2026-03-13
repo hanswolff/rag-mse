@@ -2,22 +2,29 @@ import { BackLink } from "@/components/back-link";
 
 export default function ImpressumPage() {
   return (
-    <main className="min-h-screen bg-gray-100 text-gray-900">
+    <main className="flex-1 bg-gray-100 text-gray-900">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
         <div className="card text-gray-900">
           <h1 className="text-2xl sm:text-3xl font-bold text-center mb-6 sm:mb-8 text-gray-900">Impressum</h1>
 
           <section className="mb-6 sm:mb-8">
             <h2 className="text-lg sm:text-xl font-semibold mb-3 sm:mb-4 text-gray-900">Angaben gemäß § 5 DDG</h2>
-            <div className="space-y-2 text-base sm:text-base text-gray-800">
-              <p>
-                <strong>Verband der Reservisten der Deutschen Bundeswehr e. V.</strong>
-              </p>
-              <p>Bundesgeschäftsstelle</p>
-              <p>Zeppelinstraße 7 A</p>
-              <p>53177 Bonn</p>
-              <p>Deutschland</p>
-            </div>
+            <address
+              className="not-italic text-base text-gray-800 leading-snug space-y-0.5"
+              itemScope
+              itemType="https://schema.org/Organization"
+            >
+              <p className="font-semibold text-gray-900" itemProp="name">Verband der Reservisten der Deutschen Bundeswehr e. V.</p>
+              <p itemProp="department">Bundesgeschäftsstelle</p>
+              <div itemProp="address" itemScope itemType="https://schema.org/PostalAddress">
+                <p><span itemProp="streetAddress">Zeppelinstraße 7 A</span></p>
+                <p>
+                  <span itemProp="postalCode">53177</span>{" "}
+                  <span itemProp="addressLocality">Bonn</span>
+                </p>
+                <p><span itemProp="addressCountry">Deutschland</span></p>
+              </div>
+            </address>
           </section>
 
           <section className="mb-6 sm:mb-8">
@@ -31,21 +38,41 @@ export default function ImpressumPage() {
             <h2 className="text-lg sm:text-xl font-semibold mb-3 sm:mb-4 text-gray-900">
               Verantwortlich für den Inhalt gemäß § 18 Abs. 2 MStV
             </h2>
-            <div className="space-y-2 text-base sm:text-base text-gray-800">
-              <p>Hans Wolff</p>
-              <p>Wieseneck 32</p>
-              <p>17192 Waren (Müritz)</p>
-            </div>
+            <address
+              className="not-italic text-base text-gray-800 leading-snug space-y-0.5"
+              itemScope
+              itemType="https://schema.org/Person"
+            >
+              <p className="font-medium text-gray-900" itemProp="name">Hans Wolff</p>
+              <div itemProp="address" itemScope itemType="https://schema.org/PostalAddress">
+                <p><span itemProp="streetAddress">Wieseneck 32</span></p>
+                <p>
+                  <span itemProp="postalCode">17192</span>{" "}
+                  <span itemProp="addressLocality">Waren (Müritz)</span>
+                </p>
+              </div>
+            </address>
           </section>
 
           <section className="mb-6 sm:mb-8">
             <h2 className="text-lg sm:text-xl font-semibold mb-3 sm:mb-4 text-gray-900">
               Kontakt für diese Website
             </h2>
-            <div className="space-y-2 text-base sm:text-base text-gray-800">
-              <p>Hans Wolff</p>
-              <p>Wieseneck 32</p>
-              <p>17192 Waren (Müritz)</p>
+            <div className="text-base text-gray-800">
+              <address
+                className="not-italic leading-snug space-y-0.5 mb-2"
+                itemScope
+                itemType="https://schema.org/Person"
+              >
+                <p className="font-medium text-gray-900" itemProp="name">Hans Wolff</p>
+                <div itemProp="address" itemScope itemType="https://schema.org/PostalAddress">
+                  <p><span itemProp="streetAddress">Wieseneck 32</span></p>
+                  <p>
+                    <span itemProp="postalCode">17192</span>{" "}
+                    <span itemProp="addressLocality">Waren (Müritz)</span>
+                  </p>
+                </div>
+              </address>
               <div>
                 {/* Using <img> for tiny SVG email obfuscation (385 bytes) - next/image optimizations not applicable */}
                 {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -56,6 +83,34 @@ export default function ImpressumPage() {
                 />
               </div>
             </div>
+          </section>
+
+          <section className="mb-6 sm:mb-8">
+            <h2 className="text-lg sm:text-xl font-semibold mb-3 sm:mb-4 text-gray-900">Hosting</h2>
+            <address
+              className="not-italic text-base text-gray-800 leading-snug space-y-0.5"
+              itemScope
+              itemType="https://schema.org/Organization"
+            >
+              <p className="font-medium text-gray-900" itemProp="name">dedimax solutions GmbH</p>
+              <div itemProp="address" itemScope itemType="https://schema.org/PostalAddress">
+                <p><span itemProp="streetAddress">Wieseneck 32</span></p>
+                <p>
+                  <span itemProp="postalCode">17192</span>{" "}
+                  <span itemProp="addressLocality">Waren (Müritz)</span>
+                </p>
+              </div>
+              <p>
+                <a
+                  href="https://dedimax.de"
+                  target="_blank"
+                  rel="noopener"
+                  className="text-blue-700 hover:text-blue-800 underline"
+                >
+                  https://dedimax.de
+                </a>
+              </p>
+            </address>
           </section>
 
           <section className="mb-6 sm:mb-8">

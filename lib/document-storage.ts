@@ -45,6 +45,14 @@ function detectExtension(originalFileName: string, mimeType: string): string {
       return "png";
     case "image/webp":
       return "webp";
+    case "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
+      return "docx";
+    case "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet":
+      return "xlsx";
+    case "application/vnd.oasis.opendocument.text":
+      return "odt";
+    case "application/vnd.oasis.opendocument.spreadsheet":
+      return "ods";
     default:
       throw new Error("Dateityp wird nicht unterstützt");
   }

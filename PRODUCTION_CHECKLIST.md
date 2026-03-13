@@ -43,6 +43,8 @@ Copy `.env.example` to `.env` and update the following values:
   - Example: `APP_URL="https://www.rag-mse.de"`
 - [ ] `APP_TIMEZONE` - Zeitzone für datumsbasierte Reminder-Berechnung
   - Example: `APP_TIMEZONE="Europe/Berlin"`
+- [ ] `NEXT_PUBLIC_SITE_URL` - Öffentliche Basis-URL für Metadaten/OpenGraph
+  - Example: `NEXT_PUBLIC_SITE_URL="https://www.rag-mse.de"`
 
 #### Reminder Configuration
 - [ ] `EVENT_REMINDER_POLL_INTERVAL_MS` - Poll-Intervall des Reminder-Workers
@@ -59,12 +61,13 @@ Copy `.env.example` to `.env` and update the following values:
 
 ### 2. Initial Admin User
 
-**IMPORTANT**: Change the default admin credentials after deployment.
+**IMPORTANT**: In production darf Seeding nur mit explizit gesetzten sicheren Werten erfolgen.
 
-- [ ] Run `pnpm run db:seed` to create initial admin user
-- [ ] Login with default credentials:
-  - Email: `admin@rag-mse.de` (or value from `SEED_ADMIN_EMAIL`)
-  - Password: `AdminPass123` (or value from `SEED_ADMIN_PASSWORD`)
+- [ ] Setzen Sie `ALLOW_DB_SEED="true"` nur für das initiale Setup
+- [ ] Setzen Sie `SEED_ADMIN_EMAIL`, `SEED_ADMIN_PASSWORD` und `SEED_ADMIN_NAME` explizit
+- [ ] Prüfen Sie, dass keine Platzhalter- oder Standardwerte verwendet werden
+- [ ] Starten Sie die Anwendung mit leerer Datenbank, damit das Seed automatisch läuft
+- [ ] Login mit den explizit gesetzten Seed-Credentials prüfen
 - [ ] **CRITICAL**: Change admin password immediately after first login
 - [ ] Create additional admin accounts if needed
 
@@ -72,8 +75,9 @@ Copy `.env.example` to `.env` and update the following values:
 
 - [ ] Ensure database file is in persistent volume (Docker)
 - [ ] Verify database directory has correct permissions
-- [ ] Initialize schema: `sqlite3 ./data/dev.db < create_admin.sql`
-- [ ] Create initial admin user: `pnpm run db:seed`
+- [ ] Sicherstellen, dass `DATABASE_URL` auf die produktive SQLite-Datei zeigt, z. B. `file:/app/data/prod.db`
+- [ ] Neue Datenbank durch `pnpm run db:migrate` bzw. den ersten Containerstart initialisieren
+- [ ] Falls initialer Administrator angelegt werden soll: `ALLOW_DB_SEED=true` nur temporär setzen
 - [ ] Test database connection
 
 ### 4. Security
@@ -82,6 +86,9 @@ Copy `.env.example` to `.env` and update the following values:
 - [ ] SSL/TLS certificate is valid and not expired
 - [ ] `NEXTAUTH_SECRET` is set to a strong, random value
 - [ ] `COOKIE_SECURE` is set to `"true"`
+- [ ] CSP unverändert lassen: Produktions-Policy erlaubt bewusst `script-src 'self' 'unsafe-inline'`, weil Next.js sonst die Client-Hydration blockiert
+- [ ] CSP-Härtung prüfen: `object-src 'none'`, `base-uri 'self'`, `form-action 'self'`, `frame-ancestors 'self'`
+- [ ] Nach jeder CSP-Änderung Produktionsantwort prüfen: keine CSP-Fehler in der Browser-Konsole und Navigation/Menüs bleiben interaktiv
 - [ ] SMTP credentials are secure (consider using app-specific passwords)
 - [ ] Admin emails are verified and correct
 

@@ -188,6 +188,18 @@ describe("document-validation", () => {
     expect(mimeType).toBeNull();
   });
 
+  it("rejects oversized office mimetype entries during sniffing", async () => {
+    const mod = await import("@/lib/document-validation");
+    const mimeType = mod.detectAllowedMimeTypeFromContent(
+      buildStoredZip([
+        { name: "mimetype", content: "application/vnd.oasis.opendocument.text".padEnd(5000, "x") },
+        { name: "content.xml", content: "<office:document-content/>" },
+      ]),
+    );
+
+    expect(mimeType).toBeNull();
+  });
+
   it("reports allowed mime labels including office formats", async () => {
     const mod = await import("@/lib/document-validation");
     expect(mod.getAllowedDocumentMimeTypesLabel()).toBe("PDF, JPG, JPEG, PNG, WEBP, DOCX, XLSX, ODT, ODS");
@@ -211,6 +223,31 @@ describe("document-validation", () => {
     expect(result.isValid).toBe(true);
     if (result.isValid) {
       expect(result.data.name).toBe("Formulare");
+    }
+  });
+
+  it("validates directory update payload", async () => {
+    const mod = await import("@/lib/document-validation");
+    const result = mod.parseAndValidateUpdateDocumentDirectoryRequest({
+      name: "  Formulare  ",
+    });
+
+    expect(result.isValid).toBe(true);
+    if (result.isValid) {
+      expect(result.data.name).toBe("Formulare");
+    }
+  });
+
+  it("rejects unexpected area in directory update payload", async () => {
+    const mod = await import("@/lib/document-validation");
+    const result = mod.parseAndValidateUpdateDocumentDirectoryRequest({
+      name: "Formulare",
+      area: "MEMBER",
+    });
+
+    expect(result.isValid).toBe(false);
+    if (!result.isValid) {
+      expect(result.errors).toContain("Unerwartetes Feld: area");
     }
   });
 });

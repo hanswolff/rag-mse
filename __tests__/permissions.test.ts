@@ -15,9 +15,14 @@ describe("Permissions", () => {
     expect(Permissions.canManageAdminArea("MEMBER")).toBe(false);
   });
 
-  it("does not treat AUDITOR as member-area role", () => {
-    expect(Permissions.canAccessMemberArea("AUDITOR")).toBe(false);
+  it("treats AUDITOR as member-area role", () => {
+    expect(Permissions.canAccessMemberArea("AUDITOR")).toBe(true);
     expect(Permissions.canAccessMemberArea("MEMBER")).toBe(true);
+  });
+
+  it("allows AUDITOR to manage own profile and notifications", () => {
+    expect(Permissions.canManageOwnProfile("AUDITOR")).toBe(true);
+    expect(Permissions.canManageOwnNotifications("AUDITOR")).toBe(true);
   });
 
   it("rejects assigning SITE_ADMINISTRATOR role", () => {
@@ -32,5 +37,57 @@ describe("Permissions", () => {
     expect(Permissions.canReadOutgoingEmails("AUDITOR")).toBe(false);
     expect(Permissions.canReadNotificationsAdmin("ADMIN")).toBe(true);
     expect(Permissions.canReadOutgoingEmails("SITE_ADMINISTRATOR")).toBe(true);
+  });
+});
+
+describe("Permissions - Document Permission Matrix", () => {
+  const roles = ["SITE_ADMINISTRATOR", "ADMIN", "AUDITOR", "MEMBER"] as const;
+
+  it("enforces correct read permissions for admin documents", () => {
+    const expected: Record<string, boolean> = {
+      SITE_ADMINISTRATOR: true,
+      ADMIN: true,
+      AUDITOR: true,
+      MEMBER: false,
+    };
+    roles.forEach((role) => {
+      expect(Permissions.canReadDocuments(role)).toBe(expected[role]);
+    });
+  });
+
+  it("enforces correct write permissions for admin documents", () => {
+    const expected: Record<string, boolean> = {
+      SITE_ADMINISTRATOR: true,
+      ADMIN: true,
+      AUDITOR: false,
+      MEMBER: false,
+    };
+    roles.forEach((role) => {
+      expect(Permissions.canManageDocuments(role)).toBe(expected[role]);
+    });
+  });
+
+  it("enforces correct read permissions for member documents", () => {
+    const expected: Record<string, boolean> = {
+      SITE_ADMINISTRATOR: true,
+      ADMIN: true,
+      AUDITOR: true,
+      MEMBER: true,
+    };
+    roles.forEach((role) => {
+      expect(Permissions.canReadMemberDocuments(role)).toBe(expected[role]);
+    });
+  });
+
+  it("enforces correct write permissions for member documents", () => {
+    const expected: Record<string, boolean> = {
+      SITE_ADMINISTRATOR: true,
+      ADMIN: true,
+      AUDITOR: false,
+      MEMBER: false,
+    };
+    roles.forEach((role) => {
+      expect(Permissions.canManageMemberDocuments(role)).toBe(expected[role]);
+    });
   });
 });

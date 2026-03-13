@@ -6,6 +6,7 @@ import path from "path";
 import Database from "better-sqlite3";
 
 const MIGRATIONS_DIR = path.join(process.cwd(), "prisma", "migrations");
+const BASELINE_SQL_PATH = path.join(process.cwd(), "create_admin.sql");
 
 function resolveSqlitePath(databaseUrl: string): string {
   if (!databaseUrl.startsWith("file:")) {
@@ -28,6 +29,88 @@ interface SqliteErrorLike {
 }
 
 type SqliteDatabase = InstanceType<typeof Database>;
+
+export function splitSqlStatements(sql: string): string[] {
+  const statements: string[] = [];
+  let current = "";
+  let inSingleQuote = false;
+  let inDoubleQuote = false;
+  let inLineComment = false;
+  let inBlockComment = false;
+
+  for (let index = 0; index < sql.length; index += 1) {
+    const char = sql[index];
+    const nextChar = sql[index + 1];
+
+    if (inLineComment) {
+      if (char === "\n") {
+        inLineComment = false;
+      }
+      continue;
+    }
+
+    if (inBlockComment) {
+      if (char === "*" && nextChar === "/") {
+        inBlockComment = false;
+        index += 1;
+      }
+      continue;
+    }
+
+    if (!inSingleQuote && !inDoubleQuote) {
+      if (char === "-" && nextChar === "-") {
+        inLineComment = true;
+        index += 1;
+        continue;
+      }
+      if (char === "/" && nextChar === "*") {
+        inBlockComment = true;
+        index += 1;
+        continue;
+      }
+    }
+
+    if (char === "'" && !inDoubleQuote) {
+      if (inSingleQuote && nextChar === "'") {
+        current += "''";
+        index += 1;
+        continue;
+      }
+      inSingleQuote = !inSingleQuote;
+      current += char;
+      continue;
+    }
+
+    if (char === '"' && !inSingleQuote) {
+      if (inDoubleQuote && nextChar === '"') {
+        current += "\"\"";
+        index += 1;
+        continue;
+      }
+      inDoubleQuote = !inDoubleQuote;
+      current += char;
+      continue;
+    }
+
+    if (char === ";" && !inSingleQuote && !inDoubleQuote) {
+      const trimmed = current.trim();
+      if (trimmed.length > 0) {
+        statements.push(trimmed);
+      }
+      current = "";
+      continue;
+    }
+
+    current += char;
+  }
+
+  const trailing = current.trim();
+  if (trailing.length > 0) {
+    statements.push(trailing);
+  }
+
+  return statements;
+}
 
 function listMigrationEntries(): MigrationEntry[] {
   if (!existsSync(MIGRATIONS_DIR)) {
@@ -72,6 +155,60 @@ function indexExists(db: SqliteDatabase, indexName: string): boolean {
   return Boolean(row);
 }
 
+function isSchemaStatement(statement: string): boolean {
+  return /^(ALTER\s+TABLE|CREATE\s+TABLE|CREATE\s+(?:UNIQUE\s+)?INDEX|DROP\s+INDEX)/i.test(statement);
+}
+
+export function areSchemaStatementsAlreadySatisfied(db: SqliteDatabase, migrationSql: string): boolean {
+  const schemaStatements = splitSqlStatements(migrationSql).filter(isSchemaStatement);
+  if (schemaStatements.length === 0) {
+    return false;
+  }
+
+  return schemaStatements.every((statement) => isStatementAlreadySatisfied(db, statement));
+}
+
+function isStatementAlreadySatisfied(db: SqliteDatabase, statement: string): boolean {
+  const addColumnMatch = statement.match(
+    /^ALTER\s+TABLE\s+"?([A-Za-z0-9_]+)"?\s+ADD\s+COLUMN\s+"?([A-Za-z0-9_]+)"?/i
+  );
+  if (addColumnMatch) {
+    return hasColumn(db, addColumnMatch[1], addColumnMatch[2]);
+  }
+
+  const createTableMatch = statement.match(
+    /^CREATE\s+TABLE(?:\s+IF\s+NOT\s+EXISTS)?\s+"?([A-Za-z0-9_]+)"?/i
+  );
+  if (createTableMatch) {
+    return tableExists(db, createTableMatch[1]);
+  }
+
+  const createIndexMatch = statement.match(
+    /^CREATE\s+(?:UNIQUE\s+)?INDEX(?:\s+IF\s+NOT\s+EXISTS)?\s+"?([A-Za-z0-9_]+)"?/i
+  );
+  if (createIndexMatch) {
+    return indexExists(db, createIndexMatch[1]);
+  }
+
+  const dropIndexIfExistsMatch = statement.match(
+    /^DROP\s+INDEX\s+IF\s+EXISTS\s+"?([A-Za-z0-9_]+)"?/i
+  );
+  if (dropIndexIfExistsMatch) {
+    return !indexExists(db, dropIndexIfExistsMatch[1]);
+  }
+
+  return false;
+}
+
+export function isMigrationSchemaAlreadySatisfied(db: SqliteDatabase, migrationSql: string): boolean {
+  const statements = splitSqlStatements(migrationSql);
+  if (statements.length === 0) {
+    return false;
+  }
+
+  return statements.every((statement) => isStatementAlreadySatisfied(db, statement));
+}
+
 function canTreatMigrationAsAlreadyApplied(
   db: SqliteDatabase,
   migration: MigrationEntry,
@@ -93,31 +230,40 @@ function canTreatMigrationAsAlreadyApplied(
       const tableName = match[1];
       const statementColumnName = match[2];
       if (statementColumnName === columnName && hasColumn(db, tableName, columnName)) {
-        return true;
+        return areSchemaStatementsAlreadySatisfied(db, migration.sql);
       }
     }
     return false;
   }
 
   if (/table\s+["`']?[A-Za-z0-9_]+["`']?\s+already exists/i.test(message)) {
-    const createTableRegex = /CREATE\s+TABLE\s+"?([A-Za-z0-9_]+)"?/i;
+    const createTableRegex = /CREATE\s+TABLE(?:\s+IF\s+NOT\s+EXISTS)?\s+"?([A-Za-z0-9_]+)"?/i;
     const match = migration.sql.match(createTableRegex);
     if (!match) {
       return false;
     }
-    return tableExists(db, match[1]);
+    return tableExists(db, match[1]) && areSchemaStatementsAlreadySatisfied(db, migration.sql);
   }
 
   if (/index\s+["`']?[A-Za-z0-9_]+["`']?\s+already exists/i.test(message)) {
-    const createIndexRegex = /CREATE\s+(?:UNIQUE\s+)?INDEX\s+"?([A-Za-z0-9_]+)"?/i;
+    const createIndexRegex = /CREATE\s+(?:UNIQUE\s+)?INDEX(?:\s+IF\s+NOT\s+EXISTS)?\s+"?([A-Za-z0-9_]+)"?/i;
     const match = migration.sql.match(createIndexRegex);
     if (!match) {
       return false;
     }
-    return indexExists(db, match[1]);
+    return indexExists(db, match[1]) && areSchemaStatementsAlreadySatisfied(db, migration.sql);
   }
 
   return false;
+}
+
+export function needsBaselineInitialization(db: SqliteDatabase): boolean {
+  return !tableExists(db, "User");
+}
+
+function applyBaselineSchema(db: SqliteDatabase): void {
+  const baselineSql = readFileSync(BASELINE_SQL_PATH, "utf8");
+  db.exec(baselineSql);
 }
 
 function run(): void {
@@ -135,6 +281,11 @@ function run(): void {
       "appliedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
     );
   `);
+
+  if (needsBaselineInitialization(db)) {
+    applyBaselineSchema(db);
+    console.log("Baseline-Schema aus create_admin.sql initialisiert.");
+  }
 
   const appliedStmt = db.prepare('SELECT "name", "checksum" FROM "_AppMigration" WHERE "name" = ?');
   const insertStmt = db.prepare('INSERT INTO "_AppMigration" ("name", "checksum") VALUES (?, ?)');
@@ -174,4 +325,6 @@ function run(): void {
   db.close();
 }
 
-run();
+if (typeof require !== "undefined" && require.main === module) {
+  run();
+}

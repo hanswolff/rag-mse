@@ -40,7 +40,7 @@ export async function POST(request: NextRequest) {
     const admin = await requireAdmin("write");
     const body = await parseJsonBody<InviteRequest>(request);
 
-    const bodyValidation = validateRequestBody(body as unknown as Record<string, unknown>, inviteSchema, { route: '/api/admin/invitations', method: 'POST' });
+    const bodyValidation = validateRequestBody(body, inviteSchema, { route: '/api/admin/invitations', method: 'POST' });
     if (!bodyValidation.isValid) {
       return NextResponse.json(
         { error: bodyValidation.errors.join(". ") },

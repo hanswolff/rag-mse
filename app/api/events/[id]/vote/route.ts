@@ -23,7 +23,7 @@ export const POST = withApiErrorHandling(async (
   const { id: eventId } = await ctx.params;
   const body = await parseJsonBody<VoteRequest>(request);
   const bodyValidation = validateRequestBody(
-    body as unknown as Record<string, unknown>,
+    body,
     voteSchema,
     { route: "/api/events/[id]/vote", method: "POST" }
   );

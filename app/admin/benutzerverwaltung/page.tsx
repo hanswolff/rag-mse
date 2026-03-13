@@ -11,7 +11,7 @@ import { UserFormModal } from "@/components/user-form-modal";
 import { LoadingButton } from "@/components/loading-button";
 import { BackLink } from "@/components/back-link";
 import { Permissions } from "@/lib/permissions";
-import { UsersIcon } from "@/components/icons";
+import { PencilIcon, TrashIcon, UserIcon, UsersIcon } from "@/components/icons";
 import type { User } from "@/types";
 
 function InviteForm({
@@ -91,84 +91,80 @@ function UserList({
 }) {
   if (users.length === 0) return <p className="text-gray-500">Keine Benutzer gefunden</p>;
   return (
-    <div className="space-y-3">
+    <div className="space-y-2.5">
       {users.map((user) => {
         const canDelete = canDeleteUser(user.id);
         const canEdit = user.role !== "SITE_ADMINISTRATOR" || canEditSiteAdministrator;
         return (
-          <div key={user.id} className="border border-gray-200 rounded-md p-4">
-            <div className="flex flex-col gap-2">
-              <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <h3 className="font-medium text-gray-900">{user.name}</h3>
-                    <span
-                      className={`px-2 py-1 text-base font-medium rounded ${
-                        user.role === "SITE_ADMINISTRATOR"
-                          ? "bg-amber-100 text-amber-800"
-                          : user.role === "ADMIN"
-                          ? "bg-purple-100 text-purple-800"
-                          : user.role === "AUDITOR"
-                            ? "bg-slate-100 text-slate-800"
-                          : "bg-brand-blue-50 text-brand-blue-800"
-                      }`}
-                    >
-                      {Permissions.getRoleLabel(user.role)}
-                    </span>
-                  </div>
-                  <p className="text-base text-gray-600">{user.email}</p>
-                  {user.address && <p className="text-base text-gray-500">{user.address}</p>}
-                  {user.phone && <p className="text-base text-gray-500">{user.phone}</p>}
+          <article key={user.id} className="rounded-md border border-gray-200 bg-gray-50/40 p-3 sm:p-4">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:gap-4">
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h3 className="font-medium text-gray-900">{user.name}</h3>
+                  <span
+                    className={`px-2 py-1 text-base font-medium rounded ${
+                      user.role === "SITE_ADMINISTRATOR"
+                        ? "bg-amber-100 text-amber-800"
+                        : user.role === "ADMIN"
+                        ? "bg-purple-100 text-purple-800"
+                        : user.role === "AUDITOR"
+                          ? "bg-slate-100 text-slate-800"
+                        : "bg-brand-blue-50 text-brand-blue-800"
+                    }`}
+                  >
+                    {Permissions.getRoleLabel(user.role)}
+                  </span>
                 </div>
-                {canManage && (
-                  <div className="flex gap-2">
-                    {canImpersonateUser(user) && (
-                      <button
-                        onClick={() => void onImpersonate(user)}
-                        disabled={impersonatingUserId !== null}
-                        className={`px-3 py-2 text-base rounded focus:outline-none focus:ring-2 focus:ring-brand-red-600/30 touch-manipulation ${
-                          impersonatingUserId === null
-                            ? "bg-amber-100 text-amber-800 hover:bg-amber-200"
-                            : "bg-gray-100 text-gray-400 cursor-not-allowed"
-                        }`}
-                      >
-                        {impersonatingUserId === user.id ? "Wechsel läuft..." : "Als Benutzer anmelden"}
-                      </button>
-                    )}
+                <p className="text-base text-gray-700 truncate">{user.email}</p>
+                <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-sm text-gray-500">
+                  {user.address && <p className="truncate">{user.address}</p>}
+                  {user.phone && <p>{user.phone}</p>}
+                </div>
+              </div>
+              {canManage && (
+                <div className="flex items-start gap-1.5 sm:justify-end">
+                  {canImpersonateUser(user) && (
                     <button
-                      onClick={() => onEdit(user)}
-                      disabled={!canEdit}
-                      title={!canEdit ? "Der SiteAdministrator kann nur vom SiteAdministrator bearbeitet werden" : undefined}
-                      className={`px-3 py-2 text-base rounded focus:outline-none focus:ring-2 focus:ring-brand-red-600/30 touch-manipulation ${
-                        canEdit
-                          ? "bg-brand-blue-50 text-brand-blue-800 hover:bg-brand-blue-100"
+                      onClick={() => void onImpersonate(user)}
+                      disabled={impersonatingUserId !== null}
+                      aria-label={`Als Benutzer anmelden: ${user.name}`}
+                      title={`Als Benutzer anmelden: ${user.name}`}
+                      className={`inline-flex h-8 w-8 items-center justify-center rounded-md focus:outline-none focus:ring-2 focus:ring-brand-red-600/30 ${
+                        impersonatingUserId === null
+                          ? "bg-amber-100 text-amber-800 hover:bg-amber-200"
                           : "bg-gray-100 text-gray-400 cursor-not-allowed"
                       }`}
                     >
-                      Bearbeiten
+                      <UserIcon className="h-4 w-4" />
                     </button>
-                    <button
-                      onClick={() => onDelete(user.id)}
-                      disabled={!canDelete}
-                      title={!canDelete ? "Benutzer kann nicht gelöscht werden" : undefined}
-                      className={`px-3 py-2 text-base rounded focus:outline-none focus:ring-2 focus:ring-red-500 touch-manipulation ${
-                        canDelete
-                          ? "bg-red-100 text-red-700 hover:bg-red-200"
-                          : "bg-gray-100 text-gray-400 cursor-not-allowed"
-                      }`}
-                    >
-                      Löschen
-                    </button>
-                  </div>
-                )}
-              </div>
-              <div className="w-full mt-1 text-xs sm:text-sm text-gray-400 text-left break-words">
-                <p className="leading-relaxed">
-                  Erstellt: {formatDate(user.createdAt)} &bull; Letzter Login: {user.lastLoginAt ? formatDate(user.lastLoginAt) : "Nie"} &bull; Passwort-Änderung: {user.passwordUpdatedAt ? formatDate(user.passwordUpdatedAt) : "-"}
-                </p>
-              </div>
+                  )}
+                  <button
+                    onClick={() => onEdit(user)}
+                    disabled={!canEdit}
+                    aria-label={`Benutzer bearbeiten: ${user.name}`}
+                    title={!canEdit ? "Der SiteAdministrator kann nur vom SiteAdministrator bearbeitet werden" : `Benutzer bearbeiten: ${user.name}`}
+                    className="btn-icon"
+                  >
+                    <PencilIcon className="h-4 w-4" />
+                  </button>
+                  <button
+                    onClick={() => onDelete(user.id)}
+                    disabled={!canDelete}
+                    aria-label={`Benutzer löschen: ${user.name}`}
+                    title={!canDelete ? "Benutzer kann nicht gelöscht werden" : `Benutzer löschen: ${user.name}`}
+                    className="btn-icon-danger"
+                  >
+                    <TrashIcon className="h-4 w-4" />
+                  </button>
+                </div>
+              )}
             </div>
-          </div>
+            <div className="mt-2 border-t border-gray-200 pt-2 text-xs sm:text-sm text-gray-500 break-words">
+              <p className="leading-relaxed">
+                Erstellt: {formatDate(user.createdAt)} &bull; Letzter Login: {user.lastLoginAt ? formatDate(user.lastLoginAt) : "Nie"} &bull; Passwort-Änderung: {user.passwordUpdatedAt ? formatDate(user.passwordUpdatedAt) : "-"}
+              </p>
+            </div>
+          </article>
         );
       })}
     </div>
@@ -195,7 +191,7 @@ export default function BenutzerverwaltungPage() {
 
   if (status === "loading" || userManagement.isLoading) {
     return (
-      <main className="min-h-screen bg-gray-50">
+      <main className="flex-1 bg-gray-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
           <div className="mb-8 space-y-4">
             <div className="h-8 bg-gray-200 rounded w-1/3 animate-pulse" />
@@ -214,7 +210,7 @@ export default function BenutzerverwaltungPage() {
   }
 
   return (
-    <main className="min-h-screen bg-gray-50">
+    <main className="flex-1 bg-gray-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
         <div className="mb-8">
           <BackLink href="/admin/dashboard" className="text-base">
@@ -253,7 +249,7 @@ export default function BenutzerverwaltungPage() {
           </div>
         )}
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <div className="grid grid-cols-1 lg:grid-cols-[minmax(20rem,1fr)_minmax(0,2fr)] gap-6 lg:gap-8">
           <div className="space-y-6">
             {canManage && (
               <>

@@ -1,8 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { VoteType } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { checkTokenRateLimit, recordSuccessfulTokenUsage } from "@/lib/rate-limiter";
-import { getClientIp, getNoCacheHeaders, handleRateLimitBlocked, parseJsonBody, validateRequestBody, withApiErrorHandling, validateCsrfHeaders } from "@/lib/api-utils";
+import {
+  getClientIp,
+  getNoCacheHeaders,
+  handleRateLimitBlocked,
+  parseJsonBody,
+  validateRequestBody,
+  withApiErrorHandling,
+  validateCsrfHeaders,
+  checkTokenRateLimitWithPolicy,
+  recordSuccessfulTokenUsageWithPolicy,
+} from "@/lib/api-utils";
 import { hashNotificationToken } from "@/lib/notifications";
 import { formatDateForStorage } from "@/lib/date-picker-utils";
 import { validateVote } from "@/lib/event-validation";
@@ -66,7 +75,13 @@ export const GET = withApiErrorHandling(async (
 
   const clientIp = getClientIp(request);
   const tokenHash = hashNotificationToken(token);
-  const rateLimitResult = await checkTokenRateLimit(clientIp, tokenHash);
+  const rateLimitResult = await checkTokenRateLimitWithPolicy(
+    "/api/notifications/rsvp/[token]",
+    "GET",
+    clientIp,
+    tokenHash,
+    maskToken(token)
+  );
 
   if (!rateLimitResult.allowed) {
     return handleRateLimitBlocked(
@@ -102,7 +117,13 @@ export const GET = withApiErrorHandling(async (
     },
   });
 
-  await recordSuccessfulTokenUsage(tokenHash, clientIp);
+  await recordSuccessfulTokenUsageWithPolicy(
+    "/api/notifications/rsvp/[token]",
+    "GET",
+    tokenHash,
+    clientIp,
+    maskToken(token)
+  );
 
   return NextResponse.json(
     {
@@ -132,7 +153,13 @@ export const POST = withApiErrorHandling(async (
 
   const clientIp = getClientIp(request);
   const tokenHash = hashNotificationToken(token);
-  const rateLimitResult = await checkTokenRateLimit(clientIp, tokenHash);
+  const rateLimitResult = await checkTokenRateLimitWithPolicy(
+    "/api/notifications/rsvp/[token]",
+    "POST",
+    clientIp,
+    tokenHash,
+    maskToken(token)
+  );
 
   if (!rateLimitResult.allowed) {
     return handleRateLimitBlocked(
@@ -147,7 +174,7 @@ export const POST = withApiErrorHandling(async (
 
   const body = await parseJsonBody<VoteRequest>(request);
   const bodyValidation = validateRequestBody(
-    body as unknown as Record<string, unknown>,
+    body,
     voteSchema,
     { route: "/api/notifications/rsvp/[token]", method: "POST" }
   );
@@ -214,7 +241,13 @@ export const POST = withApiErrorHandling(async (
     },
   });
 
-  await recordSuccessfulTokenUsage(tokenHash, clientIp);
+  await recordSuccessfulTokenUsageWithPolicy(
+    "/api/notifications/rsvp/[token]",
+    "POST",
+    tokenHash,
+    clientIp,
+    maskToken(token)
+  );
 
   return NextResponse.json(savedVote, { headers: getNoCacheHeaders() });
 }, { route: "/api/notifications/rsvp/[token]", method: "POST" });

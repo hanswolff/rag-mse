@@ -3,7 +3,6 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { hashResetToken, getResetExpiryDate } from "@/lib/password-reset";
 import { logInfo, logValidationFailure, logResourceNotFound } from "@/lib/logger";
-import { checkTokenRateLimit, recordSuccessfulTokenUsage } from "@/lib/rate-limiter";
 import { hash } from "bcryptjs";
 import { NextResponse } from "next/server";
 
@@ -30,11 +29,6 @@ jest.mock("@/lib/logger", () => ({
   maskToken: jest.fn((t) => t.substring(0, 6) + "..."),
 }));
 
-jest.mock("@/lib/rate-limiter", () => ({
-  checkTokenRateLimit: jest.fn(),
-  recordSuccessfulTokenUsage: jest.fn(),
-}));
-
 jest.mock("@/lib/api-utils", () => ({
   parseJsonBody: jest.fn(async (req) => req.json()),
   BadRequestError: class extends Error {
@@ -47,6 +41,8 @@ jest.mock("@/lib/api-utils", () => ({
   getClientIp: jest.fn(() => "127.0.0.1"),
   handleRateLimitBlocked: jest.fn(),
   getNoCacheHeaders: jest.fn(() => ({ "Cache-Control": "no-store, no-cache, must-revalidate" })),
+  checkTokenRateLimitWithPolicy: jest.fn(),
+  recordSuccessfulTokenUsageWithPolicy: jest.fn(),
   validateRequestBody: jest.fn().mockReturnValue({ isValid: true, errors: [] }),
   validateCsrfHeaders: jest.fn(),
 }));
@@ -67,10 +63,12 @@ const mockedPrisma = prisma as {
   $transaction: jest.Mock;
 };
 
-const mockedCheckTokenRateLimit = checkTokenRateLimit as jest.Mock;
-const mockedRecordSuccessfulTokenUsage = recordSuccessfulTokenUsage as jest.Mock;
 const mockedHash = hash as jest.Mock;
-const { handleRateLimitBlocked } = jest.requireMock("@/lib/api-utils");
+const {
+  handleRateLimitBlocked,
+  checkTokenRateLimitWithPolicy,
+  recordSuccessfulTokenUsageWithPolicy,
+} = jest.requireMock("@/lib/api-utils");
 const VALID_PASSWORD = "SecurePassword123!";
 
 function createMockRequest(body: Record<string, unknown>) {
@@ -102,7 +100,8 @@ describe("/api/auth/reset-password/[token] route - Security Regression Tests", (
 
   beforeEach(() => {
     jest.clearAllMocks();
-    mockedCheckTokenRateLimit.mockReturnValue({ allowed: true, attemptCount: 1 });
+    checkTokenRateLimitWithPolicy.mockResolvedValue({ allowed: true, attemptCount: 1 });
+    recordSuccessfulTokenUsageWithPolicy.mockResolvedValue(undefined);
     mockedHash.mockResolvedValue("hashed-new-password");
     mockedPrisma.$transaction.mockImplementation(async (callback) => {
       return callback(mockedPrisma);
@@ -144,7 +143,6 @@ describe("/api/auth/reset-password/[token] route - Security Regression Tests", (
 
     it("should mask token in resource not found logs for invalid token", async () => {
       mockedPrisma.passwordReset.findUnique.mockResolvedValue(null);
-      mockedCheckTokenRateLimit.mockReturnValue({ allowed: true, attemptCount: 1 });
 
       const request = createMockRequest({ password: VALID_PASSWORD });
       const sensitiveToken = "sensitive-token-456";
@@ -169,7 +167,6 @@ describe("/api/auth/reset-password/[token] route - Security Regression Tests", (
         expiresAt: new Date(Date.now() - 86400000),
       };
       mockedPrisma.passwordReset.findUnique.mockResolvedValue(expiredReset);
-      mockedCheckTokenRateLimit.mockReturnValue({ allowed: true, attemptCount: 1 });
 
       const request = createMockRequest({ password: VALID_PASSWORD });
       const sensitiveToken = "expired-token-789";
@@ -194,7 +191,6 @@ describe("/api/auth/reset-password/[token] route - Security Regression Tests", (
         usedAt: new Date(),
       };
       mockedPrisma.passwordReset.findUnique.mockResolvedValue(usedReset);
-      mockedCheckTokenRateLimit.mockReturnValue({ allowed: true, attemptCount: 1 });
 
       const request = createMockRequest({ password: VALID_PASSWORD });
       const sensitiveToken = "used-token-999";
@@ -218,7 +214,7 @@ describe("/api/auth/reset-password/[token] route - Security Regression Tests", (
     it("should enforce rate limiting on password reset attempts", async () => {
       mockedPrisma.passwordReset.findUnique.mockResolvedValue(mockValidReset);
       mockedPrisma.user.findUnique.mockResolvedValue(mockUser);
-      mockedCheckTokenRateLimit.mockReturnValue({
+      checkTokenRateLimitWithPolicy.mockResolvedValue({
         allowed: false,
         attemptCount: 4,
         blockedUntil: undefined,
@@ -240,8 +236,6 @@ describe("/api/auth/reset-password/[token] route - Security Regression Tests", (
       mockedPrisma.user.update.mockResolvedValue({});
 
       const token = "successful-reset-token";
-      const tokenHash = hashResetToken(token);
-      const clientIp = "127.0.0.1";
 
       const request = createMockRequest({ password: VALID_PASSWORD });
 
@@ -250,23 +244,32 @@ describe("/api/auth/reset-password/[token] route - Security Regression Tests", (
 
       expect(response.status).toBe(200);
       expect(data.message).toBe("Passwort wurde erfolgreich geändert");
-      expect(mockedRecordSuccessfulTokenUsage).toHaveBeenCalledWith(tokenHash, clientIp);
+      expect(recordSuccessfulTokenUsageWithPolicy).toHaveBeenCalledWith(
+        "/api/auth/reset-password/[token]",
+        "POST",
+        hashResetToken(token),
+        "127.0.0.1",
+        expect.any(String)
+      );
     });
 
     it("should check rate limit before processing request", async () => {
       mockedPrisma.passwordReset.findUnique.mockResolvedValue(mockValidReset);
       mockedPrisma.user.findUnique.mockResolvedValue(mockUser);
-      mockedCheckTokenRateLimit.mockReturnValue({ allowed: true, attemptCount: 1 });
 
       const token = "rate-limit-check-token";
-      const tokenHash = hashResetToken(token);
-      const clientIp = "127.0.0.1";
 
       const request = createMockRequest({ password: VALID_PASSWORD });
 
       await POST(request, { params: createMockParams(token) });
 
-      expect(mockedCheckTokenRateLimit).toHaveBeenCalledWith(clientIp, tokenHash);
+      expect(checkTokenRateLimitWithPolicy).toHaveBeenCalledWith(
+        "/api/auth/reset-password/[token]",
+        "POST",
+        "127.0.0.1",
+        hashResetToken(token),
+        expect.any(String)
+      );
     });
   });
 
@@ -302,7 +305,6 @@ describe("/api/auth/reset-password/[token] route - Security Regression Tests", (
 
     it("POST should return 404 for invalid token", async () => {
       mockedPrisma.passwordReset.findUnique.mockResolvedValue(null);
-      mockedCheckTokenRateLimit.mockReturnValue({ allowed: true, attemptCount: 1 });
 
       const request = createMockRequest({ password: VALID_PASSWORD });
       const response = await POST(request, { params: createMockParams("invalid-token") });
@@ -333,7 +335,6 @@ describe("/api/auth/reset-password/[token] route - Security Regression Tests", (
         expiresAt: new Date(Date.now() - 86400000),
       };
       mockedPrisma.passwordReset.findUnique.mockResolvedValue(expiredReset);
-      mockedCheckTokenRateLimit.mockReturnValue({ allowed: true, attemptCount: 1 });
 
       const request = createMockRequest({ password: VALID_PASSWORD });
       const response = await POST(request, { params: createMockParams("expired-token") });
@@ -364,7 +365,6 @@ describe("/api/auth/reset-password/[token] route - Security Regression Tests", (
         usedAt: new Date(),
       };
       mockedPrisma.passwordReset.findUnique.mockResolvedValue(usedReset);
-      mockedCheckTokenRateLimit.mockReturnValue({ allowed: true, attemptCount: 1 });
 
       const request = createMockRequest({ password: VALID_PASSWORD });
       const response = await POST(request, { params: createMockParams("used-token") });
@@ -464,7 +464,6 @@ describe("/api/auth/reset-password/[token] route - Security Regression Tests", (
     it("should return 404 if user not found for reset token", async () => {
       mockedPrisma.passwordReset.findUnique.mockResolvedValue(mockValidReset);
       mockedPrisma.user.findUnique.mockResolvedValue(null);
-      mockedCheckTokenRateLimit.mockReturnValue({ allowed: true, attemptCount: 1 });
 
       const request = createMockRequest({ password: VALID_PASSWORD });
 
@@ -486,7 +485,6 @@ describe("/api/auth/reset-password/[token] route - Security Regression Tests", (
     it("should validate password strength", async () => {
       const weakPassword = "weak";
       mockedPrisma.passwordReset.findUnique.mockResolvedValue(mockValidReset);
-      mockedCheckTokenRateLimit.mockReturnValue({ allowed: true, attemptCount: 1 });
 
       const request = createMockRequest({ password: weakPassword });
 
@@ -499,7 +497,6 @@ describe("/api/auth/reset-password/[token] route - Security Regression Tests", (
 
     it("should reject missing password field", async () => {
       mockedPrisma.passwordReset.findUnique.mockResolvedValue(mockValidReset);
-      mockedCheckTokenRateLimit.mockReturnValue({ allowed: true, attemptCount: 1 });
 
       const request = createMockRequest({});
 
@@ -525,7 +522,6 @@ describe("/api/auth/reset-password/[token] route - Security Regression Tests", (
 
     it("POST should handle database errors gracefully", async () => {
       mockedPrisma.passwordReset.findUnique.mockRejectedValue(new Error("Database error"));
-      mockedCheckTokenRateLimit.mockReturnValue({ allowed: true, attemptCount: 1 });
 
       const request = createMockRequest({ password: VALID_PASSWORD });
 

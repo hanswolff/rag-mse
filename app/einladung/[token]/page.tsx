@@ -242,14 +242,14 @@ export default function InvitationPage({ params }: { params: Promise<{ token: st
 
   if (isLoading) {
     return (
-      <main className="min-h-screen flex items-center justify-center">
+      <main className="flex flex-1 items-center justify-center">
         <div className="text-gray-600">Einladung wird geladen...</div>
       </main>
     );
   }
 
   return (
-    <main className="min-h-screen bg-gray-50">
+    <main className="flex-1 bg-gray-50">
       <div className="max-w-3xl mx-auto px-4 py-10">
         <div className="card">
           <h1 className="text-2xl font-bold text-brand-blue-900">Einladung annehmen</h1>

@@ -19,7 +19,7 @@ export async function PUT(request: NextRequest) {
     const user = await requireMember();
     const body = await parseJsonBody<ChangePasswordRequest>(request);
 
-    const bodyValidation = validateRequestBody(body as unknown as Record<string, unknown>, changePasswordSchema, { route: '/api/user/change-password', method: 'PUT' });
+    const bodyValidation = validateRequestBody(body, changePasswordSchema, { route: '/api/user/change-password', method: 'PUT' });
     if (!bodyValidation.isValid) {
       return NextResponse.json(
         { error: bodyValidation.errors.join(". ") },

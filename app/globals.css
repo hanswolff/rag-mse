@@ -49,6 +49,10 @@
   --brand-gold-400: #c9a54b;
 }
 
+html {
+  scrollbar-gutter: stable;
+}
+
 @media (prefers-color-scheme: dark) {
   :root {
     --background: #0a0a0a;
@@ -130,6 +134,30 @@ body {
 
   .form-help {
     @apply text-base text-gray-500 mt-1;
+  }
+
+  .upload-dropzone {
+    @apply flex min-h-32 w-full cursor-pointer flex-col items-center justify-center gap-1 rounded-md border-2 border-dashed border-gray-300 bg-gray-50 px-4 py-6 text-center transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500/40;
+  }
+
+  .upload-dropzone:hover {
+    @apply border-brand-blue-300 bg-blue-50/40;
+  }
+
+  .upload-dropzone-active {
+    @apply border-brand-red-500 bg-red-50;
+  }
+
+  .upload-dropzone-disabled {
+    @apply cursor-not-allowed border-gray-200 bg-gray-100 text-gray-500;
+  }
+
+  .upload-dropzone-title {
+    @apply text-base font-semibold text-gray-900;
+  }
+
+  .upload-dropzone-subtitle {
+    @apply text-sm text-gray-600;
   }
 }
 

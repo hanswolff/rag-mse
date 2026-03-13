@@ -82,6 +82,40 @@ cleanup() {
 }
 trap cleanup EXIT
 
+wait_for_service_health() {
+  local service_name="$1"
+  local expected_status="${2:-healthy}"
+  local max_attempts="${3:-20}"
+  local attempt=1
+  local container_id
+  local service_status=""
+
+  container_id="$(docker compose ps -q "$service_name" | head -n 1)"
+  if [ -z "${container_id:-}" ]; then
+    echo "Deployment failed: container for service '$service_name' not found." >&2
+    docker compose ps >&2 || true
+    exit 1
+  fi
+
+  while [ "$attempt" -le "$max_attempts" ]; do
+    service_status="$(docker inspect --format='{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "$container_id" 2>/dev/null || true)"
+    if [ "$service_status" = "$expected_status" ]; then
+      return 0
+    fi
+    if [ "$service_status" = "unhealthy" ] || [ "$service_status" = "restarting" ] || [ "$service_status" = "exited" ]; then
+      echo "Deployment failed: service '$service_name' status is '$service_status'." >&2
+      docker compose logs --no-color --tail=150 "$service_name" >&2 || true
+      exit 1
+    fi
+    sleep 3
+    attempt=$((attempt + 1))
+  done
+
+  echo "Deployment failed: service '$service_name' did not reach '$expected_status' in time (last status: '$service_status')." >&2
+  docker compose logs --no-color --tail=150 "$service_name" >&2 || true
+  exit 1
+}
+
 echo "Installing dependencies on host..."
 corepack enable
 corepack prepare pnpm@10.0.0 --activate
@@ -109,6 +143,11 @@ if [ "$status" -ne 0 ]; then
   exit "$status"
 fi
 
+echo "Ensuring dependent services are running..."
+docker compose up -d redis 2>&1 | tee -a "$LOG_FILE"
+echo "Waiting for redis to become healthy..."
+wait_for_service_health "redis" "healthy" 20
+
 echo "Recreating app container with latest image..."
 set +e
 docker compose up -d --no-deps --force-recreate app 2>&1 | tee -a "$LOG_FILE"
@@ -121,8 +160,6 @@ if [ "$status" -ne 0 ]; then
 fi
 
 echo "Waiting for app container to become healthy..."
-max_attempts=20
-attempt=1
 APP_CONTAINER_ID="$(docker compose ps -q app | head -n 1)"
 if [ -z "${APP_CONTAINER_ID:-}" ]; then
   echo "Deployment failed: app container for service 'app' not found." >&2
@@ -135,25 +172,10 @@ if [ -n "${PREV_APP_CONTAINER_ID:-}" ] && [ "$APP_CONTAINER_ID" = "$PREV_APP_CON
   exit 1
 fi
 
-while [ "$attempt" -le "$max_attempts" ]; do
-  app_status="$(docker inspect --format='{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "$APP_CONTAINER_ID" 2>/dev/null || true)"
-  if [ "$app_status" = "healthy" ]; then
-    break
-  fi
-  if [ "$app_status" = "unhealthy" ] || [ "$app_status" = "restarting" ] || [ "$app_status" = "exited" ]; then
-    echo "Deployment failed: app container status is '$app_status'." >&2
-    docker compose logs --no-color --tail=150 app >&2 || true
-    exit 1
-  fi
-  sleep 3
-  attempt=$((attempt + 1))
-done
+wait_for_service_health "app" "healthy" 20
 
-if [ "$app_status" != "healthy" ]; then
-  echo "Deployment failed: app container did not become healthy in time (last status: '$app_status')." >&2
-  docker compose logs --no-color --tail=150 app >&2 || true
-  exit 1
-fi
+echo "Running post-deploy CSP smoke check..."
+node "$PROJECT_DIR/scripts/check-csp-smoke.js" "http://127.0.0.1:3000/"
 
 echo "Cleaning up unused Docker images..."
 docker image prune -f >/dev/null

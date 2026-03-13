@@ -15,6 +15,18 @@ describe("ImpressumPage", () => {
     expect(heading).toBeInTheDocument();
   });
 
+  it("renders hosting provider with external link opening in new tab", () => {
+    render(<ImpressumPage />);
+    expect(screen.getByText("dedimax solutions GmbH")).toBeInTheDocument();
+    const link = screen.getByRole("link", { name: "https://dedimax.de" });
+    expect(link).toBeInTheDocument();
+    expect(link).toHaveAttribute("href", "https://dedimax.de");
+    expect(link).toHaveAttribute("target", "_blank");
+    expect(link).toHaveAttribute("rel", "noopener");
+    expect(link.getAttribute("rel")).not.toMatch(/noreferrer/i);
+    expect(link.getAttribute("rel")).not.toMatch(/nofollow/i);
+  });
+
   it("renders email as image", () => {
     render(<ImpressumPage />);
     const emailImage = screen.getByAltText("E-Mail-Adresse");

@@ -3,7 +3,7 @@ import { requireAdmin } from "@/lib/auth-utils";
 import { parseJsonBody, validateCsrfHeaders, withApiErrorHandling } from "@/lib/api-utils";
 import {
   normalizeDirectoryNameForUniqueness,
-  parseAndValidateDocumentDirectoryRequest,
+  parseAndValidateUpdateDocumentDirectoryRequest,
 } from "@/lib/document-validation";
 import { prisma } from "@/lib/prisma";
 import { logResourceNotFound, logValidationFailure } from "@/lib/logger";
@@ -14,26 +14,30 @@ export const PATCH = withApiErrorHandling(async (request: NextRequest, ctx: Rout
   await requireAdmin("write");
 
   const { id } = await ctx.params;
-  const existingDirectory = await prisma.documentDirectory.findUnique({ where: { id }, select: { id: true } });
+  const existingDirectory = await prisma.documentDirectory.findUnique({
+    where: { id },
+    select: { id: true, area: true },
+  });
   if (!existingDirectory) {
     logResourceNotFound("documentDirectory", id, "/api/admin/document-directories/[id]", "PATCH");
     return NextResponse.json({ error: "Verzeichnis nicht gefunden" }, { status: 404 });
   }
 
   const rawBody = await parseJsonBody<unknown>(request);
-  const parsed = parseAndValidateDocumentDirectoryRequest(rawBody);
+  const parsed = parseAndValidateUpdateDocumentDirectoryRequest(rawBody);
 
   if (!parsed.isValid) {
     logValidationFailure("/api/admin/document-directories/[id]", "PATCH", parsed.errors, { directoryId: id });
     return NextResponse.json({ error: parsed.errors.join(". ") }, { status: 400 });
   }
+  const normalizedName = parsed.data.name;
 
   try {
     const updated = await prisma.documentDirectory.update({
       where: { id },
       data: {
-        name: parsed.data.name,
-        nameNormalized: normalizeDirectoryNameForUniqueness(parsed.data.name),
+        name: normalizedName,
+        nameNormalized: normalizeDirectoryNameForUniqueness(normalizedName),
       },
       include: {
         _count: {

@@ -4,7 +4,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { VoteType } from "@prisma/client";
 import { canAccessAdminArea } from "@/lib/role-utils";
-import { withApiErrorHandling, getNoCacheHeaders, getAuthNoCacheHeaders } from "@/lib/api-utils";
+import { withApiErrorHandling, getNoCacheHeaders, getAuthNoCacheHeaders, getPublicCacheHeaders } from "@/lib/api-utils";
 import { formatDateForStorage } from "@/lib/date-picker-utils";
 import { logResourceNotFound } from "@/lib/logger";
 import { createShootingRangeLookup, getEventLocationDisplay, getRangeNameFromLocation } from "@/lib/event-location";
@@ -159,7 +159,7 @@ export const GET = withApiErrorHandling(async (
     }
     const { createdById, ...publicEvent } = formattedEventWithLocation;
     void createdById;
-    return NextResponse.json(publicEvent, { headers: getAuthNoCacheHeaders() });
+    return NextResponse.json(publicEvent, { headers: getPublicCacheHeaders() });
   }
 
   if ("votes" in formattedEventWithLocation) {

@@ -22,11 +22,6 @@ services:
     container_name: rag-mse-app
     user: "${APP_UID:-1000}:${APP_GID:-1000}"
     restart: unless-stopped
-    dns:
-      - 8.8.8.8
-      - 8.8.4.4
-    extra_hosts:
-      - "mail.neuraforce.com:87.118.82.131"
     ports:
       - "127.0.0.1:3000:3000"
     environment:
@@ -50,6 +45,8 @@ services:
       - ADMIN_EMAILS=${ADMIN_EMAILS}
       - APP_NAME=${APP_NAME:-RAG Schießsport MSE}
       - APP_URL=${APP_URL}
+      - APP_TIMEZONE=${APP_TIMEZONE:-Europe/Berlin}
+      - NEXT_PUBLIC_SITE_URL=${NEXT_PUBLIC_SITE_URL}
       - COOKIE_SECURE=${COOKIE_SECURE}
       - COOKIE_MAX_AGE=${COOKIE_MAX_AGE:-604800}
       - REDIS_URL=${REDIS_URL:-redis://redis:6379}

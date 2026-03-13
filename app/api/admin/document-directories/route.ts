@@ -4,15 +4,27 @@ import { parseJsonBody, validateCsrfHeaders, withApiErrorHandling } from "@/lib/
 import {
   normalizeDirectoryNameForUniqueness,
   parseAndValidateDocumentDirectoryRequest,
+  parseDocumentArea,
 } from "@/lib/document-validation";
 import { prisma } from "@/lib/prisma";
 import { logValidationFailure } from "@/lib/logger";
 
-export const GET = withApiErrorHandling(async () => {
+export const GET = withApiErrorHandling(async (request: NextRequest) => {
   await requireAdmin("read");
+
+  const { searchParams } = new URL(request.url);
+  const areaRaw = searchParams.get("area");
+  const areaFilter = parseDocumentArea(areaRaw);
+  if (areaRaw !== null && !areaFilter) {
+    return NextResponse.json({ error: "area muss ADMIN oder MEMBER sein" }, { status: 400 });
+  }
+
+  const directoryWhere = areaFilter ? { area: areaFilter } : {};
+  const documentWhere = areaFilter ? { directoryId: null, area: areaFilter } : { directoryId: null };
 
   const [directories, rootCount] = await Promise.all([
     prisma.documentDirectory.findMany({
+      where: directoryWhere,
       orderBy: [{ name: "asc" }, { id: "asc" }],
       include: {
         _count: {
@@ -22,7 +34,7 @@ export const GET = withApiErrorHandling(async () => {
         },
       },
     }),
-    prisma.document.count({ where: { directoryId: null } }),
+    prisma.document.count({ where: documentWhere }),
   ]);
 
   return NextResponse.json({
@@ -49,11 +61,14 @@ export const POST = withApiErrorHandling(async (request: NextRequest) => {
     return NextResponse.json({ error: parsed.errors.join(". ") }, { status: 400 });
   }
 
+  const area = parsed.data.area ?? "ADMIN";
+
   try {
     const created = await prisma.documentDirectory.create({
       data: {
         name: parsed.data.name,
         nameNormalized: normalizeDirectoryNameForUniqueness(parsed.data.name),
+        area,
       },
       include: {
         _count: {

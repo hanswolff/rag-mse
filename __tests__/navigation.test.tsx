@@ -112,6 +112,51 @@ describe("Navigation", () => {
     expect(screen.getAllByText("Abmelden").length).toBeGreaterThan(0);
   });
 
+  it("opens the infos dropdown on desktop", async () => {
+    const user = userEvent.setup();
+    render(<Navigation />);
+
+    const infoButton = screen.getByRole("button", { name: /Infos/i });
+    const infoMenu = infoButton.parentElement;
+    expect(infoMenu).toBeInTheDocument();
+
+    await user.click(infoButton);
+
+    expect(within(infoMenu as HTMLElement).getByText("Schießsportordnung")).toBeInTheDocument();
+    expect(within(infoMenu as HTMLElement).getByText("Sicherheitsbelehrung")).toBeInTheDocument();
+    expect(within(infoMenu as HTMLElement).queryByText("Dokumente für Mitglieder")).not.toBeInTheDocument();
+  });
+
+  it("shows member documents in the infos dropdown for authenticated members", async () => {
+    (useSession as jest.Mock).mockReturnValue({ data: mockSession, status: "authenticated" });
+    const user = userEvent.setup();
+    render(<Navigation />);
+
+    const infoButton = screen.getByRole("button", { name: /Infos/i });
+    const infoMenu = infoButton.parentElement;
+    expect(infoMenu).toBeInTheDocument();
+
+    await user.click(infoButton);
+
+    expect(within(infoMenu as HTMLElement).getByText("Dokumente für Mitglieder")).toBeInTheDocument();
+  });
+
+  it("closes the infos dropdown when clicking outside", async () => {
+    const user = userEvent.setup();
+    render(<Navigation />);
+
+    const infoButton = screen.getByRole("button", { name: /Infos/i });
+    const infoMenu = infoButton.parentElement;
+    expect(infoMenu).toBeInTheDocument();
+
+    await user.click(infoButton);
+    expect(within(infoMenu as HTMLElement).getByText("Schießsportordnung")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("navigation"));
+
+    expect(within(infoMenu as HTMLElement).queryByText("Schießsportordnung")).not.toBeInTheDocument();
+  });
+
   it("closes user menu dropdown when clicking outside", async () => {
     (useSession as jest.Mock).mockReturnValue({ data: mockSession, status: "authenticated" });
     const user = userEvent.setup();
@@ -189,7 +234,7 @@ describe("Navigation", () => {
     expect(screen.getAllByText("Abmelden").length).toBeGreaterThan(0);
   });
 
-  it("hides member-only links for auditor users", async () => {
+  it("shows member self-service links for auditor users", async () => {
     (useSession as jest.Mock).mockReturnValue({ data: mockAuditorSession, status: "authenticated" });
     const user = userEvent.setup();
     render(<Navigation />);
@@ -197,9 +242,9 @@ describe("Navigation", () => {
     const userButton = screen.getByRole("button", { name: /Audit User/i });
     await user.click(userButton);
 
-    expect(screen.queryByText("Profil")).not.toBeInTheDocument();
-    expect(screen.queryByText("Benachrichtigungen")).not.toBeInTheDocument();
-    expect(screen.queryByText("Passwort ändern")).not.toBeInTheDocument();
+    expect(screen.getAllByText("Profil").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Benachrichtigungen").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Passwort ändern").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Adminbereich").length).toBeGreaterThan(0);
   });
 

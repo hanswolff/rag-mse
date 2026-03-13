@@ -39,7 +39,7 @@ export const PUT = withApiErrorHandling(async (request: NextRequest) => {
   const user = await requireMember();
   const body = await parseJsonBody<UpdateNotificationRequest>(request);
   const bodyValidation = validateRequestBody(
-    body as unknown as Record<string, unknown>,
+    body,
     updateNotificationsSchema,
     { route: "/api/user/notifications", method: "PUT" }
   );

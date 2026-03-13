@@ -88,14 +88,14 @@ export default function NotificationsPage() {
 
   if (isLoading) {
     return (
-      <main className="min-h-screen flex items-center justify-center">
+      <main className="flex flex-1 items-center justify-center">
         <div className="text-gray-600">Laden...</div>
       </main>
     );
   }
 
   return (
-    <main className="min-h-screen bg-gray-50">
+    <main className="flex-1 bg-gray-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900 mt-4">Benachrichtigungen</h1>

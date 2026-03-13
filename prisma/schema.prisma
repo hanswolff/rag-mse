@@ -30,6 +30,11 @@ enum OutgoingEmailStatus {
   FAILED
 }
 
+enum DocumentArea {
+  ADMIN
+  MEMBER
+}
+
 model User {
   id                String    @id @default(cuid())
   email             String    @unique
@@ -207,17 +212,18 @@ model EventReminderDispatch {
 }
 
 model Document {
-  id               String   @id @default(cuid())
+  id               String       @id @default(cuid())
   displayName      String
   originalFileName String
-  storedFileName   String   @unique
+  storedFileName   String       @unique
   mimeType         String
   sizeBytes        Int
-  documentDate     DateTime @default(now())
+  documentDate     DateTime     @default(now())
+  area             DocumentArea @default(ADMIN)
   directoryId      String?
   uploadedById     String?
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
 
   directory  DocumentDirectory? @relation(fields: [directoryId], references: [id], onDelete: SetNull)
   uploadedBy User? @relation(fields: [uploadedById], references: [id], onDelete: SetNull)
@@ -226,16 +232,20 @@ model Document {
   @@index([documentDate])
   @@index([createdAt])
   @@index([directoryId])
+  @@index([area])
 }
 
 model DocumentDirectory {
-  id             String     @id @default(cuid())
+  id             String       @id @default(cuid())
   name           String
-  nameNormalized String     @unique
-  createdAt      DateTime   @default(now())
-  updatedAt      DateTime   @updatedAt
+  nameNormalized String
+  area           DocumentArea @default(ADMIN)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
 
   documents Document[]
 
   @@index([name])
+  @@index([area])
+  @@unique([area, nameNormalized])
 }

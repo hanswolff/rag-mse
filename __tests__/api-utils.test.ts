@@ -1,11 +1,30 @@
 import { NextResponse } from "next/server";
-import { withApiErrorHandling, BadRequestError, PayloadTooLargeError, parseJsonBody, logApiError, validateRequestBody, validateCsrfHeaders, CsrfError, MAX_REQUEST_BODY_SIZE, getMaxSizeMB } from "@/lib/api-utils";
+import {
+  withApiErrorHandling,
+  BadRequestError,
+  PayloadTooLargeError,
+  parseJsonBody,
+  logApiError,
+  validateRequestBody,
+  validateCsrfHeaders,
+  CsrfError,
+  MAX_REQUEST_BODY_SIZE,
+  getMaxSizeMB,
+  checkTokenRateLimitWithPolicy,
+  recordSuccessfulTokenUsageWithPolicy,
+} from "@/lib/api-utils";
 import { logError, logWarn } from "@/lib/logger";
+import { checkTokenRateLimit, recordSuccessfulTokenUsage } from "@/lib/rate-limiter";
 
 jest.mock("@/lib/logger", () => ({
   logError: jest.fn(),
   logWarn: jest.fn(),
   logValidationFailure: jest.fn(),
+}));
+
+jest.mock("@/lib/rate-limiter", () => ({
+  checkTokenRateLimit: jest.fn(),
+  recordSuccessfulTokenUsage: jest.fn(),
 }));
 
 describe("withApiErrorHandling", () => {
@@ -177,6 +196,56 @@ describe("withApiErrorHandling", () => {
       expect(result.status).toBe(500);
       const data = await result.json();
       expect(data.error).toBe("Ein Fehler ist aufgetreten");
+    });
+  });
+
+  describe("token rate limit helpers", () => {
+    afterEach(() => {
+      delete process.env.RATE_LIMIT_FAIL_OPEN;
+      delete process.env.NODE_ENV;
+    });
+
+    it("returns 503 when token rate limiter is unavailable in fail-closed mode", async () => {
+      process.env.RATE_LIMIT_FAIL_OPEN = "false";
+      (checkTokenRateLimit as jest.Mock).mockRejectedValue(new Error("redis down"));
+
+      await expect(
+        checkTokenRateLimitWithPolicy("/api/test/[token]", "POST", "127.0.0.1", "hash", "abc...")
+      ).rejects.toThrow("TOKEN_RATE_LIMIT_UNAVAILABLE");
+
+      expect(logError).toHaveBeenCalledWith(
+        "token_rate_limit_unavailable",
+        expect.stringContaining("blocking request"),
+        expect.any(Object)
+      );
+    });
+
+    it("fails open when token rate limiter is unavailable in development", async () => {
+      process.env.NODE_ENV = "development";
+      (checkTokenRateLimit as jest.Mock).mockRejectedValue(new Error("redis down"));
+
+      const result = await checkTokenRateLimitWithPolicy("/api/test/[token]", "GET", "127.0.0.1", "hash", "abc...");
+
+      expect(result).toEqual({ allowed: true, attemptCount: 0 });
+      expect(logWarn).toHaveBeenCalledWith(
+        "token_rate_limit_unavailable",
+        expect.stringContaining("continuing due fail-open policy"),
+        expect.any(Object)
+      );
+    });
+
+    it("logs cleanup failures without throwing", async () => {
+      (recordSuccessfulTokenUsage as jest.Mock).mockRejectedValue(new Error("redis down"));
+
+      await expect(
+        recordSuccessfulTokenUsageWithPolicy("/api/test/[token]", "POST", "hash", "127.0.0.1", "abc...")
+      ).resolves.toBeUndefined();
+
+      expect(logWarn).toHaveBeenCalledWith(
+        "token_rate_limit_cleanup_failed",
+        expect.stringContaining("Failed to clear token rate limit state"),
+        expect.any(Object)
+      );
     });
   });
 

@@ -65,7 +65,7 @@ export const POST = withApiErrorHandling(async (request: NextRequest) => {
 
   const body = await parseJsonBody<CreateNewsRequest>(request);
   const bodyValidation = validateRequestBody(
-    body as unknown as Record<string, unknown>,
+    body,
     createNewsSchema,
     { route: "/api/admin/news", method: "POST" }
   );

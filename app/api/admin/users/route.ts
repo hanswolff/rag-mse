@@ -4,17 +4,10 @@ import { hash } from "bcryptjs";
 import {
   validateEmail,
   normalizeOptionalField,
-  validateAddress,
-  validatePhone,
   validateName,
-  validateRank,
-  validatePk,
-  validateReservistsAssociation,
-  validateAssociationMemberNumber,
-  validateDateOfBirth,
   validateAdminNotes,
 } from "@/lib/user-validation";
-import { validateRole, validateDateString } from "@/lib/validation-schema";
+import { validateRole } from "@/lib/validation-schema";
 import { requireAdmin } from "@/lib/auth-utils";
 import { Role, Prisma } from "@prisma/client";
 import { parseJsonBody, BadRequestError, withApiErrorHandling, validateRequestBody, validateCsrfHeaders } from "@/lib/api-utils";
@@ -28,6 +21,7 @@ import {
   sendInvitationEmail,
 } from "@/lib/invitations";
 import { generateRandomPassword } from "@/lib/crypto-utils";
+import { validateOptionalProfileFields } from "@/lib/profile-fields";
 
 const BCRYPT_SALT_ROUNDS = 10;
 function serializeUserDateFields<T extends { memberSince: Date | null; dateOfBirth: Date | null }>(user: T) {
@@ -100,7 +94,7 @@ export const POST = withApiErrorHandling(async (request: NextRequest) => {
 
   const body = await parseJsonBody<CreateUserRequest>(request);
 
-  const bodyValidation = validateRequestBody(body as unknown as Record<string, unknown>, createUserSchema, { route: '/api/admin/users', method: 'POST' });
+  const bodyValidation = validateRequestBody(body, createUserSchema, { route: '/api/admin/users', method: 'POST' });
   if (!bodyValidation.isValid) {
     return NextResponse.json({ error: bodyValidation.errors.join(". ") }, { status: 400 });
   }
@@ -157,84 +151,22 @@ export const POST = withApiErrorHandling(async (request: NextRequest) => {
     );
   }
 
-  if (address !== null) {
-    const addressValidation = validateAddress(address);
-    if (!addressValidation.isValid) {
-      logValidationFailure('/api/admin/users', 'POST', addressValidation.error || 'Invalid address', {
-        email: normalizedEmail,
-      });
-      return NextResponse.json({ error: addressValidation.error }, { status: 400 });
-    }
-  }
-
-  if (phone !== null) {
-    const phoneValidation = validatePhone(phone);
-    if (!phoneValidation.isValid) {
-      logValidationFailure('/api/admin/users', 'POST', phoneValidation.error || 'Invalid phone', {
-        email: normalizedEmail,
-      });
-      return NextResponse.json({ error: phoneValidation.error }, { status: 400 });
-    }
-  }
-
-  // Validate new profile fields
-  if (memberSince !== null) {
-    if (!validateDateString(memberSince)) {
-      logValidationFailure('/api/admin/users', 'POST', 'Ungültiges Mitglied-seit-Datum', {
-        email: normalizedEmail,
-      });
-      return NextResponse.json({ error: "Ungültiges Mitglied-seit-Datum" }, { status: 400 });
-    }
-  }
-
-  if (dateOfBirth !== null) {
-    const dateOfBirthValidation = validateDateOfBirth(dateOfBirth);
-    if (!dateOfBirthValidation.isValid) {
-      logValidationFailure('/api/admin/users', 'POST', dateOfBirthValidation.error || 'Ungültiges Geburtsdatum', {
-        email: normalizedEmail,
-      });
-      return NextResponse.json({ error: dateOfBirthValidation.error || "Ungültiges Geburtsdatum" }, { status: 400 });
-    }
-  }
-
-  if (rank !== null) {
-    const rankValidation = validateRank(rank);
-    if (!rankValidation.isValid) {
-      logValidationFailure('/api/admin/users', 'POST', rankValidation.error || 'Ungültiger Dienstgrad', {
-        email: normalizedEmail,
-      });
-      return NextResponse.json({ error: rankValidation.error }, { status: 400 });
-    }
-  }
-
-  if (pk !== null) {
-    const pkValidation = validatePk(pk);
-    if (!pkValidation.isValid) {
-      logValidationFailure('/api/admin/users', 'POST', pkValidation.error || 'Ungültige PK', {
-        email: normalizedEmail,
-      });
-      return NextResponse.json({ error: pkValidation.error }, { status: 400 });
-    }
-  }
-
-  if (reservistsAssociation !== null) {
-    const reservistsAssociationValidation = validateReservistsAssociation(reservistsAssociation);
-    if (!reservistsAssociationValidation.isValid) {
-      logValidationFailure('/api/admin/users', 'POST', reservistsAssociationValidation.error || 'Ungültige Reservistenkameradschaft', {
-        email: normalizedEmail,
-      });
-      return NextResponse.json({ error: reservistsAssociationValidation.error }, { status: 400 });
-    }
-  }
-
-  if (associationMemberNumber !== null) {
-    const associationMemberNumberValidation = validateAssociationMemberNumber(associationMemberNumber);
-    if (!associationMemberNumberValidation.isValid) {
-      logValidationFailure('/api/admin/users', 'POST', associationMemberNumberValidation.error || 'Ungültige Mitgliedsnummer im Verband', {
-        email: normalizedEmail,
-      });
-      return NextResponse.json({ error: associationMemberNumberValidation.error }, { status: 400 });
-    }
+  const optionalProfileFieldError = validateOptionalProfileFields({
+    address,
+    phone,
+    memberSince,
+    dateOfBirth,
+    rank,
+    pk,
+    reservistsAssociation,
+    associationMemberNumber,
+  });
+  if (optionalProfileFieldError) {
+    logValidationFailure('/api/admin/users', 'POST', optionalProfileFieldError.message, {
+      email: normalizedEmail,
+      field: optionalProfileFieldError.field,
+    });
+    return NextResponse.json({ error: optionalProfileFieldError.message }, { status: 400 });
   }
 
   const adminNotes = normalizeOptionalField(typeof body.adminNotes === "string" ? body.adminNotes : undefined);
