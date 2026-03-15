@@ -75,6 +75,7 @@ describe("Navigation", () => {
     expect(links.length).toBeGreaterThan(0);
 
     expect(screen.getAllByText("Über uns")).toHaveLength(links.length);
+    // Infos appears twice: once in desktop nav (button) and once in mobile nav (button)
     expect(screen.getAllByText("Infos")).toHaveLength(links.length);
     expect(screen.getAllByText("Termine")).toHaveLength(links.length);
     expect(screen.getAllByText("Kontakt")).toHaveLength(links.length);
@@ -116,11 +117,14 @@ describe("Navigation", () => {
     const user = userEvent.setup();
     render(<Navigation />);
 
-    const infoButton = screen.getByRole("button", { name: /Infos/i });
-    const infoMenu = infoButton.parentElement;
+    // Find the desktop Infos button (has aria-haspopup)
+    const infoButtons = screen.getAllByRole("button", { name: /Infos/i });
+    const infoButton = infoButtons.find(btn => btn.hasAttribute("aria-haspopup"));
+    expect(infoButton).toBeInTheDocument();
+    const infoMenu = infoButton!.parentElement;
     expect(infoMenu).toBeInTheDocument();
 
-    await user.click(infoButton);
+    await user.click(infoButton!);
 
     expect(within(infoMenu as HTMLElement).getByText("Schießsportordnung")).toBeInTheDocument();
     expect(within(infoMenu as HTMLElement).getByText("Sicherheitsbelehrung")).toBeInTheDocument();
@@ -132,11 +136,14 @@ describe("Navigation", () => {
     const user = userEvent.setup();
     render(<Navigation />);
 
-    const infoButton = screen.getByRole("button", { name: /Infos/i });
-    const infoMenu = infoButton.parentElement;
+    // Find the desktop Infos button (has aria-haspopup)
+    const infoButtons = screen.getAllByRole("button", { name: /Infos/i });
+    const infoButton = infoButtons.find(btn => btn.hasAttribute("aria-haspopup"));
+    expect(infoButton).toBeInTheDocument();
+    const infoMenu = infoButton!.parentElement;
     expect(infoMenu).toBeInTheDocument();
 
-    await user.click(infoButton);
+    await user.click(infoButton!);
 
     expect(within(infoMenu as HTMLElement).getByText("Dokumente für Mitglieder")).toBeInTheDocument();
   });
@@ -145,11 +152,14 @@ describe("Navigation", () => {
     const user = userEvent.setup();
     render(<Navigation />);
 
-    const infoButton = screen.getByRole("button", { name: /Infos/i });
-    const infoMenu = infoButton.parentElement;
+    // Find the desktop Infos button (has aria-haspopup)
+    const infoButtons = screen.getAllByRole("button", { name: /Infos/i });
+    const infoButton = infoButtons.find(btn => btn.hasAttribute("aria-haspopup"));
+    expect(infoButton).toBeInTheDocument();
+    const infoMenu = infoButton!.parentElement;
     expect(infoMenu).toBeInTheDocument();
 
-    await user.click(infoButton);
+    await user.click(infoButton!);
     expect(within(infoMenu as HTMLElement).getByText("Schießsportordnung")).toBeInTheDocument();
 
     await user.click(screen.getByRole("navigation"));
@@ -202,6 +212,34 @@ describe("Navigation", () => {
     await user.click(menuButton);
 
     expect(menuButton).toHaveAttribute("aria-expanded", "false");
+  });
+
+  it("toggles mobile info section visibility", async () => {
+    const user = userEvent.setup();
+    render(<Navigation />);
+
+    // Open mobile menu first
+    const menuButton = screen.getAllByRole("button").find(btn =>
+      btn.textContent?.includes("Menü öffnen")
+    )!;
+    await user.click(menuButton);
+
+    const mobileMenu = screen.getByTestId("mobile-menu");
+
+    // Find the mobile Infos button (does not have aria-haspopup)
+    const infoButtons = within(mobileMenu).getAllByRole("button", { name: /Infos/i });
+    const mobileInfoButton = infoButtons.find(btn => !btn.hasAttribute("aria-haspopup"));
+    expect(mobileInfoButton).toBeInTheDocument();
+
+    // Info items should not be visible initially
+    expect(within(mobileMenu).queryByText("Schießsportordnung")).not.toBeInTheDocument();
+
+    // Click to expand
+    await user.click(mobileInfoButton!);
+
+    // Now info items should be visible
+    expect(within(mobileMenu).getByText("Schießsportordnung")).toBeInTheDocument();
+    expect(within(mobileMenu).getByText("Sicherheitsbelehrung")).toBeInTheDocument();
   });
 
   it("shows login button in mobile menu when not authenticated", async () => {

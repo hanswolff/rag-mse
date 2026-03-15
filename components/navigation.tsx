@@ -31,7 +31,7 @@ const BASE_LINK_CLASSES =
   "px-2 sm:px-3 py-2 font-semibold uppercase tracking-wide text-base sm:text-base border-b-2 transition-colors touch-manipulation";
 
 const MOBILE_LINK_CLASSES =
-  "px-3 py-3 sm:px-4 sm:py-2 rounded-md text-base font-semibold uppercase tracking-wide block transition-colors touch-manipulation";
+  "px-3 py-2 sm:py-2.5 rounded-md text-base font-semibold uppercase tracking-wide block transition-colors touch-manipulation";
 
 export function Navigation() {
   const pathname = usePathname();
@@ -39,6 +39,7 @@ export function Navigation() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [isInfoMenuOpen, setIsInfoMenuOpen] = useState(false);
+  const [isMobileInfoOpen, setIsMobileInfoOpen] = useState(false);
   const [isStoppingImpersonation, setIsStoppingImpersonation] = useState(false);
   const [impersonationError, setImpersonationError] = useState("");
   const userMenuRef = useRef<HTMLDivElement>(null);
@@ -64,6 +65,13 @@ export function Navigation() {
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
+
+  // Reset mobile info menu when main menu closes
+  useEffect(() => {
+    if (!isMenuOpen) {
+      setIsMobileInfoOpen(false);
+    }
+  }, [isMenuOpen]);
 
   const userName = session?.user?.name || "Benutzer";
   const canAccessSelfServiceMenu = !!session && canManageOwnProfile(session.user);
@@ -155,10 +163,10 @@ export function Navigation() {
         </div>
       )}
       <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-8">
-        <div className="flex items-center justify-between h-16 sm:h-20">
+        <div className="flex items-center justify-between h-14 sm:h-20">
           <div className="flex items-center flex-shrink-0">
             <Link href="/" className="flex items-center gap-2 sm:gap-3 min-w-0">
-              <div className="relative w-10 h-10 sm:w-12 sm:h-12">
+              <div className="relative w-9 h-9 sm:w-12 sm:h-12">
                 <Image
                   src="/vdrbw-logo.svg"
                   alt="RAG Schießsport Logo"
@@ -173,7 +181,7 @@ export function Navigation() {
             </Link>
           </div>
 
-          <div className="hidden md:block">
+          <div className="hidden lg:block">
             <div className="ml-6 sm:ml-10 flex items-center space-x-2 sm:space-x-4">
               {NAV_ITEMS.map((item) => (
                 <Link
@@ -242,7 +250,7 @@ export function Navigation() {
                     aria-haspopup="true"
                   >
                     <UserIcon className="w-4 h-4" />
-                    <span className="hidden sm:inline">{userName}</span>
+                    <span className="hidden lg:inline">{userName}</span>
                   </button>
 
                   {isUserMenuOpen && (
@@ -306,7 +314,7 @@ export function Navigation() {
             </div>
           </div>
 
-          <div className="-mr-2 flex md:hidden">
+          <div className="-mr-2 flex lg:hidden">
             <button
               type="button"
               className="inline-flex items-center justify-center p-2 rounded-md text-brand-blue-900 hover:text-brand-red-700 hover:bg-brand-blue-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-white focus:ring-brand-red-600/30 touch-manipulation"
@@ -325,8 +333,8 @@ export function Navigation() {
         </div>
       </div>
 
-      <div className={`${isMenuOpen ? "block" : "hidden"} md:hidden`} data-testid="mobile-menu">
-        <div className="px-3 pt-2 pb-4 space-y-1 bg-white border-t border-brand-blue-100">
+      <div className={`${isMenuOpen ? "block" : "hidden"} lg:hidden`} data-testid="mobile-menu">
+        <div className="px-3 pt-1.5 pb-3 space-y-0.5 bg-white border-t border-brand-blue-100 max-h-[calc(100vh-3.5rem)] sm:max-h-[calc(100vh-5rem)] overflow-y-auto overscroll-contain">
           {NAV_ITEMS.map((item) => (
             <Link
               key={item.href}
@@ -338,27 +346,37 @@ export function Navigation() {
             </Link>
           ))}
 
-          <div className="px-3 py-2 text-brand-blue-700 font-semibold uppercase tracking-wide">
-            Infos
-          </div>
-          {INFO_ITEMS.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={`${getLinkClasses(item.href, true)} pl-6`}
-              onClick={() => setIsMenuOpen(false)}
-            >
-              {item.label}
-            </Link>
-          ))}
-          {status === "authenticated" && session && canReadMemberDocuments(session.user) && (
-            <Link
-              href={MEMBER_DOCUMENTS_ITEM.href}
-              className={`${getLinkClasses(MEMBER_DOCUMENTS_ITEM.href, true)} pl-6`}
-              onClick={() => setIsMenuOpen(false)}
-            >
-              {MEMBER_DOCUMENTS_ITEM.label}
-            </Link>
+          <button
+            type="button"
+            onClick={() => setIsMobileInfoOpen(!isMobileInfoOpen)}
+            className="w-full flex items-center justify-between px-3 py-2 rounded-md text-base font-semibold uppercase tracking-wide text-brand-blue-700 hover:bg-brand-blue-50 transition-colors touch-manipulation"
+            aria-expanded={isMobileInfoOpen}
+          >
+            <span>Infos</span>
+            <ChevronDownIcon className={`w-4 h-4 transition-transform duration-200 ${isMobileInfoOpen ? "rotate-180" : ""}`} />
+          </button>
+          {isMobileInfoOpen && (
+            <div className="space-y-1">
+              {INFO_ITEMS.map((item) => (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={`${getLinkClasses(item.href, true)} pl-6`}
+                  onClick={() => setIsMenuOpen(false)}
+                >
+                  {item.label}
+                </Link>
+              ))}
+              {status === "authenticated" && session && canReadMemberDocuments(session.user) && (
+                <Link
+                  href={MEMBER_DOCUMENTS_ITEM.href}
+                  className={`${getLinkClasses(MEMBER_DOCUMENTS_ITEM.href, true)} pl-6`}
+                  onClick={() => setIsMenuOpen(false)}
+                >
+                  {MEMBER_DOCUMENTS_ITEM.label}
+                </Link>
+              )}
+            </div>
           )}
 
           <Link
@@ -371,8 +389,8 @@ export function Navigation() {
 
           {status === "loading" ? null : session ? (
             <>
-              <div className="border-t border-brand-blue-100 pt-3 mt-3">
-                <div className="px-3 py-2 text-base text-brand-blue-700 flex items-center gap-2">
+              <div className="border-t border-brand-blue-100 pt-2 mt-2">
+                <div className="px-3 py-1.5 text-base text-brand-blue-700 flex items-center gap-2">
                   <UserIcon className="w-4 h-4" />
                   {userName}
                 </div>
@@ -386,7 +404,7 @@ export function Navigation() {
                   >
                     Adminbereich
                   </Link>
-                  <div className="border-t border-brand-blue-100 my-2" />
+                  <div className="border-t border-brand-blue-100 my-1" />
                 </>
               )}
               {canAccessSelfServiceMenu && (
@@ -414,14 +432,14 @@ export function Navigation() {
                   </Link>
                 </>
               )}
-              <div className="border-t border-brand-blue-100 my-2" />
+              <div className="border-t border-brand-blue-100 my-1" />
               <button
                 type="button"
                 onClick={async () => {
                   setIsMenuOpen(false);
                   await signOut({ callbackUrl: "/" });
                 }}
-                className="w-full text-left px-3 py-3 rounded-md text-base font-semibold uppercase tracking-wide text-brand-blue-900 hover:bg-brand-blue-50 hover:text-brand-red-700 transition-colors touch-manipulation"
+                className="w-full text-left px-3 py-2 rounded-md text-base font-semibold uppercase tracking-wide text-brand-blue-900 hover:bg-brand-blue-50 hover:text-brand-red-700 transition-colors touch-manipulation"
               >
                 Abmelden
               </button>

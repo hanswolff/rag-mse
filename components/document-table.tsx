@@ -3,7 +3,8 @@
 import { DragEvent, MouseEvent, ReactNode } from "react";
 import { SearchHighlight } from "@/components/search-highlight";
 import { DownloadIcon, EyeIcon, EyeOffIcon, FolderIcon, FileIcon } from "@/components/icons";
-import { formatFileSize, formatDateTime, formatDateUtc, isViewableDocument, type DocumentSortField, type DocumentSortDirection } from "@/lib/document-utils";
+import { formatFileSize, formatDateTime, formatDateUtc, isViewableDocument, getMimeTypeLabel, type DocumentSortField, type DocumentSortDirection } from "@/lib/document-utils";
+import { pluralize } from "@/lib/pluralization";
 import type { DocumentItem, DocumentDirectoryItem } from "@/types";
 
 export type { DocumentSortField, DocumentSortDirection };
@@ -107,7 +108,7 @@ export function DirectoryRow({
       <td className="px-3 py-2 text-sm text-gray-600">-</td>
       <td className="px-3 py-2 text-sm text-gray-600">-</td>
       <td className="px-3 py-2 text-sm text-gray-600">Dateiordner</td>
-      <td className="px-3 py-2 text-sm text-right text-gray-600">{directory.documentCount}</td>
+      <td className="px-3 py-2 text-sm text-right text-gray-600">{directory.documentCount} {pluralize(directory.documentCount, "Datei", "Dateien")}</td>
       <td className="px-3 py-2 text-right">
         {actions || <span className="text-gray-400">-</span>}
       </td>
@@ -179,7 +180,7 @@ export function DocumentRow({
       </td>
       <td className="px-3 py-2 text-sm text-gray-700">{formatDateUtc(document.documentDate)}</td>
       <td className="px-3 py-2 text-sm text-gray-700">{formatDateTime(document.updatedAt)}</td>
-      <td className="px-3 py-2 text-sm text-gray-700">{document.mimeType}</td>
+      <td className="px-3 py-2 text-sm text-gray-700">{getMimeTypeLabel(document.mimeType)}</td>
       <td className="px-3 py-2 text-sm text-gray-700 text-right">{formatFileSize(document.sizeBytes)}</td>
       <td className="px-3 py-2 text-right">
         <div className="inline-flex items-center gap-1">

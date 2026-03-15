@@ -6,7 +6,7 @@ export default function DatenschutzPage() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
         <div className="card">
           <h1 className="text-2xl sm:text-3xl font-bold text-center mb-6 sm:mb-8 text-gray-900">Datenschutzerklärung</h1>
-          <p className="text-center text-sm text-gray-600 -mt-3 mb-6 sm:mb-8">Zuletzt geändert: 15. Februar 2026</p>
+          <p className="text-center text-sm text-gray-600 -mt-3 mb-6 sm:mb-8">Zuletzt geändert: 13. März 2026</p>
 
           <section className="mb-6 sm:mb-8">
             <h2 className="text-lg sm:text-xl font-semibold mb-3 sm:mb-4 text-gray-900">1. Datenschutz auf einen Blick</h2>
@@ -34,14 +34,14 @@ export default function DatenschutzPage() {
               Wir hosten die Inhalte unserer Website bei folgendem Anbieter:
             </p>
             <address
-              className="mt-2 not-italic text-base text-gray-800 leading-snug space-y-0.5"
+              className="mt-2 not-italic text-base text-gray-800 leading-snug space-y-1"
               itemScope
               itemType="https://schema.org/Organization"
             >
               <p><strong className="text-gray-900">Anbieter:</strong> <span itemProp="name">dedimax solutions GmbH</span></p>
-              <div itemProp="address" itemScope itemType="https://schema.org/PostalAddress">
+              <div itemProp="address" itemScope itemType="https://schema.org/PostalAddress" className="space-y-0.5">
                 <p><strong>Adresse:</strong></p>
-                <p><span itemProp="streetAddress">Wieseneck 32</span></p>
+                <p itemProp="streetAddress">Wieseneck 32</p>
                 <p>
                   <span itemProp="postalCode">17192</span>{" "}
                   <span itemProp="addressLocality">Waren (Müritz)</span>
@@ -52,9 +52,11 @@ export default function DatenschutzPage() {
               <strong>Website:</strong>{" "}
               <a
                 href="https://dedimax.de"
+                itemProp="url"
                 target="_blank"
                 rel="noopener"
-                className="text-blue-700 hover:text-blue-800 underline"
+                referrerPolicy="origin-when-cross-origin"
+                className="underline hover:no-underline"
               >
                 https://dedimax.de
               </a>
@@ -190,14 +192,14 @@ export default function DatenschutzPage() {
               />
             </div>
             <address
-              className="not-italic text-base text-gray-800 leading-snug space-y-0.5"
+              className="not-italic text-base text-gray-800 leading-snug space-y-1"
               itemScope
               itemType="https://schema.org/Person"
             >
               <p><strong className="text-gray-900">Postanschrift:</strong></p>
               <p className="font-medium text-gray-900" itemProp="name">Hans Wolff</p>
-              <div itemProp="address" itemScope itemType="https://schema.org/PostalAddress">
-                <p><span itemProp="streetAddress">Wieseneck 32</span></p>
+              <div itemProp="address" itemScope itemType="https://schema.org/PostalAddress" className="space-y-0.5">
+                <p itemProp="streetAddress">Wieseneck 32</p>
                 <p>
                   <span itemProp="postalCode">17192</span>{" "}
                   <span itemProp="addressLocality">Waren (Müritz)</span>

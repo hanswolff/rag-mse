@@ -30,14 +30,14 @@ describe("lib/invitations", () => {
       expect(token1).not.toBe(token2);
     });
 
-    it("should generate a hex string", () => {
+    it("should generate an alphanumeric string", () => {
       const token = generateInvitationToken();
-      expect(token).toMatch(/^[0-9a-f]+$/);
+      expect(token).toMatch(/^[0-9a-zA-Z]+$/);
     });
 
-    it("should generate a 64-character hex string", () => {
+    it("should generate an 8-character alphanumeric string", () => {
       const token = generateInvitationToken();
-      expect(token.length).toBe(64);
+      expect(token.length).toBe(8);
     });
   });
 

@@ -6,9 +6,11 @@ import { useSession } from "next-auth/react";
 import { isAdmin } from "@/lib/role-utils";
 import { buildLoginUrlWithReturnUrl, getCurrentPathWithSearch } from "@/lib/return-url";
 import { BackLink } from "@/components/back-link";
+import { Modal } from "@/components/modal";
 import { Pagination } from "@/components/pagination";
 import { SearchHighlight } from "@/components/search-highlight";
 import { SortableTableHeader } from "@/components/sortable-table-header";
+import { EyeIcon } from "@/components/icons";
 import { useTableSorting } from "@/lib/use-table-sorting";
 import { Permissions } from "@/lib/permissions";
 
@@ -19,6 +21,8 @@ type EmailItem = {
   template: string;
   toRecipients: string;
   subject: string;
+  textBody: string;
+  htmlBody: string;
   status: OutgoingEmailStatus;
   attemptCount: number;
   firstQueuedAt: string;
@@ -117,6 +121,8 @@ export default function AdminOutgoingEmailsPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [retryingEmailId, setRetryingEmailId] = useState<string | null>(null);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
+  const [viewingEmail, setViewingEmail] = useState<EmailItem | null>(null);
+  const [emailContentTab, setEmailContentTab] = useState<"text" | "html">("text");
   const { sortBy, sortDir, handleSortChange } = useTableSorting<OutgoingEmailSortField>(
     "createdAt",
     "desc",
@@ -222,7 +228,7 @@ export default function AdminOutgoingEmailsPage() {
     if (items.length === 0) {
       return (
         <tr>
-          <td className="px-4 py-6 text-base text-gray-500 text-center" colSpan={9}>
+          <td className="px-4 py-6 text-base text-gray-500 text-center" colSpan={10}>
             Keine E-Mails in den letzten 30 Tagen gefunden.
           </td>
         </tr>
@@ -233,24 +239,35 @@ export default function AdminOutgoingEmailsPage() {
       const canRetry = item.status === "FAILED";
       return (
         <tr key={item.id} className="border-t border-gray-100">
-          <td className="px-4 py-3 text-base text-gray-900 whitespace-nowrap">{formatDateTime(item.createdAt)}</td>
-          <td className="px-4 py-3 text-base text-gray-700">
+          <td className="px-2 py-3">
+            <button
+              type="button"
+              onClick={() => setViewingEmail(item)}
+              className="p-1.5 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded transition-colors"
+              title="Inhalt anzeigen"
+              aria-label="E-Mail-Inhalt anzeigen"
+            >
+              <EyeIcon className="h-5 w-5" />
+            </button>
+          </td>
+          <td className="px-4 py-3 text-sm text-gray-900 whitespace-nowrap">{formatDateTime(item.createdAt)}</td>
+          <td className="px-4 py-3 text-sm text-gray-700">
             <SearchHighlight text={item.template} query={searchQuery} />
           </td>
-          <td className="px-4 py-3 text-base text-gray-900">
+          <td className="px-4 py-3 text-sm text-gray-900">
             <SearchHighlight text={item.subject} query={searchQuery} />
           </td>
-          <td className="px-4 py-3 text-base text-gray-700 break-all">
+          <td className="px-4 py-3 text-sm text-gray-700 break-all">
             <SearchHighlight text={item.toRecipients} query={searchQuery} />
           </td>
-          <td className="px-4 py-3 text-base whitespace-nowrap">
+          <td className="px-4 py-3 text-sm whitespace-nowrap">
             <span className={getStatusClassName(item.status)}>{getStatusLabel(item.status)}</span>
           </td>
-          <td className="px-4 py-3 text-base text-gray-900 whitespace-nowrap">{item.attemptCount}</td>
-          <td className="px-4 py-3 text-base text-gray-700">
+          <td className="px-4 py-3 text-sm text-gray-900 whitespace-nowrap">{item.attemptCount}</td>
+          <td className="px-4 py-3 text-sm text-gray-700">
             {item.lastError ? item.lastError : "-"}
           </td>
-          <td className="px-4 py-3 text-base text-gray-700 whitespace-nowrap">
+          <td className="px-4 py-3 text-sm text-gray-700 whitespace-nowrap">
             {item.lastAttemptAt ? formatDateTime(item.lastAttemptAt) : "-"}
           </td>
           <td className="px-4 py-3 text-base text-gray-900 whitespace-nowrap">
@@ -334,7 +351,21 @@ export default function AdminOutgoingEmailsPage() {
                 const canRetry = item.status === "FAILED";
                 return (
                   <article key={item.id} className="border border-gray-200 rounded-md bg-white p-4 space-y-2">
-                    <p className="text-sm text-gray-500">{formatDateTime(item.createdAt)}</p>
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <p className="text-sm text-gray-500">{formatDateTime(item.createdAt)}</p>
+                        <p className={getStatusClassName(item.status)}>{getStatusLabel(item.status)}</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setViewingEmail(item)}
+                        className="p-1.5 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded transition-colors"
+                        title="Inhalt anzeigen"
+                        aria-label="E-Mail-Inhalt anzeigen"
+                      >
+                        <EyeIcon className="h-5 w-5" />
+                      </button>
+                    </div>
                     <p className="text-base text-gray-700">
                       <span className="font-semibold text-gray-900">Typ:</span>{" "}
                       <SearchHighlight text={item.template} query={searchQuery} />
@@ -382,6 +413,9 @@ export default function AdminOutgoingEmailsPage() {
             <table className="min-w-full">
               <thead className="bg-gray-50">
                 <tr>
+                  <th scope="col" className="px-2 py-3 text-left text-base font-semibold text-gray-700 w-10">
+                    <span className="sr-only">Anzeigen</span>
+                  </th>
                   <SortableTableHeader
                     label="Erstellt am"
                     field="createdAt"
@@ -455,6 +489,85 @@ export default function AdminOutgoingEmailsPage() {
 
           <Pagination currentPage={page} totalPages={totalPages} onPageChange={setPage} disabled={isLoading} />
         </section>
+
+        <Modal
+          isOpen={viewingEmail !== null}
+          onClose={() => {
+            setViewingEmail(null);
+            setEmailContentTab("text");
+          }}
+          title="E-Mail-Inhalt"
+          size="3xl"
+        >
+          {viewingEmail && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pb-4 border-b border-gray-200">
+                <div>
+                  <p className="text-sm text-gray-500">Empfänger</p>
+                  <p className="text-base font-medium text-gray-900 break-all">{viewingEmail.toRecipients}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-500">Status</p>
+                  <p className={`text-base font-semibold ${getStatusClassName(viewingEmail.status)}`}>
+                    {getStatusLabel(viewingEmail.status)}
+                  </p>
+                </div>
+              </div>
+
+              <div>
+                <p className="text-sm text-gray-500 mb-1">Betreff</p>
+                <p className="text-base font-medium text-gray-900">{viewingEmail.subject}</p>
+              </div>
+
+              <div>
+                <p className="text-sm text-gray-500 mb-2">Inhalt</p>
+                <div className="flex gap-1 mb-2">
+                  <button
+                    type="button"
+                    onClick={() => setEmailContentTab("text")}
+                    className={`px-3 py-1.5 text-sm font-medium rounded-t transition-colors ${
+                      emailContentTab === "text"
+                        ? "bg-brand-red-600 text-white"
+                        : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                    }`}
+                  >
+                    Text
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEmailContentTab("html")}
+                    className={`px-3 py-1.5 text-sm font-medium rounded-t transition-colors ${
+                      emailContentTab === "html"
+                        ? "bg-brand-red-600 text-white"
+                        : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                    }`}
+                  >
+                    HTML
+                  </button>
+                </div>
+                {emailContentTab === "text" ? (
+                  <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 text-sm text-gray-800 whitespace-pre-wrap max-h-64 overflow-y-auto">
+                    {viewingEmail.textBody || <span className="text-gray-500 italic">Kein Text-Inhalt vorhanden</span>}
+                  </div>
+                ) : (
+                  viewingEmail.htmlBody ? (
+                    <div className="bg-gray-50 border border-gray-200 rounded-lg overflow-hidden">
+                      <iframe
+                        srcDoc={viewingEmail.htmlBody}
+                        className="w-full h-64 border-0"
+                        title="HTML-Vorschau"
+                      />
+                    </div>
+                  ) : (
+                    <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 text-sm text-gray-800">
+                      <span className="text-gray-500 italic">Kein HTML-Inhalt vorhanden</span>
+                    </div>
+                  )
+                )}
+              </div>
+            </div>
+          )}
+        </Modal>
       </div>
     </main>
   );

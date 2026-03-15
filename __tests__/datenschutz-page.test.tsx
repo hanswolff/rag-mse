@@ -11,7 +11,7 @@ describe("DatenschutzPage", () => {
 
   it("renders the last updated date", () => {
     render(<DatenschutzPage />);
-    expect(screen.getByText("Zuletzt geändert: 15. Februar 2026")).toBeInTheDocument();
+    expect(screen.getByText("Zuletzt geändert: 13. März 2026")).toBeInTheDocument();
   });
 
   it("renders data protection overview section", () => {
@@ -33,13 +33,13 @@ describe("DatenschutzPage", () => {
       name: "3. Hosting und Server-Logs",
     });
     expect(heading).toBeInTheDocument();
-    expect(screen.getByText("dedimax solutions GmbH")).toBeInTheDocument();
-    const link = screen.getByRole("link", { name: "https://dedimax.de" });
-    expect(link).toHaveAttribute("href", "https://dedimax.de");
-    expect(link).toHaveAttribute("target", "_blank");
-    expect(link).toHaveAttribute("rel", "noopener");
-    expect(link.getAttribute("rel")).not.toMatch(/noreferrer/i);
-    expect(link.getAttribute("rel")).not.toMatch(/nofollow/i);
+    expect(screen.getByText(/dedimax solutions GmbH/i)).toBeInTheDocument();
+    const websiteLink = screen.getByRole("link", { name: "https://dedimax.de" });
+    expect(websiteLink).toHaveAttribute("href", "https://dedimax.de");
+    expect(websiteLink).toHaveAttribute("target", "_blank");
+    expect(websiteLink).toHaveAttribute("rel", "noopener");
+    expect(websiteLink.getAttribute("rel")).not.toContain("noreferrer");
+    expect(websiteLink).toHaveAttribute("referrerpolicy", "origin-when-cross-origin");
   });
 
   it("renders contact form section", () => {

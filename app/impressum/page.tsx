@@ -10,19 +10,19 @@ export default function ImpressumPage() {
           <section className="mb-6 sm:mb-8">
             <h2 className="text-lg sm:text-xl font-semibold mb-3 sm:mb-4 text-gray-900">Angaben gemäß § 5 DDG</h2>
             <address
-              className="not-italic text-base text-gray-800 leading-snug space-y-0.5"
+              className="not-italic text-base text-gray-800 leading-snug space-y-1"
               itemScope
               itemType="https://schema.org/Organization"
             >
               <p className="font-semibold text-gray-900" itemProp="name">Verband der Reservisten der Deutschen Bundeswehr e. V.</p>
               <p itemProp="department">Bundesgeschäftsstelle</p>
-              <div itemProp="address" itemScope itemType="https://schema.org/PostalAddress">
-                <p><span itemProp="streetAddress">Zeppelinstraße 7 A</span></p>
+              <div itemProp="address" itemScope itemType="https://schema.org/PostalAddress" className="space-y-0.5">
+                <p itemProp="streetAddress">Zeppelinstraße 7 A</p>
                 <p>
                   <span itemProp="postalCode">53177</span>{" "}
                   <span itemProp="addressLocality">Bonn</span>
                 </p>
-                <p><span itemProp="addressCountry">Deutschland</span></p>
+                <p itemProp="addressCountry">Deutschland</p>
               </div>
             </address>
           </section>
@@ -39,13 +39,13 @@ export default function ImpressumPage() {
               Verantwortlich für den Inhalt gemäß § 18 Abs. 2 MStV
             </h2>
             <address
-              className="not-italic text-base text-gray-800 leading-snug space-y-0.5"
+              className="not-italic text-base text-gray-800 leading-snug space-y-1"
               itemScope
               itemType="https://schema.org/Person"
             >
               <p className="font-medium text-gray-900" itemProp="name">Hans Wolff</p>
-              <div itemProp="address" itemScope itemType="https://schema.org/PostalAddress">
-                <p><span itemProp="streetAddress">Wieseneck 32</span></p>
+              <div itemProp="address" itemScope itemType="https://schema.org/PostalAddress" className="space-y-0.5">
+                <p itemProp="streetAddress">Wieseneck 32</p>
                 <p>
                   <span itemProp="postalCode">17192</span>{" "}
                   <span itemProp="addressLocality">Waren (Müritz)</span>
@@ -65,8 +65,8 @@ export default function ImpressumPage() {
                 itemType="https://schema.org/Person"
               >
                 <p className="font-medium text-gray-900" itemProp="name">Hans Wolff</p>
-                <div itemProp="address" itemScope itemType="https://schema.org/PostalAddress">
-                  <p><span itemProp="streetAddress">Wieseneck 32</span></p>
+                <div itemProp="address" itemScope itemType="https://schema.org/PostalAddress" className="space-y-0.5">
+                  <p itemProp="streetAddress">Wieseneck 32</p>
                   <p>
                     <span itemProp="postalCode">17192</span>{" "}
                     <span itemProp="addressLocality">Waren (Müritz)</span>
@@ -86,34 +86,6 @@ export default function ImpressumPage() {
           </section>
 
           <section className="mb-6 sm:mb-8">
-            <h2 className="text-lg sm:text-xl font-semibold mb-3 sm:mb-4 text-gray-900">Hosting</h2>
-            <address
-              className="not-italic text-base text-gray-800 leading-snug space-y-0.5"
-              itemScope
-              itemType="https://schema.org/Organization"
-            >
-              <p className="font-medium text-gray-900" itemProp="name">dedimax solutions GmbH</p>
-              <div itemProp="address" itemScope itemType="https://schema.org/PostalAddress">
-                <p><span itemProp="streetAddress">Wieseneck 32</span></p>
-                <p>
-                  <span itemProp="postalCode">17192</span>{" "}
-                  <span itemProp="addressLocality">Waren (Müritz)</span>
-                </p>
-              </div>
-              <p>
-                <a
-                  href="https://dedimax.de"
-                  target="_blank"
-                  rel="noopener"
-                  className="text-blue-700 hover:text-blue-800 underline"
-                >
-                  https://dedimax.de
-                </a>
-              </p>
-            </address>
-          </section>
-
-          <section className="mb-6 sm:mb-8">
             <h2 className="text-lg sm:text-xl font-semibold mb-3 sm:mb-4 text-gray-900">
               Verbraucherstreitbeilegung / Universalschlichtungsstelle
             </h2>
@@ -121,6 +93,40 @@ export default function ImpressumPage() {
               Wir sind nicht bereit oder verpflichtet, an
               Streitbeilegungsverfahren vor einer Verbraucherschlichtungsstelle
               teilzunehmen.
+            </p>
+          </section>
+
+          <section className="mb-6 sm:mb-8">
+            <h2 className="text-lg sm:text-xl font-semibold mb-3 sm:mb-4 text-gray-900">
+              Technische Umsetzung und Hosting
+            </h2>
+            <address
+              className="not-italic text-base text-gray-800 leading-snug space-y-1"
+              itemScope
+              itemType="https://schema.org/Organization"
+            >
+              <p><strong className="text-gray-900">Hosting-Anbieter:</strong> <span itemProp="name">dedimax solutions GmbH</span></p>
+              <div itemProp="address" itemScope itemType="https://schema.org/PostalAddress" className="space-y-0.5">
+                <p><strong>Adresse:</strong></p>
+                <p itemProp="streetAddress">Wieseneck 32</p>
+                <p>
+                  <span itemProp="postalCode">17192</span>{" "}
+                  <span itemProp="addressLocality">Waren (Müritz)</span>
+                </p>
+              </div>
+            </address>
+            <p className="mt-2 text-base sm:text-base text-gray-800">
+              <strong>Website:</strong>{" "}
+              <a
+                href="https://dedimax.de"
+                itemProp="url"
+                target="_blank"
+                rel="noopener"
+                referrerPolicy="origin-when-cross-origin"
+                className="underline hover:no-underline"
+              >
+                https://dedimax.de
+              </a>
             </p>
           </section>
 

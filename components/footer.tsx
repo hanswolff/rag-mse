@@ -7,7 +7,6 @@ const LEGAL_LINKS = [
 ] as const;
 
 const EXTERNAL_LINKS = [
-  { href: "/info", label: "Infos" },
   { href: "https://github.com/hanswolff/rag-mse", label: "GitHub" },
 ] as const;
 

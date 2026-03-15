@@ -97,6 +97,8 @@ export const GET = withApiErrorHandling(async (request: NextRequest) => {
         template: true,
         toRecipients: true,
         subject: true,
+        textBody: true,
+        htmlBody: true,
         status: true,
         attemptCount: true,
         firstQueuedAt: true,

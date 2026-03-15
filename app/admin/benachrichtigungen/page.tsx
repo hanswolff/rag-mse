@@ -5,9 +5,11 @@ import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { buildLoginUrlWithReturnUrl, getCurrentPathWithSearch } from "@/lib/return-url";
 import { BackLink } from "@/components/back-link";
+import { Modal } from "@/components/modal";
 import { Pagination } from "@/components/pagination";
 import { SearchHighlight } from "@/components/search-highlight";
 import { SortableTableHeader } from "@/components/sortable-table-header";
+import { EyeIcon } from "@/components/icons";
 import { formatDate, formatTime } from "@/lib/date-utils";
 import { useTableSorting } from "@/lib/use-table-sorting";
 import { Permissions } from "@/lib/permissions";
@@ -74,6 +76,7 @@ export default function AdminNotificationsPage() {
   const [error, setError] = useState<string | null>(null);
   const [searchInput, setSearchInput] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
+  const [viewingNotification, setViewingNotification] = useState<NotificationItem | null>(null);
   const { sortBy, sortDir, handleSortChange } = useTableSorting<NotificationSortField>(
     "sentAt",
     "desc",
@@ -157,7 +160,7 @@ export default function AdminNotificationsPage() {
     if (items.length === 0) {
       return (
         <tr>
-          <td className="px-4 py-6 text-base text-gray-500 text-center" colSpan={7}>
+          <td className="px-4 py-6 text-base text-gray-500 text-center" colSpan={8}>
             Keine Benachrichtigungen in den letzten 30 Tagen gefunden.
           </td>
         </tr>
@@ -166,29 +169,40 @@ export default function AdminNotificationsPage() {
 
     return items.map((item) => (
       <tr key={item.id} className="border-t border-gray-100">
-        <td className="px-4 py-3 text-base text-gray-900 whitespace-nowrap">
+        <td className="px-2 py-3">
+          <button
+            type="button"
+            onClick={() => setViewingNotification(item)}
+            className="p-1.5 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded transition-colors"
+            title="Inhalt anzeigen"
+            aria-label="Benachrichtigungsinhalt anzeigen"
+          >
+            <EyeIcon className="h-5 w-5" />
+          </button>
+        </td>
+        <td className="px-4 py-3 text-sm text-gray-900 whitespace-nowrap">
           {item.sentAt ? formatSentAt(item.sentAt) : formatSentAt(item.queuedAt)}
         </td>
-        <td className="px-4 py-3 text-base whitespace-nowrap">
+        <td className="px-4 py-3 text-sm whitespace-nowrap">
           <span className={item.status === "VERSENDET" ? "text-green-700 font-semibold" : "text-amber-700 font-semibold"}>
             {item.status === "VERSENDET" ? "Versendet" : "Ausstehend"}
           </span>
         </td>
-        <td className="px-4 py-3 text-base text-gray-900">
+        <td className="px-4 py-3 text-sm text-gray-900">
           {item.user.name
             ? <SearchHighlight text={item.user.name} query={searchQuery} />
             : "-"}
         </td>
-        <td className="px-4 py-3 text-base text-gray-700 break-all">
+        <td className="px-4 py-3 text-sm text-gray-700 break-all">
           <SearchHighlight text={item.user.email} query={searchQuery} />
         </td>
-        <td className="px-4 py-3 text-base text-gray-900 whitespace-nowrap">
+        <td className="px-4 py-3 text-sm text-gray-900 whitespace-nowrap">
           {formatDate(item.event.date)}
         </td>
-        <td className="px-4 py-3 text-base text-gray-700 whitespace-nowrap">
+        <td className="px-4 py-3 text-sm text-gray-700 whitespace-nowrap">
           {formatTime(item.event.timeFrom)} - {formatTime(item.event.timeTo)}
         </td>
-        <td className="px-4 py-3 text-base text-gray-900">
+        <td className="px-4 py-3 text-sm text-gray-900">
           {item.event.location}
         </td>
       </tr>
@@ -253,10 +267,23 @@ export default function AdminNotificationsPage() {
             ) : (
               items.map((item) => (
                 <article key={item.id} className="border border-gray-200 rounded-md bg-white p-4 space-y-2">
-                  <p className="text-sm text-gray-500">{item.sentAt ? formatSentAt(item.sentAt) : formatSentAt(item.queuedAt)}</p>
-                  <p className={item.status === "VERSENDET" ? "text-green-700 font-semibold" : "text-amber-700 font-semibold"}>
-                    {item.status === "VERSENDET" ? "Versendet" : "Ausstehend"}
-                  </p>
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <p className="text-sm text-gray-500">{item.sentAt ? formatSentAt(item.sentAt) : formatSentAt(item.queuedAt)}</p>
+                      <p className={item.status === "VERSENDET" ? "text-green-700 font-semibold" : "text-amber-700 font-semibold"}>
+                        {item.status === "VERSENDET" ? "Versendet" : "Ausstehend"}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setViewingNotification(item)}
+                      className="p-1.5 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded transition-colors"
+                      title="Inhalt anzeigen"
+                      aria-label="Benachrichtigungsinhalt anzeigen"
+                    >
+                      <EyeIcon className="h-5 w-5" />
+                    </button>
+                  </div>
                   <p className="text-base text-gray-900">
                     <span className="font-semibold">Name:</span>{" "}
                     {item.user.name ? <SearchHighlight text={item.user.name} query={searchQuery} /> : "-"}
@@ -285,6 +312,9 @@ export default function AdminNotificationsPage() {
             <table className="min-w-full">
               <thead className="bg-gray-50">
                 <tr>
+                  <th className="px-2 py-3 text-left text-base font-semibold text-gray-700 w-10">
+                    <span className="sr-only">Aktionen</span>
+                  </th>
                   <SortableTableHeader
                     label="Versendet am"
                     field="sentAt"
@@ -354,6 +384,71 @@ export default function AdminNotificationsPage() {
             disabled={isLoading}
           />
         </section>
+
+        <Modal
+          isOpen={viewingNotification !== null}
+          onClose={() => setViewingNotification(null)}
+          title="Benachrichtigungsinhalt"
+          size="3xl"
+        >
+          {viewingNotification && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pb-4 border-b border-gray-200">
+                <div>
+                  <p className="text-sm text-gray-500">Empfänger</p>
+                  <p className="text-base font-medium text-gray-900">
+                    {viewingNotification.user.name || viewingNotification.user.email}
+                  </p>
+                  <p className="text-sm text-gray-600">{viewingNotification.user.email}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-500">Status</p>
+                  <p className={`text-base font-semibold ${viewingNotification.status === "VERSENDET" ? "text-green-700" : "text-amber-700"}`}>
+                    {viewingNotification.status === "VERSENDET" ? "Versendet" : "Ausstehend"}
+                  </p>
+                  <p className="text-sm text-gray-600">
+                    {viewingNotification.sentAt
+                      ? formatSentAt(viewingNotification.sentAt)
+                      : formatSentAt(viewingNotification.queuedAt)}
+                  </p>
+                </div>
+              </div>
+
+              <div>
+                <p className="text-sm text-gray-500 mb-1">Betreff</p>
+                <p className="text-base font-medium text-gray-900">
+                  Erinnerung: Bitte Teilnahme für Termin bestätigen
+                </p>
+              </div>
+
+              <div>
+                <p className="text-sm text-gray-500 mb-2">Nachricht</p>
+                <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 text-base text-gray-800 whitespace-pre-wrap">
+                  {`Hallo,
+
+in ${viewingNotification.daysBefore} Tag(en) findet ein Termin statt, für den noch keine Teilnahme von dir hinterlegt ist.
+
+Datum: ${formatDate(viewingNotification.event.date)}
+Uhrzeit: ${formatTime(viewingNotification.event.timeFrom)} - ${formatTime(viewingNotification.event.timeTo)}
+Ort: ${viewingNotification.event.location}
+
+Direkt zur Anmeldung (Ja/Nein/Vielleicht):
+[Link enthält persönlichen Anmelde-Token]
+
+Wenn du diese Erinnerung für zukünftige Termine nicht mehr erhalten möchtest, kannst du sie mit einem Klick deaktivieren:
+[Link enthält persönlichen Abmelde-Token]
+
+Viele Grüße
+RAG Schießsport MSE`}
+                </div>
+              </div>
+
+              <div className="pt-2 text-sm text-gray-500">
+                <p>Die Links in der E-Mail enthalten persönliche Tokens für den Empfänger.</p>
+              </div>
+            </div>
+          )}
+        </Modal>
       </div>
     </main>
   );

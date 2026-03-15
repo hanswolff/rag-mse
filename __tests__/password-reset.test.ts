@@ -12,7 +12,7 @@ describe("password-reset", () => {
       const token = generateResetToken();
       expect(token).toBeTruthy();
       expect(typeof token).toBe("string");
-      expect(token.length).toBe(64);
+      expect(token.length).toBe(8);
     });
 
     it("should generate different tokens on multiple calls", () => {
@@ -21,9 +21,9 @@ describe("password-reset", () => {
       expect(token1).not.toBe(token2);
     });
 
-    it("should generate hex string", () => {
+    it("should generate alphanumeric string", () => {
       const token = generateResetToken();
-      expect(token).toMatch(/^[a-f0-9]{64}$/);
+      expect(token).toMatch(/^[0-9a-zA-Z]{8}$/);
     });
   });
 

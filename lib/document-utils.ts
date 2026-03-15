@@ -76,3 +76,23 @@ export function formatDateUtc(value: string): string {
     timeZone: "UTC",
   }).format(date);
 }
+
+const MIME_TYPE_LABELS: Record<string, string> = {
+  "application/pdf": "PDF-Dokument",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "Word-Dokument",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": "Excel-Tabelle",
+  "application/msword": "Word-Dokument",
+  "application/vnd.ms-excel": "Excel-Tabelle",
+  "application/vnd.oasis.opendocument.text": "ODT-Dokument",
+  "application/vnd.oasis.opendocument.spreadsheet": "ODS-Tabelle",
+  "image/jpeg": "JPEG-Bild",
+  "image/png": "PNG-Bild",
+  "image/webp": "WebP-Bild",
+  "image/gif": "GIF-Bild",
+  "text/plain": "Textdatei",
+  "text/csv": "CSV-Datei",
+};
+
+export function getMimeTypeLabel(mimeType: string): string {
+  return MIME_TYPE_LABELS[mimeType.toLowerCase()] ?? mimeType;
+}

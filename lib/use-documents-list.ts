@@ -89,8 +89,8 @@ export function useDocumentsList({
   documentsApiPrefix,
   directoriesApiPrefix,
   accessCheck,
-  defaultSortField = "documentDate",
-  defaultSortDir = "desc",
+  defaultSortField = "displayName",
+  defaultSortDir = "asc",
   documentsQueryParams,
   directoriesQueryParams,
 }: UseDocumentsListOptions): UseDocumentsListReturn {
@@ -120,6 +120,7 @@ export function useDocumentsList({
     defaultSortField,
     defaultSortDir,
     {
+      displayName: "asc",
       updatedAt: "desc",
       documentDate: "desc",
     }
