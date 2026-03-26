@@ -5,25 +5,14 @@ import { validateUpdateEventRequest, validateTimeString, type UpdateEventRequest
 import {
   parseJsonBody,
   withApiErrorHandling,
-  validateRequestBody,
   validateCsrfHeaders,
   MAX_REQUEST_BODY_SIZE,
 } from "@/lib/api-utils";
 import { logInfo, logResourceNotFound, logValidationFailure } from "@/lib/logger";
+import { logAdminAction } from "@/lib/audit-log";
 import { formatDateForStorage, parseDateAndTime } from "@/lib/date-picker-utils";
 import { hasEventDescriptionContent, sanitizeEventDescriptionHtml } from "@/lib/event-description";
 
-const updateEventSchema = {
-  date: { type: 'string' as const, optional: true },
-  timeFrom: { type: 'string' as const, optional: true },
-  timeTo: { type: 'string' as const, optional: true },
-  location: { type: 'string' as const, optional: true },
-  description: { type: 'string' as const, optional: true },
-  latitude: { type: 'string' as const, optional: true },
-  longitude: { type: 'string' as const, optional: true },
-  type: { type: 'string' as const, optional: true },
-  visible: { type: 'boolean' as const, optional: true },
-} as const;
 const EVENT_REQUEST_BODY_SIZE = MAX_REQUEST_BODY_SIZE + 128 * 1024;
 
 function normalizeCoordinate(value?: string | number | null): number | null | undefined {
@@ -82,21 +71,16 @@ export const GET = withApiErrorHandling(async (request: NextRequest, ctx: RouteC
 export const PUT = withApiErrorHandling(async (request: NextRequest, ctx: RouteContext<'/api/admin/events/[id]'>) => {
   validateCsrfHeaders(request);
 
-  await requireAdmin("write");
+  const admin = await requireAdmin("write");
 
   const { id } = await ctx.params;
   const body = await parseJsonBody<UpdateEventRequest>(request, EVENT_REQUEST_BODY_SIZE);
-
-  const bodyValidation = validateRequestBody(body, updateEventSchema, { route: '/api/admin/events/[id]', method: 'PUT' });
-  if (!bodyValidation.isValid) {
-    return NextResponse.json({ error: bodyValidation.errors.join(". ") }, { status: 400 });
-  }
 
   const validation = validateUpdateEventRequest(body);
 
   if (!validation.isValid) {
     logValidationFailure('/api/admin/events/[id]', 'PUT', validation.errors, { eventId: id });
-    return NextResponse.json({ error: validation.errors.join(". ") }, { status: 400 });
+    return NextResponse.json({ error: validation.errors.join(". "), fieldErrors: validation.fieldErrors }, { status: 400 });
   }
 
   const existingEvent = await prisma.event.findUnique({
@@ -136,7 +120,7 @@ export const PUT = withApiErrorHandling(async (request: NextRequest, ctx: RouteC
     const toMinutes = hoursTo * 60 + minutesTo;
 
     if (fromMinutes >= toMinutes) {
-      return NextResponse.json({ error: "Uhrzeit bis muss nach Uhrzeit von liegen" }, { status: 400 });
+      return NextResponse.json({ error: "Uhrzeit bis muss nach Uhrzeit von liegen", fieldErrors: [{ field: "timeTo", message: "Uhrzeit bis muss nach Uhrzeit von liegen" }] }, { status: 400 });
     }
   }
 
@@ -164,7 +148,7 @@ export const PUT = withApiErrorHandling(async (request: NextRequest, ctx: RouteC
     const sanitizedDescription = sanitizeEventDescriptionHtml(String(body.description));
 
     if (!hasEventDescriptionContent(sanitizedDescription)) {
-      return NextResponse.json({ error: "Beschreibung darf nicht leer sein" }, { status: 400 });
+      return NextResponse.json({ error: "Beschreibung darf nicht leer sein", fieldErrors: [{ field: "description", message: "Beschreibung darf nicht leer sein" }] }, { status: 400 });
     }
 
     updateData.description = sanitizedDescription;
@@ -200,6 +184,11 @@ export const PUT = withApiErrorHandling(async (request: NextRequest, ctx: RouteC
     updatedBy: 'admin',
   });
 
+  logAdminAction("event_update", admin, {
+    eventId: updatedEvent.id,
+    changedFields: Object.keys(updateData),
+  });
+
   return NextResponse.json({
     ...updatedEvent,
     date: formatDateForStorage(updatedEvent.date),
@@ -209,7 +198,7 @@ export const PUT = withApiErrorHandling(async (request: NextRequest, ctx: RouteC
 export const DELETE = withApiErrorHandling(async (request: NextRequest, ctx: RouteContext<'/api/admin/events/[id]'>) => {
   validateCsrfHeaders(request);
 
-  await requireAdmin("write");
+  const admin = await requireAdmin("write");
 
   const { id } = await ctx.params;
 
@@ -231,6 +220,11 @@ export const DELETE = withApiErrorHandling(async (request: NextRequest, ctx: Rou
     title: existingEvent.description,
     date: existingEvent.date,
     deletedBy: 'admin',
+  });
+
+  logAdminAction("event_delete", admin, {
+    eventId: existingEvent.id,
+    date: existingEvent.date.toISOString(),
   });
 
   return NextResponse.json({ success: true });

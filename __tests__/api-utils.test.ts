@@ -13,6 +13,7 @@ import {
   checkTokenRateLimitWithPolicy,
   recordSuccessfulTokenUsageWithPolicy,
 } from "@/lib/api-utils";
+import { TokenRateLimitUnavailableError } from "@/lib/errors";
 import { logError, logWarn } from "@/lib/logger";
 import { checkTokenRateLimit, recordSuccessfulTokenUsage } from "@/lib/rate-limiter";
 
@@ -153,7 +154,7 @@ describe("withApiErrorHandling", () => {
 
       expect(result.status).toBe(500);
       const data = await result.json();
-      expect(data.error).toBe("Ein Fehler ist aufgetreten");
+      expect(data.error).toBe("Ein Fehler ist aufgetreten. Bitte versuchen Sie es später erneut.");
     });
 
     it("logs error with route info", async () => {
@@ -183,7 +184,7 @@ describe("withApiErrorHandling", () => {
 
       expect(result.status).toBe(500);
       const data = await result.json();
-      expect(data.error).toBe("Ein Fehler ist aufgetreten");
+      expect(data.error).toBe("Ein Fehler ist aufgetreten. Bitte versuchen Sie es später erneut.");
       expect(logError).toHaveBeenCalledWith('api_error', 'API error in /test', expect.objectContaining({ error: 'string error' }));
     });
 
@@ -195,7 +196,7 @@ describe("withApiErrorHandling", () => {
 
       expect(result.status).toBe(500);
       const data = await result.json();
-      expect(data.error).toBe("Ein Fehler ist aufgetreten");
+      expect(data.error).toBe("Ein Fehler ist aufgetreten. Bitte versuchen Sie es später erneut.");
     });
   });
 
@@ -211,7 +212,7 @@ describe("withApiErrorHandling", () => {
 
       await expect(
         checkTokenRateLimitWithPolicy("/api/test/[token]", "POST", "127.0.0.1", "hash", "abc...")
-      ).rejects.toThrow("TOKEN_RATE_LIMIT_UNAVAILABLE");
+      ).rejects.toThrow(TokenRateLimitUnavailableError);
 
       expect(logError).toHaveBeenCalledWith(
         "token_rate_limit_unavailable",

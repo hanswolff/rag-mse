@@ -3,12 +3,9 @@ import { Role, type Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { hashInvitationToken } from "@/lib/invitations";
 import { logResourceNotFound, maskToken } from "@/lib/logger";
+import { InvitationNotFoundError, InvitationAlreadyUsedError, InvitationExpiredError } from "@/lib/errors";
 
 const BCRYPT_SALT_ROUNDS = 10;
-
-export const INVITATION_NOT_FOUND = "INVITATION_NOT_FOUND";
-export const INVITATION_ALREADY_USED = "INVITATION_ALREADY_USED";
-export const INVITATION_EXPIRED = "INVITATION_EXPIRED";
 
 export const INVITATION_ERROR_MESSAGES = {
   invalidToken: "Einladung ungültig",
@@ -111,19 +108,19 @@ export async function validateInvitationInTransaction(
     logResourceNotFound("invitation", maskToken(token), "/api/invitations/[token]", "POST", {
       reason: "not_found_in_transaction",
     });
-    throw new Error(INVITATION_NOT_FOUND);
+    throw new InvitationNotFoundError();
   }
   if (invitation.usedAt) {
     logResourceNotFound("invitation", maskToken(token), "/api/invitations/[token]", "POST", {
       reason: "already_used",
     });
-    throw new Error(INVITATION_ALREADY_USED);
+    throw new InvitationAlreadyUsedError();
   }
   if (invitation.expiresAt <= new Date()) {
     logResourceNotFound("invitation", maskToken(token), "/api/invitations/[token]", "POST", {
       reason: "expired",
     });
-    throw new Error(INVITATION_EXPIRED);
+    throw new InvitationExpiredError();
   }
 }
 

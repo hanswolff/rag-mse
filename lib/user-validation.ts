@@ -1,13 +1,17 @@
-import { validatePassword } from "./password-validation";
 import { Role } from "@prisma/client";
+import { z } from "zod";
 import {
   validateEmail as validateEmailFormat,
   validatePhone as validatePhoneFormat,
   nameRegex,
+  emailRegex,
   validateDateString,
   profileFormSchema,
   passwordChangeFormSchema,
+  createPasswordSchema,
 } from "./validation-schema";
+import { zodToValidationResult } from "./validation-context";
+import type { FieldError } from "./server-error-mapper";
 
 // Re-export for backward compatibility with API routes
 export { validateEmail as validateEmailFormat } from "./validation-schema";
@@ -39,8 +43,18 @@ export interface ChangePasswordRequest {
   confirmPassword: string;
 }
 
-export function validateEmail(email: string): boolean {
-  return validateEmailFormat(email);
+export function validateEmail(email: string): { isValid: boolean; error?: string } {
+  if (typeof email !== "string") {
+    return { isValid: false, error: "Ungültige E-Mail-Adresse" };
+  }
+  const trimmed = email.trim();
+  if (!trimmed) {
+    return { isValid: false, error: "E-Mail ist erforderlich" };
+  }
+  if (!validateEmailFormat(trimmed)) {
+    return { isValid: false, error: "Ungültiges E-Mail-Format" };
+  }
+  return { isValid: true };
 }
 
 export function validatePhone(phone: string): { isValid: boolean; error?: string } {
@@ -113,36 +127,58 @@ export function validateTextMaxLength(
   return { isValid: true };
 }
 
-export function validateRank(rank: string): { isValid: boolean; error?: string } {
-  return validateTextMaxLength(
-    rank,
-    30,
-    "Ungültiger Dienstgrad",
-    "Dienstgrad darf maximal 30 Zeichen lang sein"
-  );
+/**
+ * Field configuration for creating validators
+ * Reduces DRY violations by using a configuration-based approach
+ */
+interface TextFieldConfig {
+  maxLength: number;
+  invalidMessage: string;
+  maxLengthMessage: string;
 }
 
-export function validatePk(pk: string): { isValid: boolean; error?: string } {
-  return validateTextMaxLength(pk, 20, "Ungültige PK", "PK darf maximal 20 Zeichen lang sein");
+const TEXT_FIELD_CONFIGS: Record<string, TextFieldConfig> = {
+  rank: {
+    maxLength: 30,
+    invalidMessage: "Ungültiger Dienstgrad",
+    maxLengthMessage: "Dienstgrad darf maximal 30 Zeichen lang sein",
+  },
+  pk: {
+    maxLength: 20,
+    invalidMessage: "Ungültige PK",
+    maxLengthMessage: "PK darf maximal 20 Zeichen lang sein",
+  },
+  reservistsAssociation: {
+    maxLength: 30,
+    invalidMessage: "Ungültige Reservistenkameradschaft",
+    maxLengthMessage: "Reservistenkameradschaft darf maximal 30 Zeichen lang sein",
+  },
+  associationMemberNumber: {
+    maxLength: 30,
+    invalidMessage: "Ungültige Mitgliedsnummer im Verband",
+    maxLengthMessage: "Mitgliedsnummer im Verband darf maximal 30 Zeichen lang sein",
+  },
+  adminNotes: {
+    maxLength: 4000,
+    invalidMessage: "Ungültige Administratoren-Notizen",
+    maxLengthMessage: "Administratoren-Notizen dürfen maximal 4000 Zeichen lang sein",
+  },
+};
+
+/**
+ * Factory function to create a text max-length validator
+ */
+function createTextValidator(config: TextFieldConfig) {
+  return (value: string): { isValid: boolean; error?: string } =>
+    validateTextMaxLength(value, config.maxLength, config.invalidMessage, config.maxLengthMessage);
 }
 
-export function validateReservistsAssociation(value: string): { isValid: boolean; error?: string } {
-  return validateTextMaxLength(
-    value,
-    30,
-    "Ungültige Reservistenkameradschaft",
-    "Reservistenkameradschaft darf maximal 30 Zeichen lang sein"
-  );
-}
-
-export function validateAssociationMemberNumber(value: string): { isValid: boolean; error?: string } {
-  return validateTextMaxLength(
-    value,
-    30,
-    "Ungültige Mitgliedsnummer im Verband",
-    "Mitgliedsnummer im Verband darf maximal 30 Zeichen lang sein"
-  );
-}
+// Generated validators from configuration
+export const validateRank = createTextValidator(TEXT_FIELD_CONFIGS.rank);
+export const validatePk = createTextValidator(TEXT_FIELD_CONFIGS.pk);
+export const validateReservistsAssociation = createTextValidator(TEXT_FIELD_CONFIGS.reservistsAssociation);
+export const validateAssociationMemberNumber = createTextValidator(TEXT_FIELD_CONFIGS.associationMemberNumber);
+export const validateAdminNotes = createTextValidator(TEXT_FIELD_CONFIGS.adminNotes);
 
 export function validateDateOfBirth(value: string): { isValid: boolean; error?: string } {
   if (typeof value !== "string") {
@@ -173,66 +209,55 @@ export function validateDateOfBirth(value: string): { isValid: boolean; error?: 
   return { isValid: true };
 }
 
-export function validateAdminNotes(value: string): { isValid: boolean; error?: string } {
-  if (typeof value !== "string") {
-    return { isValid: false, error: "Ungültige Administratoren-Notizen" };
+// Server-side schemas using superRefine for early-exit (returns only the first error per field).
+// Client-side schemas (requiredEmailSchema/requiredNameSchema in validation-schema.ts) use
+// chained validators that report all errors at once for inline form feedback.
+const sequentialEmailSchema = z.string().trim().superRefine((val, ctx) => {
+  if (val.length === 0) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: "E-Mail ist erforderlich" });
+    return;
   }
-  return validateTextMaxLength(
-    value,
-    4000,
-    "Ungültige Administratoren-Notizen",
-    "Administratoren-Notizen dürfen maximal 4000 Zeichen lang sein"
-  );
-}
+  if (!emailRegex.test(val)) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Ungültiges E-Mail-Format" });
+  }
+});
+
+const sequentialNameSchema = z.string().trim().superRefine((val, ctx) => {
+  if (val.length === 0) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Name ist erforderlich" });
+    return;
+  }
+  if (val.length > 100) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Name darf maximal 100 Zeichen lang sein" });
+    return;
+  }
+  if (!nameRegex.test(val)) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Name enthält ungültige Zeichen" });
+  }
+});
+
+const createUserSchema = z.object({
+  email: sequentialEmailSchema,
+  name: sequentialNameSchema,
+  password: createPasswordSchema("Passwort ist erforderlich"),
+  role: z.string()
+    .refine((v) => Object.values(Role).includes(v as Role), { message: "Ungültige Rolle" })
+    .optional(),
+});
 
 export function validateCreateUserRequest(request: CreateUserRequest) {
-  const errors: string[] = [];
-  const { email, password, name, role = Role.MEMBER } = request;
-
-  if (!email || typeof email !== "string") {
-    errors.push("E-Mail ist erforderlich");
-  } else if (!validateEmail(email)) {
-    errors.push("Ungültiges E-Mail-Format");
-  }
-
-  if (!password || typeof password !== "string") {
-    errors.push("Passwort ist erforderlich");
-  } else {
-    const passwordValidation = validatePassword(password);
-    if (!passwordValidation.isValid) {
-      errors.push(...passwordValidation.errors);
-    }
-  }
-
-  if (!name || typeof name !== "string") {
-    errors.push("Name ist erforderlich");
-  } else {
-    const nameValidation = validateName(name);
-    if (!nameValidation.isValid) {
-      errors.push(nameValidation.error || "Ungültiger Name");
-    }
-  }
-
-  if (!Object.values(Role).includes(role)) {
-    errors.push("Ungültige Rolle");
-  }
-
-  return {
-    isValid: errors.length === 0,
-    errors,
-  };
+  return zodToValidationResult(createUserSchema.safeParse(request));
 }
 
 export function validateUpdateProfileRequest(request: UpdateProfileRequest) {
-  // Validate hasPossessionCard separately since it's not in the Zod schema
   if (request.hasPossessionCard !== undefined && typeof request.hasPossessionCard !== "boolean") {
     return {
       isValid: false,
       errors: ["Ungültiger Wert für Waffenbesitzkarte"],
+      fieldErrors: [{ field: "hasPossessionCard", message: "Ungültiger Wert für Waffenbesitzkarte" }] as FieldError[],
     };
   }
 
-  // Build the data object for Zod validation (only include defined fields)
   const data: Record<string, string> = {};
   if (request.name !== undefined) data.name = request.name;
   if (request.email !== undefined) data.email = request.email;
@@ -245,37 +270,17 @@ export function validateUpdateProfileRequest(request: UpdateProfileRequest) {
   if (request.associationMemberNumber !== undefined) data.associationMemberNumber = request.associationMemberNumber;
   if (request.memberSince !== undefined) data.memberSince = request.memberSince;
 
-  // If no profile fields to validate, return success
   if (Object.keys(data).length === 0) {
-    return { isValid: true, errors: [] };
+    return { isValid: true, errors: [], fieldErrors: [] as FieldError[] };
   }
 
-  // Use partial schema for updates (all fields optional)
-  const result = profileFormSchema.partial().safeParse(data);
-
-  if (result.success) {
-    return { isValid: true, errors: [] };
-  }
-
-  return {
-    isValid: false,
-    errors: result.error.issues.map((issue) => issue.message),
-  };
+  return zodToValidationResult(profileFormSchema.partial().safeParse(data));
 }
 
 export function validateChangePasswordRequest(request: ChangePasswordRequest) {
-  const result = passwordChangeFormSchema.safeParse({
+  return zodToValidationResult(passwordChangeFormSchema.safeParse({
     currentPassword: request.currentPassword,
     newPassword: request.newPassword,
     confirmPassword: request.confirmPassword,
-  });
-
-  if (result.success) {
-    return { isValid: true, errors: [] };
-  }
-
-  return {
-    isValid: false,
-    errors: result.error.issues.map((issue) => issue.message),
-  };
+  }));
 }

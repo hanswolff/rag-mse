@@ -52,14 +52,14 @@ export const POST = withApiErrorHandling(async (request: NextRequest, { params }
   if (invitation.usedAt) {
     return NextResponse.json(
       { error: "Einladung wurde bereits verwendet" },
-      { status: 400 }
+      { status: 409 }
     );
   }
 
   if (invitation.expiresAt <= new Date()) {
     return NextResponse.json(
       { error: "Einladung ist abgelaufen" },
-      { status: 400 }
+      { status: 409 }
     );
   }
 

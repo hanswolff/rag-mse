@@ -8,11 +8,13 @@ import { logInfo, logValidationFailure } from "@/lib/logger";
 type UpdateNotificationRequest = {
   eventReminderEnabled?: boolean;
   eventReminderDaysBefore?: number;
+  pollNotificationEnabled?: boolean;
 };
 
 const updateNotificationsSchema = {
   eventReminderEnabled: { type: "boolean" as const, optional: true },
   eventReminderDaysBefore: { type: "number" as const, optional: true },
+  pollNotificationEnabled: { type: "boolean" as const, optional: true },
 } as const;
 
 export const GET = withApiErrorHandling(async () => {
@@ -23,6 +25,7 @@ export const GET = withApiErrorHandling(async () => {
     select: {
       eventReminderEnabled: true,
       eventReminderDaysBefore: true,
+      pollNotificationEnabled: true,
     },
   });
 
@@ -48,7 +51,7 @@ export const PUT = withApiErrorHandling(async (request: NextRequest) => {
     return NextResponse.json({ error: bodyValidation.errors.join(". ") }, { status: 400 });
   }
 
-  if (body.eventReminderEnabled === undefined && body.eventReminderDaysBefore === undefined) {
+  if (body.eventReminderEnabled === undefined && body.eventReminderDaysBefore === undefined && body.pollNotificationEnabled === undefined) {
     return NextResponse.json(
       { error: "Mindestens ein Feld muss aktualisiert werden" },
       { status: 400 }
@@ -61,9 +64,14 @@ export const PUT = withApiErrorHandling(async (request: NextRequest) => {
     return NextResponse.json({ error: validation.errors.join(". ") }, { status: 400 });
   }
 
+  if (body.pollNotificationEnabled !== undefined && typeof body.pollNotificationEnabled !== "boolean") {
+    return NextResponse.json({ error: "Umfrage-Benachrichtigung muss true oder false sein" }, { status: 400 });
+  }
+
   const updateData: {
     eventReminderEnabled?: boolean;
     eventReminderDaysBefore?: number;
+    pollNotificationEnabled?: boolean;
   } = {};
 
   if (body.eventReminderEnabled !== undefined) {
@@ -72,6 +80,9 @@ export const PUT = withApiErrorHandling(async (request: NextRequest) => {
   if (body.eventReminderDaysBefore !== undefined) {
     updateData.eventReminderDaysBefore = body.eventReminderDaysBefore;
   }
+  if (body.pollNotificationEnabled !== undefined) {
+    updateData.pollNotificationEnabled = body.pollNotificationEnabled;
+  }
 
   const updated = await prisma.user.update({
     where: { id: user.id },
@@ -79,6 +90,7 @@ export const PUT = withApiErrorHandling(async (request: NextRequest) => {
     select: {
       eventReminderEnabled: true,
       eventReminderDaysBefore: true,
+      pollNotificationEnabled: true,
     },
   });
 
@@ -86,6 +98,7 @@ export const PUT = withApiErrorHandling(async (request: NextRequest) => {
     userId: user.id,
     eventReminderEnabled: updated.eventReminderEnabled,
     eventReminderDaysBefore: updated.eventReminderDaysBefore,
+    pollNotificationEnabled: updated.pollNotificationEnabled,
   });
 
   return NextResponse.json(updated);

@@ -221,7 +221,7 @@ describe("/api/events/route", () => {
       const data = await response.json();
 
       expect(response.status).toBe(500);
-      expect(data.error).toBe("Ein Fehler ist aufgetreten");
+      expect(data.error).toBe("Ein Fehler ist aufgetreten. Bitte versuchen Sie es später erneut.");
     });
 
     it("calculates pagination correctly", async () => {

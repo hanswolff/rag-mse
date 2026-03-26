@@ -21,7 +21,7 @@ export const PATCH = withApiErrorHandling(async (request: NextRequest, ctx: Rout
   const bodyValidation = parseAndValidateUpdateDocumentRequest(rawBody);
   if (!bodyValidation.isValid) {
     logValidationFailure("/api/admin/documents/[id]", "PATCH", bodyValidation.errors, { documentId: id });
-    return NextResponse.json({ error: bodyValidation.errors.join(". ") }, { status: 400 });
+    return NextResponse.json({ error: bodyValidation.errors.join(". "), fieldErrors: bodyValidation.fieldErrors }, { status: 400 });
   }
   const body = bodyValidation.data;
 
@@ -59,10 +59,10 @@ export const PATCH = withApiErrorHandling(async (request: NextRequest, ctx: Rout
         select: { id: true, area: true },
       });
       if (!existingDirectory) {
-        return NextResponse.json({ error: "Verzeichnis nicht gefunden" }, { status: 400 });
+        return NextResponse.json({ error: "Verzeichnis nicht gefunden" }, { status: 404 });
       }
       if (existingDirectory.area !== existingDocument.area) {
-        return NextResponse.json({ error: "Verzeichnis gehört nicht zum Dokumentbereich" }, { status: 400 });
+        return NextResponse.json({ error: "Verzeichnis gehört nicht zum Dokumentbereich" }, { status: 409 });
       }
       updateData.directoryId = normalizedDirectoryId;
     }

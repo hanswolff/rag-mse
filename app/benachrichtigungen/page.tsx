@@ -1,24 +1,26 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
-import { useSession } from "next-auth/react";
+import { useEffect, useState, useCallback } from "react";
 import { LoadingButton } from "@/components/loading-button";
+import { LoadingScreen } from "@/components/loading-screen";
 import {
   EVENT_REMINDER_DEFAULT_DAYS,
   EVENT_REMINDER_MAX_DAYS,
   EVENT_REMINDER_MIN_DAYS,
 } from "@/lib/notification-settings";
-import { buildLoginUrlWithReturnUrl, getCurrentPathWithSearch } from "@/lib/return-url";
+import { API_ROUTES } from "@/lib/api-routes";
+import { useProtectedPage } from "@/lib/use-protected-page";
+import { AlertBox } from "@/components/alert-box";
+import { fetchWithTimeout } from "@/lib/fetch-with-timeout";
 
 interface NotificationSettings {
   eventReminderEnabled: boolean;
   eventReminderDaysBefore: number;
+  pollNotificationEnabled: boolean;
 }
 
 export default function NotificationsPage() {
-  const router = useRouter();
-  const { status } = useSession();
+  const { status } = useProtectedPage();
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState("");
@@ -26,37 +28,32 @@ export default function NotificationsPage() {
   const [settings, setSettings] = useState<NotificationSettings>({
     eventReminderEnabled: true,
     eventReminderDaysBefore: EVENT_REMINDER_DEFAULT_DAYS,
+    pollNotificationEnabled: true,
   });
 
-  useEffect(() => {
-    if (status === "unauthenticated") {
-      router.push(buildLoginUrlWithReturnUrl(getCurrentPathWithSearch()));
-      return;
-    }
-
-    if (status !== "authenticated") {
-      return;
-    }
-
-    const fetchSettings = async () => {
-      try {
-        const response = await fetch("/api/user/notifications");
+  const fetchSettings = useCallback(async (signal?: AbortSignal) => {
+    try {
+      const response = await fetchWithTimeout(API_ROUTES.USER.NOTIFICATIONS, { signal });
+      if (!response.ok) {
         const data = await response.json();
-
-        if (!response.ok) {
-          throw new Error(data.error || "Fehler beim Laden der Benachrichtigungseinstellungen");
-        }
-
-        setSettings(data);
-      } catch (fetchError) {
-        setError(fetchError instanceof Error ? fetchError.message : "Ein Fehler ist aufgetreten");
-      } finally {
-        setIsLoading(false);
+        throw new Error(data.error || "Fehler beim Laden der Benachrichtigungseinstellungen");
       }
-    };
+      const data = await response.json();
+      setSettings(data);
+    } catch (fetchError) {
+      if (fetchError instanceof DOMException && fetchError.name === "AbortError") return;
+      setError(fetchError instanceof Error ? fetchError.message : "Ein Fehler ist aufgetreten");
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
 
-    void fetchSettings();
-  }, [status, router]);
+  useEffect(() => {
+    if (status !== "authenticated") return;
+    const controller = new AbortController();
+    void fetchSettings(controller.signal);
+    return () => controller.abort();
+  }, [status, fetchSettings]);
 
   const handleSave = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -65,7 +62,7 @@ export default function NotificationsPage() {
     setIsSaving(true);
 
     try {
-      const response = await fetch("/api/user/notifications", {
+      const response = await fetchWithTimeout(API_ROUTES.USER.NOTIFICATIONS, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
@@ -87,11 +84,7 @@ export default function NotificationsPage() {
   };
 
   if (isLoading) {
-    return (
-      <main className="flex flex-1 items-center justify-center">
-        <div className="text-gray-600">Laden...</div>
-      </main>
-    );
+    return <LoadingScreen />;
   }
 
   return (
@@ -100,22 +93,14 @@ export default function NotificationsPage() {
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900 mt-4">Benachrichtigungen</h1>
           <p className="text-gray-600 mt-2">
-            Stelle ein, ob und wann du an offene Teilnahmeanmeldungen für Termine erinnert wirst.
+            Stelle ein, welche E-Mail-Benachrichtigungen du erhalten möchtest.
           </p>
         </div>
 
         <div className="card">
-          {error && (
-            <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
-              {error}
-            </div>
-          )}
+          <AlertBox type="error" message={error} className="mb-4" />
 
-          {success && (
-            <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded mb-4">
-              {success}
-            </div>
-          )}
+          <AlertBox type="success" message={success} className="mb-4" />
 
           <form onSubmit={handleSave} className="space-y-6" noValidate>
             <div className="flex items-start gap-3">
@@ -169,6 +154,27 @@ export default function NotificationsPage() {
                 <span className={settings.eventReminderEnabled ? "text-black" : "text-gray-400"}>
                   Tag(e) vor dem Termin
                 </span>
+              </div>
+            </div>
+
+            <hr className="border-gray-200" />
+
+            <div className="flex items-start gap-3">
+              <input
+                id="pollNotificationEnabled"
+                type="checkbox"
+                checked={settings.pollNotificationEnabled}
+                onChange={(e) => setSettings((prev) => ({ ...prev, pollNotificationEnabled: e.target.checked }))}
+                disabled={isSaving}
+                className="mt-1 h-5 w-5 rounded border-gray-300 text-brand-red-700 focus:ring-brand-red-600"
+              />
+              <div>
+                <label htmlFor="pollNotificationEnabled" className="font-semibold text-gray-900">
+                  E-Mail-Benachrichtigung bei neuen Umfragen
+                </label>
+                <p className="text-gray-600 mt-1">
+                  Du erhältst eine E-Mail, wenn eine neue Umfrage veröffentlicht wird.
+                </p>
               </div>
             </div>
 

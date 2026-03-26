@@ -7,6 +7,7 @@ import { LoadingButton } from "@/components/loading-button";
 import { getFieldErrors } from "@/lib/zod-form-errors";
 import { PasswordRequirements } from "@/components/password-requirements";
 import { ValidatedInput } from "@/components/validated-input";
+import { AlertBox } from "@/components/alert-box";
 
 interface UseResetPasswordFormResult {
   password: string;
@@ -171,9 +172,7 @@ export default function ResetPasswordPage({ params }: { params: Promise<{ token:
               Passwort zurücksetzen
             </h2>
 
-            <div className="bg-red-100 border border-red-400 text-red-700 px-3 sm:px-4 py-3 rounded mb-4 text-base">
-              {tokenError}
-            </div>
+            <AlertBox type="error" message={tokenError} className="mb-4 text-base" />
 
             <div className="mt-6 text-center text-base text-gray-600">
               <a href="/passwort-vergessen" className="link-primary">
@@ -221,9 +220,7 @@ export default function ResetPasswordPage({ params }: { params: Promise<{ token:
               Passwort zurücksetzen
             </h2>
 
-            <div className="bg-green-100 border border-green-400 text-green-700 px-3 sm:px-4 py-3 rounded mb-4 text-base">
-              {message}
-            </div>
+            <AlertBox type="success" message={message} className="mb-4 text-base" />
 
             <div className="mt-6 text-center text-base text-gray-600">
               Sie werden automatisch zum Login weitergeleitet...
@@ -245,11 +242,7 @@ export default function ResetPasswordPage({ params }: { params: Promise<{ token:
             Passwort zurücksetzen
           </h2>
 
-          {error && (
-            <div className="bg-red-100 border border-red-400 text-red-700 px-3 sm:px-4 py-3 rounded mb-4 text-base">
-              {error}
-            </div>
-          )}
+          <AlertBox type="error" message={error} className="mb-4 text-base" />
 
           <form onSubmit={handleSubmit} className="space-y-4" noValidate>
             <ValidatedInput

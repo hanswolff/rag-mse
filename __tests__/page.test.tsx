@@ -38,7 +38,7 @@ describe("Home", () => {
   it("renders the welcome message", async () => {
     render(await Home());
     const message = screen.getByText(
-      "Willkommen auf der Website der RAG Schießsport MSE"
+      "Reservistenarbeitsgemeinschaft für sportliches Schießen in der Mecklenburgischen Seenplatte"
     );
     expect(message).toBeInTheDocument();
     expect(message.tagName).toBe("P");

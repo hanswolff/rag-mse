@@ -1,20 +1,20 @@
 "use client";
 
-import { useEffect, useState, use } from "react";
+import { useEffect, useState, useCallback, use } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { isAdmin } from "@/lib/role-utils";
-import { buildLoginUrlWithReturnUrl, getCurrentPathWithSearch } from "@/lib/return-url";
 import Link from "next/link";
 import { BackLink } from "@/components/back-link";
 import { GermanDatePicker } from "@/components/german-date-picker";
 import { LoadingButton } from "@/components/loading-button";
+import { LoadingScreen } from "@/components/loading-screen";
 import { ValidatedFieldGroup } from "@/components/validated-field-group";
 import { getLocalDateString, normalizeDateInputValue } from "@/lib/date-picker-utils";
 import { useFormFieldValidation } from "@/lib/useFormFieldValidation";
 import { mapServerErrorToField, NEWS_FIELD_KEYWORDS } from "@/lib/server-error-mapper";
 import { newsValidationConfig } from "@/lib/validation-schema";
 import type { News, NewNews } from "@/types";
+import { AlertBox } from "@/components/alert-box";
 
 function getTodayDateString() {
   return getLocalDateString();
@@ -30,7 +30,7 @@ const initialNewNews: NewNews = {
 export default function NewsEditPage({ params }: { params: Promise<{ id: string }> }) {
   const router = useRouter();
   const { id } = use(params);
-  const { data: session, status } = useSession();
+  const { status } = useSession();
   const [newsItem, setNewsItem] = useState<News | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -58,22 +58,12 @@ export default function NewsEditPage({ params }: { params: Promise<{ id: string 
     validateField(fieldName, value);
   }
 
-  useEffect(() => {
-    if (status === "unauthenticated") {
-      router.push(buildLoginUrlWithReturnUrl(getCurrentPathWithSearch()));
-    } else if (status === "authenticated" && !isAdmin(session.user)) {
-      router.push("/");
-    } else if (status === "authenticated" && isAdmin(session.user)) {
-      fetchNews(id);
-    }
-  }, [status, session, router, id]);
-
-  async function fetchNews(id: string) {
+  const fetchNews = useCallback(async (newsId: string, signal?: AbortSignal) => {
     setIsLoading(true);
     setError("");
 
     try {
-      const response = await fetch(`/api/admin/news/${id}`);
+      const response = await fetch(`/api/admin/news/${newsId}`, { signal });
       if (!response.ok) {
         if (response.status === 404) {
           setError("News nicht gefunden");
@@ -92,11 +82,19 @@ export default function NewsEditPage({ params }: { params: Promise<{ id: string 
         published: data.published,
       });
     } catch (err: unknown) {
+      if (err instanceof DOMException && err.name === "AbortError") return;
       setError(err instanceof Error ? err.message : "Ein Fehler ist aufgetreten");
     } finally {
       setIsLoading(false);
     }
-  }
+  }, []);
+
+  useEffect(() => {
+    if (status !== "authenticated") return;
+    const controller = new AbortController();
+    void fetchNews(id, controller.signal);
+    return () => controller.abort();
+  }, [status, id, fetchNews]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -130,7 +128,7 @@ export default function NewsEditPage({ params }: { params: Promise<{ id: string 
 
       if (!response.ok) {
         const message = data.error || "Fehler beim Aktualisieren der News";
-        const nextFieldErrors = mapServerErrorToField(message, NEWS_FIELD_KEYWORDS);
+        const nextFieldErrors = mapServerErrorToField(message, NEWS_FIELD_KEYWORDS, data.fieldErrors);
 
         if (Object.keys(nextFieldErrors).length > 0) {
           setFieldErrors(nextFieldErrors);
@@ -152,11 +150,7 @@ export default function NewsEditPage({ params }: { params: Promise<{ id: string 
   }
 
   if (status === "loading" || isLoading) {
-    return (
-      <main className="flex flex-1 items-center justify-center">
-        <div className="text-gray-600">Laden...</div>
-      </main>
-    );
+    return <LoadingScreen />;
   }
 
   return (
@@ -170,17 +164,9 @@ export default function NewsEditPage({ params }: { params: Promise<{ id: string 
           <p className="text-base sm:text-base text-gray-600 mt-2">Aktualisieren Sie diese News</p>
         </div>
 
-        {error && (
-          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
-            {error}
-          </div>
-        )}
+        <AlertBox type="error" message={error} className="mb-4" />
 
-        {success && (
-          <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded mb-4">
-            {success}
-          </div>
-        )}
+        <AlertBox type="success" message={success} className="mb-4" />
 
         {newsItem && (
           <div className="card">

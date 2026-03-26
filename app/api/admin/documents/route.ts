@@ -24,7 +24,7 @@ import {
 } from "@/lib/document-query";
 import { deleteDocumentFile, writeDocumentFile } from "@/lib/document-storage";
 import { withApiErrorHandling, validateCsrfHeaders } from "@/lib/api-utils";
-import { logInfo, logValidationFailure, logWarn } from "@/lib/logger";
+import { logInfo, logValidationFailure, logWarn, maskEmail } from "@/lib/logger";
 import { DocumentArea } from "@prisma/client";
 
 export const GET = withApiErrorHandling(async (request: NextRequest) => {
@@ -175,7 +175,7 @@ export const POST = withApiErrorHandling(async (request: NextRequest) => {
 
   if (!validation.isValid) {
     logValidationFailure("/api/admin/documents", "POST", validation.errors);
-    return NextResponse.json({ error: validation.errors.join(". ") }, { status: 400 });
+    return NextResponse.json({ error: validation.errors.join(". "), ...(validation.fieldErrors?.length ? { fieldErrors: validation.fieldErrors } : {}) }, { status: 400 });
   }
 
   const displayName = normalizeDocumentDisplayName(
@@ -189,10 +189,10 @@ export const POST = withApiErrorHandling(async (request: NextRequest) => {
       select: { id: true, area: true },
     });
     if (!existingDirectory) {
-      return NextResponse.json({ error: "Verzeichnis nicht gefunden" }, { status: 400 });
+      return NextResponse.json({ error: "Verzeichnis nicht gefunden" }, { status: 404 });
     }
     if (existingDirectory.area !== area) {
-      return NextResponse.json({ error: "Verzeichnis gehört nicht zum gewählten Bereich" }, { status: 400 });
+      return NextResponse.json({ error: "Verzeichnis gehört nicht zum gewählten Bereich" }, { status: 409 });
     }
   }
 
@@ -245,7 +245,7 @@ export const POST = withApiErrorHandling(async (request: NextRequest) => {
 
     logInfo("document_uploaded", "Document uploaded", {
       documentId: document.id,
-      uploadedBy: user.email,
+      uploadedBy: maskEmail(user.email),
       mimeType: document.mimeType,
       sizeBytes: document.sizeBytes,
     });
@@ -279,7 +279,7 @@ export const POST = withApiErrorHandling(async (request: NextRequest) => {
         storedFileName,
         directoryId: normalizedDirectoryId,
       });
-      return NextResponse.json({ error: "Verzeichnis nicht gefunden" }, { status: 400 });
+      return NextResponse.json({ error: "Verzeichnis nicht gefunden" }, { status: 404 });
     }
 
     logWarn("document_upload_rollback", "Failed to persist metadata after file upload", {

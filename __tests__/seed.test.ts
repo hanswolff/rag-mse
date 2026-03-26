@@ -46,37 +46,23 @@ describe("Seed Script", () => {
   });
 
   describe("Environment variable handling", () => {
-    it("should use default values when environment variables are not set", async () => {
+    it("should skip admin seeding when environment variables are not set", async () => {
       process.env.SEED_ADMIN_EMAIL = "";
       process.env.SEED_ADMIN_PASSWORD = "";
       process.env.SEED_ADMIN_NAME = "";
 
-      mockPrismaClient.user.findUnique.mockResolvedValue(null);
-      mockPrismaClient.user.create.mockResolvedValue({
-        id: "1",
-        email: "admin@rag-mse.de",
-        password: "hashedPassword123",
-        name: "Administrator",
-        role: "SITE_ADMINISTRATOR",
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      });
-
       jest.spyOn(console, "log").mockImplementation();
+      jest.spyOn(console, "warn").mockImplementation();
       jest.spyOn(console, "error").mockImplementation();
 
       const { main } = await import("../prisma/seed");
 
       await main(mockPrismaClient);
 
-      expect(mockPrismaClient.user.create).toHaveBeenCalledWith({
-        data: {
-          email: "admin@rag-mse.de",
-          password: "hashedPassword123",
-          name: "Administrator",
-          role: "SITE_ADMINISTRATOR",
-        },
-      });
+      expect(mockPrismaClient.user.create).not.toHaveBeenCalled();
+      expect(console.warn).toHaveBeenCalledWith(
+        expect.stringContaining("SEED_ADMIN_EMAIL and SEED_ADMIN_PASSWORD must be set")
+      );
     });
 
     it("should use environment variable values when set", async () => {
@@ -116,6 +102,7 @@ describe("Seed Script", () => {
   describe("Email validation", () => {
     it("should reject invalid email format", async () => {
       process.env.SEED_ADMIN_EMAIL = "invalid-email";
+      process.env.SEED_ADMIN_PASSWORD = "Password123";
 
       jest.spyOn(console, "log").mockImplementation();
       jest.spyOn(console, "error").mockImplementation();
@@ -223,6 +210,7 @@ describe("Seed Script", () => {
   describe("Existing admin user handling", () => {
     it("should skip creation if admin user already exists", async () => {
       process.env.SEED_ADMIN_EMAIL = "admin@example.com";
+      process.env.SEED_ADMIN_PASSWORD = "Password123";
 
       mockPrismaClient.user.findUnique.mockResolvedValue({
         id: "1",

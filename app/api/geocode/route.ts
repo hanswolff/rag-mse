@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/auth-utils";
-import { logApiError } from "@/lib/api-utils";
 import { logWarn, logInfo } from "@/lib/logger";
 import { getClientIdentifier } from "@/lib/proxy-trust";
 import { checkGeocodeRateLimit } from "@/lib/rate-limiter";
 import { shouldFailOpenOnRateLimiterError } from "@/lib/rate-limit-policy";
+import { withApiErrorHandling } from "@/lib/api-utils";
 
 const MIN_QUERY_LENGTH = 3;
 const NOMINATIM_API_URL = "https://nominatim.openstreetmap.org/search";
@@ -68,9 +68,7 @@ async function fetchFromNominatim(query: string): Promise<NominatimResponse[]> {
         query: query.trim(),
         timeout: FETCH_TIMEOUT_MS,
       });
-      throw error;
     }
-
     throw error;
   }
 }
@@ -106,49 +104,49 @@ function transformNominatimResult(result: NominatimResponse): GeocodeResponse {
   };
 }
 
-export async function GET(request: NextRequest): Promise<NextResponse<GeocodeResponse | { error: string }>> {
+export const GET = withApiErrorHandling(async (request: NextRequest) => {
+  await requireAdmin("write");
+
+  const clientId = getClientIdentifier(request);
   try {
-    await requireAdmin("write");
-
-    const clientId = getClientIdentifier(request);
-    try {
-      const rateLimitResult = await checkGeocodeRateLimit(clientId, RATE_LIMIT_WINDOW_MS, RATE_LIMIT_MAX_REQUESTS);
-      if (!rateLimitResult.allowed) {
-        logWarn('rate_limit_exceeded', 'Geocode rate limit exceeded', {
-          clientId,
-          attemptCount: rateLimitResult.attemptCount,
-          route: "/api/geocode",
-          method: "GET",
-        });
-        return NextResponse.json({ error: "Zu viele Anfragen. Bitte später erneut versuchen." }, { status: 429 });
-      }
-    } catch (rateLimitError) {
-      if (!shouldFailOpenOnRateLimiterError()) {
-        logWarn("rate_limit_unavailable", "Rate limiter unavailable for geocode route, blocking request", {
-          clientId,
-          route: "/api/geocode",
-          method: "GET",
-          error: rateLimitError instanceof Error ? rateLimitError.message : String(rateLimitError),
-        });
-        return NextResponse.json({ error: "Dienst aktuell nicht verfügbar. Bitte später erneut versuchen." }, { status: 503 });
-      }
-
-      logWarn('rate_limit_unavailable', 'Rate limiter unavailable for geocode route, continuing due fail-open policy', {
+    const rateLimitResult = await checkGeocodeRateLimit(clientId, RATE_LIMIT_WINDOW_MS, RATE_LIMIT_MAX_REQUESTS);
+    if (!rateLimitResult.allowed) {
+      logWarn('rate_limit_exceeded', 'Geocode rate limit exceeded', {
+        clientId,
+        attemptCount: rateLimitResult.attemptCount,
+        route: "/api/geocode",
+        method: "GET",
+      });
+      return NextResponse.json({ error: "Zu viele Anfragen. Bitte später erneut versuchen." }, { status: 429 });
+    }
+  } catch (rateLimitError) {
+    if (!shouldFailOpenOnRateLimiterError()) {
+      logWarn("rate_limit_unavailable", "Rate limiter unavailable for geocode route, blocking request", {
         clientId,
         route: "/api/geocode",
         method: "GET",
         error: rateLimitError instanceof Error ? rateLimitError.message : String(rateLimitError),
       });
+      return NextResponse.json({ error: "Dienst aktuell nicht verfügbar. Bitte später erneut versuchen." }, { status: 503 });
     }
 
-    const { searchParams } = new URL(request.url);
-    const query = searchParams.get("q");
+    logWarn('rate_limit_unavailable', 'Rate limiter unavailable for geocode route, continuing due fail-open policy', {
+      clientId,
+      route: "/api/geocode",
+      method: "GET",
+      error: rateLimitError instanceof Error ? rateLimitError.message : String(rateLimitError),
+    });
+  }
 
-    const validation = validateQuery(query);
-    if (!validation.isValid) {
-      return NextResponse.json({ error: validation.error as string }, { status: 400 });
-    }
+  const { searchParams } = new URL(request.url);
+  const query = searchParams.get("q");
 
+  const validation = validateQuery(query);
+  if (!validation.isValid) {
+    return NextResponse.json({ error: validation.error as string }, { status: 400 });
+  }
+
+  try {
     const data = await fetchFromNominatim(query!);
 
     if (!data || data.length === 0) {
@@ -169,21 +167,9 @@ export async function GET(request: NextRequest): Promise<NextResponse<GeocodeRes
     });
     return NextResponse.json(result);
   } catch (error: unknown) {
-    if (error instanceof Error && error.name === "UnauthorizedError") {
-      return NextResponse.json({ error: "Nicht autorisiert" }, { status: 401 });
-    }
-    if (error instanceof Error && error.name === "ForbiddenError") {
-      return NextResponse.json({ error: "Keine Berechtigung" }, { status: 403 });
-    }
     if (error instanceof GeocodeTimeoutError) {
       return NextResponse.json({ error: error.message }, { status: 504 });
     }
-
-    logApiError(error, {
-      route: "/api/geocode",
-      method: "GET",
-      status: 500,
-    });
-    return NextResponse.json({ error: "Ein Fehler ist aufgetreten" }, { status: 500 });
+    throw error;
   }
-}
+}, { route: "/api/geocode", method: "GET" });

@@ -1,9 +1,8 @@
 import { contactFormSchema } from "./validation-schema";
+import { zodToValidationResult } from "./validation-context";
+import type { ValidationResult } from "./validation-context";
 
-export interface ValidationResult {
-  isValid: boolean;
-  errors: string[];
-}
+export type { ValidationResult } from "./validation-context";
 
 export interface ContactFormData {
   name: string;
@@ -12,11 +11,5 @@ export interface ContactFormData {
 }
 
 export function validateContactFormData(data: ContactFormData): ValidationResult {
-  const result = contactFormSchema.safeParse(data);
-  const errors = result.success ? [] : result.error.issues.map((issue) => issue.message);
-
-  return {
-    isValid: errors.length === 0,
-    errors,
-  };
+  return zodToValidationResult(contactFormSchema.safeParse(data));
 }

@@ -13,6 +13,7 @@ import { useFormFieldValidation } from "@/lib/useFormFieldValidation";
 import { useCrossFieldValidation } from "@/lib/useCrossFieldValidation";
 import { mapServerErrorToField, PROFILE_FIELD_KEYWORDS } from "@/lib/server-error-mapper";
 import { profileValidationConfig, resetPasswordFormSchema } from "@/lib/validation-schema";
+import { AlertBox } from "@/components/alert-box";
 
 interface InvitationStatus {
   email: string;
@@ -210,7 +211,7 @@ export default function InvitationPage({ params }: { params: Promise<{ token: st
         }
 
         // Use the shared error mapper
-        const fieldErrors = mapServerErrorToField(message, PROFILE_FIELD_KEYWORDS);
+        const fieldErrors = mapServerErrorToField(message, PROFILE_FIELD_KEYWORDS, data.fieldErrors);
         if (Object.keys(fieldErrors).length > 0) {
           setServerFieldErrors(fieldErrors);
           return;
@@ -250,30 +251,18 @@ export default function InvitationPage({ params }: { params: Promise<{ token: st
 
   return (
     <main className="flex-1 bg-gray-50">
-      <div className="max-w-3xl mx-auto px-4 py-10">
+      <div className="max-w-3xl mx-auto px-4 py-6 sm:py-8 lg:py-10">
         <div className="card">
           <h1 className="text-2xl font-bold text-brand-blue-900">Einladung annehmen</h1>
           <p className="text-brand-blue-800 mt-2">
             Erstellen Sie Ihr Mitgliedskonto, um Zugriff auf Termine und Neuigkeiten zu erhalten.
           </p>
 
-          {fatalError && (
-            <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mt-4">
-              {fatalError}
-            </div>
-          )}
+          <AlertBox type="error" message={fatalError} className="mt-4" />
 
-          {formError && (
-            <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mt-4">
-              {formError}
-            </div>
-          )}
+          <AlertBox type="error" message={formError} className="mt-4" />
 
-          {success && (
-            <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded mt-4">
-              {success}
-            </div>
-          )}
+          <AlertBox type="success" message={success} className="mt-4" />
 
           {status && (
             <div className="bg-gray-100 border border-gray-200 text-gray-700 px-4 py-3 rounded mt-4">

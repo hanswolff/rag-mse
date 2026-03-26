@@ -35,7 +35,7 @@ export default function NotificationUnsubscribePage({ params }: { params: Promis
 
   return (
     <main className="flex-1 bg-gray-50">
-      <div className="max-w-3xl mx-auto px-4 py-10">
+      <div className="max-w-3xl mx-auto px-4 py-6 sm:py-8 lg:py-10">
         <div className="card text-center">
           <h1 className="text-2xl font-bold text-gray-900 mb-4">Benachrichtigungen</h1>
           {isLoading && <p className="text-gray-600">Einstellungen werden aktualisiert...</p>}

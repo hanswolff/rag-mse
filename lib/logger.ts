@@ -37,7 +37,7 @@ export function maskToken(token: string): string {
   return `${token.slice(0, 6)}...`;
 }
 
-export function maskEmail(email: string): string {
+export function maskEmail(email: string | null | undefined): string {
   if (!email || !email.includes('@')) {
     return '***@***.***';
   }

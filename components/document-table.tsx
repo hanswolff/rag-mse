@@ -1,6 +1,6 @@
 "use client";
 
-import { DragEvent, MouseEvent, ReactNode } from "react";
+import { DragEvent, MouseEvent, ReactNode, memo } from "react";
 import { SearchHighlight } from "@/components/search-highlight";
 import { DownloadIcon, EyeIcon, EyeOffIcon, FolderIcon, FileIcon } from "@/components/icons";
 import { formatFileSize, formatDateTime, formatDateUtc, isViewableDocument, getMimeTypeLabel, type DocumentSortField, type DocumentSortDirection } from "@/lib/document-utils";
@@ -74,7 +74,7 @@ interface DirectoryRowProps {
   onDrop?: (event: DragEvent<HTMLTableRowElement>) => void;
 }
 
-export function DirectoryRow({
+export const DirectoryRow = memo(function DirectoryRow({
   directory,
   searchQuery,
   onNavigate,
@@ -114,7 +114,7 @@ export function DirectoryRow({
       </td>
     </tr>
   );
-}
+});
 
 interface DocumentRowProps {
   document: DocumentItem;
@@ -127,7 +127,7 @@ interface DocumentRowProps {
   onDragEnd?: (event: DragEvent<HTMLTableRowElement>) => void;
 }
 
-export function DocumentRow({
+export const DocumentRow = memo(function DocumentRow({
   document,
   searchQuery,
   downloadUrlPrefix,
@@ -222,7 +222,7 @@ export function DocumentRow({
       </td>
     </tr>
   );
-}
+});
 
 interface IconButtonProps {
   label: string;
@@ -232,7 +232,7 @@ interface IconButtonProps {
   disabled?: boolean;
 }
 
-export function IconButton({ label, onClick, className, children, disabled }: IconButtonProps) {
+export const IconButton = memo(function IconButton({ label, onClick, className, children, disabled }: IconButtonProps) {
   return (
     <button
       type="button"
@@ -245,14 +245,14 @@ export function IconButton({ label, onClick, className, children, disabled }: Ic
       {children}
     </button>
   );
-}
+});
 
 interface EmptyRowProps {
   colSpan: number;
   message: string;
 }
 
-export function EmptyRow({ colSpan, message }: EmptyRowProps) {
+export const EmptyRow = memo(function EmptyRow({ colSpan, message }: EmptyRowProps) {
   return (
     <tr>
       <td className="px-3 py-8 text-base text-gray-500 text-center" colSpan={colSpan}>
@@ -260,4 +260,4 @@ export function EmptyRow({ colSpan, message }: EmptyRowProps) {
       </td>
     </tr>
   );
-}
+});

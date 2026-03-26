@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Modal } from "./modal";
+import { AlertBox } from "./alert-box";
+import { API_ROUTES } from "@/lib/api-routes";
 
 const COMPACT_MODAL_MAX_HEIGHT = "67.5vh";
 
@@ -47,7 +49,7 @@ export function ShootingRangePicker({ disabled, onSelect }: ShootingRangePickerP
       setIsLoading(true);
       setError("");
       try {
-        const response = await fetch("/api/ranges");
+        const response = await fetch(API_ROUTES.RANGES);
         const data = await response.json();
         if (!response.ok) {
           throw new Error(data.error || "Schießstände konnten nicht geladen werden");
@@ -99,11 +101,7 @@ export function ShootingRangePicker({ disabled, onSelect }: ShootingRangePickerP
         maxHeight={COMPACT_MODAL_MAX_HEIGHT}
       >
         <div className="space-y-4">
-          {error && (
-            <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
-              {error}
-            </div>
-          )}
+          <AlertBox type="error" message={error} />
           {isLoading && <p className="text-gray-600">Schießstände werden geladen...</p>}
           {!isLoading && !error && sortedRanges.length === 0 && (
             <p className="text-gray-500">Keine Schießstände verfügbar.</p>

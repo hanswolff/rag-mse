@@ -27,25 +27,22 @@ jest.mock("@/lib/logger", () => ({
   logValidationFailure: jest.fn(),
   logResourceNotFound: jest.fn(),
   maskToken: jest.fn((t) => t.substring(0, 6) + "..."),
+  maskEmail: jest.fn((e: string) => e),
 }));
 
-jest.mock("@/lib/api-utils", () => ({
-  parseJsonBody: jest.fn(async (req) => req.json()),
-  BadRequestError: class extends Error {
-    constructor(message: string) {
-      super(message);
-      this.name = "BadRequestError";
-    }
-  },
-  logApiError: jest.fn(),
-  getClientIp: jest.fn(() => "127.0.0.1"),
-  handleRateLimitBlocked: jest.fn(),
-  getNoCacheHeaders: jest.fn(() => ({ "Cache-Control": "no-store, no-cache, must-revalidate" })),
-  checkTokenRateLimitWithPolicy: jest.fn(),
-  recordSuccessfulTokenUsageWithPolicy: jest.fn(),
-  validateRequestBody: jest.fn().mockReturnValue({ isValid: true, errors: [] }),
-  validateCsrfHeaders: jest.fn(),
-}));
+jest.mock("@/lib/api-utils", () => {
+  const actual = jest.requireActual("@/lib/api-utils");
+  return {
+    ...actual,
+    parseJsonBody: jest.fn(async (req: Request) => req.json()),
+    getClientIp: jest.fn(() => "127.0.0.1"),
+    handleRateLimitBlocked: jest.fn(),
+    checkTokenRateLimitWithPolicy: jest.fn(),
+    recordSuccessfulTokenUsageWithPolicy: jest.fn(),
+    validateRequestBody: jest.fn().mockReturnValue({ isValid: true, errors: [] }),
+    validateCsrfHeaders: jest.fn(),
+  };
+});
 
 jest.mock("bcryptjs", () => ({
   hash: jest.fn(),
@@ -517,7 +514,7 @@ describe("/api/auth/reset-password/[token] route - Security Regression Tests", (
       const data = await response.json();
 
       expect(response.status).toBe(500);
-      expect(data.error).toBe("Ein Fehler ist aufgetreten");
+      expect(data.error).toBe("Ein Fehler ist aufgetreten. Bitte versuchen Sie es später erneut.");
     });
 
     it("POST should handle database errors gracefully", async () => {
@@ -529,7 +526,7 @@ describe("/api/auth/reset-password/[token] route - Security Regression Tests", (
       const data = await response.json();
 
       expect(response.status).toBe(500);
-      expect(data.error).toBe("Ein Fehler ist aufgetreten");
+      expect(data.error).toBe("Ein Fehler ist aufgetreten. Bitte versuchen Sie es später erneut.");
     });
 
     it("POST should handle transaction errors gracefully", async () => {
@@ -543,7 +540,7 @@ describe("/api/auth/reset-password/[token] route - Security Regression Tests", (
       const data = await response.json();
 
       expect(response.status).toBe(500);
-      expect(data.error).toBe("Ein Fehler ist aufgetreten");
+      expect(data.error).toBe("Ein Fehler ist aufgetreten. Bitte versuchen Sie es später erneut.");
     });
   });
 });

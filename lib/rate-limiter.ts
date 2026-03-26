@@ -71,19 +71,7 @@ async function decrementIpCounter(ip: string): Promise<void> {
   }
 }
 
-export interface LoginAttemptResult {
-  allowed: boolean;
-  blockedUntil?: number;
-  attemptCount: number;
-}
-
-export interface TokenAttemptResult {
-  allowed: boolean;
-  blockedUntil?: number;
-  attemptCount: number;
-}
-
-export interface ForgotPasswordAttemptResult {
+export interface RateLimitResult {
   allowed: boolean;
   blockedUntil?: number;
   attemptCount: number;
@@ -174,7 +162,7 @@ async function checkFixedWindowRateLimit(
   };
 }
 
-export async function checkLoginRateLimit(ip: string, email?: string): Promise<LoginAttemptResult> {
+export async function checkLoginRateLimit(ip: string, email?: string): Promise<RateLimitResult> {
   if (!email) {
     const ipAttempt = await incrementIpAttempt(ip);
     return { allowed: ipAttempt.allowed, attemptCount: ipAttempt.attemptCount };
@@ -192,7 +180,7 @@ export async function recordSuccessfulLogin(ip: string, email: string): Promise<
   await decrementIpCounter(ip);
 }
 
-export async function checkTokenRateLimit(ip: string, tokenHash: string): Promise<TokenAttemptResult> {
+export async function checkTokenRateLimit(ip: string, tokenHash: string): Promise<RateLimitResult> {
   const now = Date.now();
   return checkRateLimit(TOKEN_PREFIX, tokenHash, now, TOKEN_WINDOW_MS, TOKEN_ATTEMPT_THRESHOLDS, ip);
 }
@@ -204,7 +192,7 @@ export async function recordSuccessfulTokenUsage(tokenHash: string, ip: string):
   await decrementIpCounter(ip);
 }
 
-export async function checkForgotPasswordRateLimit(ip: string, email: string): Promise<ForgotPasswordAttemptResult> {
+export async function checkForgotPasswordRateLimit(ip: string, email: string): Promise<RateLimitResult> {
   const now = Date.now();
   const key = `${ip}:${email.toLowerCase()}`;
   return checkRateLimit(FORGOT_PASSWORD_PREFIX, key, now, FORGOT_PASSWORD_WINDOW_MS, FORGOT_PASSWORD_ATTEMPT_THRESHOLDS, ip);

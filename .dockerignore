@@ -4,6 +4,10 @@
 .github/**
 .next
 .next/**
+!.next/standalone
+!.next/standalone/**
+!.next/static
+!.next/static/**
 node_modules
 node_modules/**
 coverage

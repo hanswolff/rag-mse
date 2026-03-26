@@ -5,41 +5,17 @@ import { validateCreateEventRequest, type CreateEventRequest } from "@/lib/event
 import {
   parseJsonBody,
   withApiErrorHandling,
-  validateRequestBody,
   validateCsrfHeaders,
   MAX_REQUEST_BODY_SIZE,
 } from "@/lib/api-utils";
-import { logInfo, logValidationFailure } from "@/lib/logger";
+import { logInfo, logValidationFailure, maskEmail } from "@/lib/logger";
+import { logAdminAction } from "@/lib/audit-log";
 import { formatDateForStorage, parseDateAndTime } from "@/lib/date-picker-utils";
 import { hasEventDescriptionContent, sanitizeEventDescriptionHtml } from "@/lib/event-description";
 import { VoteType } from "@prisma/client";
+import { parsePageNumber, parsePageSize } from "@/lib/api-pagination";
 
-const createEventSchema = {
-  date: { type: 'string' as const },
-  timeFrom: { type: 'string' as const },
-  timeTo: { type: 'string' as const },
-  location: { type: 'string' as const },
-  description: { type: 'string' as const },
-  latitude: { type: 'string' as const, optional: true },
-  longitude: { type: 'string' as const, optional: true },
-  type: { type: 'string' as const, optional: true },
-  visible: { type: 'boolean' as const, optional: true },
-} as const;
-
-const MAX_PAGE_SIZE = 100;
 const EVENT_REQUEST_BODY_SIZE = MAX_REQUEST_BODY_SIZE + 128 * 1024;
-
-function parsePageSize(value: string | null, fallback: number) {
-  const parsed = Number.parseInt(value || "", 10);
-  if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
-  return Math.min(parsed, MAX_PAGE_SIZE);
-}
-
-function parsePageNumber(value: string | null) {
-  const parsed = Number.parseInt(value || "", 10);
-  if (!Number.isFinite(parsed) || parsed <= 0) return 1;
-  return parsed;
-}
 
 function normalizeCoordinate(value?: string | number | null): number | null {
   if (value === undefined || value === null) return null;
@@ -111,16 +87,11 @@ export const POST = withApiErrorHandling(async (request: NextRequest) => {
   const user = await requireAdmin("write");
   const body = await parseJsonBody<CreateEventRequest>(request, EVENT_REQUEST_BODY_SIZE);
 
-  const bodyValidation = validateRequestBody(body, createEventSchema, { route: '/api/admin/events', method: 'POST' });
-  if (!bodyValidation.isValid) {
-    return NextResponse.json({ error: bodyValidation.errors.join(". ") }, { status: 400 });
-  }
-
   const validation = validateCreateEventRequest(body);
 
   if (!validation.isValid) {
     logValidationFailure('/api/admin/events', 'POST', validation.errors);
-    return NextResponse.json({ error: validation.errors.join(". ") }, { status: 400 });
+    return NextResponse.json({ error: validation.errors.join(". "), fieldErrors: validation.fieldErrors }, { status: 400 });
   }
 
   const { date, timeFrom, timeTo, location, description, latitude, longitude, type, visible } = body;
@@ -128,7 +99,7 @@ export const POST = withApiErrorHandling(async (request: NextRequest) => {
 
   if (!hasEventDescriptionContent(sanitizedDescription)) {
     logValidationFailure('/api/admin/events', 'POST', ["Beschreibung darf nicht leer sein"]);
-    return NextResponse.json({ error: "Beschreibung darf nicht leer sein" }, { status: 400 });
+    return NextResponse.json({ error: "Beschreibung darf nicht leer sein", fieldErrors: [{ field: "description", message: "Beschreibung darf nicht leer sein" }] }, { status: 400 });
   }
 
   const eventDate = parseDateAndTime(date, timeFrom);
@@ -155,7 +126,13 @@ export const POST = withApiErrorHandling(async (request: NextRequest) => {
     eventId: newEvent.id,
     title: sanitizedDescription,
     date: eventDate,
-    createdBy: user.email,
+    createdBy: maskEmail(user.email),
+  });
+
+  logAdminAction("event_create", user, {
+    eventId: newEvent.id,
+    date: eventDate.toISOString(),
+    location,
   });
 
   return NextResponse.json({

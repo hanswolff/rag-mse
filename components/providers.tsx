@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { usePathname } from "next/navigation";
 import { SessionProvider } from "next-auth/react";
+import { ConfirmDialogProvider } from "./confirm-dialog";
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -11,5 +12,9 @@ export function Providers({ children }: { children: React.ReactNode }) {
     window.scrollTo(0, 0);
   }, [pathname]);
 
-  return <SessionProvider>{children}</SessionProvider>;
+  return (
+    <SessionProvider>
+      <ConfirmDialogProvider>{children}</ConfirmDialogProvider>
+    </SessionProvider>
+  );
 }

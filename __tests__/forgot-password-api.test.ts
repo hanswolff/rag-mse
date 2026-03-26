@@ -25,6 +25,7 @@ jest.mock("@/lib/logger", () => ({
   logError: jest.fn(),
   logWarn: jest.fn(),
   logValidationFailure: jest.fn(),
+  maskEmail: jest.fn((e: string) => e),
 }));
 
 jest.mock("@/lib/rate-limiter", () => ({

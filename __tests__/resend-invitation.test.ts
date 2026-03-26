@@ -141,7 +141,7 @@ describe("POST /api/admin/invitations/[id]/resend", () => {
     expect(data.error).toBe("Einladung nicht gefunden");
   });
 
-  it("should return 400 if invitation already used", async () => {
+  it("should return 409 if invitation already used", async () => {
     const mockInvitation: MockInvitation = {
       id: "inv-123",
       email: "user@example.com",
@@ -164,7 +164,7 @@ describe("POST /api/admin/invitations/[id]/resend", () => {
     });
     const data = await response.json();
 
-    expect(response.status).toBe(400);
+    expect(response.status).toBe(409);
     expect(data.error).toBe("Einladung wurde bereits verwendet");
   });
 

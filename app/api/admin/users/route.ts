@@ -11,7 +11,8 @@ import { validateRole } from "@/lib/validation-schema";
 import { requireAdmin } from "@/lib/auth-utils";
 import { Role, Prisma } from "@prisma/client";
 import { parseJsonBody, BadRequestError, withApiErrorHandling, validateRequestBody, validateCsrfHeaders } from "@/lib/api-utils";
-import { logValidationFailure, logInfo } from "@/lib/logger";
+import { logValidationFailure, logInfo, maskEmail } from "@/lib/logger";
+import { logAdminAction } from "@/lib/audit-log";
 import { formatDateInputValue } from "@/lib/date-picker-utils";
 import {
   buildInviteUrl,
@@ -49,7 +50,7 @@ async function rollbackProvisionedUser(userId: string, email: string, tokenHash:
   } catch (rollbackError) {
     logInfo("admin_user_create_rollback_failed", "Failed to rollback user provisioning after invitation email error", {
       userId,
-      email,
+      email: maskEmail(email),
       error: rollbackError instanceof Error ? rollbackError.message : String(rollbackError),
     });
   }
@@ -119,12 +120,12 @@ export const POST = withApiErrorHandling(async (request: NextRequest) => {
     );
   }
 
-  if (!normalizedEmail || !validateEmail(normalizedEmail)) {
+  if (!normalizedEmail || !validateEmail(normalizedEmail).isValid) {
     logValidationFailure('/api/admin/users', 'POST', 'E-Mail ist erforderlich und muss gültig sein', {
       email: body.email,
     });
     return NextResponse.json(
-      { error: "E-Mail ist erforderlich und muss gültig sein" },
+      { error: "E-Mail ist erforderlich und muss gültig sein", fieldErrors: [{ field: "email", message: "E-Mail ist erforderlich und muss gültig sein" }] },
       { status: 400 }
     );
   }
@@ -135,7 +136,7 @@ export const POST = withApiErrorHandling(async (request: NextRequest) => {
       email: normalizedEmail,
     });
     return NextResponse.json(
-      { error: nameValidation.error || "Ungültiger Name" },
+      { error: nameValidation.error || "Ungültiger Name", fieldErrors: [{ field: "name", message: nameValidation.error || "Ungültiger Name" }] },
       { status: 400 }
     );
   }
@@ -146,7 +147,7 @@ export const POST = withApiErrorHandling(async (request: NextRequest) => {
       role: body.role,
     });
     return NextResponse.json(
-      { error: "Ungültige Rolle" },
+      { error: "Ungültige Rolle", fieldErrors: [{ field: "role", message: "Ungültige Rolle" }] },
       { status: 400 }
     );
   }
@@ -166,7 +167,7 @@ export const POST = withApiErrorHandling(async (request: NextRequest) => {
       email: normalizedEmail,
       field: optionalProfileFieldError.field,
     });
-    return NextResponse.json({ error: optionalProfileFieldError.message }, { status: 400 });
+    return NextResponse.json({ error: optionalProfileFieldError.message, fieldErrors: [optionalProfileFieldError] }, { status: 400 });
   }
 
   const adminNotes = normalizeOptionalField(typeof body.adminNotes === "string" ? body.adminNotes : undefined);
@@ -176,19 +177,8 @@ export const POST = withApiErrorHandling(async (request: NextRequest) => {
       logValidationFailure('/api/admin/users', 'POST', adminNotesValidation.error || 'Ungültige Administratoren-Notizen', {
         email: normalizedEmail,
       });
-      return NextResponse.json({ error: adminNotesValidation.error }, { status: 400 });
+      return NextResponse.json({ error: adminNotesValidation.error, fieldErrors: [{ field: "adminNotes", message: adminNotesValidation.error || "Ungültige Administratoren-Notizen" }] }, { status: 400 });
     }
-  }
-
-  const existingUser = await prisma.user.findUnique({
-    where: { email: normalizedEmail },
-  });
-
-  if (existingUser) {
-    return NextResponse.json(
-      { error: "Ein Benutzer mit dieser E-Mail existiert bereits" },
-      { status: 409 }
-    );
   }
 
   const appUrl = process.env.APP_URL;
@@ -202,66 +192,77 @@ export const POST = withApiErrorHandling(async (request: NextRequest) => {
   const tokenHash = hashInvitationToken(token);
   const expiresAt = getInvitationExpiryDate();
 
-  const newUser = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-    const user = await tx.user.create({
-      data: {
-        email: normalizedEmail,
-        password: hashedPassword,
-        name,
-        role,
-        address,
-        phone,
-        memberSince: memberSince ? new Date(memberSince) : null,
-        dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : null,
-        rank,
-        pk,
-        reservistsAssociation,
-        associationMemberNumber,
-        hasPossessionCard: hasPossessionCard || false,
-        adminNotes,
-      },
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        role: true,
-        address: true,
-        phone: true,
-        memberSince: true,
-        dateOfBirth: true,
-        rank: true,
-        pk: true,
-        reservistsAssociation: true,
-        associationMemberNumber: true,
-        hasPossessionCard: true,
-        adminNotes: true,
-        createdAt: true,
-      },
-    });
+  let newUser;
+  try {
+    newUser = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      const user = await tx.user.create({
+        data: {
+          email: normalizedEmail,
+          password: hashedPassword,
+          name,
+          role,
+          address,
+          phone,
+          memberSince: memberSince ? new Date(memberSince) : null,
+          dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : null,
+          rank,
+          pk,
+          reservistsAssociation,
+          associationMemberNumber,
+          hasPossessionCard: hasPossessionCard || false,
+          adminNotes,
+        },
+        select: {
+          id: true,
+          email: true,
+          name: true,
+          role: true,
+          address: true,
+          phone: true,
+          memberSince: true,
+          dateOfBirth: true,
+          rank: true,
+          pk: true,
+          reservistsAssociation: true,
+          associationMemberNumber: true,
+          hasPossessionCard: true,
+          adminNotes: true,
+          createdAt: true,
+        },
+      });
 
-    await tx.invitation.create({
-      data: {
-        email: normalizedEmail,
-        tokenHash,
-        expiresAt,
-        invitedById: admin.id,
-        role,
-      },
-    });
+      await tx.invitation.create({
+        data: {
+          email: normalizedEmail,
+          tokenHash,
+          expiresAt,
+          invitedById: admin.id,
+          role,
+        },
+      });
 
-    await tx.invitation.updateMany({
-      where: {
-        email: normalizedEmail,
-        usedAt: null,
-        NOT: { tokenHash },
-      },
-      data: {
-        usedAt: new Date(),
-      },
-    });
+      await tx.invitation.updateMany({
+        where: {
+          email: normalizedEmail,
+          usedAt: null,
+          NOT: { tokenHash },
+        },
+        data: {
+          usedAt: new Date(),
+        },
+      });
 
-    return user;
-  });
+      return user;
+    });
+  } catch (error: unknown) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+      return NextResponse.json(
+        { error: "Ein Benutzer mit dieser E-Mail existiert bereits" },
+        { status: 409 }
+      );
+    }
+    throw error;
+  }
 
   const inviteUrl = buildInviteUrl(appUrl, token);
 
@@ -272,7 +273,7 @@ export const POST = withApiErrorHandling(async (request: NextRequest) => {
       route: "/api/admin/users",
       method: "POST",
       userId: newUser.id,
-      ...(admin.email && { userEmail: admin.email }),
+      ...(admin.email && { userEmail: maskEmail(admin.email) }),
     },
   });
 
@@ -283,6 +284,12 @@ export const POST = withApiErrorHandling(async (request: NextRequest) => {
       { status: 500 }
     );
   }
+
+  logAdminAction("user_create", admin, {
+    targetUserId: newUser.id,
+    targetEmail: maskEmail(normalizedEmail),
+    targetRole: role,
+  });
 
   return NextResponse.json(serializeUserDateFields(newUser), { status: 201 });
 }, { route: "/api/admin/users", method: "POST" });

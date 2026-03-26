@@ -7,6 +7,8 @@ import { isAdmin } from "@/lib/role-utils";
 import { authOptions } from "@/lib/auth";
 import { BackLink } from "@/components/back-link";
 
+export { generateMetadata } from "./metadata";
+
 export const revalidate = 300;
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://rag-mse.de";
 

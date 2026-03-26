@@ -1,16 +1,15 @@
 "use client";
 
-import { useEffect } from "react";
-import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { canAccessAdminArea, isAdmin } from "@/lib/role-utils";
-import { buildLoginUrlWithReturnUrl, getCurrentPathWithSearch } from "@/lib/return-url";
+import { isAdmin } from "@/lib/role-utils";
 import { useNewsManagement } from "@/lib/use-news-management";
 import { formatDate } from "@/lib/date-utils";
 import { NewsFormModal } from "@/components/news-form-modal";
 import { LoadingButton } from "@/components/loading-button";
+import { LoadingScreen } from "@/components/loading-screen";
 import { BackLink } from "@/components/back-link";
 import type { News } from "@/types";
+import { AlertBox } from "@/components/alert-box";
 
 function NewsList({
   news,
@@ -81,25 +80,12 @@ function NewsList({
 }
 
 export default function NewsPage() {
-  const router = useRouter();
   const { data: session, status } = useSession();
   const newsManagement = useNewsManagement();
   const canManage = session ? isAdmin(session.user) : false;
 
-  useEffect(() => {
-    if (status === "unauthenticated") {
-      router.push(buildLoginUrlWithReturnUrl(getCurrentPathWithSearch()));
-    } else if (status === "authenticated" && !canAccessAdminArea(session.user)) {
-      router.push("/");
-    }
-  }, [status, session, router]);
-
   if (status === "loading" || newsManagement.isLoading) {
-    return (
-      <main className="flex flex-1 items-center justify-center">
-        <div className="text-gray-600">Laden...</div>
-      </main>
-    );
+    return <LoadingScreen />;
   }
 
   return (
@@ -121,25 +107,9 @@ export default function NewsPage() {
           )}
         </div>
 
-        {newsManagement.error && (
-          <div
-            role="alert"
-            aria-live="assertive"
-            className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4"
-          >
-            {newsManagement.error}
-          </div>
-        )}
+        <AlertBox type="error" message={newsManagement.error} className="mb-4" />
 
-        {newsManagement.success && (
-          <div
-            role="status"
-            aria-live="polite"
-            className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded mb-4"
-          >
-            {newsManagement.success}
-          </div>
-        )}
+        <AlertBox type="success" message={newsManagement.success} className="mb-4" />
 
         <section className="card-compact">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between mb-4">
@@ -166,7 +136,7 @@ export default function NewsPage() {
             setNewsData={newsManagement.setModalNewsData}
             isEditing={!!newsManagement.editingNews}
             errors={newsManagement.error ? { general: newsManagement.error } : {}}
-            initialNewsData={newsManagement.initialNewsData}
+            fieldErrors={newsManagement.fieldErrors}            initialNewsData={newsManagement.initialNewsData}
           />
         )}
       </div>

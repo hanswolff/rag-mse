@@ -9,6 +9,13 @@ import { LoadingButton } from "@/components/loading-button";
 import { loginFormSchema } from "@/lib/validation-schema";
 import { getFieldErrors } from "@/lib/zod-form-errors";
 import { pluralize } from "@/lib/pluralization";
+import {
+  TargetIcon,
+  CalendarIcon,
+  NewsIcon,
+  UserIcon,
+} from "@/components/icons";
+import { AlertBox } from "@/components/alert-box";
 
 interface UseLoginFormResult {
   email: string;
@@ -33,7 +40,10 @@ function useLoginForm(): UseLoginFormResult {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
-  const [fieldErrors, setFieldErrors] = useState<{ email?: string; password?: string }>({});
+  const [fieldErrors, setFieldErrors] = useState<{
+    email?: string;
+    password?: string;
+  }>({});
   const [isLoading, setIsLoading] = useState(false);
   const [shouldRedirect, setShouldRedirect] = useState(false);
   const [returnUrl, setReturnUrl] = useState<string | null>(null);
@@ -103,14 +113,24 @@ function useLoginForm(): UseLoginFormResult {
       const data: LoginPreflightResponse = await response.json();
 
       if (response.status === 429) {
-        setError(data.error || "Zu viele Anmeldeversuche. Bitte versuchen Sie es später erneut.");
+        setError(
+          data.error ||
+            "Zu viele Anmeldeversuche. Bitte versuchen Sie es später erneut."
+        );
       } else if (response.status === 503) {
-        setError(data.error || "Anmeldung ist vorübergehend nicht verfügbar. Bitte versuchen Sie es erneut.");
+        setError(
+          data.error ||
+            "Anmeldung ist vorübergehend nicht verfügbar. Bitte versuchen Sie es erneut."
+        );
       } else if (response.status === 401) {
-        setFieldErrors({ password: data.error || "Ungültige E-Mail oder Passwort" });
+        setFieldErrors({
+          password: data.error || "Ungültige E-Mail oder Passwort",
+        });
       } else if (response.status === 200 && data.success) {
         if (!data.loginProof) {
-          setError("Ein Fehler ist aufgetreten. Bitte versuchen Sie es später erneut.");
+          setError(
+            "Ein Fehler ist aufgetreten. Bitte versuchen Sie es später erneut."
+          );
           return;
         }
 
@@ -124,19 +144,31 @@ function useLoginForm(): UseLoginFormResult {
         if (result?.error?.startsWith("RATE_LIMITED:")) {
           const minutes = result.error.split(":")[1] || "1";
           const minuteCount = Number.parseInt(minutes, 10);
-          const minuteLabel = pluralize(Number.isFinite(minuteCount) ? minuteCount : 2, "Minute", "Minuten");
-          setError(`Zu viele fehlgeschlagene Anmeldeversuche. Bitte versuchen Sie es in ${minutes} ${minuteLabel} erneut.`);
+          const minuteLabel = pluralize(
+            Number.isFinite(minuteCount) ? minuteCount : 2,
+            "Minute",
+            "Minuten"
+          );
+          setError(
+            `Zu viele fehlgeschlagene Anmeldeversuche. Bitte versuchen Sie es in ${minutes} ${minuteLabel} erneut.`
+          );
         } else if (result?.error === "RATE_LIMIT_UNAVAILABLE") {
-          setError("Anmeldung ist vorübergehend nicht verfügbar. Bitte versuchen Sie es erneut.");
+          setError(
+            "Anmeldung ist vorübergehend nicht verfügbar. Bitte versuchen Sie es erneut."
+          );
         } else if (result?.error) {
           setError("Ungültige E-Mail oder Passwort");
         } else if (result?.ok) {
           setShouldRedirect(true);
         } else {
-          setError("Ein Fehler ist aufgetreten. Bitte versuchen Sie es später erneut.");
+          setError(
+            "Ein Fehler ist aufgetreten. Bitte versuchen Sie es später erneut."
+          );
         }
       } else {
-        const message = data.error || "Ein Fehler ist aufgetreten. Bitte versuchen Sie es später erneut.";
+        const message =
+          data.error ||
+          "Ein Fehler ist aufgetreten. Bitte versuchen Sie es später erneut.";
         if (message.includes("E-Mail")) {
           setFieldErrors({ email: message });
         } else if (message.includes("Passwort")) {
@@ -165,97 +197,152 @@ function useLoginForm(): UseLoginFormResult {
 }
 
 export default function LoginPage() {
-  const { email, password, error, fieldErrors, isLoading, setEmail, setPassword, handleSubmit } = useLoginForm();
+  const {
+    email,
+    password,
+    error,
+    fieldErrors,
+    isLoading,
+    setEmail,
+    setPassword,
+    handleSubmit,
+  } = useLoginForm();
 
   return (
-    <main className="flex flex-1 flex-col items-center justify-center p-4 sm:p-6">
-      <div className="w-full max-w-md">
-        <div className="card">
-          <h1 className="text-2xl sm:text-3xl font-bold text-center mb-4 sm:mb-6 text-brand-blue-900">
-            RAG Schießsport MSE
-          </h1>
-          <h2 className="text-lg sm:text-xl font-semibold text-center mb-4 sm:mb-6 text-brand-red-700">
-            Login
-          </h2>
-
-          {error && (
-            <div className="bg-red-100 border border-red-400 text-red-700 px-3 sm:px-4 py-3 rounded mb-4 text-base">
-              {error}
-            </div>
-          )}
-
-          <form onSubmit={handleSubmit} className="space-y-4" noValidate>
-            <div>
-              <label htmlFor="email" className="form-label">
-                E-Mail *
-              </label>
-              <input
-                id="email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                className="form-input"
-                placeholder="Ihre E-Mail-Adresse"
-                disabled={isLoading}
-                autoFocus
-                aria-invalid={!!fieldErrors.email}
-                aria-describedby={fieldErrors.email ? "login-email-error" : undefined}
-              />
-              {fieldErrors.email && (
-                <p id="login-email-error" className="form-help text-red-600">
-                  {fieldErrors.email}
-                </p>
-              )}
-            </div>
-
-            <div>
-              <label htmlFor="password" className="form-label">
-                Passwort *
-              </label>
-              <input
-                id="password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                className="form-input"
-                placeholder="Ihr Passwort"
-                disabled={isLoading}
-                aria-invalid={!!fieldErrors.password}
-                aria-describedby={fieldErrors.password ? "login-password-error" : undefined}
-              />
-              {fieldErrors.password && (
-                <p id="login-password-error" className="form-help text-red-600">
-                  {fieldErrors.password}
-                </p>
-              )}
-            </div>
-
-            <LoadingButton
-              type="submit"
-              loading={isLoading}
-              loadingText="Anmeldung..."
-              className="w-full btn-primary py-2.5 sm:py-2 text-base sm:text-base touch-manipulation"
-            >
-              Anmelden
-            </LoadingButton>
-          </form>
-
-          <div className="mt-4 text-center text-base">
-            <a href="/passwort-vergessen" className="link-primary">
-              Passwort vergessen?
-            </a>
+    <main className="flex flex-1 bg-[linear-gradient(180deg,#eef2f6_0%,#f6f7f9_100%)]">
+      <div className="hidden lg:flex lg:w-[52%] login-decor-panel items-center justify-center p-10 xl:p-14">
+        <div className="relative z-10 max-w-xl">
+          <div className="hero-eyebrow mb-5">
+            <TargetIcon className="h-4 w-4" />
+            Geschützter Mitgliederbereich
           </div>
+          <h2 className="text-4xl font-bold text-white mb-4">
+            RAG Schießsport MSE
+          </h2>
+          <p className="text-brand-blue-100 text-lg leading-relaxed max-w-lg">
+            Mitgliederbereich der Reservistenarbeitsgemeinschaft für sportliches
+            Schießen
+          </p>
+          <div className="mt-8 grid gap-4 sm:grid-cols-3">
+            <div className="login-highlight-card">
+              <CalendarIcon className="h-5 w-5 text-brand-gold-400" />
+              <p className="mt-3 text-sm font-semibold text-white">Termine</p>
+              <p className="mt-1 text-sm text-brand-blue-200">
+                Übersichten und Detailseiten bleiben klar strukturiert.
+              </p>
+            </div>
+            <div className="login-highlight-card">
+              <NewsIcon className="h-5 w-5 text-brand-gold-400" />
+              <p className="mt-3 text-sm font-semibold text-white">
+                Abstimmung
+              </p>
+              <p className="mt-1 text-sm text-brand-blue-200">
+                Teilnahme schnell zusagen, absagen oder offen halten.
+              </p>
+            </div>
+            <div className="login-highlight-card">
+              <UserIcon className="h-5 w-5 text-brand-gold-400" />
+              <p className="mt-3 text-sm font-semibold text-white">Profil</p>
+              <p className="mt-1 text-sm text-brand-blue-200">
+                Persönliche Daten zentral und nachvollziehbar pflegen.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
 
-          <div className="mt-6 text-center text-base text-gray-600">
-            <p>
-              Bei Problemen wenden Sie sich bitte an den{" "}
-              <a href="/kontakt" className="link-primary">
-                Administrator
+      <div className="flex flex-1 flex-col items-center justify-center p-4 sm:p-6">
+        <div className="w-full max-w-md">
+          <div className="card border border-white/70 shadow-2xl shadow-slate-200/70 backdrop-blur-sm">
+            <h1 className="text-2xl sm:text-3xl font-bold text-center mb-4 sm:mb-6 text-brand-blue-900">
+              RAG Schießsport MSE
+            </h1>
+            <h2 className="text-lg sm:text-xl font-semibold text-center mb-4 sm:mb-6 text-brand-red-700">
+              Login
+            </h2>
+
+            <AlertBox type="error" message={error} className="mb-4 text-base" />
+
+            <form onSubmit={handleSubmit} className="space-y-4" noValidate>
+              <div>
+                <label htmlFor="email" className="form-label">
+                  E-Mail *
+                </label>
+                <input
+                  id="email"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                  className="form-input"
+                  placeholder="Ihre E-Mail-Adresse"
+                  disabled={isLoading}
+                  autoFocus
+                  aria-invalid={!!fieldErrors.email}
+                  aria-describedby={
+                    fieldErrors.email ? "login-email-error" : undefined
+                  }
+                />
+                {fieldErrors.email && (
+                  <p id="login-email-error" className="form-help text-red-600">
+                    {fieldErrors.email}
+                  </p>
+                )}
+              </div>
+
+              <div>
+                <label htmlFor="password" className="form-label">
+                  Passwort *
+                </label>
+                <input
+                  id="password"
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  className="form-input"
+                  placeholder="Ihr Passwort"
+                  disabled={isLoading}
+                  aria-invalid={!!fieldErrors.password}
+                  aria-describedby={
+                    fieldErrors.password ? "login-password-error" : undefined
+                  }
+                />
+                {fieldErrors.password && (
+                  <p
+                    id="login-password-error"
+                    className="form-help text-red-600"
+                  >
+                    {fieldErrors.password}
+                  </p>
+                )}
+              </div>
+
+              <LoadingButton
+                type="submit"
+                loading={isLoading}
+                loadingText="Anmeldung..."
+                className="w-full btn-primary py-2.5 sm:py-2 text-base sm:text-base touch-manipulation"
+              >
+                Anmelden
+              </LoadingButton>
+            </form>
+
+            <div className="mt-4 text-center text-base">
+              <a href="/passwort-vergessen" className="link-primary">
+                Passwort vergessen?
               </a>
-              .
-            </p>
+            </div>
+
+            <div className="mt-6 text-center text-base text-gray-600">
+              <p>
+                Bei Problemen wenden Sie sich bitte an den{" "}
+                <a href="/kontakt" className="link-primary">
+                  Administrator
+                </a>
+                .
+              </p>
+            </div>
           </div>
         </div>
       </div>

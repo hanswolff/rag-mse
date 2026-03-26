@@ -1,0 +1,12 @@
+# Log rotation for RAG Schießsport MSE
+# Install: cp ops/logrotate/beta-rag-mse /etc/logrotate.d/beta-rag-mse
+
+/zfs/git/beta-rag-mse/data/logs/emails/*.log {
+    daily
+    rotate 14
+    compress
+    delaycompress
+    missingok
+    notifempty
+    create 0640 1000 1000
+}

@@ -1,38 +1,22 @@
 "use client";
 
 import { useEffect } from "react";
-import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { canAccessAdminArea } from "@/lib/role-utils";
-import { buildLoginUrlWithReturnUrl, getCurrentPathWithSearch } from "@/lib/return-url";
 import Link from "next/link";
 import { Permissions } from "@/lib/permissions";
+import { LoadingScreen } from "@/components/loading-screen";
 
 export default function AdminDashboardPage() {
-  const router = useRouter();
   const { data: session, status } = useSession();
   const canReadNotificationsAdmin = Permissions.canReadNotificationsAdmin(session?.user);
   const canReadOutgoingEmails = Permissions.canReadOutgoingEmails(session?.user);
 
   useEffect(() => {
-    if (status === "unauthenticated") {
-      router.push(buildLoginUrlWithReturnUrl(getCurrentPathWithSearch()));
-    } else if (status === "authenticated" && !canAccessAdminArea(session.user)) {
-      router.push("/");
-    }
-  }, [status, session, router]);
-
-  // Force scroll to top on mount to prevent scroll bar jumping to bottom
-  useEffect(() => {
     window.scrollTo(0, 0);
   }, []);
 
   if (status === "loading") {
-    return (
-      <main className="flex flex-1 items-center justify-center">
-        <div className="text-gray-600">Laden...</div>
-      </main>
-    );
+    return <LoadingScreen />;
   }
 
   return (
@@ -71,6 +55,19 @@ export default function AdminDashboardPage() {
           </Link>
 
           <Link
+            href="/admin/umfragen"
+            className="block p-6 bg-white border border-gray-200 rounded-lg hover:shadow-md transition-shadow"
+          >
+            <div className="flex items-center gap-3 mb-3">
+              <span className="text-2xl sm:text-3xl">📊</span>
+              <h2 className="text-lg sm:text-xl font-semibold text-gray-900">Umfragen</h2>
+            </div>
+            <p className="text-sm sm:text-base text-gray-600">
+              Erstellen und verwalten Sie Umfragen für Mitglieder.
+            </p>
+          </Link>
+
+          <Link
             href="/admin/news"
             className="block p-6 bg-white border border-gray-200 rounded-lg hover:shadow-md transition-shadow"
           >
@@ -80,6 +77,19 @@ export default function AdminDashboardPage() {
             </div>
             <p className="text-sm sm:text-base text-gray-600">
               Veröffentlichen und verwalten Sie Neuigkeiten und Ankündigungen.
+            </p>
+          </Link>
+
+          <Link
+            href="/admin/standorte"
+            className="block p-6 bg-white border border-gray-200 rounded-lg hover:shadow-md transition-shadow"
+          >
+            <div className="flex items-center gap-3 mb-3">
+              <span className="text-2xl sm:text-3xl">📍</span>
+              <h2 className="text-lg sm:text-xl font-semibold text-gray-900">Standorte</h2>
+            </div>
+            <p className="text-sm sm:text-base text-gray-600">
+              Verwalten Sie Schießstände und deren Adressdaten.
             </p>
           </Link>
 

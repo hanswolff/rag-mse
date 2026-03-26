@@ -3,7 +3,12 @@ import { access } from "node:fs/promises";
 import path from "node:path";
 import { unstable_noStore as noStore } from "next/cache";
 import { getServerSession } from "next-auth";
-import { CalendarIcon, NewsIcon, FileDocumentIcon } from "@/components/icons";
+import {
+  CalendarIcon,
+  NewsIcon,
+  FileDocumentIcon,
+  TargetIcon,
+} from "@/components/icons";
 import { prisma } from "@/lib/prisma";
 import { getStartOfToday } from "@/lib/date-picker-utils";
 import { authOptions } from "@/lib/auth";
@@ -83,7 +88,9 @@ function formatEventDate(date: Date) {
 export default async function Home() {
   noStore();
   const session = await getServerSession(authOptions);
-  const canShowMemberDocuments = session?.user ? canReadMemberDocuments(session.user) : false;
+  const canShowMemberDocuments = session?.user
+    ? canReadMemberDocuments(session.user)
+    : false;
 
   const [nextEvent, annualPlanning] = await Promise.all([
     getNextEvent(),
@@ -116,39 +123,53 @@ export default async function Home() {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationJsonLd) }}
       />
-      <section className="bg-gradient-to-b from-brand-blue-900 to-brand-blue-800 text-white py-8 sm:py-10 md:py-12">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold mb-3 sm:mb-4">
+      <section className="hero-pattern overflow-hidden bg-gradient-to-br from-brand-blue-900 via-[#17314A] to-brand-blue-800 pt-4 pb-14 text-white sm:pt-6 sm:pb-14 md:pt-8 md:pb-16 lg:pt-10 lg:pb-18">
+        <div className="hero-media" aria-hidden="true" />
+        <div className="relative max-w-7xl mx-auto px-4 text-center sm:px-6 lg:px-8">
+          <span className="hero-eyebrow mb-4 hidden sm:inline-flex">
+            <TargetIcon className="h-4 w-4" />
+            Sportliches Schießen in der Mecklenburgischen Seenplatte
+          </span>
+          <h1 className="sr-only sm:not-sr-only sm:text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight">
             RAG Schießsport MSE
           </h1>
-          <p className="text-base sm:text-lg md:text-xl lg:text-2xl mb-4 sm:mb-5 md:mb-6 text-brand-blue-100">
-            Willkommen auf der Website der RAG Schießsport MSE
+          <p className="mt-2 sm:mt-4 mx-auto max-w-2xl text-base text-brand-blue-100 sm:text-lg md:text-xl lg:text-2xl">
+            Reservistenarbeitsgemeinschaft für sportliches Schießen in der
+            Mecklenburgischen Seenplatte
           </p>
-          <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center px-4">
-            <Link
-              href="/ueber-uns"
-              className="btn-outline-inverse px-6 sm:px-8 py-3 text-base sm:text-base touch-manipulation"
-            >
-              Über Uns
-            </Link>
+          <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
             <Link
               href="/kontakt"
-              className="btn-primary px-6 sm:px-8 py-3 text-base sm:text-base touch-manipulation"
+              className="btn-primary w-full sm:w-auto px-6 sm:px-8 py-3 text-base sm:text-base touch-manipulation"
             >
               Kontakt aufnehmen
+            </Link>
+            <Link
+              href="/ueber-uns"
+              className="btn-outline-inverse w-full sm:w-auto px-6 sm:px-8 py-3 text-base sm:text-base touch-manipulation"
+            >
+              Über Uns
             </Link>
           </div>
         </div>
       </section>
 
-      <section className="py-12 sm:py-16 bg-gray-50">
+      <section className="bg-gray-50 py-8 sm:py-12 section-divider-wave">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 sm:gap-8">
+          <div className="text-center mb-8 sm:mb-12">
+            <h2 className="text-xl sm:text-2xl md:text-3xl font-bold text-gray-900">
+              Entdecken Sie unsere Arbeitsgemeinschaft
+            </h2>
+            <p className="text-gray-500 mt-2 text-base sm:text-lg max-w-xl mx-auto">
+              Informationen, Termine und Neuigkeiten
+            </p>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
             {visibleCards.map((card) => (
-              <article key={card.href} className="card-elevated group">
+              <article key={card.href} className="card-feature group">
                 <Link href={card.href} className="block relative">
                   {card.href === "/termine" && (
-                    <div className="absolute top-3 right-3 z-10 max-w-[8.5rem] rounded-md border border-brand-blue-200 bg-brand-blue-50 px-2 py-1 text-right text-sm text-brand-blue-900 opacity-50">
+                    <div className="absolute top-0 right-0 z-10 max-w-[9rem] rounded-xl border border-brand-blue-200 bg-brand-blue-50/95 px-3 py-2 text-right text-sm text-brand-blue-900 shadow-sm">
                       {nextEvent ? (
                         <>
                           <p className="font-semibold">Nächster Termin:</p>
@@ -159,18 +180,20 @@ export default async function Home() {
                       )}
                     </div>
                   )}
-                  <div className="text-brand-red-600 mb-4">
-                    <div className="w-10 h-10 sm:w-12 sm:h-12 group-hover:scale-110 transition-transform">
+                  <div className="text-brand-red-600 mb-5">
+                    <div className="w-12 h-12 sm:w-14 sm:h-14 p-2.5 sm:p-3 rounded-xl bg-brand-red-50 group-hover:bg-brand-red-100 group-hover:scale-110 transition-all duration-300">
                       {card.icon}
                     </div>
                   </div>
                   <h3 className="text-lg sm:text-xl font-semibold text-gray-900 mb-3 group-hover:text-brand-red-600 transition-colors">
                     {card.title}
                   </h3>
-                  <p className="text-gray-600 text-base sm:text-base">{card.description}</p>
+                  <p className="text-gray-600 text-base sm:text-base">
+                    {card.description}
+                  </p>
                 </Link>
                 {card.href === "/termine" && annualPlanning && (
-                  <div className="mt-1">
+                  <div className="mt-3">
                     <Link
                       href={annualPlanning.href}
                       className="inline-flex items-center font-semibold text-brand-red-700 hover:text-brand-red-800"

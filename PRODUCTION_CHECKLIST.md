@@ -306,6 +306,64 @@ SMTP_HOST="your-production-smtp.com"
 - Verify backend IP/Port in HAProxy config
 - Check application logs: `docker-compose logs app`
 
+## Deployment Rollback Procedure
+
+### Verhalten bei fehlgeschlagenem Deployment
+
+`deploy.sh` bricht bei Fehlern ab, ohne laufende Container absichtlich zu stoppen. Wenn der Build oder das Recreate fehlschlägt, bleibt der vorherige Container in der Regel aktiv. Es findet kein destruktives Rollback statt.
+
+### Container Rollback
+
+Falls ein fehlerhaftes Image deployed wurde und die Anwendung nicht korrekt läuft:
+
+1. Stoppe die laufenden Container:
+   ```bash
+   docker compose down
+   ```
+2. Checkout des letzten funktionierenden Commits:
+   ```bash
+   git checkout <previous-commit-sha>
+   ```
+3. Rebuild und Neustart:
+   ```bash
+   docker compose build app
+   docker compose up -d
+   ```
+4. Prüfe, ob die Anwendung korrekt läuft:
+   ```bash
+   docker compose ps
+   docker compose logs --tail=50 app
+   ```
+
+### Datenbank-Wiederherstellung
+
+Automatische Backups werden täglich um 02:10 Uhr durch `ops/systemd/beta-rag-db-backup.timer` erstellt. Die Backup-Dateien liegen unter `/zfs/backups/beta-rag-mse/` (konfiguriert in `ops/systemd/beta-rag-db-backup.service`).
+
+Wiederherstellung aus einem Backup:
+
+1. Container stoppen:
+   ```bash
+   docker compose down
+   ```
+2. Backup entpacken und an den DB-Pfad kopieren:
+   ```bash
+   gunzip -k /zfs/backups/beta-rag-mse/<backup-file>.db.gz
+   cp /zfs/backups/beta-rag-mse/<backup-file>.db ./data/prod.db
+   ```
+3. Container neu starten:
+   ```bash
+   docker compose up -d
+   ```
+
+### Quick Recovery Steps (Notfall-Rollback)
+
+1. `docker compose down`
+2. `git log --oneline -5` — letzten stabilen Commit identifizieren
+3. `git checkout <stable-commit>`
+4. Falls DB-Wiederherstellung nötig: Backup aus `/zfs/backups/beta-rag-mse/` entpacken und nach `./data/prod.db` kopieren
+5. `docker compose build app && docker compose up -d`
+6. `docker compose ps` und `docker compose logs --tail=50 app` — Zustand prüfen
+
 ## Additional Resources
 
 - [Next.js Deployment Documentation](https://nextjs.org/docs/deployment)

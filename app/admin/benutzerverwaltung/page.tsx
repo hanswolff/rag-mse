@@ -1,10 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { canAccessAdminArea, isAdmin } from "@/lib/role-utils";
-import { buildLoginUrlWithReturnUrl, getCurrentPathWithSearch } from "@/lib/return-url";
+import { isAdmin } from "@/lib/role-utils";
 import { useUserManagement } from "@/lib/use-user-management";
 import { formatDate } from "@/lib/date-utils";
 import { UserFormModal } from "@/components/user-form-modal";
@@ -13,6 +12,7 @@ import { BackLink } from "@/components/back-link";
 import { Permissions } from "@/lib/permissions";
 import { PencilIcon, TrashIcon, UserIcon, UsersIcon } from "@/components/icons";
 import type { User } from "@/types";
+import { AlertBox } from "@/components/alert-box";
 
 function InviteForm({
   email,
@@ -181,14 +181,6 @@ export default function BenutzerverwaltungPage() {
   const isSiteAdministrator = session ? Permissions.isSiteAdministrator(session.user) : false;
   const canEditSiteAdministrator = session ? Permissions.isSiteAdministrator(session.user) : false;
 
-  useEffect(() => {
-    if (status === "unauthenticated") {
-      router.push(buildLoginUrlWithReturnUrl(getCurrentPathWithSearch()));
-    } else if (status === "authenticated" && !canAccessAdminArea(session.user)) {
-      router.push("/");
-    }
-  }, [status, session, router]);
-
   if (status === "loading" || userManagement.isLoading) {
     return (
       <main className="flex-1 bg-gray-50">
@@ -220,34 +212,10 @@ export default function BenutzerverwaltungPage() {
           <p className="text-base sm:text-base text-gray-600 mt-2">Verwalten Sie Benutzerkonten und senden Sie Einladungen</p>
         </div>
 
-        {userManagement.error && (
-          <div
-            role="alert"
-            aria-live="assertive"
-            className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4"
-          >
-            {userManagement.error}
-          </div>
-        )}
-        {impersonationError && (
-          <div
-            role="alert"
-            aria-live="assertive"
-            className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4"
-          >
-            {impersonationError}
-          </div>
-        )}
+        <AlertBox type="error" message={userManagement.error} className="mb-4" />
+        <AlertBox type="error" message={impersonationError} className="mb-4" />
 
-        {userManagement.success && (
-          <div
-            role="status"
-            aria-live="polite"
-            className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded mb-4"
-          >
-            {userManagement.success}
-          </div>
-        )}
+        <AlertBox type="success" message={userManagement.success} className="mb-4" />
 
         <div className="grid grid-cols-1 lg:grid-cols-[minmax(20rem,1fr)_minmax(0,2fr)] gap-6 lg:gap-8">
           <div className="space-y-6">
@@ -345,7 +313,7 @@ export default function BenutzerverwaltungPage() {
             setUserData={userManagement.setModalUserData}
             isEditing={!!userManagement.editingUser}
             errors={userManagement.error ? { general: userManagement.error } : {}}
-            initialUserData={userManagement.initialUserData}
+            fieldErrors={userManagement.fieldErrors}            initialUserData={userManagement.initialUserData}
           />
         )}
       </div>

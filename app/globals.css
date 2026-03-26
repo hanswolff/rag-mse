@@ -92,6 +92,10 @@ body {
     @apply inline-flex h-7 w-7 items-center justify-center rounded-md border border-red-200 bg-red-50 text-red-700 transition-colors hover:bg-red-100 focus:outline-none focus:ring-2 focus:ring-brand-red-600/30 disabled:opacity-50 disabled:cursor-not-allowed;
   }
 
+  .btn-danger {
+    @apply inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-base font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-red-600/30 focus:ring-offset-2 focus:ring-offset-white disabled:opacity-60 disabled:cursor-not-allowed bg-red-600 text-white hover:bg-red-700;
+  }
+
   .btn-outline-inverse {
     @apply inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-base font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-white/50 focus:ring-offset-2 focus:ring-offset-brand-blue-900 disabled:opacity-60 disabled:cursor-not-allowed border border-white text-white hover:bg-white hover:text-brand-blue-900;
   }
@@ -113,7 +117,42 @@ body {
   }
 
   .card-elevated {
-    @apply bg-white shadow-lg rounded-lg p-6 sm:p-8 hover:shadow-xl transition-shadow;
+    @apply bg-white shadow-lg rounded-lg p-6 sm:p-8 hover:shadow-xl transition-all duration-300;
+  }
+
+  .card-feature {
+    @apply bg-white shadow-lg rounded-xl p-6 sm:p-8 hover:shadow-xl transition-all duration-300 relative overflow-hidden border border-gray-100;
+  }
+
+  .card-feature::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: linear-gradient(90deg, #c8102e, #c9a54b);
+  }
+
+  @media (hover: hover) {
+    .card-feature:hover {
+      transform: translateY(-4px);
+    }
+  }
+
+  @media (hover: hover) {
+    .card-hover-lift:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+    }
+  }
+
+  .empty-state {
+    @apply flex flex-col items-center justify-center py-12 sm:py-16 text-center;
+  }
+
+  .empty-state-icon {
+    @apply w-20 h-20 sm:w-24 sm:h-24 text-brand-blue-200 mb-4;
   }
 
   .form-label {
@@ -210,6 +249,190 @@ body {
   color: #4b5563;
 }
 
+/* Hero section with background pattern */
+.hero-pattern {
+  position: relative;
+  overflow: hidden;
+}
+
+.hero-pattern::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: url("/patterns/hero-pattern.svg");
+  background-repeat: repeat;
+  background-size: 200px 200px;
+  opacity: 0.22;
+  pointer-events: none;
+}
+
+.hero-media {
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(
+      135deg,
+      rgb(19 32 45 / 0.84) 0%,
+      rgb(23 49 74 / 0.72) 46%,
+      rgb(19 32 45 / 0.84) 100%
+    ),
+    url("/generated/community-board.jpg");
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: cover;
+  opacity: 0.34;
+}
+
+/* Page header banner */
+.page-header {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(
+    135deg,
+    var(--brand-blue-900) 0%,
+    #1e2f41 50%,
+    var(--brand-blue-900) 100%
+  );
+}
+
+.page-header-media {
+  position: absolute;
+  inset: 0;
+  background-image: url("/generated/community-board.jpg");
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: cover;
+  opacity: 0.16;
+}
+
+.page-header-pattern {
+  position: absolute;
+  inset: 0;
+  background-image: url("/patterns/hero-pattern.svg");
+  background-repeat: repeat;
+  background-size: 150px 150px;
+  opacity: 0.14;
+}
+
+/* Section wave divider (place on element AFTER the dark section) */
+.section-divider-wave {
+  position: relative;
+}
+
+.section-divider-wave::before {
+  content: "";
+  position: absolute;
+  top: -3rem;
+  left: 0;
+  right: 0;
+  height: 3rem;
+  background: inherit;
+  clip-path: ellipse(55% 100% at 50% 100%);
+  z-index: 1;
+}
+
+/* Section angle divider */
+.section-divider-angle {
+  position: relative;
+}
+
+.section-divider-angle::before {
+  content: "";
+  position: absolute;
+  top: -2rem;
+  left: 0;
+  right: 0;
+  height: 2rem;
+  background: inherit;
+  clip-path: polygon(0 100%, 100% 0, 100% 100%);
+  z-index: 1;
+}
+
+/* Footer decorative top */
+.footer-wave {
+  position: relative;
+}
+
+.footer-wave::before {
+  content: "";
+  position: absolute;
+  top: -1.5rem;
+  left: 0;
+  right: 0;
+  height: 1.5rem;
+  background: var(--brand-blue-900);
+  clip-path: ellipse(55% 100% at 50% 100%);
+}
+
+/* Login decorative panel */
+.login-decor-panel {
+  background: linear-gradient(
+    160deg,
+    var(--brand-blue-900) 0%,
+    #1e2f41 40%,
+    var(--brand-blue-900) 100%
+  );
+  position: relative;
+  overflow: hidden;
+}
+
+.login-decor-panel::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(
+      160deg,
+      rgb(19 32 45 / 0.82) 0%,
+      rgb(30 47 65 / 0.68) 40%,
+      rgb(19 32 45 / 0.82) 100%
+    ),
+    url("/generated/hero-shooting-scene.jpg");
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: cover;
+  opacity: 0.38;
+}
+
+.hero-eyebrow {
+  align-items: center;
+  gap: 0.5rem;
+  border: 1px solid rgb(255 255 255 / 0.16);
+  border-radius: 9999px;
+  background: rgb(255 255 255 / 0.08);
+  padding: 0.55rem 0.9rem;
+  color: var(--brand-gold-400);
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  backdrop-filter: blur(10px);
+}
+
+@media (min-width: 640px) {
+  .hero-eyebrow {
+    font-size: 0.85rem;
+  }
+}
+
+.login-highlight-card {
+  position: relative;
+  z-index: 1;
+  border: 1px solid rgb(255 255 255 / 0.12);
+  border-radius: 1.25rem;
+  background: rgb(255 255 255 / 0.05);
+  padding: 1rem;
+  backdrop-filter: blur(12px);
+}
+
+.section-kicker {
+  color: var(--brand-red-500);
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
 /* Custom scrollbar for better visual consistency */
 ::-webkit-scrollbar {
   width: 8px;
@@ -227,4 +450,22 @@ body {
 
 ::-webkit-scrollbar-thumb:hover {
   background: var(--brand-gold-400);
+}
+
+/* Modal content: transparent scrollbar track so it only shows when scrollable */
+[role="dialog"] .overflow-y-auto::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+[role="dialog"] .overflow-y-auto::-webkit-scrollbar-thumb {
+  background: var(--brand-gray-300, #d1d5db);
+  border-radius: 4px;
+}
+
+[role="dialog"] .overflow-y-auto::-webkit-scrollbar-thumb:hover {
+  background: var(--brand-gray-400, #9ca3af);
+}
+
+[role="dialog"] .overflow-y-auto {
+  scrollbar-color: #d1d5db transparent;
 }

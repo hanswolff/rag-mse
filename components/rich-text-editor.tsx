@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import Link from "@tiptap/extension-link";
 import StarterKit from "@tiptap/starter-kit";
 import { EditorContent, useEditor } from "@tiptap/react";
@@ -29,6 +29,10 @@ export function RichTextEditor({
   error,
   maxBytes,
 }: RichTextEditorProps) {
+  const [linkInputOpen, setLinkInputOpen] = useState(false);
+  const [linkUrl, setLinkUrl] = useState("");
+  const [linkError, setLinkError] = useState("");
+
   const editor = useEditor(
     {
       extensions: [
@@ -82,18 +86,44 @@ export function RichTextEditor({
   const toggleLink = () => {
     if (!editor) return;
 
-    const previousUrl = editor.getAttributes("link").href as string | undefined;
-    const input = window.prompt("Link-URL eingeben", previousUrl || "https://");
-
-    if (input === null) {
+    if (linkInputOpen) {
+      setLinkInputOpen(false);
+      setLinkUrl("");
+      setLinkError("");
       return;
     }
 
-    const url = input.trim();
+    const previousUrl = editor.getAttributes("link").href as string | undefined;
+    setLinkUrl(previousUrl || "https://");
+    setLinkError("");
+    setLinkInputOpen(true);
+  };
+
+  const applyLink = () => {
+    if (!editor) return;
+
+    const url = linkUrl.trim();
 
     if (!url) {
       editor.chain().focus().extendMarkRange("link").unsetLink().run();
+      setLinkInputOpen(false);
+      setLinkUrl("");
+      setLinkError("");
       return;
+    }
+
+    const ALLOWED_PROTOCOLS = ["http:", "https:", "mailto:"];
+    try {
+      const parsed = new URL(url);
+      if (!ALLOWED_PROTOCOLS.includes(parsed.protocol)) {
+        setLinkError("Nur http, https und mailto Links sind erlaubt.");
+        return;
+      }
+    } catch {
+      if (!url.startsWith("mailto:")) {
+        setLinkError("Ungültige URL. Bitte eine gültige URL eingeben (z.\u00A0B. https://example.com).");
+        return;
+      }
     }
 
     editor
@@ -102,6 +132,10 @@ export function RichTextEditor({
       .extendMarkRange("link")
       .setLink({ href: url, rel: "noopener noreferrer nofollow", target: "_blank" })
       .run();
+
+    setLinkInputOpen(false);
+    setLinkUrl("");
+    setLinkError("");
   };
 
   return (
@@ -155,6 +189,33 @@ export function RichTextEditor({
           Link
         </button>
       </div>
+
+      {linkInputOpen && (
+        <div className="mb-2 flex flex-wrap items-center gap-2">
+          <input
+            type="url"
+            value={linkUrl}
+            onChange={(e) => {
+              setLinkUrl(e.target.value);
+              setLinkError("");
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") { e.preventDefault(); applyLink(); }
+              if (e.key === "Escape") { setLinkInputOpen(false); setLinkUrl(""); setLinkError(""); }
+            }}
+            placeholder="https://example.com"
+            className="form-input flex-1 min-w-0 text-sm py-1"
+            autoFocus
+          />
+          <button type="button" onClick={applyLink} className={`${BUTTON_BASE_CLASS} bg-brand-blue-50 text-brand-blue-800`}>
+            Übernehmen
+          </button>
+          <button type="button" onClick={() => { setLinkInputOpen(false); setLinkUrl(""); setLinkError(""); }} className={BUTTON_BASE_CLASS}>
+            Abbrechen
+          </button>
+          {linkError && <p className="w-full text-sm text-red-600">{linkError}</p>}
+        </div>
+      )}
 
       <div
         className={error || isOverLimit ? "rounded-md border border-red-500" : "rounded-md border border-transparent"}

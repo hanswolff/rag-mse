@@ -118,6 +118,18 @@ export class Permissions {
     return this.canManageEvents(userOrRole);
   }
 
+  static canReadPollsAdmin(userOrRole: UserWithRole | string | undefined): boolean {
+    return this.canAccessAdminArea(userOrRole);
+  }
+
+  static canManagePolls(userOrRole: UserWithRole | string | undefined): boolean {
+    return this.canManageAdminArea(userOrRole);
+  }
+
+  static canVotePolls(userOrRole: UserWithRole | string | undefined): boolean {
+    return this.canAccessMemberArea(userOrRole);
+  }
+
   static canVoteAttendance(userOrRole: UserWithRole | string | undefined): boolean {
     return this.canAccessMemberArea(userOrRole);
   }

@@ -6,6 +6,7 @@ import { useSuccessTimer } from "./use-success-timer";
 import { normalizeDateInputValue } from "./date-picker-utils";
 import { validateEmail } from "./validation-schema";
 import type { User, NewUser } from "@/types";
+import type { FieldError } from "@/lib/server-error-mapper";
 
 const initialNewUser: NewUser = {
   email: "",
@@ -34,6 +35,7 @@ export function useUserManagement() {
   const [isUpdatingUser, setIsUpdatingUser] = useState(false);
   const [isSendingInvite, setIsSendingInvite] = useState(false);
   const [error, setError] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<FieldError[]>([]);
   const [success, setSuccess] = useState("");
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteError, setInviteError] = useState("");
@@ -112,6 +114,7 @@ export function useUserManagement() {
   const handleCreateUser = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
 
+    setFieldErrors([]);
     const result = await createUser();
     if (result.success && result.data) {
       setSuccess(`Benutzer ${(result.data as { name: string }).name} wurde erfolgreich erstellt`);
@@ -119,6 +122,8 @@ export function useUserManagement() {
       setModalUserData(initialNewUser);
       setEditingUser(null);
       await fetchUsers();
+    } else if (result.fieldErrors) {
+      setFieldErrors(result.fieldErrors);
     }
   }, [createUser, fetchUsers]);
 
@@ -165,6 +170,7 @@ export function useUserManagement() {
     setModalUserData(initialNewUser);
     setEditingUser(null);
     setError("");
+    setFieldErrors([]);
     setIsModalOpen(true);
   }, []);
 
@@ -188,6 +194,7 @@ export function useUserManagement() {
     setModalUserData(userData);
     setInitialUserData(userData); // Track initial for unsaved changes
     setError("");
+    setFieldErrors([]);
     setIsModalOpen(true);
   }, []);
 
@@ -197,6 +204,7 @@ export function useUserManagement() {
     setInitialUserData(undefined); // Clear initial user data
     setEditingUser(null);
     setError("");
+    setFieldErrors([]);
   }, []);
 
   const handleUpdateUser = useCallback(async (e: React.FormEvent) => {
@@ -204,6 +212,7 @@ export function useUserManagement() {
 
     e.preventDefault();
 
+    setFieldErrors([]);
     const result = await updateUser(editingUser.id);
     if (result.success && result.data) {
       setSuccess(`Benutzer ${(result.data as { name: string }).name} wurde erfolgreich aktualisiert`);
@@ -211,6 +220,8 @@ export function useUserManagement() {
       setModalUserData(initialNewUser);
       setEditingUser(null);
       await fetchUsers();
+    } else if (result.fieldErrors) {
+      setFieldErrors(result.fieldErrors);
     }
   }, [editingUser, updateUser, fetchUsers]);
 
@@ -237,6 +248,7 @@ export function useUserManagement() {
     isUpdatingUser,
     isSendingInvite,
     error,
+    fieldErrors,
     success,
     inviteEmail,
     inviteError,

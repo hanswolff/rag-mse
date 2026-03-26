@@ -5,6 +5,7 @@ import { BackLink } from "@/components/back-link";
 import { LoadingButton } from "@/components/loading-button";
 import { forgotPasswordFormSchema } from "@/lib/validation-schema";
 import { getFieldErrors } from "@/lib/zod-form-errors";
+import { AlertBox } from "@/components/alert-box";
 
 interface UseForgotPasswordFormResult {
   email: string;
@@ -105,17 +106,9 @@ export default function ForgotPasswordPage() {
             Passwort vergessen
           </h2>
 
-          {error && (
-            <div className="bg-red-100 border border-red-400 text-red-700 px-3 sm:px-4 py-3 rounded mb-4 text-base">
-              {error}
-            </div>
-          )}
+          <AlertBox type="error" message={error} className="mb-4 text-base" />
 
-          {message && (
-            <div className="bg-green-100 border border-green-400 text-green-700 px-3 sm:px-4 py-3 rounded mb-4 text-base">
-              {message}
-            </div>
-          )}
+          <AlertBox type="success" message={message} className="mb-4 text-base" />
 
           {!isSubmitted && (
             <form onSubmit={handleSubmit} className="space-y-4" noValidate>

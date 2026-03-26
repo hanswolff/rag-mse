@@ -29,26 +29,26 @@ jest.mock("@/lib/invitations", () => ({
   sendInvitationEmail: jest.fn(),
 }));
 
-jest.mock("@/lib/api-utils", () => ({
-  parseJsonBody: jest.fn(async (req) => req.json()),
-  BadRequestError: class extends Error {
-    constructor(message: string) {
-      super(message);
-      this.name = "BadRequestError";
-    }
-  },
-  logApiError: jest.fn(),
-  validateRequestBody: jest.fn().mockReturnValue({ isValid: true, errors: [] }),
-  validateCsrfHeaders: jest.fn(),
-}));
+jest.mock("@/lib/api-utils", () => {
+  const actual = jest.requireActual("@/lib/api-utils");
+  return {
+    ...actual,
+    parseJsonBody: jest.fn(async (req: Request) => req.json()),
+    validateRequestBody: jest.fn().mockReturnValue({ isValid: true, errors: [] }),
+    validateCsrfHeaders: jest.fn(),
+  };
+});
 
 jest.mock("@/lib/logger", () => ({
   logValidationFailure: jest.fn(),
   logInfo: jest.fn(),
+  logError: jest.fn(),
+  logWarn: jest.fn(),
+  maskEmail: jest.fn((e: string) => e),
 }));
 
 jest.mock("@/lib/user-validation", () => ({
-  validateEmail: jest.fn(() => true),
+  validateEmail: jest.fn(() => ({ isValid: true })),
 }));
 
 const mockedPrisma = prisma as {

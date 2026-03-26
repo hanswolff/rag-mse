@@ -1,10 +1,7 @@
 "use client";
 
-import { useEffect } from "react";
-import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { canAccessAdminArea, isAdmin } from "@/lib/role-utils";
-import { buildLoginUrlWithReturnUrl, getCurrentPathWithSearch } from "@/lib/return-url";
+import { isAdmin } from "@/lib/role-utils";
 import { useEventManagement } from "@/lib/use-event-management";
 import { formatDate, formatTime } from "@/lib/date-utils";
 import { getEventDescriptionPreview } from "@/lib/event-description";
@@ -12,10 +9,12 @@ import { pluralize } from "@/lib/pluralization";
 import { formatRegistrationCount } from "@/lib/registration-count";
 import { EventFormModal } from "@/components/event-form-modal";
 import { LoadingButton } from "@/components/loading-button";
+import { LoadingScreen } from "@/components/loading-screen";
 import { BackLink } from "@/components/back-link";
 import { Pagination } from "@/components/pagination";
 import { CalendarIcon } from "@/components/icons";
 import type { Event } from "@/types";
+import { AlertBox } from "@/components/alert-box";
 
 function EventList({
   events,
@@ -112,25 +111,12 @@ function EventList({
 }
 
 export default function TerminePage() {
-  const router = useRouter();
   const { data: session, status } = useSession();
   const eventManagement = useEventManagement();
   const canManage = session ? isAdmin(session.user) : false;
 
-  useEffect(() => {
-    if (status === "unauthenticated") {
-      router.push(buildLoginUrlWithReturnUrl(getCurrentPathWithSearch()));
-    } else if (status === "authenticated" && !canAccessAdminArea(session.user)) {
-      router.push("/");
-    }
-  }, [status, session, router]);
-
   if (status === "loading" || eventManagement.isLoading) {
-    return (
-      <main className="flex flex-1 items-center justify-center">
-        <div className="text-gray-600">Laden...</div>
-      </main>
-    );
+    return <LoadingScreen />;
   }
 
   return (
@@ -152,17 +138,9 @@ export default function TerminePage() {
           )}
         </div>
 
-        {eventManagement.error && (
-          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
-            {eventManagement.error}
-          </div>
-        )}
+        <AlertBox type="error" message={eventManagement.error} className="mb-4" />
 
-        {eventManagement.success && (
-          <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded mb-4">
-            {eventManagement.success}
-          </div>
-        )}
+        <AlertBox type="success" message={eventManagement.success} className="mb-4" />
 
         <section className="card-compact">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between mb-4">
@@ -194,7 +172,7 @@ export default function TerminePage() {
             setEventData={eventManagement.setModalEventData}
             isEditing={!!eventManagement.editingEvent}
             errors={eventManagement.error ? { general: eventManagement.error } : {}}
-            initialEventData={eventManagement.initialEventData}
+            fieldErrors={eventManagement.fieldErrors}            initialEventData={eventManagement.initialEventData}
             isGeocoding={eventManagement.isGeocoding}
             onGeocode={eventManagement.handleGeocode}
             geocodeSuccess={eventManagement.geocodeSuccess}

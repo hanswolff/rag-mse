@@ -38,14 +38,14 @@ function isValidIsoDate(date: string): boolean {
   );
 }
 
-const requiredNameSchema = z
+export const requiredNameSchema = z
   .string()
   .trim()
   .min(1, "Name ist erforderlich")
   .max(100, "Name darf maximal 100 Zeichen lang sein")
   .regex(nameRegex, "Name enthält ungültige Zeichen");
 
-const requiredEmailSchema = (invalidMessage: string) =>
+export const requiredEmailSchema = (invalidMessage: string) =>
   z
     .string()
     .trim()
@@ -157,35 +157,30 @@ const requiredDescriptionSchema = z
     }
   });
 
-const optionalLatitudeSchema = z
-  .string()
-  .trim()
-  .superRefine((value, ctx) => {
-    if (!value) return;
-    if (!/^-?\d*\.?\d*$/.test(value)) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Ungültiger Breitengrad" });
-      return;
-    }
-    const num = Number.parseFloat(value);
-    if (Number.isNaN(num) || num < -90 || num > 90) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Ungültiger Breitengrad (muss zwischen -90 und 90 liegen)" });
-    }
-  });
+function createCoordinateSchema(min: number, max: number, label: string, required = false) {
+  return z
+    .string()
+    .trim()
+    .superRefine((value, ctx) => {
+      if (!value) {
+        if (required) {
+          ctx.addIssue({ code: z.ZodIssueCode.custom, message: `${label} ist erforderlich` });
+        }
+        return;
+      }
+      if (!/^-?\d*\.?\d*$/.test(value)) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: `Ungültiger ${label}` });
+        return;
+      }
+      const num = Number.parseFloat(value);
+      if (Number.isNaN(num) || num < min || num > max) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: `Ungültiger ${label} (muss zwischen ${min} und ${max} liegen)` });
+      }
+    });
+}
 
-const optionalLongitudeSchema = z
-  .string()
-  .trim()
-  .superRefine((value, ctx) => {
-    if (!value) return;
-    if (!/^-?\d*\.?\d*$/.test(value)) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Ungültiger Längengrad" });
-      return;
-    }
-    const num = Number.parseFloat(value);
-    if (Number.isNaN(num) || num < -180 || num > 180) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Ungültiger Längengrad (muss zwischen -180 und 180 liegen)" });
-    }
-  });
+const optionalLatitudeSchema = createCoordinateSchema(-90, 90, "Breitengrad");
+const optionalLongitudeSchema = createCoordinateSchema(-180, 180, "Längengrad");
 
 const requiredTitleSchema = z
   .string()
@@ -242,7 +237,7 @@ const requiredMessageSchema = z
 export const MIN_PASSWORD_LENGTH = 8;
 export const MAX_PASSWORD_LENGTH = 72;
 
-function createPasswordSchema(requiredMessage: string) {
+export function createPasswordSchema(requiredMessage: string) {
   return z
     .string()
     .min(1, requiredMessage)
@@ -520,4 +515,58 @@ export const adminUserValidationConfig: Record<string, FieldValidationConfig> = 
   ...profileValidationConfig,
   role: { zod: requiredRoleSchema },
   adminNotes: { zod: optionalAdminNotesSchema },
+};
+
+// Shooting range validation schemas
+const requiredRangeNameSchema = z
+  .string()
+  .trim()
+  .min(1, "Name ist erforderlich")
+  .max(100, "Name darf maximal 100 Zeichen lang sein");
+
+const optionalStreetSchema = z
+  .string()
+  .trim()
+  .max(200, "Straße darf maximal 200 Zeichen lang sein");
+
+const optionalPostalCodeSchema = z
+  .string()
+  .trim()
+  .max(10, "PLZ darf maximal 10 Zeichen lang sein");
+
+const optionalCitySchema = z
+  .string()
+  .trim()
+  .max(100, "Ort darf maximal 100 Zeichen lang sein");
+
+const requiredLatitudeSchema = createCoordinateSchema(-90, 90, "Breitengrad", true);
+const requiredLongitudeSchema = createCoordinateSchema(-180, 180, "Längengrad", true);
+
+export const shootingRangeFormSchema = z.object({
+  name: requiredRangeNameSchema,
+  street: optionalStreetSchema,
+  postalCode: optionalPostalCodeSchema,
+  city: optionalCitySchema,
+  latitude: requiredLatitudeSchema,
+  longitude: requiredLongitudeSchema,
+});
+
+export const shootingRangeValidationConfig: Record<string, FieldValidationConfig> = {
+  name: { zod: requiredRangeNameSchema },
+  street: { zod: optionalStreetSchema },
+  postalCode: { zod: optionalPostalCodeSchema },
+  city: { zod: optionalCitySchema },
+  latitude: { zod: requiredLatitudeSchema },
+  longitude: { zod: requiredLongitudeSchema },
+};
+
+const requiredPollOptionSchema = z
+  .string()
+  .trim()
+  .min(1, "Option darf nicht leer sein")
+  .max(200, "Option darf maximal 200 Zeichen haben");
+
+export const pollValidationConfig: Record<string, FieldValidationConfig> = {
+  title: { zod: requiredTitleSchema },
+  option: { zod: requiredPollOptionSchema },
 };

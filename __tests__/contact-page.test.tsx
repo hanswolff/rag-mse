@@ -259,11 +259,9 @@ describe("ContactPage", () => {
     expect(messageInput).toBeDisabled();
   });
 
-  it("should have a back link to home page", () => {
+  it("should have a page header with title", () => {
     render(<ContactPage />);
 
-    const backLink = screen.getByText("Zurück zur Startseite");
-    expect(backLink).toBeInTheDocument();
-    expect(backLink).toHaveAttribute("href", "/");
+    expect(screen.getByText("Kontakt")).toBeInTheDocument();
   });
 });

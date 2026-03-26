@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { requireMember } from "@/lib/auth-utils";
 import { validateUpdateProfileRequest, type UpdateProfileRequest } from "@/lib/user-validation";
 import { parseJsonBody, validateRequestBody, validateCsrfHeaders, withApiErrorHandling } from "@/lib/api-utils";
-import { logInfo, logValidationFailure, logResourceNotFound } from "@/lib/logger";
+import { logInfo, logValidationFailure, logResourceNotFound, maskEmail } from "@/lib/logger";
 import { formatDateInputValue } from "@/lib/date-picker-utils";
 
 const USER_SELECT_FIELDS = {
@@ -53,7 +53,7 @@ export const PUT = withApiErrorHandling(async (request: NextRequest) => {
   const validation = validateUpdateProfileRequest(body);
   if (!validation.isValid) {
     logValidationFailure("/api/user/profile", "PUT", validation.errors, { userId: user.id });
-    return NextResponse.json({ error: validation.errors.join(". ") }, { status: 400 });
+    return NextResponse.json({ error: validation.errors.join(". "), fieldErrors: validation.fieldErrors }, { status: 400 });
   }
 
   const updateData: Record<string, unknown> = {};
@@ -86,7 +86,7 @@ export const PUT = withApiErrorHandling(async (request: NextRequest) => {
   const changedFields = Object.keys(updateData);
   logInfo("profile_updated", "User profile updated", {
     userId: user.id,
-    userEmail: user.email,
+    userEmail: maskEmail(user.email),
     changedFields,
   });
 
@@ -112,7 +112,7 @@ export const GET = withApiErrorHandling(async () => {
 
   logInfo("profile_accessed", "User profile accessed", {
     userId: user.id,
-    userEmail: user.email,
+    userEmail: maskEmail(user.email),
   });
 
   return NextResponse.json({

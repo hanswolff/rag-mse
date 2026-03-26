@@ -5,8 +5,8 @@ import { validateCreateNewsRequest, type CreateNewsRequest } from "@/lib/news-va
 import { parseJsonBody, validateRequestBody, withApiErrorHandling, validateCsrfHeaders } from "@/lib/api-utils";
 import { logInfo, logValidationFailure } from "@/lib/logger";
 import { parseIsoDateOnlyToUtcDate } from "@/lib/date-picker-utils";
+import { parsePageNumber, parsePageSize } from "@/lib/api-pagination";
 
-const MAX_PAGE_SIZE = 100;
 const createNewsSchema = {
   title: { type: "string" as const },
   content: { type: "string" as const },
@@ -17,18 +17,6 @@ const createNewsSchema = {
 function parseNewsDate(newsDate: string | undefined): Date {
   if (!newsDate) return new Date();
   return parseIsoDateOnlyToUtcDate(newsDate);
-}
-
-function parsePageSize(value: string | null, fallback: number) {
-  const parsed = Number.parseInt(value || "", 10);
-  if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
-  return Math.min(parsed, MAX_PAGE_SIZE);
-}
-
-function parsePageNumber(value: string | null) {
-  const parsed = Number.parseInt(value || "", 10);
-  if (!Number.isFinite(parsed) || parsed <= 0) return 1;
-  return parsed;
 }
 
 export const GET = withApiErrorHandling(async (request: NextRequest) => {
@@ -81,7 +69,7 @@ export const POST = withApiErrorHandling(async (request: NextRequest) => {
   if (!validation.isValid) {
     logValidationFailure('/api/admin/news', 'POST', validation.errors);
     return NextResponse.json(
-      { error: validation.errors.join(". ") },
+      { error: validation.errors.join(". "), fieldErrors: validation.fieldErrors },
       { status: 400 }
     );
   }

@@ -71,6 +71,7 @@ describe("Email Sender", () => {
             toRecipients: "recipient@example.com",
             subject: "Test Subject",
             textBody: "Test Body",
+            htmlBody: expect.stringContaining("<!DOCTYPE html>") && expect.stringContaining("Test Body"),
             attachmentsJson: null,
           }),
         })

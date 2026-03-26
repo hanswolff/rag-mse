@@ -43,8 +43,6 @@ describe("UserFormModal", () => {
   beforeEach(() => {
     mockOnClose.mockClear();
     mockOnSubmit.mockClear();
-    // Mock window.confirm
-    window.confirm = jest.fn(() => true);
   });
 
   describe("Create Mode", () => {
@@ -451,9 +449,9 @@ describe("UserFormModal", () => {
       const cancelButton = screen.getByRole("button", { name: "Abbrechen" });
       fireEvent.click(cancelButton);
 
-      expect(window.confirm).toHaveBeenCalledWith(
-        "Sie haben ungespeicherte Änderungen. Wirklich schließen?"
-      );
+      expect(
+        screen.getByText("Sie haben ungespeicherte Änderungen. Wirklich schließen?")
+      ).toBeInTheDocument();
     });
 
     it("should close modal without confirmation when no unsaved changes", () => {
@@ -473,13 +471,13 @@ describe("UserFormModal", () => {
       const cancelButton = screen.getByRole("button", { name: "Abbrechen" });
       fireEvent.click(cancelButton);
 
-      expect(window.confirm).not.toHaveBeenCalled();
+      expect(
+        screen.queryByText("Sie haben ungespeicherte Änderungen. Wirklich schließen?")
+      ).not.toBeInTheDocument();
       expect(mockOnClose).toHaveBeenCalledTimes(1);
     });
 
     it("should not close when user cancels confirmation dialog", () => {
-      window.confirm = jest.fn(() => false);
-
       render(
         <UserFormModal
           isOpen={true}
@@ -496,7 +494,10 @@ describe("UserFormModal", () => {
       const cancelButton = screen.getByRole("button", { name: "Abbrechen" });
       fireEvent.click(cancelButton);
 
-      expect(window.confirm).toHaveBeenCalled();
+      // ConfirmCloseModal is shown; click its "Abbrechen" to dismiss
+      const abortButtons = screen.getAllByRole("button", { name: "Abbrechen" });
+      fireEvent.click(abortButtons[abortButtons.length - 1]);
+
       expect(mockOnClose).not.toHaveBeenCalled();
     });
   });
@@ -757,7 +758,7 @@ describe("UserFormModal", () => {
           userData={defaultUserData}
           setUserData={jest.fn()}
           isEditing={false}
-          initialUserData={undefined}
+          initialUserData={defaultUserData}
         />
       );
 

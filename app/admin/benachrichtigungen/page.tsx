@@ -3,19 +3,21 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { buildLoginUrlWithReturnUrl, getCurrentPathWithSearch } from "@/lib/return-url";
 import { BackLink } from "@/components/back-link";
 import { Modal } from "@/components/modal";
 import { Pagination } from "@/components/pagination";
 import { SearchHighlight } from "@/components/search-highlight";
 import { SortableTableHeader } from "@/components/sortable-table-header";
 import { EyeIcon } from "@/components/icons";
+import { LoadingScreen } from "@/components/loading-screen";
 import { formatDate, formatTime } from "@/lib/date-utils";
 import { useTableSorting } from "@/lib/use-table-sorting";
 import { Permissions } from "@/lib/permissions";
+import { AlertBox } from "@/components/alert-box";
 
-type NotificationItem = {
+type EventNotificationItem = {
   id: string;
+  type: "event";
   sentAt: string | null;
   queuedAt: string;
   status: "VERSENDET" | "AUSSTEHEND";
@@ -34,6 +36,26 @@ type NotificationItem = {
   };
 };
 
+type PollNotificationItem = {
+  id: string;
+  type: "poll";
+  sentAt: string | null;
+  queuedAt: string;
+  status: "VERSENDET" | "AUSSTEHEND";
+  user: {
+    id: string;
+    name: string | null;
+    email: string;
+  };
+  poll: {
+    id: string;
+    title: string;
+    description: string | null;
+  };
+};
+
+type NotificationItem = EventNotificationItem | PollNotificationItem;
+
 type NotificationsResponse = {
   notifications: NotificationItem[];
   pagination: {
@@ -45,7 +67,7 @@ type NotificationsResponse = {
 };
 
 const PAGE_SIZE = 20;
-type NotificationSortField = "sentAt" | "status" | "userName" | "userEmail" | "eventDate" | "eventTime" | "location";
+type NotificationSortField = "sentAt" | "status" | "userName" | "userEmail" | "eventDate" | "eventTime" | "location" | "pollTitle";
 const NOTIFICATION_DEFAULT_SORT_DIRECTIONS: Partial<Record<NotificationSortField, "asc" | "desc">> = {
   sentAt: "desc",
 };
@@ -77,6 +99,7 @@ export default function AdminNotificationsPage() {
   const [searchInput, setSearchInput] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [viewingNotification, setViewingNotification] = useState<NotificationItem | null>(null);
+  const [notificationType, setNotificationType] = useState<"event" | "poll">("event");
   const { sortBy, sortDir, handleSortChange } = useTableSorting<NotificationSortField>(
     "sentAt",
     "desc",
@@ -88,9 +111,7 @@ export default function AdminNotificationsPage() {
     window.matchMedia("(max-width: 767px)").matches;
 
   useEffect(() => {
-    if (status === "unauthenticated") {
-      router.push(buildLoginUrlWithReturnUrl(getCurrentPathWithSearch()));
-    } else if (status === "authenticated" && !Permissions.canReadNotificationsAdmin(session?.user)) {
+    if (status === "authenticated" && !Permissions.canReadNotificationsAdmin(session?.user)) {
       router.push("/");
     }
   }, [status, session, router]);
@@ -100,6 +121,7 @@ export default function AdminNotificationsPage() {
     query: string,
     nextSortBy: NotificationSortField,
     nextSortDir: "asc" | "desc",
+    type: "event" | "poll",
   ) => {
     setIsLoading(true);
     setError(null);
@@ -110,6 +132,7 @@ export default function AdminNotificationsPage() {
         limit: String(PAGE_SIZE),
         sortBy: nextSortBy,
         sortDir: nextSortDir,
+        type,
       });
 
       if (query.trim().length > 0) {
@@ -142,8 +165,8 @@ export default function AdminNotificationsPage() {
     if (status !== "authenticated" || !session || !Permissions.canReadNotificationsAdmin(session.user)) {
       return;
     }
-    void loadNotifications(page, searchQuery, sortBy, sortDir);
-  }, [status, session, page, searchQuery, sortBy, sortDir, loadNotifications]);
+    void loadNotifications(page, searchQuery, sortBy, sortDir, notificationType);
+  }, [status, session, page, searchQuery, sortBy, sortDir, notificationType, loadNotifications]);
 
   const handleSubmitSearch = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -156,11 +179,18 @@ export default function AdminNotificationsPage() {
     handleSortChange(field);
   }, [handleSortChange]);
 
+  const handleTypeChange = useCallback((type: "event" | "poll") => {
+    setPage(1);
+    setSearchInput("");
+    setSearchQuery("");
+    setNotificationType(type);
+  }, []);
+
   const tableContent = useMemo(() => {
     if (items.length === 0) {
       return (
         <tr>
-          <td className="px-4 py-6 text-base text-gray-500 text-center" colSpan={8}>
+          <td className="px-4 py-6 text-base text-gray-500 text-center" colSpan={notificationType === "event" ? 8 : 6}>
             Keine Benachrichtigungen in den letzten 30 Tagen gefunden.
           </td>
         </tr>
@@ -196,25 +226,29 @@ export default function AdminNotificationsPage() {
         <td className="px-4 py-3 text-sm text-gray-700 break-all">
           <SearchHighlight text={item.user.email} query={searchQuery} />
         </td>
-        <td className="px-4 py-3 text-sm text-gray-900 whitespace-nowrap">
-          {formatDate(item.event.date)}
-        </td>
-        <td className="px-4 py-3 text-sm text-gray-700 whitespace-nowrap">
-          {formatTime(item.event.timeFrom)} - {formatTime(item.event.timeTo)}
-        </td>
-        <td className="px-4 py-3 text-sm text-gray-900">
-          {item.event.location}
-        </td>
+        {item.type === "event" ? (
+          <>
+            <td className="px-4 py-3 text-sm text-gray-900 whitespace-nowrap">
+              {formatDate(item.event.date)}
+            </td>
+            <td className="px-4 py-3 text-sm text-gray-700 whitespace-nowrap">
+              {formatTime(item.event.timeFrom)} - {formatTime(item.event.timeTo)}
+            </td>
+            <td className="px-4 py-3 text-sm text-gray-900">
+              {item.event.location}
+            </td>
+          </>
+        ) : (
+          <td className="px-4 py-3 text-sm text-gray-900">
+            {item.poll.title}
+          </td>
+        )}
       </tr>
     ));
-  }, [items, searchQuery]);
+  }, [items, searchQuery, notificationType]);
 
   if (status === "loading" || isLoading) {
-    return (
-      <main className="flex flex-1 items-center justify-center">
-        <div className="text-gray-600">Laden...</div>
-      </main>
-    );
+    return <LoadingScreen />;
   }
 
   return (
@@ -225,18 +259,35 @@ export default function AdminNotificationsPage() {
             Zurück zum Dashboard
           </BackLink>
           <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mt-4">Benachrichtigungen</h1>
-          <p className="text-base text-gray-600 mt-2">Versendete Termin-Benachrichtigungen der letzten 30 Tage</p>
+          <p className="text-base text-gray-600 mt-2">Versendete Benachrichtigungen der letzten 30 Tage</p>
         </div>
 
-        {error && (
-          <div
-            className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4"
-            role="alert"
-            aria-live="assertive"
+        <div className="flex gap-1 mb-6 border-b border-gray-200">
+          <button
+            type="button"
+            onClick={() => handleTypeChange("event")}
+            className={`px-4 py-2 text-sm font-medium transition-colors ${
+              notificationType === "event"
+                ? "border-b-2 border-brand-red-600 text-brand-red-600"
+                : "text-gray-500 hover:text-gray-700"
+            }`}
           >
-            {error}
-          </div>
-        )}
+            Termin-Erinnerungen
+          </button>
+          <button
+            type="button"
+            onClick={() => handleTypeChange("poll")}
+            className={`px-4 py-2 text-sm font-medium transition-colors ${
+              notificationType === "poll"
+                ? "border-b-2 border-brand-red-600 text-brand-red-600"
+                : "text-gray-500 hover:text-gray-700"
+            }`}
+          >
+            Umfrage-Benachrichtigungen
+          </button>
+        </div>
+
+        <AlertBox type="error" message={error} className="mb-4" />
 
         <section className="card-compact">
           <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between mb-4">
@@ -292,16 +343,24 @@ export default function AdminNotificationsPage() {
                     <span className="font-semibold text-gray-900">E-Mail:</span>{" "}
                     <SearchHighlight text={item.user.email} query={searchQuery} />
                   </p>
-                  <p className="text-base text-gray-900">
-                    <span className="font-semibold">Termin:</span> {formatDate(item.event.date)}
-                  </p>
-                  <p className="text-base text-gray-700">
-                    <span className="font-semibold text-gray-900">Uhrzeit:</span>{" "}
-                    {formatTime(item.event.timeFrom)} - {formatTime(item.event.timeTo)}
-                  </p>
-                  <p className="text-base text-gray-900 break-words">
-                    <span className="font-semibold">Ort:</span> {item.event.location}
-                  </p>
+                  {item.type === "event" ? (
+                    <>
+                      <p className="text-base text-gray-900">
+                        <span className="font-semibold">Termin:</span> {formatDate(item.event.date)}
+                      </p>
+                      <p className="text-base text-gray-700">
+                        <span className="font-semibold text-gray-900">Uhrzeit:</span>{" "}
+                        {formatTime(item.event.timeFrom)} - {formatTime(item.event.timeTo)}
+                      </p>
+                      <p className="text-base text-gray-900 break-words">
+                        <span className="font-semibold">Ort:</span> {item.event.location}
+                      </p>
+                    </>
+                  ) : (
+                    <p className="text-base text-gray-900 break-words">
+                      <span className="font-semibold">Umfrage:</span> {item.poll.title}
+                    </p>
+                  )}
                 </article>
               ))
             )}
@@ -347,30 +406,43 @@ export default function AdminNotificationsPage() {
                     onSortChange={handleTableSort}
                     className="px-4 py-3 text-left text-base font-semibold text-gray-700"
                   />
-                  <SortableTableHeader
-                    label="Termin-Datum"
-                    field="eventDate"
-                    activeField={sortBy}
-                    sortDir={sortDir}
-                    onSortChange={handleTableSort}
-                    className="px-4 py-3 text-left text-base font-semibold text-gray-700"
-                  />
-                  <SortableTableHeader
-                    label="Uhrzeit"
-                    field="eventTime"
-                    activeField={sortBy}
-                    sortDir={sortDir}
-                    onSortChange={handleTableSort}
-                    className="px-4 py-3 text-left text-base font-semibold text-gray-700"
-                  />
-                  <SortableTableHeader
-                    label="Ort"
-                    field="location"
-                    activeField={sortBy}
-                    sortDir={sortDir}
-                    onSortChange={handleTableSort}
-                    className="px-4 py-3 text-left text-base font-semibold text-gray-700"
-                  />
+                  {notificationType === "event" ? (
+                    <>
+                      <SortableTableHeader
+                        label="Termin-Datum"
+                        field="eventDate"
+                        activeField={sortBy}
+                        sortDir={sortDir}
+                        onSortChange={handleTableSort}
+                        className="px-4 py-3 text-left text-base font-semibold text-gray-700"
+                      />
+                      <SortableTableHeader
+                        label="Uhrzeit"
+                        field="eventTime"
+                        activeField={sortBy}
+                        sortDir={sortDir}
+                        onSortChange={handleTableSort}
+                        className="px-4 py-3 text-left text-base font-semibold text-gray-700"
+                      />
+                      <SortableTableHeader
+                        label="Ort"
+                        field="location"
+                        activeField={sortBy}
+                        sortDir={sortDir}
+                        onSortChange={handleTableSort}
+                        className="px-4 py-3 text-left text-base font-semibold text-gray-700"
+                      />
+                    </>
+                  ) : (
+                    <SortableTableHeader
+                      label="Umfrage"
+                      field="pollTitle"
+                      activeField={sortBy}
+                      sortDir={sortDir}
+                      onSortChange={handleTableSort}
+                      className="px-4 py-3 text-left text-base font-semibold text-gray-700"
+                    />
+                  )}
                 </tr>
               </thead>
               <tbody>{tableContent}</tbody>
@@ -414,17 +486,19 @@ export default function AdminNotificationsPage() {
                 </div>
               </div>
 
-              <div>
-                <p className="text-sm text-gray-500 mb-1">Betreff</p>
-                <p className="text-base font-medium text-gray-900">
-                  Erinnerung: Bitte Teilnahme für Termin bestätigen
-                </p>
-              </div>
+              {viewingNotification.type === "event" ? (
+                <>
+                  <div>
+                    <p className="text-sm text-gray-500 mb-1">Betreff</p>
+                    <p className="text-base font-medium text-gray-900">
+                      Erinnerung: Bitte Teilnahme für Termin bestätigen
+                    </p>
+                  </div>
 
-              <div>
-                <p className="text-sm text-gray-500 mb-2">Nachricht</p>
-                <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 text-base text-gray-800 whitespace-pre-wrap">
-                  {`Hallo,
+                  <div>
+                    <p className="text-sm text-gray-500 mb-2">Nachricht</p>
+                    <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 text-base text-gray-800 whitespace-pre-wrap">
+                      {`Hallo,
 
 in ${viewingNotification.daysBefore} Tag(en) findet ein Termin statt, für den noch keine Teilnahme von dir hinterlegt ist.
 
@@ -440,8 +514,36 @@ Wenn du diese Erinnerung für zukünftige Termine nicht mehr erhalten möchtest,
 
 Viele Grüße
 RAG Schießsport MSE`}
-                </div>
-              </div>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div>
+                    <p className="text-sm text-gray-500 mb-1">Betreff</p>
+                    <p className="text-base font-medium text-gray-900">
+                      Neue Umfrage: {viewingNotification.poll.title}
+                    </p>
+                  </div>
+
+                  <div>
+                    <p className="text-sm text-gray-500 mb-2">Nachricht</p>
+                    <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 text-base text-gray-800 whitespace-pre-wrap">
+                      {`Hallo ${viewingNotification.user.name || viewingNotification.user.email},
+
+es wurde eine neue Umfrage veröffentlicht: "${viewingNotification.poll.title}"
+
+${viewingNotification.poll.description || ""}
+
+Hier kannst du abstimmen:
+[Link enthält persönlichen Token]
+
+Viele Grüße,
+RAG Schießsport MSE`}
+                    </div>
+                  </div>
+                </>
+              )}
 
               <div className="pt-2 text-sm text-gray-500">
                 <p>Die Links in der E-Mail enthalten persönliche Tokens für den Empfänger.</p>

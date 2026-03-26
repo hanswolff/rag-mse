@@ -1,0 +1,110 @@
+"use client";
+
+import { useState, useCallback, useRef, useEffect } from "react";
+import { Document, Page, pdfjs } from "react-pdf";
+import "react-pdf/dist/Page/AnnotationLayer.css";
+import "react-pdf/dist/Page/TextLayer.css";
+import { LoadingIndicator } from "@/components/loading-indicator";
+
+pdfjs.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
+
+const VIEWPORT_MARGIN = "600px";
+
+function PageLoadingPlaceholder({ height }: { height: number }) {
+  return (
+    <div className="flex items-center justify-center text-gray-400" style={{ height }}>
+      <LoadingIndicator size="md" className="text-gray-400" />
+    </div>
+  );
+}
+
+function LazyPage({
+  pageNumber,
+  width,
+  scrollRoot,
+}: {
+  pageNumber: number;
+  width: number | undefined;
+  scrollRoot: HTMLElement | null;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [isVisible, setIsVisible] = useState(false);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => setIsVisible(entry.isIntersecting),
+      { root: scrollRoot, rootMargin: VIEWPORT_MARGIN },
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [scrollRoot]);
+
+  const estimatedHeight = width ? Math.round(width * 1.414) : 800;
+
+  return (
+    <div ref={ref} style={{ minHeight: isVisible ? undefined : estimatedHeight }}>
+      {isVisible ? (
+        <Page
+          pageNumber={pageNumber}
+          width={width}
+          loading={<PageLoadingPlaceholder height={estimatedHeight} />}
+        />
+      ) : (
+        <PageLoadingPlaceholder height={estimatedHeight} />
+      )}
+    </div>
+  );
+}
+
+export function PdfViewer({ source }: { source: string }) {
+  const [numPages, setNumPages] = useState<number | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [containerWidth, setContainerWidth] = useState<number | undefined>(undefined);
+
+  useEffect(() => {
+    if (!containerRef.current) return;
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        setContainerWidth(entry.contentRect.width);
+      }
+    });
+    observer.observe(containerRef.current);
+    return () => observer.disconnect();
+  }, []);
+
+  const onDocumentLoadSuccess = useCallback(({ numPages }: { numPages: number }) => {
+    setNumPages(numPages);
+  }, []);
+
+  const pageWidth = containerWidth ? Math.min(containerWidth - 32, 1200) : undefined;
+
+  return (
+    <div className="flex flex-col min-h-0 flex-1">
+      <div
+        ref={containerRef}
+        className="flex-1 min-h-0 overflow-auto bg-gray-100 rounded border border-gray-200"
+      >
+        <Document
+          file={source}
+          onLoadSuccess={onDocumentLoadSuccess}
+          loading={
+            <div className="flex items-center justify-center gap-2 p-8 text-gray-500">
+              <LoadingIndicator size="md" className="text-gray-400" />
+              <span>PDF wird geladen…</span>
+            </div>
+          }
+          error={<div className="flex items-center justify-center p-8 text-red-600">PDF konnte nicht geladen werden.</div>}
+        >
+          <div className="flex flex-col items-center gap-4 py-4">
+            {numPages &&
+              Array.from({ length: numPages }, (_, i) => (
+                <LazyPage key={i + 1} pageNumber={i + 1} width={pageWidth} scrollRoot={containerRef.current} />
+              ))}
+          </div>
+        </Document>
+      </div>
+    </div>
+  );
+}

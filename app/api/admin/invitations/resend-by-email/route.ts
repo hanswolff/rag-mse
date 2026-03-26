@@ -51,7 +51,7 @@ export const POST = withApiErrorHandling(async (request: NextRequest) => {
   }
   const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
 
-  if (!email || !validateEmail(email)) {
+  if (!email || !validateEmail(email).isValid) {
     return NextResponse.json(
       { error: "Ungültiges E-Mail-Format" },
       { status: 400 }

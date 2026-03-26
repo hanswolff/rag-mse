@@ -1,7 +1,17 @@
 import { useCallback, useRef } from "react";
 import { buildLoginUrlWithReturnUrl, getCurrentPathWithSearch } from "@/lib/return-url";
+import { useConfirmDialog } from "@/components/confirm-dialog";
+import type { FieldError } from "@/lib/server-error-mapper";
+
+interface CrudResult {
+  success: boolean;
+  data?: unknown;
+  fieldErrors?: FieldError[];
+}
 
 export function useAdminCrud() {
+  const confirm = useConfirmDialog();
+
   const createFetchHandler = useCallback(<T,>(
     url: string,
     method: "POST" | "PUT" | "PATCH" | "DELETE",
@@ -9,7 +19,7 @@ export function useAdminCrud() {
     setIsLoading: (val: boolean) => void,
     data?: T
   ) => {
-    return async (id?: string): Promise<{ success: boolean; data?: unknown }> => {
+    return async (id?: string): Promise<CrudResult> => {
       setError("");
       setIsLoading(true);
 
@@ -27,7 +37,7 @@ export function useAdminCrud() {
 
         if (!response.ok) {
           setError(responseData.error || "Ein Fehler ist aufgetreten");
-          return { success: false };
+          return { success: false, fieldErrors: responseData.fieldErrors };
         }
 
         return { success: true, data: responseData };
@@ -47,7 +57,11 @@ export function useAdminCrud() {
     refresh: () => void
   ) => {
     return async (id: string): Promise<void> => {
-      if (!confirm("Möchten Sie dies wirklich löschen?")) {
+      if (!await confirm({
+        message: "Möchten Sie dies wirklich löschen?",
+        confirmLabel: "Löschen",
+        variant: "danger",
+      })) {
         return;
       }
 
@@ -57,7 +71,7 @@ export function useAdminCrud() {
         await refresh();
       }
     };
-  }, []);
+  }, [confirm]);
 
   const requestIdRef = useRef(0);
   const abortControllerRef = useRef<AbortController | null>(null);

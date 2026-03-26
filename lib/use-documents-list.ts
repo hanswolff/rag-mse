@@ -238,27 +238,27 @@ export function useDocumentsList({
     void loadDocuments(page, searchQuery, selectedDirectory, sortBy, sortDir);
   }, [status, session, page, searchQuery, selectedDirectory, sortBy, sortDir, loadDirectories, loadDocuments, accessCheck]);
 
-  const handleSubmitSearch = (event: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmitSearch = useCallback((event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setPage(1);
     setSearchQuery(searchInput.trim());
-  };
+  }, [searchInput]);
 
-  const clearSearch = () => {
+  const clearSearch = useCallback(() => {
     setSearchInput("");
     setSearchQuery("");
     setPage(1);
-  };
+  }, []);
 
-  const navigateToRoot = () => {
+  const navigateToRoot = useCallback(() => {
     setSelectedDirectory("root");
     setPage(1);
-  };
+  }, []);
 
-  const navigateToDirectory = (directoryId: string) => {
+  const navigateToDirectory = useCallback((directoryId: string) => {
     setSelectedDirectory(directoryId);
     setPage(1);
-  };
+  }, []);
 
   const reload = useCallback(async () => {
     await Promise.all([

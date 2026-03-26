@@ -3,9 +3,13 @@ import { prisma } from "@/lib/prisma";
 import { requireAuth, ForbiddenError } from "@/lib/auth-utils";
 import { withApiErrorHandling } from "@/lib/api-utils";
 import { Permissions } from "@/lib/permissions";
+import {
+  parsePageNumber,
+  parsePageSize,
+  parseSortField,
+  parseSortDirection,
+} from "@/lib/api-pagination";
 
-const MAX_PAGE_SIZE = 100;
-const DEFAULT_PAGE_SIZE = 20;
 const LOOKBACK_DAYS = 30;
 const OUTGOING_EMAIL_SORT_FIELDS = [
   "createdAt",
@@ -17,40 +21,6 @@ const OUTGOING_EMAIL_SORT_FIELDS = [
   "lastError",
   "lastAttemptAt",
 ] as const;
-type OutgoingEmailSortField = (typeof OUTGOING_EMAIL_SORT_FIELDS)[number];
-type OutgoingEmailSortDirection = "asc" | "desc";
-
-function parsePageNumber(value: string | null): number {
-  const parsed = Number.parseInt(value || "", 10);
-  if (!Number.isFinite(parsed) || parsed <= 0) {
-    return 1;
-  }
-  return parsed;
-}
-
-function parsePageSize(value: string | null): number {
-  const parsed = Number.parseInt(value || "", 10);
-  if (!Number.isFinite(parsed) || parsed <= 0) {
-    return DEFAULT_PAGE_SIZE;
-  }
-  return Math.min(parsed, MAX_PAGE_SIZE);
-}
-
-function parseSortField(value: string | null): OutgoingEmailSortField {
-  if (!value) {
-    return "createdAt";
-  }
-
-  if (OUTGOING_EMAIL_SORT_FIELDS.includes(value as OutgoingEmailSortField)) {
-    return value as OutgoingEmailSortField;
-  }
-
-  return "createdAt";
-}
-
-function parseSortDirection(value: string | null): OutgoingEmailSortDirection {
-  return value === "asc" ? "asc" : "desc";
-}
 
 function getCutoffDate(now = new Date()): Date {
   const cutoff = new Date(now);
@@ -69,7 +39,7 @@ export const GET = withApiErrorHandling(async (request: NextRequest) => {
   const limit = parsePageSize(searchParams.get("limit"));
   const skip = (page - 1) * limit;
   const query = (searchParams.get("q") || "").trim();
-  const sortBy = parseSortField(searchParams.get("sortBy"));
+  const sortBy = parseSortField(searchParams.get("sortBy"), OUTGOING_EMAIL_SORT_FIELDS, "createdAt");
   const sortDir = parseSortDirection(searchParams.get("sortDir"));
   const cutoffDate = getCutoffDate();
 

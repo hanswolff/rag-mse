@@ -11,6 +11,8 @@ import {
 import { validateRole } from "@/lib/validation-schema";
 import { Role } from "@prisma/client";
 import { logResourceNotFound, logInfo, logValidationFailure } from "@/lib/logger";
+import { logAdminAction } from "@/lib/audit-log";
+import { UserNotFoundInTransactionError, LastAdminDemotionBlockedError, LastAdminDeleteBlockedError } from "@/lib/errors";
 import { formatDateInputValue } from "@/lib/date-picker-utils";
 import { sendRoleChangeEmail } from "@/lib/role-change-email";
 import { validateOptionalProfileFields } from "@/lib/profile-fields";
@@ -106,10 +108,10 @@ export const PATCH = withApiErrorHandling(async (
 
   if (body.email !== undefined) {
     const normalizedEmail = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
-    if (!normalizedEmail || !validateEmail(normalizedEmail)) {
+    if (!normalizedEmail || !validateEmail(normalizedEmail).isValid) {
       logValidationFailure('/api/admin/users/[id]', 'PATCH', 'E-Mail muss gültig sein', { userId: id });
       return NextResponse.json(
-        { error: "E-Mail muss gültig sein" },
+        { error: "E-Mail muss gültig sein", fieldErrors: [{ field: "email", message: "E-Mail muss gültig sein" }] },
         { status: 400 }
       );
     }
@@ -136,7 +138,7 @@ export const PATCH = withApiErrorHandling(async (
     if (!nameValidation.isValid) {
       logValidationFailure('/api/admin/users/[id]', 'PATCH', nameValidation.error || 'Ungültiger Name', { userId: id });
       return NextResponse.json(
-        { error: nameValidation.error || "Ungültiger Name" },
+        { error: nameValidation.error || "Ungültiger Name", fieldErrors: [{ field: "name", message: nameValidation.error || "Ungültiger Name" }] },
         { status: 400 }
       );
     }
@@ -165,7 +167,7 @@ export const PATCH = withApiErrorHandling(async (
         role: body.role,
       });
       return NextResponse.json(
-        { error: "Ungültige Rolle" },
+        { error: "Ungültige Rolle", fieldErrors: [{ field: "role", message: "Ungültige Rolle" }] },
         { status: 400 }
       );
     }
@@ -196,7 +198,7 @@ export const PATCH = withApiErrorHandling(async (
       userId: id,
       field: optionalProfileFieldError.field,
     });
-    return NextResponse.json({ error: optionalProfileFieldError.message }, { status: 400 });
+    return NextResponse.json({ error: optionalProfileFieldError.message, fieldErrors: [optionalProfileFieldError] }, { status: 400 });
   }
 
   const adminNotes = typeof body.adminNotes === "string" || body.adminNotes === null ? body.adminNotes : undefined;
@@ -205,7 +207,7 @@ export const PATCH = withApiErrorHandling(async (
       const adminNotesValidation = validateAdminNotes(adminNotes);
       if (!adminNotesValidation.isValid) {
         logValidationFailure('/api/admin/users/[id]', 'PATCH', adminNotesValidation.error || 'Ungültige Administratoren-Notizen', { userId: id });
-        return NextResponse.json({ error: adminNotesValidation.error }, { status: 400 });
+        return NextResponse.json({ error: adminNotesValidation.error, fieldErrors: [{ field: "adminNotes", message: adminNotesValidation.error || "Ungültige Administratoren-Notizen" }] }, { status: 400 });
       }
     }
     updates.adminNotes = adminNotes;
@@ -287,7 +289,7 @@ export const PATCH = withApiErrorHandling(async (
           });
 
           if (!target) {
-            throw new Error("USER_NOT_FOUND_IN_TX");
+            throw new UserNotFoundInTransactionError();
           }
 
           if (target.role === "ADMIN") {
@@ -296,7 +298,7 @@ export const PATCH = withApiErrorHandling(async (
             });
 
             if (adminCount <= 1) {
-              throw new Error("LAST_ADMIN_DEMOTION_BLOCKED");
+              throw new LastAdminDemotionBlockedError();
             }
           }
 
@@ -312,13 +314,13 @@ export const PATCH = withApiErrorHandling(async (
           select: updateSelect,
         });
   } catch (error) {
-    if (error instanceof Error && error.message === "LAST_ADMIN_DEMOTION_BLOCKED") {
+    if (error instanceof LastAdminDemotionBlockedError) {
       return NextResponse.json(
         { error: "Der letzte Administrator darf nicht herabgestuft werden" },
         { status: 403 }
       );
     }
-    if (error instanceof Error && error.message === "USER_NOT_FOUND_IN_TX") {
+    if (error instanceof UserNotFoundInTransactionError) {
       return NextResponse.json(
         { error: "Benutzer nicht gefunden" },
         { status: 404 }
@@ -332,6 +334,12 @@ export const PATCH = withApiErrorHandling(async (
     userId: updatedUser.id,
     changedFields,
     updatedBy: 'admin',
+  });
+
+  logAdminAction("user_update", actingUser, {
+    targetUserId: updatedUser.id,
+    changedFields,
+    roleChanged: updates.role ? { from: user.role, to: updates.role } : undefined,
   });
 
   // Send role change email if role was changed
@@ -364,7 +372,7 @@ export const DELETE = withApiErrorHandling(async (
 ) => {
   validateCsrfHeaders(request);
 
-  await requireAdmin("write");
+  const actingAdmin = await requireAdmin("write");
 
   const { id } = await context.params;
 
@@ -406,7 +414,7 @@ export const DELETE = withApiErrorHandling(async (
         });
 
         if (adminCount <= 1) {
-          throw new Error("LAST_ADMIN_DELETE_BLOCKED");
+          throw new LastAdminDeleteBlockedError();
         }
       }
 
@@ -421,7 +429,7 @@ export const DELETE = withApiErrorHandling(async (
       return result.count;
     });
   } catch (error) {
-    if (error instanceof Error && error.message === "LAST_ADMIN_DELETE_BLOCKED") {
+    if (error instanceof LastAdminDeleteBlockedError) {
       return NextResponse.json(
         { error: "Der letzte Administrator darf nicht gelöscht werden" },
         { status: 403 }
@@ -441,6 +449,11 @@ export const DELETE = withApiErrorHandling(async (
   logInfo('user_deleted', 'User deleted', {
     userId: user.id,
     deletedBy: 'admin',
+  });
+
+  logAdminAction("user_delete", actingAdmin, {
+    targetUserId: user.id,
+    targetRole: user.role,
   });
 
   return NextResponse.json({ message: "Benutzer wurde erfolgreich gelöscht" });

@@ -1,15 +1,14 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
-import { useRouter } from "next/navigation";
-import { useSession } from "next-auth/react";
+import { useState, useCallback } from "react";
 import { PasswordChangeForm } from "@/components/password-change-form";
 import { BackLink } from "@/components/back-link";
-import { buildLoginUrlWithReturnUrl, getCurrentPathWithSearch } from "@/lib/return-url";
+import { LoadingScreen } from "@/components/loading-screen";
+import { useProtectedPage } from "@/lib/use-protected-page";
+import { AlertBox } from "@/components/alert-box";
 
 export default function ChangePasswordPage() {
-  const router = useRouter();
-  const { status } = useSession();
+  const { isLoading } = useProtectedPage();
   const [isChangingPassword, setIsChangingPassword] = useState(false);
   const [passwordError, setPasswordError] = useState("");
   const [passwordSuccess, setPasswordSuccess] = useState("");
@@ -19,12 +18,6 @@ export default function ChangePasswordPage() {
     newPassword: "",
     confirmPassword: "",
   });
-
-  useEffect(() => {
-    if (status === "unauthenticated") {
-      router.push(buildLoginUrlWithReturnUrl(getCurrentPathWithSearch()));
-    }
-  }, [status, router]);
 
   const handleCurrentPasswordChange = useCallback((value: string) => {
     setPasswordForm((prev) => ({ ...prev, currentPassword: value }));
@@ -72,12 +65,8 @@ export default function ChangePasswordPage() {
     }
   }, [passwordForm]);
 
-  if (status === "loading") {
-    return (
-      <main className="flex flex-1 items-center justify-center">
-        <div className="text-gray-600">Laden...</div>
-      </main>
-    );
+  if (isLoading) {
+    return <LoadingScreen />;
   }
 
   return (
@@ -88,11 +77,7 @@ export default function ChangePasswordPage() {
           <p className="text-gray-600 mt-2">Aktualisieren Sie Ihr Passwort für Ihr Mitgliederkonto.</p>
         </div>
 
-        {passwordSuccess && (
-          <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded mb-4">
-            {passwordSuccess}
-          </div>
-        )}
+        <AlertBox type="success" message={passwordSuccess} className="mb-4" />
 
         {!isPasswordChanged && (
           <PasswordChangeForm

@@ -10,17 +10,18 @@ describe("Docker hardening", () => {
     expect(existsSync(dockerignorePath)).toBe(true);
   });
 
-  it("removes sensitive standalone artifacts from runtime image", () => {
+  it("builds a runtime image only from host-generated artifacts", () => {
     const dockerfile = readFileSync(dockerfilePath, "utf-8");
 
-    expect(dockerfile).toContain("FROM base AS deps");
-    expect(dockerfile).toContain("FROM deps AS builder");
-    expect(dockerfile).toContain("pnpm install --frozen-lockfile");
-    expect(dockerfile).toContain("pnpm run build");
-    expect(dockerfile).toContain("pnpm run build:scripts");
+    expect(dockerfile).toContain("FROM node:22 AS runner");
+    expect(dockerfile).toContain("COPY --chown=${APP_UID}:${APP_GID} .next/standalone ./");
+    expect(dockerfile).toContain("COPY --chown=${APP_UID}:${APP_GID} .next/static ./.next/static");
+    expect(dockerfile).not.toContain("pnpm install --frozen-lockfile");
+    expect(dockerfile).not.toContain("pnpm run build");
+    expect(dockerfile).not.toContain("pnpm run build:scripts");
   });
 
-  it("excludes sensitive standalone paths from build context", () => {
+  it("excludes sensitive paths while allowing required host build artifacts", () => {
     const dockerignore = readFileSync(dockerignorePath, "utf-8");
 
     expect(dockerignore).toContain(".git");
@@ -32,5 +33,8 @@ describe("Docker hardening", () => {
     expect(dockerignore).toContain("docs");
     expect(dockerignore).toContain("ops");
     expect(dockerignore).toContain("data");
+    expect(dockerignore).toContain(".next");
+    expect(dockerignore).toContain("!.next/standalone");
+    expect(dockerignore).toContain("!.next/static");
   });
 });

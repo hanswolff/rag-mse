@@ -256,17 +256,17 @@ describe("PATCH /api/admin/users/[id] - API endpoint behavior", () => {
 
 describe("user-validation", () => {
   describe("validateEmail", () => {
-    it("should return true for valid email", () => {
-      expect(validateEmail("test@example.com")).toBe(true);
-      expect(validateEmail("user.name@domain.co.uk")).toBe(true);
+    it("should return isValid true for valid email", () => {
+      expect(validateEmail("test@example.com")).toEqual({ isValid: true });
+      expect(validateEmail("user.name@domain.co.uk")).toEqual({ isValid: true });
     });
 
-    it("should return false for invalid email", () => {
-      expect(validateEmail("invalid")).toBe(false);
-      expect(validateEmail("@example.com")).toBe(false);
-      expect(validateEmail("test@")).toBe(false);
-      expect(validateEmail("")).toBe(false);
-      expect(validateEmail("test example.com")).toBe(false);
+    it("should return isValid false with error for invalid email", () => {
+      expect(validateEmail("invalid")).toEqual({ isValid: false, error: "Ungültiges E-Mail-Format" });
+      expect(validateEmail("@example.com")).toEqual({ isValid: false, error: "Ungültiges E-Mail-Format" });
+      expect(validateEmail("test@")).toEqual({ isValid: false, error: "Ungültiges E-Mail-Format" });
+      expect(validateEmail("")).toEqual({ isValid: false, error: "E-Mail ist erforderlich" });
+      expect(validateEmail("test example.com")).toEqual({ isValid: false, error: "Ungültiges E-Mail-Format" });
     });
   });
 

@@ -8,7 +8,7 @@ import {
   buildResetUrl,
 } from "@/lib/password-reset";
 import { sendTemplateEmail } from "@/lib/email-sender";
-import { logInfo, logValidationFailure, logError, logWarn } from "@/lib/logger";
+import { logInfo, logValidationFailure, logError, logWarn, maskEmail } from "@/lib/logger";
 import { checkForgotPasswordRateLimit } from "@/lib/rate-limiter";
 import { validateEmail } from "@/lib/validation-schema";
 import { shouldFailOpenOnRateLimiterError } from "@/lib/rate-limit-policy";
@@ -83,7 +83,7 @@ export async function POST(request: NextRequest) {
     const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
 
     if (!email || !validateEmail(email)) {
-      logValidationFailure('/api/auth/forgot-password', 'POST', 'Gültige E-Mail-Adresse erforderlich', { email });
+      logValidationFailure('/api/auth/forgot-password', 'POST', 'Gültige E-Mail-Adresse erforderlich', { email: maskEmail(email) });
       return NextResponse.json(
         { error: "Gültige E-Mail-Adresse erforderlich" },
         { status: 400 }
@@ -104,7 +104,7 @@ export async function POST(request: NextRequest) {
           route: "/api/auth/forgot-password",
           method: "POST",
           clientIp,
-          email,
+          email: maskEmail(email),
           error: rateLimitError instanceof Error ? rateLimitError.message : String(rateLimitError),
         });
         return NextResponse.json(
@@ -117,7 +117,7 @@ export async function POST(request: NextRequest) {
         route: "/api/auth/forgot-password",
         method: "POST",
         clientIp,
-        email,
+        email: maskEmail(email),
         error: rateLimitError instanceof Error ? rateLimitError.message : String(rateLimitError),
       });
     }
@@ -158,12 +158,12 @@ export async function POST(request: NextRequest) {
           to: email,
         });
         logInfo('password_reset_requested', 'Password reset requested and email queued', {
-          email,
+          email: maskEmail(email),
         });
       } catch (emailError) {
         logError('email_queue_failed', 'Failed to queue password reset email', {
           template: "passwort-zuruecksetzen",
-          to: email,
+          to: maskEmail(email),
           error: emailError instanceof Error ? emailError.message : 'Unknown error',
         });
       }

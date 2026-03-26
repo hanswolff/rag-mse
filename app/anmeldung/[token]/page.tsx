@@ -3,8 +3,10 @@
 import { use, useEffect, useState } from "react";
 import { VoteType } from "@prisma/client";
 import { LoadingButton } from "@/components/loading-button";
+import { LoadingScreen } from "@/components/loading-screen";
 import { VOTE_OPTIONS } from "@/lib/vote-utils";
 import { formatDate, formatTime, isEventInPast } from "@/lib/date-utils";
+import { AlertBox } from "@/components/alert-box";
 
 interface RsvpEvent {
   id: string;
@@ -101,17 +103,13 @@ export default function TokenRsvpPage({ params }: { params: Promise<{ token: str
   }
 
   if (isLoading) {
-    return (
-      <main className="flex flex-1 items-center justify-center">
-        <div className="text-gray-600">Laden...</div>
-      </main>
-    );
+    return <LoadingScreen />;
   }
 
   if (error && !data) {
     return (
       <main className="flex-1 bg-gray-50">
-        <div className="max-w-3xl mx-auto px-4 py-10">
+        <div className="max-w-3xl mx-auto px-4 py-6 sm:py-8 lg:py-10">
           <div className="card text-center">
             <h1 className="text-2xl font-bold text-gray-900 mb-4">Terminanmeldung</h1>
             <p className="text-red-700">{error}</p>
@@ -129,7 +127,7 @@ export default function TokenRsvpPage({ params }: { params: Promise<{ token: str
 
   return (
     <main className="flex-1 bg-gray-50">
-      <div className="max-w-3xl mx-auto px-4 py-10 space-y-6">
+      <div className="max-w-3xl mx-auto px-4 py-6 sm:py-8 lg:py-10 space-y-6">
         <article className="card">
           <h1 className="text-2xl font-bold text-gray-900 mb-2">Terminanmeldung</h1>
           <p className="text-gray-600 mb-4">
@@ -150,17 +148,9 @@ export default function TokenRsvpPage({ params }: { params: Promise<{ token: str
         </article>
 
         <section className="card">
-          {error && (
-            <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
-              {error}
-            </div>
-          )}
+          <AlertBox type="error" message={error} className="mb-4" />
 
-          {success && (
-            <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded mb-4">
-              {success}
-            </div>
-          )}
+          <AlertBox type="success" message={success} className="mb-4" />
 
           {isPast ? (
             <p className="text-blue-700">

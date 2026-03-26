@@ -70,7 +70,7 @@ export const POST = withApiErrorHandling(async (
     });
     return NextResponse.json(
       { error: "Teilnahmeanmeldung für vergangene Termine nicht möglich" },
-      { status: 400 }
+      { status: 409 }
     );
   }
 
@@ -82,45 +82,30 @@ export const POST = withApiErrorHandling(async (
     );
   }
 
-  const existingVote = await prisma.vote.findUnique({
+  const savedVote = await prisma.vote.upsert({
     where: {
       userId_eventId: {
         userId: user.id,
         eventId,
       },
     },
-  });
-
-  if (existingVote) {
-    const updatedVote = await prisma.vote.update({
-      where: { id: existingVote.id },
-      data: { vote: vote as VoteType },
-    });
-
-    logInfo('vote_updated', 'Vote updated', {
-      userId: user.id,
-      eventId,
-      vote,
-    });
-
-    return NextResponse.json(updatedVote);
-  }
-
-  const newVote = await prisma.vote.create({
-    data: {
+    create: {
       userId: user.id,
       eventId,
       vote: vote as VoteType,
     },
+    update: {
+      vote: vote as VoteType,
+    },
   });
 
-  logInfo('vote_created', 'Vote created', {
+  logInfo('vote_saved', 'Vote saved', {
     userId: user.id,
     eventId,
     vote,
   });
 
-  return NextResponse.json(newVote, { status: 201 });
+  return NextResponse.json(savedVote);
 }, { route: "/api/events/[id]/vote", method: "POST" });
 
 export const DELETE = withApiErrorHandling(async (
@@ -160,7 +145,7 @@ export const DELETE = withApiErrorHandling(async (
     });
     return NextResponse.json(
       { error: "Teilnahmeanmeldung für vergangene Termine nicht änderbar" },
-      { status: 400 }
+      { status: 409 }
     );
   }
 

@@ -1,7 +1,9 @@
 import { newsFormSchema } from "./validation-schema";
+import { createValidationContext, zodToValidationResult } from "./validation-context";
+import type { ValidationResult } from "./validation-context";
 
-// Re-export validation functions for backward compatibility with tests
 export { validateTitle, validateContent } from "./validation-schema";
+export type { ValidationResult } from "./validation-context";
 
 export interface CreateNewsRequest {
   title: string;
@@ -17,22 +19,15 @@ export interface UpdateNewsRequest {
   published?: boolean;
 }
 
-export interface ValidationResult {
-  isValid: boolean;
-  errors: string[];
-}
-
 export function validateCreateNewsRequest(
   request: CreateNewsRequest
 ): ValidationResult {
-  const errors: string[] = [];
+  const ctx = createValidationContext();
 
-  // Check for required newsDate first
   if (!request.newsDate) {
-    errors.push("Datum ist erforderlich");
+    ctx.addError("newsDate", "Datum ist erforderlich");
   }
 
-  // Validate all fields using Zod schema
   const data = {
     newsDate: request.newsDate || "",
     title: request.title,
@@ -42,18 +37,20 @@ export function validateCreateNewsRequest(
   const result = newsFormSchema.safeParse(data);
 
   if (!result.success) {
-    // Add Zod errors, avoiding duplicates
     for (const issue of result.error.issues) {
-      if (!errors.includes(issue.message)) {
-        errors.push(issue.message);
+      if (!ctx.errors.includes(issue.message)) {
+        ctx.errors.push(issue.message);
+      }
+      if (issue.path.length > 0) {
+        const field = String(issue.path[0]);
+        if (!ctx.fieldErrors.some((fe) => fe.field === field && fe.message === issue.message)) {
+          ctx.fieldErrors.push({ field, message: issue.message });
+        }
       }
     }
   }
 
-  return {
-    isValid: errors.length === 0,
-    errors,
-  };
+  return ctx.toResult();
 }
 
 export function validateUpdateNewsRequest(
@@ -65,19 +62,9 @@ export function validateUpdateNewsRequest(
   if (request.title !== undefined) data.title = request.title;
   if (request.content !== undefined) data.content = request.content;
 
-  // If no fields to validate, return success
   if (Object.keys(data).length === 0) {
-    return { isValid: true, errors: [] };
+    return { isValid: true, errors: [], fieldErrors: [] };
   }
 
-  const result = newsFormSchema.partial().safeParse(data);
-
-  if (result.success) {
-    return { isValid: true, errors: [] };
-  }
-
-  return {
-    isValid: false,
-    errors: result.error.issues.map((issue) => issue.message),
-  };
+  return zodToValidationResult(newsFormSchema.partial().safeParse(data));
 }

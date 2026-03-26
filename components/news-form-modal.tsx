@@ -1,14 +1,16 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
 import { Modal } from "./modal";
+import { ConfirmCloseModal } from "./confirm-close-modal";
 import { LoadingButton } from "./loading-button";
 import { GermanDatePicker } from "./german-date-picker";
 import { ValidatedFieldGroup } from "./validated-field-group";
-import { useFormFieldValidation } from "@/lib/useFormFieldValidation";
-import { mapServerErrorToField, NEWS_FIELD_KEYWORDS } from "@/lib/server-error-mapper";
+import { useFormModal } from "@/lib/use-form-modal";
+import { NEWS_FIELD_KEYWORDS } from "@/lib/server-error-mapper";
+import type { FieldError } from "@/lib/server-error-mapper";
 import { newsValidationConfig } from "@/lib/validation-schema";
 import { getLocalDateString } from "@/lib/date-picker-utils";
+import { AlertBox } from "./alert-box";
 
 export interface NewNews {
   newsDate: string;
@@ -37,6 +39,7 @@ interface NewsFormModalProps {
   setNewsData: (data: NewNews) => void;
   isEditing: boolean;
   errors?: Record<string, string>;
+  fieldErrors?: FieldError[];
   initialNewsData?: NewNews;
 }
 
@@ -49,89 +52,34 @@ export function NewsFormModal({
   setNewsData,
   isEditing,
   errors = {},
+  fieldErrors,
   initialNewsData,
 }: NewsFormModalProps) {
   const {
-    errors: validationErrors,
-    validateField,
-    validateAllFields,
-    markFieldAsTouched,
-    shouldShowError,
+    getFieldError,
+    handleChange,
+    handleBlur,
+    handleClose,
+    handleSubmit,
+    generalErrors,
+    showCloseConfirm,
+    handleConfirmClose,
+    cancelClose,
     isValidAndTouched,
-    reset,
-  } = useFormFieldValidation(newsValidationConfig);
-
-  useEffect(() => {
-    if (isOpen) {
-      reset();
-    }
-  }, [isOpen, reset]);
-
-  const inferredGeneralErrors = useMemo(() => {
-    return mapServerErrorToField(errors.general || "", NEWS_FIELD_KEYWORDS);
-  }, [errors.general]);
-
-  const hasUnsavedChanges = useMemo(() => {
-    const base = initialNewsData || initialNewNews;
-    return (
-      newsData.newsDate !== base.newsDate ||
-      newsData.title !== base.title ||
-      newsData.content !== base.content ||
-      newsData.published !== base.published
-    );
-  }, [newsData, initialNewsData]);
-
-  const combinedErrors = useMemo(() => {
-    return { ...validationErrors, ...inferredGeneralErrors, ...errors };
-  }, [validationErrors, inferredGeneralErrors, errors]);
-
-  const handleChange = (name: string, value: string | boolean) => {
-    setNewsData({ ...newsData, [name]: value });
-
-    if (typeof value === "string" && validationErrors[name]) {
-      validateField(name, value);
-    }
-  };
-
-  const handleBlur = (name: string, value: string) => {
-    markFieldAsTouched(name);
-    validateField(name, value);
-  };
-
-  const getFieldError = (fieldName: string): string | undefined => {
-    if (errors[fieldName]) return errors[fieldName];
-    if (combinedErrors[fieldName] && shouldShowError(fieldName, newsData[fieldName as keyof typeof newsData] as string)) {
-      return combinedErrors[fieldName];
-    }
-    return undefined;
-  };
-
-  const handleClose = () => {
-    if (hasUnsavedChanges && !isSubmitting) {
-      if (confirm("Sie haben ungespeicherte Änderungen. Wirklich schließen?")) {
-        onClose();
-      }
-    } else {
-      onClose();
-    }
-  };
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-
-    const fieldValues: Record<string, string> = {
-      newsDate: newsData.newsDate,
-      title: newsData.title,
-      content: newsData.content,
-    };
-
-    const isValid = validateAllFields(fieldValues);
-    if (!isValid) {
-      return;
-    }
-
-    onSubmit(e);
-  };
+  } = useFormModal<NewNews>({
+    validationConfig: newsValidationConfig,
+    formData: newsData,
+    setFormData: setNewsData,
+    defaultData: initialNewNews,
+    initialData: initialNewsData,
+    isOpen,
+    isSubmitting,
+    onClose,
+    onSubmit,
+    serverErrors: errors,
+    fieldErrors,
+    fieldKeywords: NEWS_FIELD_KEYWORDS,
+  });
 
   return (
     <Modal
@@ -143,10 +91,8 @@ export function NewsFormModal({
       closeOnEscape={false}
     >
       <form onSubmit={handleSubmit} className="space-y-4" noValidate>
-        {errors.general && Object.keys(inferredGeneralErrors).length === 0 && (
-          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
-            {errors.general}
-          </div>
+        {Object.keys(generalErrors).length === 0 && (
+          <AlertBox type="error" message={errors.general} />
         )}
         <div>
           <GermanDatePicker
@@ -227,6 +173,11 @@ export function NewsFormModal({
           </LoadingButton>
         </div>
       </form>
+      <ConfirmCloseModal
+        isOpen={showCloseConfirm}
+        onConfirm={handleConfirmClose}
+        onCancel={cancelClose}
+      />
     </Modal>
   );
 }

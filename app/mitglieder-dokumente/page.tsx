@@ -8,10 +8,13 @@ import { Pagination } from "@/components/pagination";
 import { DocumentBreadcrumb } from "@/components/document-breadcrumb";
 import { DocumentTableHeader, DirectoryRow, DocumentRow, EmptyRow } from "@/components/document-table";
 import { DocumentViewer } from "@/components/document-viewer";
+import { API_ROUTES } from "@/lib/api-routes";
+import { LoadingScreen } from "@/components/loading-screen";
 import { useDocumentsList } from "@/lib/use-documents-list";
 import { canManageMemberDocuments, canReadMemberDocuments } from "@/lib/role-utils";
 import { pluralize } from "@/lib/pluralization";
 import type { DocumentItem } from "@/types";
+import { AlertBox } from "@/components/alert-box";
 
 export default function MemberDocumentsPage() {
   const { data: session } = useSession();
@@ -41,8 +44,8 @@ export default function MemberDocumentsPage() {
     navigateToRoot,
     navigateToDirectory,
   } = useDocumentsList({
-    documentsApiPrefix: "/api/member/documents",
-    directoriesApiPrefix: "/api/member/document-directories",
+    documentsApiPrefix: API_ROUTES.MEMBER.DOCUMENTS,
+    directoriesApiPrefix: API_ROUTES.MEMBER.DOCUMENT_DIRECTORIES,
     accessCheck: canReadMemberDocuments,
   });
 
@@ -61,11 +64,7 @@ export default function MemberDocumentsPage() {
   const isInitialLoading = status === "loading" || (isLoading && documents.length === 0 && directories.length === 0 && !error);
 
   if (isInitialLoading) {
-    return (
-      <main className="flex flex-1 items-center justify-center">
-        <div className="text-gray-600">Laden...</div>
-      </main>
-    );
+    return <LoadingScreen />;
   }
 
   return (
@@ -86,11 +85,7 @@ export default function MemberDocumentsPage() {
           )}
         </div>
 
-        {error && (
-          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4" role="alert" aria-live="assertive">
-            {error}
-          </div>
-        )}
+        <AlertBox type="error" message={error} className="mb-4" />
 
         <section className="card-compact">
           <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between mb-4">
@@ -158,7 +153,7 @@ export default function MemberDocumentsPage() {
                       key={document.id}
                       document={document}
                       searchQuery={searchQuery}
-                      downloadUrlPrefix="/api/member/documents"
+                      downloadUrlPrefix={API_ROUTES.MEMBER.DOCUMENTS}
                       onOpen={openViewer}
                     />
                   ))
@@ -181,8 +176,7 @@ export default function MemberDocumentsPage() {
         isOpen={isViewerOpen}
         document={viewerDocument}
         onClose={closeViewer}
-        viewUrlPrefix="/api/member/documents"
-        downloadUrlPrefix="/api/member/documents"
+        viewUrlPrefix={API_ROUTES.MEMBER.DOCUMENTS}
       />
     </main>
   );

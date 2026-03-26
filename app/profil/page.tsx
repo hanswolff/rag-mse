@@ -2,17 +2,21 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { useSession } from "next-auth/react";
 import { BackLink } from "@/components/back-link";
 import { LoadingButton } from "@/components/loading-button";
+import { LoadingScreen } from "@/components/loading-screen";
 import { GermanDatePicker } from "@/components/german-date-picker";
 import { ValidatedFieldGroup } from "@/components/validated-field-group";
 import { useFormFieldValidation } from "@/lib/useFormFieldValidation";
+import { API_ROUTES } from "@/lib/api-routes";
 import { mapServerErrorToField, PROFILE_FIELD_KEYWORDS } from "@/lib/server-error-mapper";
 import { profileValidationConfig } from "@/lib/validation-schema";
 import { buildLoginUrlWithReturnUrl, getCurrentPathWithSearch } from "@/lib/return-url";
 import { normalizeDateInputValue } from "@/lib/date-picker-utils";
 import { Permissions } from "@/lib/permissions";
+import { useProtectedPage } from "@/lib/use-protected-page";
+import { AlertBox } from "@/components/alert-box";
+import { fetchWithTimeout } from "@/lib/fetch-with-timeout";
 
 interface UserProfile {
   id: string;
@@ -31,7 +35,7 @@ interface UserProfile {
 
 function useProfile() {
   const router = useRouter();
-  const { status, update } = useSession();
+  const { status, update } = useProtectedPage();
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -56,7 +60,7 @@ function useProfile() {
 
   const fetchProfile = useCallback(async () => {
     try {
-      const response = await fetch("/api/user/profile");
+      const response = await fetchWithTimeout(API_ROUTES.USER.PROFILE);
       if (!response.ok) {
         if (response.status === 401) {
           router.push(buildLoginUrlWithReturnUrl(getCurrentPathWithSearch()));
@@ -86,12 +90,10 @@ function useProfile() {
   }, [router]);
 
   useEffect(() => {
-    if (status === "unauthenticated") {
-      router.push(buildLoginUrlWithReturnUrl(getCurrentPathWithSearch()));
-    } else if (status === "authenticated") {
+    if (status === "authenticated") {
       fetchProfile();
     }
-  }, [status, router, fetchProfile]);
+  }, [status, fetchProfile]);
 
   useEffect(() => {
     if (profileSuccess) {
@@ -137,7 +139,7 @@ function useProfile() {
         associationMemberNumber,
         hasPossessionCard,
       } = formData;
-      const response = await fetch("/api/user/profile", {
+      const response = await fetchWithTimeout(API_ROUTES.USER.PROFILE, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
@@ -159,7 +161,7 @@ function useProfile() {
 
       if (!response.ok) {
         const message = data.error || "Fehler beim Speichern des Profils";
-        const fieldErrorMap = mapServerErrorToField(message, PROFILE_FIELD_KEYWORDS);
+        const fieldErrorMap = mapServerErrorToField(message, PROFILE_FIELD_KEYWORDS, data.fieldErrors);
 
         if (Object.keys(fieldErrorMap).length > 0) {
           setServerFieldErrors(fieldErrorMap);
@@ -219,11 +221,7 @@ export default function ProfilePage() {
   } = useProfile();
 
   if (isLoading) {
-    return (
-      <main className="flex flex-1 items-center justify-center">
-        <div className="text-gray-600">Laden...</div>
-      </main>
-    );
+    return <LoadingScreen />;
   }
 
   const handleInputChange = (fieldName: string, value: string) => {
@@ -261,17 +259,9 @@ export default function ProfilePage() {
 
         <div className="space-y-6">
           <div className="card">
-          {profileError && (
-            <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
-              {profileError}
-            </div>
-          )}
+          <AlertBox type="error" message={profileError} className="mb-4" />
 
-          {profileSuccess && (
-            <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded mb-4">
-              {profileSuccess}
-            </div>
-          )}
+          <AlertBox type="success" message={profileSuccess} className="mb-4" />
 
           <form onSubmit={handleSave} className="space-y-4" noValidate>
             <div>

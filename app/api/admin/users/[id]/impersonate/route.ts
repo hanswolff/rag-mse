@@ -5,6 +5,7 @@ import { withApiErrorHandling, validateCsrfHeaders } from "@/lib/api-utils";
 import { Permissions } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { logInfo, logResourceNotFound, logWarn } from "@/lib/logger";
+import { logAdminAction } from "@/lib/audit-log";
 
 export const POST = withApiErrorHandling(async (
   request: NextRequest,
@@ -24,7 +25,7 @@ export const POST = withApiErrorHandling(async (
     });
     return NextResponse.json(
       { error: "Eine verschachtelte Impersonierung ist nicht erlaubt" },
-      { status: 400 }
+      { status: 409 }
     );
   }
 
@@ -50,6 +51,11 @@ export const POST = withApiErrorHandling(async (
   logInfo("impersonation_start_issued", "Impersonation start proof issued", {
     actorUserId: actor.id,
     actorRole: actor.role,
+    targetUserId: target.id,
+    targetRole: target.role,
+  });
+
+  logAdminAction("impersonation_start", actor, {
     targetUserId: target.id,
     targetRole: target.role,
   });

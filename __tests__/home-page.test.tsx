@@ -44,7 +44,7 @@ describe("Home", () => {
     ).toBeInTheDocument();
     expect(
       screen.getByText(
-        "Willkommen auf der Website der RAG Schießsport MSE"
+        "Reservistenarbeitsgemeinschaft für sportliches Schießen in der Mecklenburgischen Seenplatte"
       )
     ).toBeInTheDocument();
   });

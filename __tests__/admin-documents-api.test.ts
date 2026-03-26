@@ -417,7 +417,7 @@ describe("/api/admin/documents", () => {
     const response = await POST(request);
     const data = await response.json();
 
-    expect(response.status).toBe(400);
+    expect(response.status).toBe(409);
     expect(data.error).toContain("Bereich");
     expect(writeDocumentFile).not.toHaveBeenCalled();
   });
@@ -622,7 +622,7 @@ describe("/api/admin/documents/[id]", () => {
     const response = await PATCH(request, { params: Promise.resolve({ id: "doc-1" }) });
     const data = await response.json();
 
-    expect(response.status).toBe(400);
+    expect(response.status).toBe(409);
     expect(data.error).toBe("Verzeichnis gehört nicht zum Dokumentbereich");
     expect(prisma.document.update).not.toHaveBeenCalled();
   });
@@ -644,7 +644,7 @@ describe("/api/admin/documents/[id]", () => {
     const response = await PATCH(request, { params: Promise.resolve({ id: "doc-1" }) });
     const data = await response.json();
 
-    expect(response.status).toBe(400);
+    expect(response.status).toBe(404);
     expect(data.error).toBe("Verzeichnis nicht gefunden");
   });
 
@@ -740,7 +740,7 @@ describe("/api/admin/documents/[id]", () => {
     const data = await response.json();
 
     expect(response.status).toBe(500);
-    expect(data.error).toBe("Ein Fehler ist aufgetreten");
+    expect(data.error).toBe("Ein Fehler ist aufgetreten. Bitte versuchen Sie es später erneut.");
     expect(deleteDocumentFile).toHaveBeenCalledWith("abc123.pdf");
     expect(restoreDocumentFile).toHaveBeenCalledWith("abc123.pdf", expect.any(Uint8Array));
   });

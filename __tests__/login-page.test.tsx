@@ -27,7 +27,7 @@ describe("LoginPage", () => {
     it("should render login form with all fields", () => {
       render(<LoginPage />);
 
-      expect(screen.getByText("RAG Schießsport MSE")).toBeInTheDocument();
+      expect(screen.getAllByText("RAG Schießsport MSE").length).toBeGreaterThanOrEqual(1);
       expect(screen.getByText("Login")).toBeInTheDocument();
       expect(screen.getByLabelText(/E-Mail/i)).toBeInTheDocument();
       expect(screen.getByLabelText(/Passwort/i)).toBeInTheDocument();

@@ -161,7 +161,7 @@ describe("/api/geocode/route", () => {
     const data = await response.json();
 
     expect(response.status).toBe(500);
-    expect(data.error).toBe("Ein Fehler ist aufgetreten");
+    expect(data.error).toBe("Ein Fehler ist aufgetreten. Bitte versuchen Sie es später erneut.");
   });
 
   it("handles network errors", async () => {
@@ -172,7 +172,7 @@ describe("/api/geocode/route", () => {
     const data = await response.json();
 
     expect(response.status).toBe(500);
-    expect(data.error).toBe("Ein Fehler ist aufgetreten");
+    expect(data.error).toBe("Ein Fehler ist aufgetreten. Bitte versuchen Sie es später erneut.");
   });
 
   it("continues when rate limiter backend is unavailable", async () => {

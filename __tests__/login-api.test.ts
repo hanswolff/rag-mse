@@ -2,6 +2,7 @@ import { POST } from "@/app/api/auth/login/route";
 import { NextRequest } from "next/server";
 import { logError } from "@/lib/logger";
 import { authorizeCredentials } from "@/lib/auth";
+import { RateLimitError } from "@/lib/errors";
 
 jest.mock("@/lib/auth", () => ({
   authorizeCredentials: jest.fn(),
@@ -14,18 +15,16 @@ jest.mock("@/lib/logger", () => ({
   maskEmail: jest.fn((email: string) => `masked-${email}`),
 }));
 
-jest.mock("@/lib/api-utils", () => ({
-  parseJsonBody: jest.fn(async (req) => req.json()),
-  BadRequestError: class extends Error {
-    constructor(message: string) {
-      super(message);
-      this.name = "BadRequestError";
-    }
-  },
-  validateRequestBody: jest.fn().mockReturnValue({ isValid: true, errors: [] }),
-  validateCsrfHeaders: jest.fn(),
-  getClientIp: jest.fn(() => "127.0.0.1"),
-}));
+jest.mock("@/lib/api-utils", () => {
+  const actual = jest.requireActual("@/lib/api-utils");
+  return {
+    ...actual,
+    parseJsonBody: jest.fn(async (req: Request) => req.json()),
+    validateRequestBody: jest.fn().mockReturnValue({ isValid: true, errors: [] }),
+    validateCsrfHeaders: jest.fn(),
+    getClientIp: jest.fn(() => "127.0.0.1"),
+  };
+});
 
 function createMockRequest(body: Record<string, unknown>, headers: Record<string, string> = {}) {
   const request = {
@@ -59,7 +58,7 @@ describe("/api/auth/login/route", () => {
   });
 
   it("returns 429 when credentials provider signals rate limit", async () => {
-    (authorizeCredentials as jest.Mock).mockRejectedValue(new Error("RATE_LIMITED:2"));
+    (authorizeCredentials as jest.Mock).mockRejectedValue(new RateLimitError(2));
 
     const request = createMockRequest({
       email: "test@example.com",
@@ -156,7 +155,7 @@ describe("/api/auth/login/route", () => {
     });
 
     it("should add X-Correlation-Id header on 429 rate limit", async () => {
-      (authorizeCredentials as jest.Mock).mockRejectedValue(new Error("RATE_LIMITED:1"));
+      (authorizeCredentials as jest.Mock).mockRejectedValue(new RateLimitError(1));
 
       const request = createMockRequest({
         email: "test@example.com",
@@ -196,8 +195,8 @@ describe("/api/auth/login/route", () => {
     expect(response.status).toBe(500);
     expect(data.error).toBe("Ein Fehler ist aufgetreten. Bitte versuchen Sie es später erneut.");
     expect(logError).toHaveBeenCalledWith(
-      'login_error',
-      'Unexpected error during login',
+      'api_error',
+      expect.stringContaining('/api/auth/login'),
       expect.any(Object)
     );
   });

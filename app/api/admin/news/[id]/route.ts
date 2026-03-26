@@ -54,7 +54,7 @@ export const PUT = withApiErrorHandling(async (
   const validation = validateUpdateNewsRequest(body);
   if (!validation.isValid) {
     logValidationFailure("/api/admin/news/[id]", "PUT", validation.errors, { newsId: id });
-    return NextResponse.json({ error: validation.errors.join(". ") }, { status: 400 });
+    return NextResponse.json({ error: validation.errors.join(". "), fieldErrors: validation.fieldErrors }, { status: 400 });
   }
 
   const existingNews = await prisma.news.findUnique({

@@ -1,6 +1,10 @@
 import { renderHook, waitFor } from "@testing-library/react";
 import { useUserManagement } from "@/lib/use-user-management";
 
+jest.mock("@/components/confirm-dialog", () => ({
+  useConfirmDialog: () => jest.fn().mockResolvedValue(true),
+}));
+
 const mockPush = jest.fn();
 const mockRouter = { push: mockPush };
 

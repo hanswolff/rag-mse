@@ -544,6 +544,47 @@ pnpm run lint
 pnpm run format
 ```
 
+### Wiederverwendbare UI-Komponenten
+
+#### ConfirmDialog (Bestätigungsdialog)
+
+Ersetzt native `window.confirm()`-Aufrufe durch gestylte Modal-Dialoge. Basiert auf dem Context + Provider Pattern mit Promise-basierter API.
+
+**Setup:** Der `ConfirmDialogProvider` ist bereits in `components/providers.tsx` eingebunden und steht in der gesamten App zur Verfügung.
+
+**Verwendung in Hooks und Komponenten:**
+
+```tsx
+import { useConfirmDialog } from "@/components/confirm-dialog";
+
+function MyComponent() {
+  const confirm = useConfirmDialog();
+
+  const handleDelete = async () => {
+    const confirmed = await confirm({
+      message: "Eintrag wirklich löschen?",
+      confirmLabel: "Löschen",      // Standard: "Bestätigen"
+      cancelLabel: "Abbrechen",     // Standard: "Abbrechen"
+      variant: "danger",            // "danger" | "warning" | "default"
+    });
+
+    if (!confirmed) return;
+    // ... Löschlogik
+  };
+}
+```
+
+**Kurzform** für einfache Bestätigungen:
+
+```tsx
+const confirmed = await confirm("Wirklich fortfahren?");
+```
+
+**Varianten:**
+- `"danger"` — Roter Bestätigen-Button (`btn-danger`), für destruktive Aktionen
+- `"warning"` — Standard-Button (`btn-primary`), für wichtige aber nicht-destruktive Aktionen
+- `"default"` — Standard-Button (`btn-primary`)
+
 ## Umgebungsvariablen
 
 Alle Umgebungsvariablen werden in der `.env`-Datei konfiguriert. Kopieren Sie `.env.example` und passen Sie die Werte an.

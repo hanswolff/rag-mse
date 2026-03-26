@@ -214,7 +214,7 @@ export const POST = withApiErrorHandling(async (
   if (isEventInPast(dispatch.event.date)) {
     return NextResponse.json(
       { error: "Teilnahmeanmeldung für vergangene Termine nicht möglich" },
-      { status: 400, headers: getNoCacheHeaders() }
+      { status: 409, headers: getNoCacheHeaders() }
     );
   }
 

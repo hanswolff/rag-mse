@@ -3,19 +3,18 @@
 import { ChangeEvent, DragEvent, FormEvent, KeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { BackLink } from "@/components/back-link";
 import { Modal } from "@/components/modal";
-import { Pagination } from "@/components/pagination";
+import { useConfirmDialog } from "@/components/confirm-dialog";
 import { GermanDatePicker } from "@/components/german-date-picker";
 import { ValidatedFieldGroup } from "@/components/validated-field-group";
-import { DocumentBreadcrumb } from "@/components/document-breadcrumb";
-import { DocumentTableHeader, DirectoryRow, DocumentRow, EmptyRow, IconButton } from "@/components/document-table";
 import { DocumentViewer } from "@/components/document-viewer";
 import { PencilIcon, TrashIcon } from "@/components/icons";
+import { IconButton } from "@/components/document-table";
+import { LoadingScreen } from "@/components/loading-screen";
 import { canAccessAdminArea, isAdmin } from "@/lib/role-utils";
 import { useDocumentsList } from "@/lib/use-documents-list";
 import { useFormFieldValidation } from "@/lib/useFormFieldValidation";
 import { mapServerErrorToField, DOCUMENT_FIELD_KEYWORDS } from "@/lib/server-error-mapper";
 import { documentValidationConfig } from "@/lib/validation-schema";
-import { pluralize } from "@/lib/pluralization";
 import {
   DOCUMENT_UPLOAD_ACCEPT,
   DOCUMENT_UPLOAD_FORMATS_LABEL,
@@ -23,6 +22,10 @@ import {
   type DirectoryFilter,
 } from "@/lib/document-utils";
 import type { DocumentItem, DocumentDirectoryItem } from "@/types";
+import { AlertBox } from "./alert-box";
+import { DocumentUpload } from "./admin-documents/document-upload";
+import { DirectoryManager } from "./admin-documents/directory-manager";
+import { DocumentList } from "./admin-documents/document-list";
 
 export type DocumentAreaType = "ADMIN" | "MEMBER";
 
@@ -35,6 +38,7 @@ type AdminDocumentManagerProps = {
 };
 
 export function AdminDocumentManager({ area, title, listTitle, description, backLabel = "Zurück zum Dashboard" }: AdminDocumentManagerProps) {
+  const confirm = useConfirmDialog();
   const [actionError, setActionError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const scopedQueryParams = useMemo(() => ({ area }), [area]);
@@ -75,13 +79,11 @@ export function AdminDocumentManager({ area, title, listTitle, description, back
   });
   const canManage = currentUser ? isAdmin(currentUser) : false;
 
-  // Directory management state
   const [newDirectoryName, setNewDirectoryName] = useState("");
   const [isSavingDirectory, setIsSavingDirectory] = useState(false);
   const [renamingDirectoryId, setRenamingDirectoryId] = useState<string | null>(null);
   const [renamingDirectoryName, setRenamingDirectoryName] = useState("");
 
-  // Upload state
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploadDisplayName, setUploadDisplayName] = useState("");
   const [uploadDocumentDate, setUploadDocumentDate] = useState("");
@@ -95,7 +97,6 @@ export function AdminDocumentManager({ area, title, listTitle, description, back
   const [dropTargetDirectoryId, setDropTargetDirectoryId] = useState<string | null>(null);
   const [isMovingDocument, setIsMovingDocument] = useState(false);
 
-  // Edit modal state
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingDocument, setEditingDocument] = useState<DocumentItem | null>(null);
   const [editDisplayName, setEditDisplayName] = useState("");
@@ -104,7 +105,6 @@ export function AdminDocumentManager({ area, title, listTitle, description, back
   const [isSavingEdit, setIsSavingEdit] = useState(false);
   const [editErrors, setEditErrors] = useState<Record<string, string>>({});
 
-  // Viewer state
   const [isViewerOpen, setIsViewerOpen] = useState(false);
   const [viewerDocument, setViewerDocument] = useState<DocumentItem | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -303,7 +303,11 @@ export function AdminDocumentManager({ area, title, listTitle, description, back
     setActionError(null);
     setSuccess(null);
 
-    if (!confirm(`Soll das Dokument "${document.displayName}" wirklich gelöscht werden?`)) return;
+    if (!await confirm({
+      message: `Soll das Dokument "${document.displayName}" wirklich gelöscht werden?`,
+      confirmLabel: "Löschen",
+      variant: "danger",
+    })) return;
 
     setDeletingId(document.id);
 
@@ -403,11 +407,11 @@ export function AdminDocumentManager({ area, title, listTitle, description, back
         }),
       });
 
-      const payload = await response.json().catch(() => ({})) as { error?: string };
+      const payload = await response.json().catch(() => ({})) as { error?: string; fieldErrors?: Array<{ field: string; message: string }> };
 
       if (!response.ok) {
         const message = payload.error || "Dokument konnte nicht aktualisiert werden";
-        const fieldErrorMap = mapServerErrorToField(message, DOCUMENT_FIELD_KEYWORDS);
+        const fieldErrorMap = mapServerErrorToField(message, DOCUMENT_FIELD_KEYWORDS, payload.fieldErrors);
         if (Object.keys(fieldErrorMap).length > 0) {
           setEditErrors(fieldErrorMap);
         } else {
@@ -428,7 +432,6 @@ export function AdminDocumentManager({ area, title, listTitle, description, back
     }
   };
 
-  // Directory management handlers
   const handleCreateDirectory = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setActionError(null);
@@ -495,7 +498,11 @@ export function AdminDocumentManager({ area, title, listTitle, description, back
   };
 
   const handleDeleteDirectory = async (directory: DocumentDirectoryItem) => {
-    if (!confirm(`Soll das Verzeichnis "${directory.name}" wirklich gelöscht werden?`)) return;
+    if (!await confirm({
+      message: `Soll das Verzeichnis "${directory.name}" wirklich gelöscht werden?`,
+      confirmLabel: "Löschen",
+      variant: "danger",
+    })) return;
 
     setActionError(null);
     setSuccess(null);
@@ -524,7 +531,6 @@ export function AdminDocumentManager({ area, title, listTitle, description, back
     }
   };
 
-  // Navigation handlers
   const openViewer = (document: DocumentItem) => {
     setViewerDocument(document);
     setIsViewerOpen(true);
@@ -668,11 +674,7 @@ export function AdminDocumentManager({ area, title, listTitle, description, back
   ) : undefined;
 
   if (status === "loading" || isLoading) {
-    return (
-      <main className="min-h-screen flex items-center justify-center">
-        <div className="text-gray-600">Laden...</div>
-      </main>
-    );
+    return <LoadingScreen className="min-h-screen flex items-center justify-center" />;
   }
 
   return (
@@ -686,268 +688,88 @@ export function AdminDocumentManager({ area, title, listTitle, description, back
           <p className="text-base text-gray-600 mt-2">{description}</p>
         </div>
 
-        {visibleError && (
-          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4" role="alert" aria-live="assertive">
-            {visibleError}
-          </div>
-        )}
+        <AlertBox type="error" message={visibleError} className="mb-4" />
 
-        {success && (
-          <div className="bg-green-100 border border-green-300 text-green-800 px-4 py-3 rounded mb-4" role="status" aria-live="polite">
-            {success}
-          </div>
-        )}
+        <AlertBox type="success" message={success} className="mb-4" />
 
         {canManage && (
-          <section className="card-compact mb-6">
-            <h2 className="text-lg sm:text-xl font-semibold text-gray-900 mb-4">Neues Dokument hochladen</h2>
-            <form onSubmit={handleUpload} className="space-y-4">
-              <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,2fr)_minmax(16rem,1fr)] gap-4">
-                <div>
-                  <label htmlFor="document-file" className="form-label">Datei</label>
-                  <label
-                    htmlFor="document-file"
-                    className={`upload-dropzone ${isDragActive ? "upload-dropzone-active" : ""} ${isUploading ? "upload-dropzone-disabled" : ""}`}
-                    role="button"
-                    tabIndex={isUploading ? -1 : 0}
-                    aria-disabled={isUploading}
-                    aria-describedby="document-upload-help"
-                    onDragEnter={handleDropZoneDragEnter}
-                    onDragOver={handleDropZoneDragOver}
-                    onDragLeave={handleDropZoneDragLeave}
-                    onDrop={handleDropZoneDrop}
-                    onKeyDown={handleDropZoneKeyDown}
-                  >
-                    <span className="upload-dropzone-title">
-                      {selectedFile ? selectedFile.name : "Datei hierhin ziehen oder anklicken"}
-                    </span>
-                    <span className="upload-dropzone-subtitle">
-                      {selectedFile
-                        ? `${Math.max(selectedFile.size / (1024 * 1024), 0.01).toFixed(2)} MB`
-                        : "Drag & Drop wird unterstützt"}
-                    </span>
-                  </label>
-                  <input
-                    id="document-file"
-                    ref={fileInputRef}
-                    type="file"
-                    accept={DOCUMENT_UPLOAD_ACCEPT}
-                    className="sr-only"
-                    onChange={handleFileInputChange}
-                    disabled={isUploading}
-                  />
-                  <p id="document-upload-help" className="form-help">Erlaubte Formate: {DOCUMENT_UPLOAD_FORMATS_LABEL}. Maximal {maxUploadMb} MB.</p>
-                </div>
-
-                <div className="space-y-4">
-                  <div>
-                    <label htmlFor="document-directory" className="form-label">Verzeichnis</label>
-                    <select
-                      id="document-directory"
-                      className="form-input"
-                      value={uploadDirectoryId}
-                      onChange={(event) => setUploadDirectoryId(event.target.value)}
-                      disabled={isUploading}
-                    >
-                      <option value="root">/</option>
-                      {directories.map((directory) => (
-                        <option key={directory.id} value={directory.id}>
-                          {directory.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div>
-                    <button type="submit" className="w-full btn-primary px-4 py-2 text-base" disabled={isUploading}>
-                      {isUploading ? "Wird hochgeladen..." : "Dokument hochladen"}
-                    </button>
-                    {isUploading && (
-                      <div className="w-full mt-3">
-                        <div className="w-full bg-gray-200 rounded-full h-2.5">
-                          <div
-                            className="bg-brand-red-600 h-2.5 rounded-full transition-all"
-                            style={{ width: `${uploadProgress}%` }}
-                          />
-                        </div>
-                        <p className="text-sm text-gray-600 mt-1">Upload-Fortschritt: {uploadProgress}%</p>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              <details className="rounded-md border border-gray-200 bg-gray-50 p-3 sm:p-4">
-                <summary className="cursor-pointer select-none text-sm font-medium text-gray-700">
-                  Erweitert (optional)
-                </summary>
-                <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label htmlFor="document-display-name" className="form-label">Dokumentenname</label>
-                    <input
-                      id="document-display-name"
-                      type="text"
-                      className="form-input"
-                      value={uploadDisplayName}
-                      onChange={(event) => setUploadDisplayName(event.target.value)}
-                      placeholder="Optional (sonst Dateiname)"
-                      disabled={isUploading}
-                      maxLength={200}
-                    />
-                  </div>
-
-                  <GermanDatePicker
-                    id="document-date"
-                    value={uploadDocumentDate || null}
-                    onChange={(nextDate) => setUploadDocumentDate(nextDate)}
-                    label="Dokumentdatum"
-                    disabled={isUploading}
-                  />
-                </div>
-              </details>
-            </form>
-          </section>
+          <DocumentUpload
+            selectedFile={selectedFile}
+            uploadDisplayName={uploadDisplayName}
+            uploadDocumentDate={uploadDocumentDate}
+            uploadDirectoryId={uploadDirectoryId}
+            isUploading={isUploading}
+            uploadProgress={uploadProgress}
+            isDragActive={isDragActive}
+            directories={directories}
+            maxUploadMb={maxUploadMb}
+            fileInputRef={fileInputRef}
+            onFileInputChange={handleFileInputChange}
+            onDropZoneDragEnter={handleDropZoneDragEnter}
+            onDropZoneDragOver={handleDropZoneDragOver}
+            onDropZoneDragLeave={handleDropZoneDragLeave}
+            onDropZoneDrop={handleDropZoneDrop}
+            onDropZoneKeyDown={handleDropZoneKeyDown}
+            onUpload={handleUpload}
+            onUploadDirectoryChange={(id) => setUploadDirectoryId(id)}
+            onUploadDisplayNameChange={setUploadDisplayName}
+            onUploadDocumentDateChange={setUploadDocumentDate}
+          />
         )}
 
-        <section className="card-compact">
-          <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between mb-4">
-            <div>
-              <h2 className="text-lg sm:text-xl font-semibold text-gray-900">{listTitle}</h2>
-              <p className="text-base text-gray-600 mt-1">{total} {pluralize(total, "Datei", "Dateien")}</p>
-            </div>
-            <form onSubmit={handleSubmitSearch} className="flex flex-col sm:flex-row w-full md:w-auto gap-2">
-              <input
-                type="text"
-                value={searchInput}
-                onChange={(event) => setSearchInput(event.target.value)}
-                placeholder="Suche nach Dokumentenname"
-                className="form-input w-full md:w-80"
-              />
-              <button type="submit" className="btn-primary px-4 py-2 text-base whitespace-nowrap w-full sm:w-auto">
-                Suchen
-              </button>
-            </form>
-          </div>
-
-          {isSearchActive && (
-            <div className="mb-4 flex flex-col gap-2 rounded-md border border-blue-200 bg-blue-50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-              <p className="text-sm text-blue-900">
-                Suche aktiv: <span className="font-semibold">&quot;{searchQuery}&quot;</span>
-              </p>
-              <button type="button" className="btn-outline px-3 py-2 text-sm" onClick={clearSearch}>
-                Suche zurücksetzen
-              </button>
-            </div>
-          )}
-
-          {canManage && selectedDirectory === "root" && (
-            <form onSubmit={handleCreateDirectory} className="mb-3 flex w-full md:w-auto gap-2">
-              <input
-                type="text"
-                className="form-input w-full md:w-72"
-                placeholder="Neues Verzeichnis"
-                value={newDirectoryName}
-                onChange={(event) => setNewDirectoryName(event.target.value)}
-                maxLength={120}
-                disabled={isSavingDirectory}
-              />
-              <button type="submit" className="btn-primary px-4 py-2 text-base whitespace-nowrap" disabled={isSavingDirectory}>
-                Verzeichnis erstellen
-              </button>
-            </form>
-          )}
-
-          <DocumentBreadcrumb
-            directories={directories}
-            selectedDirectory={selectedDirectory}
-            rootCount={rootCount}
-            currentCount={total}
-            onNavigateRoot={navigateToRoot}
-            showUpButton={selectedDirectory !== "root"}
-          />
-
-          {renamingDirectoryId && canManage && (
-            <form
-              onSubmit={(event) => {
-                event.preventDefault();
-                void handleSaveRenameDirectory();
+        <DocumentList
+          listTitle={listTitle}
+          documents={documents}
+          directories={directories}
+          selectedDirectory={selectedDirectory}
+          rootCount={rootCount}
+          total={total}
+          page={page}
+          totalPages={totalPages}
+          isLoading={isLoading}
+          searchInput={searchInput}
+          searchQuery={searchQuery}
+          isSearchActive={isSearchActive}
+          sortBy={sortBy}
+          sortDir={sortDir}
+          canManage={canManage}
+          isMovingDocument={isMovingDocument}
+          downloadUrlPrefix="/api/admin/documents"
+          dropTargetDirectoryId={dropTargetDirectoryId}
+          onSearchInputChange={setSearchInput}
+          onSubmitSearch={handleSubmitSearch}
+          onClearSearch={clearSearch}
+          onSortChange={handleSortChange}
+          onPageChange={setPage}
+          onNavigateRoot={navigateToRoot}
+          onNavigateToDirectory={navigateToDirectory}
+          onOpenViewer={openViewer}
+          renderDirectoryActions={(dir) => directoryActions(dir) ?? null}
+          renderDocumentActions={(doc) => documentActions(doc) ?? null}
+          onDocumentDragStart={handleDocumentDragStart}
+          onDocumentDragEnd={handleDocumentDragEnd}
+          onDirectoryDragOver={handleDirectoryDragOver}
+          onDirectoryDragLeave={handleDirectoryDragLeave}
+          onDirectoryDrop={handleDirectoryDrop}
+          directoryManager={
+            <DirectoryManager
+              canManage={canManage}
+              selectedDirectory={selectedDirectory}
+              newDirectoryName={newDirectoryName}
+              onNewDirectoryNameChange={setNewDirectoryName}
+              onCreateDirectory={handleCreateDirectory}
+              isSavingDirectory={isSavingDirectory}
+              renamingDirectoryId={renamingDirectoryId}
+              renamingDirectoryName={renamingDirectoryName}
+              onRenamingDirectoryNameChange={setRenamingDirectoryName}
+              onSaveRenameDirectory={() => void handleSaveRenameDirectory()}
+              onCancelRename={() => {
+                setRenamingDirectoryId(null);
+                setRenamingDirectoryName("");
               }}
-              className="mb-3 border border-gray-200 rounded-md bg-white p-3 flex flex-col sm:flex-row gap-2 sm:items-center"
-            >
-              <label htmlFor="rename-directory-input" className="text-sm font-medium text-gray-700 whitespace-nowrap">Verzeichnis umbenennen</label>
-              <input
-                id="rename-directory-input"
-                type="text"
-                className="form-input sm:w-80"
-                value={renamingDirectoryName}
-                onChange={(event) => setRenamingDirectoryName(event.target.value)}
-                maxLength={120}
-                disabled={isSavingDirectory}
-              />
-              <button type="submit" className="btn-primary px-3 py-2 text-sm" disabled={isSavingDirectory}>
-                Speichern
-              </button>
-              <button
-                type="button"
-                className="btn-outline px-3 py-2 text-sm"
-                onClick={() => {
-                  setRenamingDirectoryId(null);
-                  setRenamingDirectoryName("");
-                }}
-                disabled={isSavingDirectory}
-              >
-                Abbrechen
-              </button>
-            </form>
-          )}
-
-          <div className="overflow-x-auto border border-gray-200 rounded-md bg-white">
-            <table className="min-w-full">
-              <DocumentTableHeader sortBy={sortBy} sortDir={sortDir} onSortChange={handleSortChange} />
-              <tbody>
-                {selectedDirectory === "root" && !isSearchActive && directories.map((directory) => (
-                  <DirectoryRow
-                    key={directory.id}
-                    directory={directory}
-                    searchQuery={searchQuery}
-                    onNavigate={navigateToDirectory}
-                    actions={directoryActions(directory)}
-                    isDropTarget={dropTargetDirectoryId === directory.id}
-                    onDragOver={(event) => handleDirectoryDragOver(event, directory.id)}
-                    onDragLeave={(event) => handleDirectoryDragLeave(event, directory.id)}
-                    onDrop={(event) => {
-                      void handleDirectoryDrop(event, directory.id);
-                    }}
-                  />
-                ))}
-
-                {documents.length > 0 ? (
-                  documents.map((document) => (
-                    <DocumentRow
-                      key={document.id}
-                      document={document}
-                      searchQuery={searchQuery}
-                      downloadUrlPrefix="/api/admin/documents"
-                      onOpen={openViewer}
-                      actions={documentActions(document)}
-                      draggable={canManage && selectedDirectory === "root" && !isSearchActive && !isMovingDocument}
-                      onDragStart={(event) => handleDocumentDragStart(event, document)}
-                      onDragEnd={handleDocumentDragEnd}
-                    />
-                  ))
-                ) : isSearchActive ? (
-                  <EmptyRow colSpan={6} message={`Keine Suchergebnisse für "${searchQuery}" gefunden.`} />
-                ) : selectedDirectory !== "root" ? (
-                  <EmptyRow colSpan={6} message="Keine Dokumente gefunden." />
-                ) : selectedDirectory === "root" && directories.length === 0 ? (
-                  <EmptyRow colSpan={6} message="Keine Verzeichnisse oder Dokumente gefunden." />
-                ) : null}
-              </tbody>
-            </table>
-          </div>
-
-          <Pagination currentPage={page} totalPages={totalPages} onPageChange={setPage} disabled={isLoading} />
-        </section>
+            />
+          }
+        />
       </div>
 
       {canManage && (
@@ -959,10 +781,8 @@ export function AdminDocumentManager({ area, title, listTitle, description, back
           contentOverflow="visible"
         >
           <form onSubmit={handleSaveEdit} className="space-y-4" noValidate>
-            {editErrors.general && Object.keys(inferredEditGeneralErrors).length === 0 && (
-              <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
-                {editErrors.general}
-              </div>
+            {Object.keys(inferredEditGeneralErrors).length === 0 && (
+              <AlertBox type="error" message={editErrors.general} />
             )}
             <ValidatedFieldGroup
               id="edit-display-name"
@@ -1030,7 +850,6 @@ export function AdminDocumentManager({ area, title, listTitle, description, back
         document={viewerDocument}
         onClose={closeViewer}
         viewUrlPrefix="/api/admin/documents"
-        downloadUrlPrefix="/api/admin/documents"
         titlePrefix="Vorschau: "
         size="4xl"
       />

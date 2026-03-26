@@ -5,6 +5,7 @@ import { useSuccessTimer } from "./use-success-timer";
 import { parseISODate, formatDateForStorage } from "@/lib/date-picker-utils";
 import { isAdmin } from "@/lib/role-utils";
 import type { Event, NewEvent } from "@/types";
+import type { FieldError } from "@/lib/server-error-mapper";
 
 const PUBLISH_MESSAGES = {
   event: {
@@ -65,6 +66,7 @@ export function useEventManagement(options: UseEventManagementOptions = {}) {
   const [publishingEventId, setPublishingEventId] = useState<string | null>(null);
   const [geocodeSuccess, setGeocodeSuccess] = useState(false);
   const [error, setError] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<FieldError[]>([]);
   const [success, setSuccess] = useState("");
   const [editingEvent, setEditingEvent] = useState<Event | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -147,6 +149,7 @@ export function useEventManagement(options: UseEventManagementOptions = {}) {
   const handleCreateEvent = useCallback(async (e: React.FormEvent) => {
     if (e) e.preventDefault();
 
+    setFieldErrors([]);
     const result = await createEvent();
     if (result.success) {
       setSuccess("Termin wurde erfolgreich erstellt");
@@ -158,6 +161,8 @@ export function useEventManagement(options: UseEventManagementOptions = {}) {
       } else {
         setCurrentPage(1);
       }
+    } else if (result.fieldErrors) {
+      setFieldErrors(result.fieldErrors);
     }
   }, [createEvent, currentPage, fetchEvents]);
 
@@ -165,6 +170,7 @@ export function useEventManagement(options: UseEventManagementOptions = {}) {
     if (!editingEvent) return;
     if (e) e.preventDefault();
 
+    setFieldErrors([]);
     const result = await updateEvent(editingEvent.id);
     if (result.success) {
       setSuccess("Termin wurde erfolgreich aktualisiert");
@@ -172,6 +178,8 @@ export function useEventManagement(options: UseEventManagementOptions = {}) {
       setModalEventData(initialNewEvent);
       setEditingEvent(null);
       await fetchEvents(currentPage);
+    } else if (result.fieldErrors) {
+      setFieldErrors(result.fieldErrors);
     }
   }, [currentPage, editingEvent, updateEvent, fetchEvents]);
 
@@ -199,6 +207,7 @@ export function useEventManagement(options: UseEventManagementOptions = {}) {
     setModalEventData(eventData);
     setInitialEventData(eventData);
     setError("");
+    setFieldErrors([]);
     setIsModalOpen(true);
   }, []);
 
@@ -207,6 +216,7 @@ export function useEventManagement(options: UseEventManagementOptions = {}) {
     setEditingEvent(null);
     setInitialEventData(undefined);
     setError("");
+    setFieldErrors([]);
     setIsModalOpen(true);
   }, []);
 
@@ -217,6 +227,7 @@ export function useEventManagement(options: UseEventManagementOptions = {}) {
     setEditingEvent(null);
     setGeocodeSuccess(false);
     setError("");
+    setFieldErrors([]);
   }, []);
 
   const cancelEditingEvent = useCallback(() => {
@@ -329,6 +340,7 @@ export function useEventManagement(options: UseEventManagementOptions = {}) {
     isLoadingLatestDescription,
     geocodeSuccess,
     error,
+    fieldErrors,
     success,
     editingEvent,
     modalEventData,

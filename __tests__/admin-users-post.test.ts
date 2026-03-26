@@ -6,12 +6,10 @@ import { sendInvitationEmail } from "@/lib/invitations";
 import { hash } from "bcryptjs";
 import { validateCsrfHeaders } from "@/lib/api-utils";
 import { validateDateString } from "@/lib/validation-schema";
+import { Prisma } from "@prisma/client";
 
 jest.mock("@/lib/prisma", () => ({
   prisma: {
-    user: {
-      findUnique: jest.fn(),
-    },
     $transaction: jest.fn(),
   },
 }));
@@ -47,7 +45,7 @@ jest.mock("@/lib/api-utils", () => ({
 }));
 
 jest.mock("@/lib/user-validation", () => ({
-  validateEmail: jest.fn(() => true),
+  validateEmail: jest.fn(() => ({ isValid: true })),
   validateName: jest.fn(() => ({ isValid: true, error: null })),
   validateAddress: jest.fn(() => ({ isValid: true, error: null })),
   validatePhone: jest.fn(() => ({ isValid: true, error: null })),
@@ -67,6 +65,7 @@ jest.mock("@/lib/validation-schema", () => ({
 jest.mock("@/lib/logger", () => ({
   logValidationFailure: jest.fn(),
   logInfo: jest.fn(),
+  maskEmail: jest.fn((e: string) => e),
 }));
 
 jest.mock("bcryptjs", () => ({
@@ -74,9 +73,6 @@ jest.mock("bcryptjs", () => ({
 }));
 
 const mockedPrisma = prisma as {
-  user: {
-    findUnique: jest.Mock;
-  };
   $transaction: jest.Mock;
 };
 
@@ -122,7 +118,6 @@ describe("POST /api/admin/users - User creation with transaction", () => {
   });
 
   it("should create user and invitation in a transaction", async () => {
-    mockedPrisma.user.findUnique.mockResolvedValue(null);
 
     const mockTx = {
       user: {
@@ -157,7 +152,6 @@ describe("POST /api/admin/users - User creation with transaction", () => {
   });
 
   it("should ensure both user and invitation are created atomically", async () => {
-    mockedPrisma.user.findUnique.mockResolvedValue(null);
     
     let userCreated = false;
     let invitationCreated = false;
@@ -232,7 +226,6 @@ describe("POST /api/admin/users - User creation with transaction", () => {
   });
 
   it("should rollback transaction if invitation creation fails", async () => {
-    mockedPrisma.user.findUnique.mockResolvedValue(null);
 
     mockedPrisma.$transaction.mockImplementation(async (callback) => {
       const mockTx = {
@@ -259,7 +252,6 @@ describe("POST /api/admin/users - User creation with transaction", () => {
   });
 
   it("should normalize email to lowercase and trim", async () => {
-    mockedPrisma.user.findUnique.mockResolvedValue(null);
 
     const mockTx = {
       user: {
@@ -290,7 +282,6 @@ describe("POST /api/admin/users - User creation with transaction", () => {
   });
 
   it("should create admin user when role is specified", async () => {
-    mockedPrisma.user.findUnique.mockResolvedValue(null);
     mockedPrisma.$transaction.mockImplementation(async (callback) => {
       return callback(mockedPrisma);
     });
@@ -328,7 +319,6 @@ describe("POST /api/admin/users - User creation with transaction", () => {
   });
 
   it("should include optional fields when provided", async () => {
-    mockedPrisma.user.findUnique.mockResolvedValue(null);
     mockedPrisma.$transaction.mockImplementation(async (callback) => {
       return callback(mockedPrisma);
     });
@@ -367,7 +357,6 @@ describe("POST /api/admin/users - User creation with transaction", () => {
   });
 
   it("should allow empty memberSince during user creation", async () => {
-    mockedPrisma.user.findUnique.mockResolvedValue(null);
 
     const mockTx = {
       user: {
@@ -406,10 +395,12 @@ describe("POST /api/admin/users - User creation with transaction", () => {
   });
 
   it("should return 409 if user already exists", async () => {
-    mockedPrisma.user.findUnique.mockResolvedValue({
-      id: "existing-123",
-      email: "user@example.com",
-    });
+    mockedPrisma.$transaction.mockRejectedValue(
+      new Prisma.PrismaClientKnownRequestError(
+        "Unique constraint failed on the fields: (`email`)",
+        { code: "P2002", clientVersion: "5.0.0" }
+      )
+    );
 
     const request = new NextRequest("https://example.com/api/admin/users", {
       method: "POST",
@@ -424,11 +415,9 @@ describe("POST /api/admin/users - User creation with transaction", () => {
 
     expect(response.status).toBe(409);
     expect(data.error).toBe("Ein Benutzer mit dieser E-Mail existiert bereits");
-    expect(mockedPrisma.$transaction).not.toHaveBeenCalled();
   });
 
   it("should send invitation email after successful transaction", async () => {
-    mockedPrisma.user.findUnique.mockResolvedValue(null);
 
     const mockTx = {
       user: {
@@ -468,7 +457,6 @@ describe("POST /api/admin/users - User creation with transaction", () => {
   });
 
   it("should not affect transaction if email sending fails", async () => {
-    mockedPrisma.user.findUnique.mockResolvedValue(null);
 
     const mockTx = {
       user: {
@@ -507,7 +495,6 @@ describe("POST /api/admin/users - User creation with transaction", () => {
   it("should return 500 if APP_URL is not configured", async () => {
     delete process.env.APP_URL;
 
-    mockedPrisma.user.findUnique.mockResolvedValue(null);
 
     const request = new NextRequest("https://example.com/api/admin/users", {
       method: "POST",

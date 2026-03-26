@@ -1,9 +1,12 @@
 import { AsyncLocalStorage } from 'async_hooks';
+import { randomInt } from 'crypto';
 
 const asyncLocalStorage = new AsyncLocalStorage<string>();
 
+const BASE36_MAX = 36 ** 7;
+
 export function generateCorrelationId(): string {
-  return `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+  return `${Date.now()}-${randomInt(BASE36_MAX).toString(36).padStart(7, '0')}`;
 }
 
 export function getCorrelationId(): string | undefined {

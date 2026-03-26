@@ -3,6 +3,10 @@ import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom";
 import AdminDocumentsPage from "@/app/admin/dokumente/page";
 
+jest.mock("@/components/confirm-dialog", () => ({
+  useConfirmDialog: () => jest.fn().mockResolvedValue(true),
+}));
+
 const mockPush = jest.fn();
 const mockSessionState = {
   data: { user: { role: "ADMIN" } },

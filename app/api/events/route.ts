@@ -8,20 +8,7 @@ import { formatDateForStorage, getStartOfToday } from "@/lib/date-picker-utils";
 import { VoteType } from "@prisma/client";
 import { createShootingRangeLookup, getEventLocationDisplay, getRangeNameFromLocation } from "@/lib/event-location";
 import { buildVisibilityFilter } from "@/lib/event-list-utils";
-
-const MAX_PAGE_SIZE = 50;
-
-function parsePageSize(value: string | null, fallback: number) {
-  const parsed = Number.parseInt(value || "", 10);
-  if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
-  return Math.min(parsed, MAX_PAGE_SIZE);
-}
-
-function parsePageNumber(value: string | null) {
-  const parsed = Number.parseInt(value || "", 10);
-  if (!Number.isFinite(parsed) || parsed <= 0) return 1;
-  return parsed;
-}
+import { parsePageNumber, parsePageSize } from "@/lib/api-pagination";
 
 const BASE_EVENT_SELECT = {
   id: true,
@@ -95,7 +82,7 @@ export const GET = withApiErrorHandling(async (request: NextRequest) => {
   const { searchParams } = new URL(request.url);
   const page = parsePageNumber(searchParams.get("page"));
   const pastPage = parsePageNumber(searchParams.get("pastPage"));
-  const limit = parsePageSize(searchParams.get("limit"), 20);
+  const limit = parsePageSize(searchParams.get("limit"), 20, 50);
   const skip = (page - 1) * limit;
   const pastSkip = (pastPage - 1) * limit;
 

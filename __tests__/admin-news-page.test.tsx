@@ -70,7 +70,6 @@ describe("NewsPage (Admin)", () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    window.confirm = jest.fn(() => true);
     (useNewsManagement as jest.Mock).mockReturnValue(defaultMockHook);
   });
 
@@ -257,6 +256,7 @@ describe("NewsPage (Admin)", () => {
       (useNewsManagement as jest.Mock).mockReturnValue({
         ...defaultMockHook,
         isModalOpen: true,
+        initialNewsData: defaultMockHook.modalNewsData,
       });
 
       render(<NewsPage />);

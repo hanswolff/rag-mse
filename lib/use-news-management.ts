@@ -4,6 +4,7 @@ import { useAdminCrud } from "./use-admin-crud";
 import { useSuccessTimer } from "./use-success-timer";
 import type { News, NewNews } from "@/types";
 import { getLocalDateString } from "./date-picker-utils";
+import type { FieldError } from "@/lib/server-error-mapper";
 
 function getTodayDateString() {
   return getLocalDateString();
@@ -34,6 +35,7 @@ export function useNewsManagement() {
   const [isEditingNews, setIsEditingNews] = useState(false);
   const [publishingNewsId, setPublishingNewsId] = useState<string | null>(null);
   const [error, setError] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<FieldError[]>([]);
   const [success, setSuccess] = useState("");
   const [editingNews, setEditingNews] = useState<News | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -83,6 +85,7 @@ export function useNewsManagement() {
   const handleCreateNews = useCallback(async (e: React.FormEvent) => {
     if (e) e.preventDefault();
 
+    setFieldErrors([]);
     const result = await createNews();
     if (result.success) {
       setSuccess("News wurde erfolgreich erstellt");
@@ -90,6 +93,8 @@ export function useNewsManagement() {
       setModalNewsData(initialNewNews);
       setEditingNews(null);
       await fetchNews();
+    } else if (result.fieldErrors) {
+      setFieldErrors(result.fieldErrors);
     }
   }, [createNews, fetchNews]);
 
@@ -97,6 +102,7 @@ export function useNewsManagement() {
     if (!editingNews) return;
     if (e) e.preventDefault();
 
+    setFieldErrors([]);
     const result = await updateNews(editingNews.id);
     if (result.success) {
       setSuccess("News wurde erfolgreich aktualisiert");
@@ -104,6 +110,8 @@ export function useNewsManagement() {
       setModalNewsData(initialNewNews);
       setEditingNews(null);
       await fetchNews();
+    } else if (result.fieldErrors) {
+      setFieldErrors(result.fieldErrors);
     }
   }, [editingNews, updateNews, fetchNews]);
 
@@ -125,6 +133,7 @@ export function useNewsManagement() {
     setModalNewsData(newsData);
     setInitialNewsData(newsData);
     setError("");
+    setFieldErrors([]);
     setIsModalOpen(true);
   }, []);
 
@@ -133,6 +142,7 @@ export function useNewsManagement() {
     setEditingNews(null);
     setInitialNewsData(undefined);
     setError("");
+    setFieldErrors([]);
     setIsModalOpen(true);
   }, []);
 
@@ -142,6 +152,7 @@ export function useNewsManagement() {
     setInitialNewsData(undefined);
     setEditingNews(null);
     setError("");
+    setFieldErrors([]);
   }, []);
 
   const cancelEditingNews = useCallback(() => {
@@ -172,6 +183,7 @@ export function useNewsManagement() {
     isEditingNews,
     publishingNewsId,
     error,
+    fieldErrors,
     success,
     modalNewsData,
     setModalNewsData,

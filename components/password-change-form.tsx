@@ -6,6 +6,7 @@ import { passwordChangeValidationConfig, passwordChangeFormSchema } from "@/lib/
 import { LoadingButton } from "./loading-button";
 import { PasswordRequirements } from "./password-requirements";
 import { ValidatedFieldGroup } from "./validated-field-group";
+import { AlertBox } from "./alert-box";
 
 interface PasswordChangeFormProps {
   isChangingPassword: boolean;
@@ -86,11 +87,7 @@ export function PasswordChangeForm({
     <div className="card-compact">
       <h2 className="text-xl font-semibold text-gray-900 mb-4">Passwort ändern</h2>
 
-      {error && (
-        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
-          {error}
-        </div>
-      )}
+      <AlertBox type="error" message={error} className="mb-4" />
 
       <form onSubmit={handleSubmit} className="space-y-4" noValidate>
         <ValidatedFieldGroup

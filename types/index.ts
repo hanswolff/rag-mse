@@ -150,3 +150,33 @@ export interface DocumentDirectoryItem {
   name: string;
   documentCount: number;
 }
+
+export interface ShootingRangeItem {
+  id: string;
+  name: string;
+  street: string | null;
+  postalCode: string | null;
+  city: string | null;
+  latitude: number;
+  longitude: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface NewShootingRange {
+  name: string;
+  street: string;
+  postalCode: string;
+  city: string;
+  latitude: string;
+  longitude: string;
+}
+
+export const EMPTY_SHOOTING_RANGE: NewShootingRange = {
+  name: "",
+  street: "",
+  postalCode: "",
+  city: "",
+  latitude: "",
+  longitude: "",
+};

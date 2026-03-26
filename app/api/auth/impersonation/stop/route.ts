@@ -3,6 +3,7 @@ import { createImpersonationStopProof } from "@/lib/auth";
 import { requireAuth } from "@/lib/auth-utils";
 import { withApiErrorHandling, validateCsrfHeaders } from "@/lib/api-utils";
 import { logInfo, logWarn } from "@/lib/logger";
+import { logAdminAction } from "@/lib/audit-log";
 
 export const POST = withApiErrorHandling(async (request: NextRequest) => {
   validateCsrfHeaders(request);
@@ -15,12 +16,16 @@ export const POST = withApiErrorHandling(async (request: NextRequest) => {
       effectiveUserId: effectiveUser.id,
       effectiveRole: effectiveUser.role,
     });
-    return NextResponse.json({ error: "Keine aktive Impersonierung gefunden" }, { status: 400 });
+    return NextResponse.json({ error: "Keine aktive Impersonierung gefunden" }, { status: 409 });
   }
 
   const proof = createImpersonationStopProof(actor.id, effectiveUser.id);
   logInfo("impersonation_stop_issued", "Impersonation stop proof issued", {
     actorUserId: actor.id,
+    effectiveUserId: effectiveUser.id,
+  });
+
+  logAdminAction("impersonation_stop", { id: actor.id }, {
     effectiveUserId: effectiveUser.id,
   });
 

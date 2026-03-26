@@ -47,7 +47,7 @@ export function VotingPieChart({ voteCounts }: VotingPieChartProps) {
 
   return (
     <div className="w-full bg-gradient-to-br from-white via-gray-50 to-white rounded-2xl shadow-lg p-6">
-      <div className="w-full h-80">
+      <div className="w-full h-64 sm:h-72 md:h-80">
         <VictoryPie
           data={data}
           x="name"

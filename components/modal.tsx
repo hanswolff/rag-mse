@@ -6,13 +6,13 @@ import { XIcon } from "@/components/icons";
 export const DEFAULT_MODAL_MAX_HEIGHT = "90vh";
 
 const ANIMATION_DELAY_MS = 10;
-const FOCUS_DELAY_MS = 100;
 
 interface ModalProps {
   isOpen: boolean;
   onClose: () => void;
   title: string;
   children: React.ReactNode;
+  footer?: React.ReactNode;
   size?: "sm" | "md" | "lg" | "xl" | "2xl" | "3xl" | "4xl";
   maxHeight?: string;
   contentOverflow?: "auto" | "visible";
@@ -35,6 +35,7 @@ export function Modal({
   onClose,
   title,
   children,
+  footer,
   size = "lg",
   maxHeight = DEFAULT_MODAL_MAX_HEIGHT,
   contentOverflow = "auto",
@@ -113,16 +114,18 @@ export function Modal({
       document.addEventListener("keydown", handleTab);
       document.addEventListener("mousedown", handleClickOutside);
 
-      const focusTimer = setTimeout(() => {
-        const focusableElements = getVisibleFocusableElements();
-        if (focusableElements.length === 0) return;
-        if (modalRef.current && modalRef.current.contains(document.activeElement)) return;
-        focusableElements[0]?.focus();
-      }, FOCUS_DELAY_MS);
+      const focusTimer = requestAnimationFrame(() => {
+        setTimeout(() => {
+          const focusableElements = getVisibleFocusableElements();
+          if (focusableElements.length === 0) return;
+          if (modalRef.current && modalRef.current.contains(document.activeElement)) return;
+          focusableElements[0]?.focus();
+        }, 0);
+      });
 
       return () => {
         clearTimeout(animationTimer);
-        clearTimeout(focusTimer);
+        cancelAnimationFrame(focusTimer);
         document.removeEventListener("keydown", handleEscape);
         document.removeEventListener("keydown", handleTab);
         document.removeEventListener("mousedown", handleClickOutside);
@@ -172,7 +175,10 @@ export function Modal({
             <XIcon className="h-6 w-6" />
           </button>
         </div>
-        <div className={`p-4 sm:p-6 ${contentOverflow === "visible" ? "overflow-visible" : "overflow-y-auto"}`}>{children}</div>
+        <div className={`p-4 sm:p-6 min-h-0 ${contentOverflow === "visible" ? "overflow-visible" : "overflow-y-auto"}`}>{children}</div>
+        {footer && (
+          <div className="shrink-0 border-t border-gray-200 p-3 sm:p-4">{footer}</div>
+        )}
       </div>
     </div>
   );

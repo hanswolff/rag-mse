@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
 import { Modal } from "./modal";
+import { ConfirmCloseModal } from "./confirm-close-modal";
 import { LoadingButton } from "./loading-button";
 import { GermanDatePicker } from "./german-date-picker";
 import { ValidatedFieldGroup } from "./validated-field-group";
-import { useFormFieldValidation } from "@/lib/useFormFieldValidation";
-import { mapServerErrorToField, PROFILE_FIELD_KEYWORDS } from "@/lib/server-error-mapper";
+import { useFormModal } from "@/lib/use-form-modal";
+import { PROFILE_FIELD_KEYWORDS } from "@/lib/server-error-mapper";
+import type { FieldError } from "@/lib/server-error-mapper";
 import { adminUserValidationConfig } from "@/lib/validation-schema";
 import { Permissions } from "@/lib/permissions";
 
@@ -35,6 +36,7 @@ interface UserFormModalProps {
   setUserData: (data: { email: string; name: string; address: string; phone: string; role: UserRole; memberSince: string; dateOfBirth: string; rank: string; pk: string; reservistsAssociation: string; associationMemberNumber: string; hasPossessionCard: boolean; adminNotes: string }) => void;
   isEditing: boolean;
   errors?: Record<string, string>;
+  fieldErrors?: FieldError[];
   initialUserData?: {
     email: string;
     name: string;
@@ -77,109 +79,33 @@ export function UserFormModal({
   setUserData,
   isEditing,
   errors = {},
+  fieldErrors,
   initialUserData,
 }: UserFormModalProps) {
   const {
-    errors: validationErrors,
-    validateField,
-    validateAllFields,
-    markFieldAsTouched,
-    shouldShowError,
+    getFieldError,
+    handleChange,
+    handleBlur,
+    handleClose,
+    handleSubmit,
+    showCloseConfirm,
+    handleConfirmClose,
+    cancelClose,
     isValidAndTouched,
-    reset,
-  } = useFormFieldValidation(adminUserValidationConfig);
-
-  useEffect(() => {
-    if (isOpen) {
-      reset();
-    }
-  }, [isOpen, reset]);
-
-  const inferredGeneralErrors = useMemo(() => {
-    return mapServerErrorToField(errors.general || "", PROFILE_FIELD_KEYWORDS);
-  }, [errors.general]);
-
-  // Check for unsaved changes
-  const hasUnsavedChanges = useMemo(() => {
-    const base = initialUserData || initialNewUser;
-    return (
-      userData.email !== base.email ||
-      userData.name !== base.name ||
-      userData.address !== base.address ||
-      userData.phone !== base.phone ||
-      userData.role !== base.role ||
-      userData.memberSince !== base.memberSince ||
-      userData.dateOfBirth !== base.dateOfBirth ||
-      userData.rank !== base.rank ||
-      userData.pk !== base.pk ||
-      userData.reservistsAssociation !== base.reservistsAssociation ||
-      userData.associationMemberNumber !== base.associationMemberNumber ||
-      userData.hasPossessionCard !== base.hasPossessionCard ||
-      userData.adminNotes !== base.adminNotes
-    );
-  }, [userData, initialUserData]);
-
-  // Combine server errors with local validation errors
-  const combinedErrors = useMemo(() => {
-    return { ...validationErrors, ...inferredGeneralErrors, ...errors };
-  }, [validationErrors, inferredGeneralErrors, errors]);
-
-  const handleChange = (name: string, value: string) => {
-    setUserData({ ...userData, [name]: value });
-
-    if (validationErrors[name]) {
-      validateField(name, value);
-    }
-  };
-
-  const handleBlur = (name: string, value: string) => {
-    markFieldAsTouched(name);
-    validateField(name, value);
-  };
-
-  const getFieldError = (fieldName: string): string | undefined => {
-    if (errors[fieldName]) return errors[fieldName];
-    if (combinedErrors[fieldName] && shouldShowError(fieldName, userData[fieldName as keyof typeof userData] as string)) {
-      return combinedErrors[fieldName];
-    }
-    return undefined;
-  };
-
-  const handleClose = () => {
-    if (hasUnsavedChanges && !isSubmitting) {
-      if (confirm("Sie haben ungespeicherte Änderungen. Wirklich schließen?")) {
-        onClose();
-      }
-    } else {
-      onClose();
-    }
-  };
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-
-    const fieldValues: Record<string, string> = {
-      email: userData.email,
-      name: userData.name,
-      address: userData.address,
-      phone: userData.phone,
-      role: userData.role,
-      memberSince: userData.memberSince,
-      dateOfBirth: userData.dateOfBirth,
-      rank: userData.rank,
-      pk: userData.pk,
-      reservistsAssociation: userData.reservistsAssociation,
-      associationMemberNumber: userData.associationMemberNumber,
-      adminNotes: userData.adminNotes,
-    };
-
-    const isValid = validateAllFields(fieldValues);
-    if (!isValid) {
-      return;
-    }
-
-    onSubmit(e);
-  };
+  } = useFormModal({
+    validationConfig: adminUserValidationConfig,
+    formData: userData,
+    setFormData: setUserData,
+    defaultData: initialNewUser,
+    initialData: initialUserData,
+    isOpen,
+    isSubmitting,
+    onClose,
+    onSubmit,
+    serverErrors: errors,
+    fieldErrors,
+    fieldKeywords: PROFILE_FIELD_KEYWORDS,
+  });
 
   return (
     <Modal
@@ -331,7 +257,7 @@ export function UserFormModal({
               id="modal-hasPossessionCard"
               type="checkbox"
               checked={userData.hasPossessionCard}
-              onChange={(e) => setUserData({ ...userData, hasPossessionCard: e.target.checked })}
+              onChange={(e) => handleChange("hasPossessionCard", e.target.checked)}
               className="w-5 h-5 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
               disabled={isSubmitting}
             />
@@ -435,6 +361,11 @@ export function UserFormModal({
           </LoadingButton>
         </div>
       </form>
+      <ConfirmCloseModal
+        isOpen={showCloseConfirm}
+        onConfirm={handleConfirmClose}
+        onCancel={cancelClose}
+      />
     </Modal>
   );
 }

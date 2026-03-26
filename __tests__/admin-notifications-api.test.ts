@@ -9,6 +9,10 @@ jest.mock("@/lib/prisma", () => ({
       findMany: jest.fn(),
       count: jest.fn(),
     },
+    pollNotificationDispatch: {
+      findMany: jest.fn(),
+      count: jest.fn(),
+    },
   },
 }));
 
@@ -143,5 +147,85 @@ describe("/api/admin/notifications", () => {
     const response = await GET(request);
 
     expect(response.status).toBe(403);
+  });
+
+  it("returns poll notifications when type=poll", async () => {
+    (prisma.pollNotificationDispatch.findMany as jest.Mock).mockResolvedValue([
+      {
+        id: "poll-dispatch-1",
+        sentAt: new Date("2026-03-01T12:00:00.000Z"),
+        queuedAt: new Date("2026-03-01T11:55:00.000Z"),
+        user: {
+          id: "user-2",
+          name: "Anna Schmidt",
+          email: "anna@example.com",
+        },
+        poll: {
+          id: "poll-1",
+          title: "Sommerfest Planung",
+          description: "Wann passt es euch am besten?",
+        },
+      },
+    ]);
+    (prisma.pollNotificationDispatch.count as jest.Mock).mockResolvedValue(1);
+
+    const request = new NextRequest("http://localhost:3000/api/admin/notifications?type=poll&page=1&limit=20");
+    const response = await GET(request);
+    const data = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(data.notifications).toHaveLength(1);
+    expect(data.notifications[0].type).toBe("poll");
+    expect(data.notifications[0].poll.title).toBe("Sommerfest Planung");
+    expect(data.notifications[0].poll.description).toBe("Wann passt es euch am besten?");
+    expect(data.notifications[0].user.name).toBe("Anna Schmidt");
+    expect(data.notifications[0].status).toBe("VERSENDET");
+    expect(data.pagination).toEqual({
+      total: 1,
+      page: 1,
+      limit: 20,
+      pages: 1,
+    });
+
+    expect(prisma.pollNotificationDispatch.findMany).toHaveBeenCalled();
+    expect(prisma.eventReminderDispatch.findMany).not.toHaveBeenCalled();
+  });
+
+  it("applies search to poll notifications", async () => {
+    (prisma.pollNotificationDispatch.findMany as jest.Mock).mockResolvedValue([]);
+    (prisma.pollNotificationDispatch.count as jest.Mock).mockResolvedValue(0);
+
+    const request = new NextRequest("http://localhost:3000/api/admin/notifications?type=poll&q=Anna");
+    await GET(request);
+
+    const firstCall = (prisma.pollNotificationDispatch.findMany as jest.Mock).mock.calls[0][0];
+    expect(firstCall.where.user).toEqual({
+      OR: [
+        { name: { contains: "Anna" } },
+        { email: { contains: "Anna" } },
+      ],
+    });
+  });
+
+  it("defaults to event type when no type param", async () => {
+    (prisma.eventReminderDispatch.findMany as jest.Mock).mockResolvedValue([]);
+    (prisma.eventReminderDispatch.count as jest.Mock).mockResolvedValue(0);
+
+    const request = new NextRequest("http://localhost:3000/api/admin/notifications?page=1");
+    await GET(request);
+
+    expect(prisma.eventReminderDispatch.findMany).toHaveBeenCalled();
+    expect(prisma.pollNotificationDispatch.findMany).not.toHaveBeenCalled();
+  });
+
+  it("supports pollTitle sorting for poll type", async () => {
+    (prisma.pollNotificationDispatch.findMany as jest.Mock).mockResolvedValue([]);
+    (prisma.pollNotificationDispatch.count as jest.Mock).mockResolvedValue(0);
+
+    const request = new NextRequest("http://localhost:3000/api/admin/notifications?type=poll&sortBy=pollTitle&sortDir=asc");
+    await GET(request);
+
+    const firstCall = (prisma.pollNotificationDispatch.findMany as jest.Mock).mock.calls[0][0];
+    expect(firstCall.orderBy).toEqual([{ poll: { title: "asc" } }, { id: "desc" }]);
   });
 });

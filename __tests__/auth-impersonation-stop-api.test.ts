@@ -33,7 +33,7 @@ describe("POST /api/auth/impersonation/stop", () => {
     expect(typeof body.proof).toBe("string");
   });
 
-  it("returns 400 when no impersonation is active", async () => {
+  it("returns 409 when no impersonation is active", async () => {
     mockRequireAuth.mockResolvedValue({
       id: "admin-1",
       role: "ADMIN",
@@ -42,6 +42,6 @@ describe("POST /api/auth/impersonation/stop", () => {
     });
 
     const response = await POST(new Request("http://localhost:3000/api/auth/impersonation/stop", { method: "POST" }) as never);
-    expect(response.status).toBe(400);
+    expect(response.status).toBe(409);
   });
 });

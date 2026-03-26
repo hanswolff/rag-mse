@@ -1,18 +1,21 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
+import { useMemo } from "react";
 import { Modal } from "./modal";
+import { ConfirmCloseModal } from "./confirm-close-modal";
 import { GermanDatePicker } from "./german-date-picker";
 import { GermanTimePicker } from "./german-time-picker";
 import { RichTextEditor } from "./rich-text-editor";
 import { ShootingRangePicker, ShootingRange } from "./shooting-range-picker";
 import { LoadingButton } from "./loading-button";
-import { useFormFieldValidation } from "@/lib/useFormFieldValidation";
+import { useFormModal } from "@/lib/use-form-modal";
 import { useCrossFieldValidation } from "@/lib/useCrossFieldValidation";
-import { mapServerErrorToField, EVENT_FIELD_KEYWORDS } from "@/lib/server-error-mapper";
+import { EVENT_FIELD_KEYWORDS } from "@/lib/server-error-mapper";
+import type { FieldError } from "@/lib/server-error-mapper";
 import { eventValidationConfig, eventFormSchema } from "@/lib/validation-schema";
 import { MAX_EVENT_DESCRIPTION_BYTES } from "@/lib/event-description";
 import type { NewEvent } from "@/types";
+import { AlertBox } from "./alert-box";
 
 const initialNewEvent: NewEvent = {
   date: "",
@@ -35,6 +38,7 @@ interface EventFormModalProps {
   setEventData: (data: NewEvent) => void;
   isEditing: boolean;
   errors?: Record<string, string>;
+  fieldErrors?: FieldError[];
   initialEventData?: NewEvent;
   isGeocoding?: boolean;
   onGeocode?: () => void;
@@ -52,6 +56,7 @@ export function EventFormModal({
   setEventData,
   isEditing,
   errors = {},
+  fieldErrors,
   initialEventData,
   isGeocoding = false,
   onGeocode,
@@ -59,43 +64,6 @@ export function EventFormModal({
   onUseLastDescription,
   isLoadingLastDescription = false,
 }: EventFormModalProps) {
-  const {
-    errors: validationErrors,
-    validateField,
-    validateAllFields,
-    markFieldAsTouched,
-    shouldShowError,
-    isValidAndTouched,
-    reset,
-  } = useFormFieldValidation(eventValidationConfig);
-
-  useEffect(() => {
-    if (isOpen) {
-      reset();
-    }
-  }, [isOpen, reset]);
-
-  const inferredGeneralErrors = useMemo(() => {
-    return mapServerErrorToField(errors.general || "", EVENT_FIELD_KEYWORDS);
-  }, [errors.general]);
-
-  // Check for unsaved changes
-  const hasUnsavedChanges = useMemo(() => {
-    const base = initialEventData || initialNewEvent;
-    return (
-      eventData.date !== base.date ||
-      eventData.timeFrom !== base.timeFrom ||
-      eventData.timeTo !== base.timeTo ||
-      eventData.location !== base.location ||
-      eventData.description !== base.description ||
-      eventData.latitude !== base.latitude ||
-      eventData.longitude !== base.longitude ||
-      eventData.type !== base.type ||
-      eventData.visible !== base.visible
-    );
-  }, [eventData, initialEventData]);
-
-  // Cross-field validation using the hook
   const crossFieldErrors = useCrossFieldValidation(eventFormSchema, {
     date: eventData.date,
     timeFrom: eventData.timeFrom,
@@ -106,29 +74,38 @@ export function EventFormModal({
     longitude: eventData.longitude,
   });
 
-  // Extract time range error specifically for display
   const timeRangeError = useMemo(() => {
     if (!eventData.timeFrom || !eventData.timeTo) return null;
     return crossFieldErrors.timeTo?.includes("nach") ? crossFieldErrors.timeTo : null;
   }, [crossFieldErrors, eventData.timeFrom, eventData.timeTo]);
 
-  // Combine server errors with local validation errors
-  const combinedErrors = useMemo(() => {
-    return { ...validationErrors, ...inferredGeneralErrors, ...errors };
-  }, [validationErrors, inferredGeneralErrors, errors]);
-
-  const handleChange = (name: string, value: string | boolean) => {
-    setEventData({ ...eventData, [name]: value });
-
-    if (typeof value === "string" && validationErrors[name]) {
-      validateField(name, value);
-    }
-  };
-
-  const handleBlur = (name: string, value: string) => {
-    markFieldAsTouched(name);
-    validateField(name, value);
-  };
+  const {
+    getFieldError,
+    handleChange,
+    handleBlur,
+    handleClose,
+    handleSubmit,
+    generalErrors,
+    combinedErrors,
+    showCloseConfirm,
+    handleConfirmClose,
+    cancelClose,
+    isValidAndTouched,
+  } = useFormModal<NewEvent>({
+    validationConfig: eventValidationConfig,
+    formData: eventData,
+    setFormData: setEventData,
+    defaultData: initialNewEvent,
+    initialData: initialEventData,
+    isOpen,
+    isSubmitting,
+    onClose,
+    onSubmit,
+    serverErrors: errors,
+    fieldErrors,
+    fieldKeywords: EVENT_FIELD_KEYWORDS,
+    extraValidation: () => !timeRangeError,
+  });
 
   const handleDescriptionChange = (value: string) => {
     handleChange("description", value);
@@ -136,24 +113,6 @@ export function EventFormModal({
 
   const handleDescriptionBlur = () => {
     handleBlur("description", eventData.description);
-  };
-
-  const getFieldError = (fieldName: string): string | undefined => {
-    if (errors[fieldName]) return errors[fieldName];
-    if (combinedErrors[fieldName] && shouldShowError(fieldName, eventData[fieldName as keyof typeof eventData] as string)) {
-      return combinedErrors[fieldName];
-    }
-    return undefined;
-  };
-
-  const handleClose = () => {
-    if (hasUnsavedChanges && !isSubmitting) {
-      if (confirm("Sie haben ungespeicherte Änderungen. Wirklich schließen?")) {
-        onClose();
-      }
-    } else {
-      onClose();
-    }
   };
 
   const handleGeocode = () => {
@@ -173,27 +132,6 @@ export function EventFormModal({
     });
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-
-    const fieldValues: Record<string, string> = {
-      date: eventData.date,
-      timeFrom: eventData.timeFrom,
-      timeTo: eventData.timeTo,
-      location: eventData.location,
-      description: eventData.description,
-      latitude: eventData.latitude,
-      longitude: eventData.longitude,
-    };
-
-    const isValid = validateAllFields(fieldValues) && !timeRangeError;
-    if (!isValid) {
-      return;
-    }
-
-    onSubmit(e);
-  };
-
   const geocodeBorderClass = geocodeSuccess
     ? "border-green-500 focus:border-green-500"
     : combinedErrors.latitude || combinedErrors.longitude
@@ -210,12 +148,10 @@ export function EventFormModal({
       closeOnEscape={false}
     >
       <form onSubmit={handleSubmit} className="space-y-4" noValidate>
-        {errors.general && Object.keys(inferredGeneralErrors).length === 0 && (
-          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
-            {errors.general}
-          </div>
+        {Object.keys(generalErrors).length === 0 && (
+          <AlertBox type="error" message={errors.general} />
         )}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label htmlFor="modal-eventType" className="form-label">
               Typ
@@ -295,7 +231,7 @@ export function EventFormModal({
               type="button"
               onClick={handleGeocode}
               disabled={!eventData.location || eventData.location.trim().length < 3 || isSubmitting || isGeocoding}
-              className="w-full sm:w-auto px-4 py-2.5 sm:py-2 bg-green-600 text-white rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap text-base sm:text-base touch-manipulation"
+              className="w-full sm:w-auto px-3 py-1.5 bg-green-600 text-white text-sm rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap touch-manipulation"
               title="Koordinaten automatisch suchen"
             >
               {isGeocoding ? "Suche..." : "📍 Koordinaten suchen"}
@@ -424,6 +360,11 @@ export function EventFormModal({
           </LoadingButton>
         </div>
       </form>
+      <ConfirmCloseModal
+        isOpen={showCloseConfirm}
+        onConfirm={handleConfirmClose}
+        onCancel={cancelClose}
+      />
     </Modal>
   );
 }

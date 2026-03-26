@@ -35,6 +35,17 @@ enum DocumentArea {
   MEMBER
 }
 
+enum PollType {
+  TERMIN
+  SONSTIGES
+}
+
+enum PollStatus {
+  DRAFT
+  LIVE
+  CLOSED
+}
+
 model User {
   id                String    @id @default(cuid())
   email             String    @unique
@@ -54,6 +65,7 @@ model User {
   hasPossessionCard Boolean   @default(false)
   eventReminderEnabled    Boolean @default(true)
   eventReminderDaysBefore Int     @default(7)
+  pollNotificationEnabled Boolean @default(true)
   adminNotes         String?
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
@@ -63,6 +75,9 @@ model User {
   eventsCreated Event[]
   eventReminderDispatches EventReminderDispatch[]
   documentsUploaded Document[]
+  pollsCreated Poll[] @relation("PollsCreated")
+  pollVotes    PollVote[]
+  pollNotificationDispatches PollNotificationDispatch[]
 }
 
 model Event {
@@ -84,6 +99,7 @@ model Event {
   votes Vote[]
   guestRegistrations GuestRegistration[]
   eventReminderDispatches EventReminderDispatch[]
+  polls Poll[]
 }
 
 model GuestRegistration {
@@ -248,4 +264,75 @@ model DocumentDirectory {
   @@index([name])
   @@index([area])
   @@unique([area, nameNormalized])
+}
+
+model Poll {
+  id             String     @id @default(cuid())
+  title          String
+  description    String?
+  type           PollType
+  status         PollStatus @default(DRAFT)
+  multipleChoice Boolean    @default(false)
+  shortCode      String?    @unique
+  eventId        String?
+  createdById    String?
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+
+  event     Event?       @relation(fields: [eventId], references: [id], onDelete: SetNull)
+  createdBy User?        @relation("PollsCreated", fields: [createdById], references: [id], onDelete: SetNull)
+  options   PollOption[]
+  votes     PollVote[]
+  notificationDispatches PollNotificationDispatch[]
+
+  @@index([status])
+  @@index([eventId])
+  @@index([type, status])
+}
+
+model PollOption {
+  id        String   @id @default(cuid())
+  pollId    String
+  text      String
+  position  Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  poll  Poll       @relation(fields: [pollId], references: [id], onDelete: Cascade)
+  votes PollVote[]
+
+  @@index([pollId])
+}
+
+model PollVote {
+  id        String   @id @default(cuid())
+  pollId    String
+  optionId  String
+  userId    String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  poll   Poll       @relation(fields: [pollId], references: [id], onDelete: Cascade)
+  option PollOption @relation(fields: [optionId], references: [id], onDelete: Cascade)
+  user   User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([pollId, userId, optionId])
+  @@index([pollId])
+  @@index([userId])
+}
+
+model PollNotificationDispatch {
+  id        String    @id @default(cuid())
+  pollId    String
+  userId    String
+  queuedAt  DateTime
+  sentAt    DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  poll Poll @relation(fields: [pollId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([pollId, userId])
+  @@index([pollId])
 }

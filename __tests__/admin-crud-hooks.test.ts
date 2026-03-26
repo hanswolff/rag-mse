@@ -1,5 +1,10 @@
 global.fetch = jest.fn();
 
+const mockConfirm = jest.fn<Promise<boolean>, []>();
+jest.mock("../components/confirm-dialog", () => ({
+  useConfirmDialog: () => mockConfirm,
+}));
+
 import { renderHook, cleanup } from "@testing-library/react";
 import { useAdminCrud } from "../lib/use-admin-crud";
 
@@ -10,6 +15,8 @@ describe("Admin CRUD utilities", () => {
     mockFetch = global.fetch as jest.Mock;
     mockFetch.mockClear();
     mockFetch.mockReset();
+    mockConfirm.mockReset();
+    mockConfirm.mockResolvedValue(true);
   });
 
   afterEach(() => {
@@ -255,12 +262,9 @@ describe("Admin CRUD utilities", () => {
   });
 
   describe("createDeleteHandler", () => {
-    beforeAll(() => {
-      window.confirm = jest.fn(() => true);
-    });
-
     beforeEach(() => {
       jest.clearAllMocks();
+      mockConfirm.mockResolvedValue(true);
     });
 
     it("should return a handler function", () => {
@@ -298,7 +302,7 @@ describe("Admin CRUD utilities", () => {
     });
 
     it("should not call fetchHandler when not confirmed", async () => {
-      (window.confirm as jest.Mock).mockReturnValueOnce(false);
+      mockConfirm.mockResolvedValueOnce(false);
       const { result } = renderHook(() => useAdminCrud());
       const mockFetchHandler = jest.fn().mockResolvedValue({ success: true });
       const mockSetSuccess = jest.fn();

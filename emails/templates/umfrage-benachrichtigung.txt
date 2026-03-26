@@ -1,0 +1,13 @@
+Subject: Neue Umfrage: {{pollTitle}}
+
+Hallo {{userName}},
+
+es wurde eine neue Umfrage veröffentlicht: "{{pollTitle}}"
+
+{{pollDescription}}
+
+Hier kannst du abstimmen:
+{{pollUrl}}
+
+Viele Grüße,
+RAG Schießsport MSE

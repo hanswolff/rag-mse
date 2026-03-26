@@ -114,3 +114,11 @@ export function canReadMemberDocuments(user?: UserWithRole | null): boolean {
 export function canManageMemberDocuments(user?: UserWithRole | null): boolean {
   return Permissions.canManageMemberDocuments(user);
 }
+
+export function canManagePolls(user?: UserWithRole | null): boolean {
+  return Permissions.canManagePolls(user);
+}
+
+export function canVotePolls(user?: UserWithRole | null): boolean {
+  return Permissions.canVotePolls(user);
+}

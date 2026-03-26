@@ -1,5 +1,10 @@
 import "@testing-library/jest-dom";
 
+// Default test environment variables – individual tests can override as needed
+process.env.APP_URL = process.env.APP_URL || "http://localhost:3000";
+process.env.NEXTAUTH_SECRET =
+  process.env.NEXTAUTH_SECRET || "this-is-a-test-secret-with-32-plus-chars";
+
 jest.mock("ioredis", () => {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const IORedisMock = require("ioredis-mock");
@@ -94,6 +99,15 @@ jest.mock("next-auth/react", () => ({
   useSession: jest.fn(),
   SessionProvider: ({ children }) => children,
 }));
+
+if (typeof ResizeObserver === "undefined") {
+  global.ResizeObserver = class ResizeObserver {
+    constructor() { this._cb = null; }
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  };
+}
 
 if (typeof HTMLFormElement !== "undefined") {
   Object.defineProperty(HTMLFormElement.prototype, "requestSubmit", {

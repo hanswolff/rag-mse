@@ -4,15 +4,16 @@ import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { isAdmin } from "@/lib/role-utils";
-import { buildLoginUrlWithReturnUrl, getCurrentPathWithSearch } from "@/lib/return-url";
 import { BackLink } from "@/components/back-link";
 import { Modal } from "@/components/modal";
 import { Pagination } from "@/components/pagination";
 import { SearchHighlight } from "@/components/search-highlight";
 import { SortableTableHeader } from "@/components/sortable-table-header";
 import { EyeIcon } from "@/components/icons";
+import { LoadingScreen } from "@/components/loading-screen";
 import { useTableSorting } from "@/lib/use-table-sorting";
 import { Permissions } from "@/lib/permissions";
+import { AlertBox } from "@/components/alert-box";
 
 type OutgoingEmailStatus = "QUEUED" | "PROCESSING" | "RETRYING" | "SENT" | "FAILED";
 
@@ -134,9 +135,7 @@ export default function AdminOutgoingEmailsPage() {
     window.matchMedia("(max-width: 767px)").matches;
 
   useEffect(() => {
-    if (status === "unauthenticated") {
-      router.push(buildLoginUrlWithReturnUrl(getCurrentPathWithSearch()));
-    } else if (status === "authenticated" && !Permissions.canReadOutgoingEmails(session?.user)) {
+    if (status === "authenticated" && !Permissions.canReadOutgoingEmails(session?.user)) {
       router.push("/");
     }
   }, [status, session, router]);
@@ -290,11 +289,7 @@ export default function AdminOutgoingEmailsPage() {
   }, [canManage, handleRetry, items, retryingEmailId, searchQuery]);
 
   if (status === "loading" || isLoading) {
-    return (
-      <main className="flex flex-1 items-center justify-center">
-        <div className="text-gray-600">Laden...</div>
-      </main>
-    );
+    return <LoadingScreen />;
   }
 
   return (
@@ -308,17 +303,9 @@ export default function AdminOutgoingEmailsPage() {
           <p className="text-base text-gray-600 mt-2">Outbox-Metadaten der letzten 30 Tage</p>
         </div>
 
-        {error && (
-          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4" role="alert" aria-live="assertive">
-            {error}
-          </div>
-        )}
+        <AlertBox type="error" message={error} className="mb-4" />
 
-        {actionMessage && (
-          <div className="bg-green-100 border border-green-300 text-green-800 px-4 py-3 rounded mb-4" role="status" aria-live="polite">
-            {actionMessage}
-          </div>
-        )}
+        <AlertBox type="success" message={actionMessage} className="mb-4" />
 
         <section className="card-compact">
           <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between mb-4">

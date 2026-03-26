@@ -1,13 +1,15 @@
 "use client";
 
 import { useState } from "react";
-import { BackLink } from "@/components/back-link";
 import { LoadingButton } from "@/components/loading-button";
 import { ValidatedFieldGroup } from "@/components/validated-field-group";
+import { PageHeader } from "@/components/page-header";
 import type { ContactFormData } from "@/lib/contact-validation";
 import { useFormFieldValidation } from "@/lib/useFormFieldValidation";
 import { mapServerErrorToFields, CONTACT_FIELD_KEYWORDS } from "@/lib/server-error-mapper";
 import { contactValidationConfig } from "@/lib/validation-schema";
+import { API_ROUTES } from "@/lib/api-routes";
+import { AlertBox } from "@/components/alert-box";
 
 export default function ContactPage() {
   const [formData, setFormData] = useState<ContactFormData>({
@@ -81,7 +83,7 @@ export default function ContactPage() {
     setIsLoading(true);
 
     try {
-      const response = await fetch("/api/contact", {
+      const response = await fetch(API_ROUTES.CONTACT, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -93,11 +95,16 @@ export default function ContactPage() {
 
       if (!response.ok) {
         if (data.errors) {
-          // Use the shared error mapper for each error message
+          // Prefer structured field errors if available, fall back to keyword matching
           const mappedFieldErrors: Partial<Record<keyof ContactFormData, string>> = {};
-          for (const message of data.errors as string[]) {
-            const fieldErrors = mapServerErrorToFields(message, CONTACT_FIELD_KEYWORDS);
-            Object.assign(mappedFieldErrors, fieldErrors);
+          if (data.fieldErrors && data.fieldErrors.length > 0) {
+            const mapped = mapServerErrorToFields("", CONTACT_FIELD_KEYWORDS, data.fieldErrors);
+            Object.assign(mappedFieldErrors, mapped);
+          } else {
+            for (const message of data.errors as string[]) {
+              const fieldErrors = mapServerErrorToFields(message, CONTACT_FIELD_KEYWORDS);
+              Object.assign(mappedFieldErrors, fieldErrors);
+            }
           }
           setServerFieldErrors(mappedFieldErrors);
           if (Object.keys(mappedFieldErrors).length === 0) {
@@ -119,36 +126,17 @@ export default function ContactPage() {
 
   return (
     <main className="flex-1 bg-gray-50">
+      <PageHeader
+        title="Kontakt"
+        subtitle="Haben Sie Fragen oder Anregungen? Schreiben Sie uns!"
+      />
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
-        <div className="mb-6 sm:mb-8">
-          <BackLink href="/" className="text-base">
-            Zurück zur Startseite
-          </BackLink>
-          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mt-4">Kontakt</h1>
-          <p className="text-gray-600 mt-2 text-base sm:text-base">
-            Haben Sie Fragen oder Anregungen? Schreiben Sie uns!
-          </p>
-        </div>
 
         {success && (
-          <div className="bg-green-100 border border-green-400 text-green-700 px-3 sm:px-4 py-3 rounded mb-4 text-base">
-            Ihre Nachricht wurde erfolgreich gesendet. Wir werden uns schnellstmöglich bei Ihnen melden.
-          </div>
+          <AlertBox type="success" message="Ihre Nachricht wurde erfolgreich gesendet. Wir werden uns schnellstmöglich bei Ihnen melden." className="mb-4 text-base" />
         )}
 
-        {error && (
-          <div className="bg-red-100 border border-red-400 text-red-700 px-3 sm:px-4 py-3 rounded mb-4 text-base">
-            {Array.isArray(error) ? (
-              <ul className="list-disc list-inside">
-                {error.map((err, index) => (
-                  <li key={index}>{err}</li>
-                ))}
-              </ul>
-            ) : (
-              error
-            )}
-          </div>
-        )}
+        <AlertBox type="error" message={error || null} className="mb-4 text-base" />
 
         <div className="card">
           <form role="form" onSubmit={handleSubmit} className="space-y-4 sm:space-y-6" noValidate>
@@ -205,7 +193,7 @@ export default function ContactPage() {
                 loading={isLoading}
                 disabled={success}
                 loadingText="Wird gesendet..."
-                className="btn-primary py-2.5 sm:py-2 text-base sm:text-base touch-manipulation"
+                className="btn-primary w-full sm:w-auto py-2.5 sm:py-2 text-base sm:text-base touch-manipulation"
               >
                 Nachricht senden
               </LoadingButton>

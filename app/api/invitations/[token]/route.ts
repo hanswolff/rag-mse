@@ -1,16 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import {
-  BadRequestError,
-  getClientIp,
   getNoCacheHeaders,
   handleRateLimitBlocked,
-  logApiError,
   parseJsonBody,
   checkTokenRateLimitWithPolicy,
   recordSuccessfulTokenUsageWithPolicy,
   validateRequestBody,
   validateCsrfHeaders,
+  withApiErrorHandling,
+  getClientIp,
 } from "@/lib/api-utils";
 import { validatePassword } from "@/lib/password-validation";
 import { hashInvitationToken } from "@/lib/invitations";
@@ -24,14 +23,12 @@ import { formatDateInputValue } from "@/lib/date-picker-utils";
 import { validateOptionalProfileFields } from "@/lib/profile-fields";
 import {
   findValidInvitation,
-  INVITATION_ALREADY_USED,
   INVITATION_ERROR_MESSAGES,
-  INVITATION_EXPIRED,
-  INVITATION_NOT_FOUND,
   redeemInvitationInTransaction,
   type RedemptionResult,
   validateInvitationInTransaction,
 } from "@/lib/invitation-redemption";
+import { InvitationNotFoundError, InvitationAlreadyUsedError, InvitationExpiredError } from "@/lib/errors";
 
 interface InviteAcceptanceRequest {
   name: string;
@@ -77,165 +74,157 @@ function createInvitationSuccessResponse(result: RedemptionResult) {
 }
 
 
-export async function GET(
+export const GET = withApiErrorHandling(async (
   _request: NextRequest,
   context: { params: Promise<{ token: string }> }
-) {
-  try {
-    const { token } = await context.params;
-    if (!token) {
-      return NextResponse.json({ error: INVITATION_ERROR_MESSAGES.invalidToken }, { status: 400, headers: getNoCacheHeaders() });
-    }
-
-    const { invitation, status } = await findValidInvitation(token);
-    if (!invitation) {
-      const message = status === 410 ? INVITATION_ERROR_MESSAGES.tokenExpired : INVITATION_ERROR_MESSAGES.invalidToken;
-      return NextResponse.json({ error: message }, { status, headers: getNoCacheHeaders() });
-    }
-
-    const existingUser = await prisma.user.findUnique({
-      where: { email: invitation.email },
-      select: {
-        name: true,
-        address: true,
-        phone: true,
-        memberSince: true,
-        dateOfBirth: true,
-        rank: true,
-        pk: true,
-        reservistsAssociation: true,
-        associationMemberNumber: true,
-        hasPossessionCard: true,
-      },
-    });
-
-    return NextResponse.json(
-      {
-        email: invitation.email,
-        role: invitation.role,
-        expiresAt: invitation.expiresAt,
-        name: existingUser?.name ?? "",
-        address: existingUser?.address ?? "",
-        phone: existingUser?.phone ?? "",
-        memberSince: formatDateInputValue(existingUser?.memberSince) ?? "",
-        dateOfBirth: formatDateInputValue(existingUser?.dateOfBirth) ?? "",
-        rank: existingUser?.rank ?? "",
-        pk: existingUser?.pk ?? "",
-        reservistsAssociation: existingUser?.reservistsAssociation ?? "",
-        associationMemberNumber: existingUser?.associationMemberNumber ?? "",
-        hasPossessionCard: existingUser?.hasPossessionCard ?? false,
-      },
-      { headers: getNoCacheHeaders() }
-    );
-  } catch (error) {
-    logApiError(error, {
-      route: "/api/invitations/[token]",
-      method: "GET",
-      status: 500,
-    });
-    return NextResponse.json({ error: INVITATION_ERROR_MESSAGES.serverError }, { status: 500, headers: getNoCacheHeaders() });
+) => {
+  const { token } = await context.params;
+  if (!token) {
+    return NextResponse.json({ error: INVITATION_ERROR_MESSAGES.invalidToken }, { status: 400, headers: getNoCacheHeaders() });
   }
-}
 
-export async function POST(
+  const { invitation, status } = await findValidInvitation(token);
+  if (!invitation) {
+    const message = status === 410 ? INVITATION_ERROR_MESSAGES.tokenExpired : INVITATION_ERROR_MESSAGES.invalidToken;
+    return NextResponse.json({ error: message }, { status, headers: getNoCacheHeaders() });
+  }
+
+  const existingUser = await prisma.user.findUnique({
+    where: { email: invitation.email },
+    select: {
+      name: true,
+      address: true,
+      phone: true,
+      memberSince: true,
+      dateOfBirth: true,
+      rank: true,
+      pk: true,
+      reservistsAssociation: true,
+      associationMemberNumber: true,
+      hasPossessionCard: true,
+    },
+  });
+
+  return NextResponse.json(
+    {
+      email: invitation.email,
+      role: invitation.role,
+      expiresAt: invitation.expiresAt,
+      name: existingUser?.name ?? "",
+      address: existingUser?.address ?? "",
+      phone: existingUser?.phone ?? "",
+      memberSince: formatDateInputValue(existingUser?.memberSince) ?? "",
+      dateOfBirth: formatDateInputValue(existingUser?.dateOfBirth) ?? "",
+      rank: existingUser?.rank ?? "",
+      pk: existingUser?.pk ?? "",
+      reservistsAssociation: existingUser?.reservistsAssociation ?? "",
+      associationMemberNumber: existingUser?.associationMemberNumber ?? "",
+      hasPossessionCard: existingUser?.hasPossessionCard ?? false,
+    },
+    { headers: getNoCacheHeaders() }
+  );
+}, { route: "/api/invitations/[token]", method: "GET" });
+
+export const POST = withApiErrorHandling(async (
   request: NextRequest,
   context: { params: Promise<{ token: string }> }
-) {
+) => {
   const { token } = await context.params;
 
-  try {
-    validateCsrfHeaders(request);
+  validateCsrfHeaders(request);
 
-    if (!token) {
-      return NextResponse.json({ error: INVITATION_ERROR_MESSAGES.invalidToken }, { status: 400 });
-    }
+  if (!token) {
+    return NextResponse.json({ error: INVITATION_ERROR_MESSAGES.invalidToken }, { status: 400 });
+  }
 
-    const clientIp = getClientIp(request);
-    const tokenHash = hashInvitationToken(token);
-    const rateLimitResult = await checkTokenRateLimitWithPolicy(
-      "/api/invitations/[token]",
-      "POST",
+  const clientIp = getClientIp(request);
+  const tokenHash = hashInvitationToken(token);
+  const rateLimitResult = await checkTokenRateLimitWithPolicy(
+    "/api/invitations/[token]",
+    "POST",
+    clientIp,
+    tokenHash,
+    maskToken(token)
+  );
+
+  if (!rateLimitResult.allowed) {
+    return handleRateLimitBlocked(
+      'invitation_rate_limited',
+      '/api/invitations/[token]',
+      token,
       clientIp,
-      tokenHash,
-      maskToken(token)
+      rateLimitResult.blockedUntil,
+      rateLimitResult.attemptCount
     );
+  }
 
-    if (!rateLimitResult.allowed) {
-      return handleRateLimitBlocked(
-        'invitation_rate_limited',
-        '/api/invitations/[token]',
-        token,
-        clientIp,
-        rateLimitResult.blockedUntil,
-        rateLimitResult.attemptCount
-      );
-    }
+  const body = await parseJsonBody<InviteAcceptanceRequest>(request);
 
-    const body = await parseJsonBody<InviteAcceptanceRequest>(request);
+  const bodyValidation = validateRequestBody(body, inviteAcceptanceSchema, { route: '/api/invitations/[token]', method: 'POST' });
+  if (!bodyValidation.isValid) {
+    return NextResponse.json(
+      { error: bodyValidation.errors.join(". ") },
+      { status: 400 }
+    );
+  }
 
-    const bodyValidation = validateRequestBody(body, inviteAcceptanceSchema, { route: '/api/invitations/[token]', method: 'POST' });
-    if (!bodyValidation.isValid) {
-      return NextResponse.json(
-        { error: bodyValidation.errors.join(". ") },
-        { status: 400 }
-      );
-    }
+  const name = typeof body.name === "string" ? body.name.trim() : "";
+  const address = normalizeOptionalField(body.address);
+  const phone = normalizeOptionalField(body.phone);
+  const password = typeof body.password === "string" ? body.password : "";
+  const confirmPassword = typeof body.confirmPassword === "string" ? body.confirmPassword : "";
+  const dateOfBirth = normalizeOptionalField(typeof body.dateOfBirth === "string" ? body.dateOfBirth : undefined);
+  const rank = normalizeOptionalField(typeof body.rank === "string" ? body.rank : undefined);
+  const pk = normalizeOptionalField(typeof body.pk === "string" ? body.pk : undefined);
+  const reservistsAssociation = normalizeOptionalField(typeof body.reservistsAssociation === "string" ? body.reservistsAssociation : undefined);
+  const associationMemberNumber = normalizeOptionalField(typeof body.associationMemberNumber === "string" ? body.associationMemberNumber : undefined);
+  const hasPossessionCard = typeof body.hasPossessionCard === "boolean" ? body.hasPossessionCard : false;
 
-    const name = typeof body.name === "string" ? body.name.trim() : "";
-    const address = normalizeOptionalField(body.address);
-    const phone = normalizeOptionalField(body.phone);
-    const password = typeof body.password === "string" ? body.password : "";
-    const confirmPassword = typeof body.confirmPassword === "string" ? body.confirmPassword : "";
-    const dateOfBirth = normalizeOptionalField(typeof body.dateOfBirth === "string" ? body.dateOfBirth : undefined);
-    const rank = normalizeOptionalField(typeof body.rank === "string" ? body.rank : undefined);
-    const pk = normalizeOptionalField(typeof body.pk === "string" ? body.pk : undefined);
-    const reservistsAssociation = normalizeOptionalField(typeof body.reservistsAssociation === "string" ? body.reservistsAssociation : undefined);
-    const associationMemberNumber = normalizeOptionalField(typeof body.associationMemberNumber === "string" ? body.associationMemberNumber : undefined);
-    const hasPossessionCard = typeof body.hasPossessionCard === "boolean" ? body.hasPossessionCard : false;
+  const nameValidation = validateName(name);
+  if (!nameValidation.isValid) {
+    logValidationFailure('/api/invitations/[token]', 'POST', nameValidation.error || INVITATION_ERROR_MESSAGES.nameRequired, { token: maskToken(token) });
+    return NextResponse.json({ error: nameValidation.error || INVITATION_ERROR_MESSAGES.nameRequired, fieldErrors: [{ field: "name", message: nameValidation.error || INVITATION_ERROR_MESSAGES.nameRequired }] }, { status: 400 });
+  }
 
-    const nameValidation = validateName(name);
-    if (!nameValidation.isValid) {
-      logValidationFailure('/api/invitations/[token]', 'POST', nameValidation.error || INVITATION_ERROR_MESSAGES.nameRequired, { token: maskToken(token) });
-      return NextResponse.json({ error: nameValidation.error || INVITATION_ERROR_MESSAGES.nameRequired }, { status: 400 });
-    }
-
-    const optionalProfileFieldError = validateOptionalProfileFields({
-      address,
-      phone,
-      dateOfBirth,
-      rank,
-      pk,
-      reservistsAssociation,
-      associationMemberNumber,
+  const optionalProfileFieldError = validateOptionalProfileFields({
+    address,
+    phone,
+    dateOfBirth,
+    rank,
+    pk,
+    reservistsAssociation,
+    associationMemberNumber,
+  });
+  if (optionalProfileFieldError) {
+    logValidationFailure('/api/invitations/[token]', 'POST', optionalProfileFieldError.message, {
+      token: maskToken(token),
+      field: optionalProfileFieldError.field,
     });
-    if (optionalProfileFieldError) {
-      logValidationFailure('/api/invitations/[token]', 'POST', optionalProfileFieldError.message, {
-        token: maskToken(token),
-        field: optionalProfileFieldError.field,
-      });
-      return NextResponse.json({ error: optionalProfileFieldError.message }, { status: 400 });
-    }
+    return NextResponse.json({ error: optionalProfileFieldError.message, fieldErrors: [optionalProfileFieldError] }, { status: 400 });
+  }
 
-    const passwordValidation = validatePassword(password);
-    if (!passwordValidation.isValid) {
-      logValidationFailure('/api/invitations/[token]', 'POST', passwordValidation.errors, { token: maskToken(token) });
-      return NextResponse.json({ error: passwordValidation.errors.join(". ") }, { status: 400 });
-    }
+  const passwordValidation = validatePassword(password);
+  if (!passwordValidation.isValid) {
+    logValidationFailure('/api/invitations/[token]', 'POST', passwordValidation.errors, { token: maskToken(token) });
+    const fieldErrors = passwordValidation.errors.map((msg) => ({ field: "password", message: msg }));
+    return NextResponse.json({ error: passwordValidation.errors.join(". "), fieldErrors }, { status: 400 });
+  }
 
-    if (password !== confirmPassword) {
-      logValidationFailure('/api/invitations/[token]', 'POST', INVITATION_ERROR_MESSAGES.passwordMismatch, { token: maskToken(token) });
-      return NextResponse.json({ error: INVITATION_ERROR_MESSAGES.passwordMismatch }, { status: 400 });
-    }
+  if (password !== confirmPassword) {
+    logValidationFailure('/api/invitations/[token]', 'POST', INVITATION_ERROR_MESSAGES.passwordMismatch, { token: maskToken(token) });
+    return NextResponse.json({ error: INVITATION_ERROR_MESSAGES.passwordMismatch, fieldErrors: [{ field: "confirmPassword", message: INVITATION_ERROR_MESSAGES.passwordMismatch }] }, { status: 400 });
+  }
 
-    const { invitation, status } = await findValidInvitation(token);
-    if (!invitation) {
-      const message = status === 410 ? INVITATION_ERROR_MESSAGES.tokenExpired : INVITATION_ERROR_MESSAGES.invalidToken;
-      logResourceNotFound('invitation', maskToken(token), '/api/invitations/[token]', 'POST', {
-        reason: status === 410 ? 'expired' : 'invalid',
-      });
-      return NextResponse.json({ error: message }, { status });
-    }
+  const { invitation, status } = await findValidInvitation(token);
+  if (!invitation) {
+    const message = status === 410 ? INVITATION_ERROR_MESSAGES.tokenExpired : INVITATION_ERROR_MESSAGES.invalidToken;
+    logResourceNotFound('invitation', maskToken(token), '/api/invitations/[token]', 'POST', {
+      reason: status === 410 ? 'expired' : 'invalid',
+    });
+    return NextResponse.json({ error: message }, { status });
+  }
 
+  try {
     const result = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       await validateInvitationInTransaction(tx, invitation.id, token);
       return redeemInvitationInTransaction(
@@ -266,27 +255,15 @@ export async function POST(
 
     return createInvitationSuccessResponse(result);
   } catch (error: unknown) {
-    if (error instanceof BadRequestError) {
-      return NextResponse.json({ error: error.message }, { status: 400 });
-    }
-
-    if (error instanceof Error && error.message === INVITATION_NOT_FOUND) {
+    if (error instanceof InvitationNotFoundError) {
       return NextResponse.json({ error: INVITATION_ERROR_MESSAGES.invalidToken }, { status: 404 });
     }
-
-    if (error instanceof Error && error.message === INVITATION_ALREADY_USED) {
+    if (error instanceof InvitationAlreadyUsedError) {
       return NextResponse.json({ error: INVITATION_ERROR_MESSAGES.tokenAlreadyUsed }, { status: 410 });
     }
-
-    if (error instanceof Error && error.message === INVITATION_EXPIRED) {
+    if (error instanceof InvitationExpiredError) {
       return NextResponse.json({ error: INVITATION_ERROR_MESSAGES.tokenExpired }, { status: 410 });
     }
-
-    logApiError(error, {
-      route: "/api/invitations/[token]",
-      method: "POST",
-      status: 500,
-    });
-    return NextResponse.json({ error: INVITATION_ERROR_MESSAGES.serverError }, { status: 500 });
+    throw error;
   }
-}
+}, { route: "/api/invitations/[token]", method: "POST" });

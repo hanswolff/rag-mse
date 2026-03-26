@@ -62,7 +62,6 @@ describe("EventFormModal", () => {
     mockOnClose.mockClear();
     mockOnSubmit.mockClear();
     mockOnGeocode.mockClear();
-    window.confirm = jest.fn(() => true);
   });
 
   describe("Create Mode", () => {
@@ -406,9 +405,9 @@ describe("EventFormModal", () => {
       const cancelButton = screen.getByRole("button", { name: "Abbrechen" });
       fireEvent.click(cancelButton);
 
-      expect(window.confirm).toHaveBeenCalledWith(
-        "Sie haben ungespeicherte Änderungen. Wirklich schließen?"
-      );
+      expect(
+        screen.getByText("Sie haben ungespeicherte Änderungen. Wirklich schließen?")
+      ).toBeInTheDocument();
     });
 
     it("should close modal without confirmation when no unsaved changes", () => {
@@ -428,13 +427,13 @@ describe("EventFormModal", () => {
       const cancelButton = screen.getByRole("button", { name: "Abbrechen" });
       fireEvent.click(cancelButton);
 
-      expect(window.confirm).not.toHaveBeenCalled();
+      expect(
+        screen.queryByText("Sie haben ungespeicherte Änderungen. Wirklich schließen?")
+      ).not.toBeInTheDocument();
       expect(mockOnClose).toHaveBeenCalledTimes(1);
     });
 
     it("should not close when user cancels confirmation dialog", () => {
-      window.confirm = jest.fn(() => false);
-
       render(
         <EventFormModal
           isOpen={true}
@@ -451,7 +450,10 @@ describe("EventFormModal", () => {
       const cancelButton = screen.getByRole("button", { name: "Abbrechen" });
       fireEvent.click(cancelButton);
 
-      expect(window.confirm).toHaveBeenCalled();
+      // ConfirmCloseModal is shown; click its "Abbrechen" to dismiss
+      const abortButtons = screen.getAllByRole("button", { name: "Abbrechen" });
+      fireEvent.click(abortButtons[abortButtons.length - 1]);
+
       expect(mockOnClose).not.toHaveBeenCalled();
     });
   });
@@ -624,7 +626,7 @@ describe("EventFormModal", () => {
           eventData={defaultEventData}
           setEventData={jest.fn()}
           isEditing={false}
-          initialEventData={undefined}
+          initialEventData={defaultEventData}
         />
       );
 

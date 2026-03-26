@@ -1,15 +1,28 @@
 "use client";
 
 import { useMemo } from "react";
+import dynamic from "next/dynamic";
+import Image from "next/image";
 import { Modal } from "@/components/modal";
 import type { DocumentItem } from "@/types";
+
+import { LoadingIndicator } from "@/components/loading-indicator";
+
+const PdfViewer = dynamic(() => import("@/components/pdf-viewer").then((m) => m.PdfViewer), {
+  ssr: false,
+  loading: () => (
+    <div className="flex items-center justify-center gap-2 p-8 text-gray-500">
+      <LoadingIndicator size="md" className="text-gray-400" />
+      <span>PDF wird geladen…</span>
+    </div>
+  ),
+});
 
 interface DocumentViewerProps {
   isOpen: boolean;
   document: DocumentItem | null;
   onClose: () => void;
   viewUrlPrefix: string;
-  downloadUrlPrefix: string;
   titlePrefix?: string;
   size?: "sm" | "md" | "lg" | "xl" | "4xl";
 }
@@ -19,7 +32,6 @@ export function DocumentViewer({
   document,
   onClose,
   viewUrlPrefix,
-  downloadUrlPrefix,
   titlePrefix = "",
   size = "lg",
 }: DocumentViewerProps) {
@@ -31,22 +43,23 @@ export function DocumentViewer({
     const source = `${viewUrlPrefix}/${document.id}/view`;
 
     if (document.mimeType === "application/pdf") {
-      return (
-        <iframe
-          src={source}
-          title={document.displayName}
-          className="w-full h-[70vh] border border-gray-200 rounded"
-        />
-      );
+      return <PdfViewer source={source} />;
     }
 
     if (document.mimeType.startsWith("image/")) {
       return (
-        <iframe
-          src={source}
-          title={document.displayName}
-          className="w-full h-[70vh] border border-gray-200 rounded bg-gray-100"
-        />
+        <div className="flex items-center justify-center bg-gray-100 rounded border border-gray-200 overflow-auto max-h-[70vh]">
+          <Image
+            src={source}
+            alt={document.displayName}
+            className="max-w-full h-auto"
+            width={0}
+            height={0}
+            sizes="100vw"
+            style={{ width: "auto", height: "auto" }}
+            unoptimized
+          />
+        </div>
       );
     }
 
@@ -61,21 +74,8 @@ export function DocumentViewer({
       onClose={onClose}
       title={title}
       size={size}
-      contentOverflow="visible"
     >
       {viewerContent}
-      {document && (
-        <div className="mt-4 flex justify-end">
-          <a
-            href={`${downloadUrlPrefix}/${document.id}/download`}
-            className="btn-primary px-4 py-2 text-base"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Download
-          </a>
-        </div>
-      )}
     </Modal>
   );
 }

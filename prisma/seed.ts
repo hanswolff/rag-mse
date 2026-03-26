@@ -23,8 +23,6 @@ function getPrismaClient(): PrismaClient {
 }
 
 const BCRYPT_SALT_ROUNDS = 10;
-const DEFAULT_ADMIN_EMAIL = "admin@rag-mse.de";
-const DEFAULT_ADMIN_PASSWORD = "AdminPass123";
 const DEFAULT_ADMIN_NAME = "Administrator";
 const INITIAL_ADMIN_ROLE: Role = "SITE_ADMINISTRATOR";
 const PLACEHOLDER_PREFIXES = ["CHANGE_ME", "YOUR_"];
@@ -38,21 +36,26 @@ async function getAdminCredentials(): Promise<{
   email: string;
   password: string;
   name: string;
-}> {
+} | null> {
   const isProduction = process.env.NODE_ENV === "production";
   const seedEnabledInProduction = isProduction && process.env.ALLOW_DB_SEED === "true";
   const rawEmail = process.env.SEED_ADMIN_EMAIL;
   const rawPassword = process.env.SEED_ADMIN_PASSWORD;
   const rawName = process.env.SEED_ADMIN_NAME;
 
+  if (!rawEmail?.trim() || !rawPassword?.trim()) {
+    console.warn("SEED_ADMIN_EMAIL and SEED_ADMIN_PASSWORD must be set. Skipping admin user seeding.");
+    return null;
+  }
+
   if (seedEnabledInProduction) {
-    if (!rawEmail?.trim() || !rawPassword?.trim() || !rawName?.trim()) {
+    if (!rawName?.trim()) {
       throw new Error("SEED_ADMIN_EMAIL, SEED_ADMIN_PASSWORD und SEED_ADMIN_NAME müssen für ALLOW_DB_SEED=true in Produktion explizit gesetzt sein");
     }
   }
 
-  const email = rawEmail || DEFAULT_ADMIN_EMAIL;
-  const password = rawPassword || DEFAULT_ADMIN_PASSWORD;
+  const email = rawEmail;
+  const password = rawPassword;
   const name = rawName || DEFAULT_ADMIN_NAME;
 
   if (isProduction && (!email || !password || !name)) {
@@ -61,7 +64,7 @@ async function getAdminCredentials(): Promise<{
 
   if (seedEnabledInProduction) {
     const usesPlaceholderPassword = PLACEHOLDER_PREFIXES.some((prefix) => password.startsWith(prefix));
-    if (password === DEFAULT_ADMIN_PASSWORD || usesPlaceholderPassword) {
+    if (usesPlaceholderPassword) {
       throw new Error("SEED_ADMIN_PASSWORD muss in Produktion explizit gesetzt sein und darf kein Standard- oder Platzhalterwert sein");
     }
   }
@@ -85,45 +88,45 @@ export async function main(prismaOverride?: PrismaClient) {
 
   console.log("Starting database seed...");
 
-  const {
-    email: adminEmail,
-    password: adminPassword,
-    name: adminName,
-  } = await getAdminCredentials();
+  const credentials = await getAdminCredentials();
 
-  const existingAdmin = await prismaClient.user.findUnique({
-    where: { email: adminEmail },
-  });
+  if (credentials) {
+    const { email: adminEmail, password: adminPassword, name: adminName } = credentials;
 
-  if (existingAdmin) {
-    if (existingAdmin.role === "ADMIN") {
-      await prismaClient.user.update({
-        where: { id: existingAdmin.id },
-        data: { role: INITIAL_ADMIN_ROLE },
-      });
-      console.log(`Existing admin user ${adminEmail} upgraded to role ${INITIAL_ADMIN_ROLE}.`);
-    }
-    console.log(
-      `Admin user with email ${adminEmail} already exists. Skipping creation.`
-    );
-  } else {
-    const hashedPassword = await hash(adminPassword, BCRYPT_SALT_ROUNDS);
-
-    const admin = await prismaClient.user.create({
-      data: {
-        email: adminEmail,
-        password: hashedPassword,
-        name: adminName,
-        role: INITIAL_ADMIN_ROLE,
-      },
+    const existingAdmin = await prismaClient.user.findUnique({
+      where: { email: adminEmail },
     });
 
-    console.log("Admin user created successfully:");
-    console.log(`   Email: ${admin.email}`);
-    console.log(`   Name: ${admin.name}`);
-    console.log(`   Role: ${admin.role}`);
-    console.log("");
-    console.log("WARNING: Please change the admin password after first login!");
+    if (existingAdmin) {
+      if (existingAdmin.role === "ADMIN") {
+        await prismaClient.user.update({
+          where: { id: existingAdmin.id },
+          data: { role: INITIAL_ADMIN_ROLE },
+        });
+        console.log(`Existing admin user ${adminEmail} upgraded to role ${INITIAL_ADMIN_ROLE}.`);
+      }
+      console.log(
+        `Admin user with email ${adminEmail} already exists. Skipping creation.`
+      );
+    } else {
+      const hashedPassword = await hash(adminPassword, BCRYPT_SALT_ROUNDS);
+
+      const admin = await prismaClient.user.create({
+        data: {
+          email: adminEmail,
+          password: hashedPassword,
+          name: adminName,
+          role: INITIAL_ADMIN_ROLE,
+        },
+      });
+
+      console.log("Admin user created successfully:");
+      console.log(`   Email: ${admin.email}`);
+      console.log(`   Name: ${admin.name}`);
+      console.log(`   Role: ${admin.role}`);
+      console.log("");
+      console.log("WARNING: Please change the admin password after first login!");
+    }
   }
 
   const shootingRanges = [

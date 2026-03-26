@@ -77,10 +77,40 @@ if ! docker run --rm \
 fi
 
 LOG_FILE="$(mktemp -t rag-mse-deploy-XXXXXX.log)"
+NEXT_BUILD_BACKUP_DIR=""
 cleanup() {
   rm -f "$LOG_FILE"
+  if [ -n "$NEXT_BUILD_BACKUP_DIR" ] && [ -d "$NEXT_BUILD_BACKUP_DIR" ]; then
+    rm -rf "$NEXT_BUILD_BACKUP_DIR"
+  fi
 }
 trap cleanup EXIT
+
+resolve_host_sqlite_path() {
+  local database_url="$1"
+  local raw_path=""
+
+  if [ -z "$database_url" ] || [[ "$database_url" != file:* ]]; then
+    return 1
+  fi
+
+  raw_path="${database_url#file:}"
+  if [ -z "$raw_path" ]; then
+    return 1
+  fi
+
+  if [[ "$raw_path" = /app/* ]]; then
+    printf '%s\n' "$PROJECT_DIR/${raw_path#/app/}"
+    return 0
+  fi
+
+  if [[ "$raw_path" = /* ]]; then
+    printf '%s\n' "$raw_path"
+    return 0
+  fi
+
+  printf '%s\n' "$PROJECT_DIR/${raw_path#./}"
+}
 
 wait_for_service_health() {
   local service_name="$1"
@@ -127,8 +157,33 @@ pnpm rebuild better-sqlite3
 echo "Generating Prisma client..."
 pnpm exec prisma generate
 
+echo "Building runtime scripts..."
+pnpm run build:scripts
+
+if [ -d "$PROJECT_DIR/.next" ]; then
+  NEXT_BUILD_BACKUP_DIR="$(mktemp -d -t rag-mse-next-build-XXXXXX)"
+  echo "Moving existing .next build artifacts to $NEXT_BUILD_BACKUP_DIR before rebuilding..."
+  mv "$PROJECT_DIR/.next" "$NEXT_BUILD_BACKUP_DIR/.next"
+fi
+
 echo "Building Next.js app on host..."
 pnpm run build
+
+echo "Creating pre-deploy database backup..."
+DB_FILE=""
+if DB_FILE="$(resolve_host_sqlite_path "${DATABASE_URL:-}")" && [ -f "$DB_FILE" ]; then
+  BACKUP_DIR="./data/backups"
+  BACKUP_FILE="$BACKUP_DIR/pre-deploy-$(date +%Y%m%d_%H%M%S).db"
+  mkdir -p "$BACKUP_DIR"
+  if command -v sqlite3 >/dev/null 2>&1; then
+    sqlite3 "$DB_FILE" ".timeout 5000" ".backup '$BACKUP_FILE'"
+  else
+    cp "$DB_FILE" "$BACKUP_FILE"
+  fi
+  echo "✅ Pre-deploy backup: $BACKUP_FILE"
+else
+  echo "⚠️  No database file found at '${DB_FILE:-<DATABASE_URL not set>}' on host, skipping backup."
+fi
 
 PREV_APP_CONTAINER_ID="$(docker compose ps -q app | head -n 1)"
 

@@ -2,8 +2,8 @@ import { POST, GET } from "@/app/api/invitations/[token]/route";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getInvitationExpiryDate } from "@/lib/invitations";
-import { logInfo, logValidationFailure, logResourceNotFound } from "@/lib/logger";
-import { logApiError, parseJsonBody } from "@/lib/api-utils";
+import { logInfo, logValidationFailure, logResourceNotFound, logError } from "@/lib/logger";
+import { parseJsonBody } from "@/lib/api-utils";
 
 jest.mock("@/lib/prisma", () => ({
   prisma: {
@@ -29,18 +29,19 @@ jest.mock("@/lib/logger", () => ({
   maskToken: jest.fn((t) => t.substring(0, 8) + "..."),
 }));
 
-jest.mock("@/lib/api-utils", () => ({
-  BadRequestError: class extends Error {},
-  parseJsonBody: jest.fn(),
-  logApiError: jest.fn(),
-  getClientIp: jest.fn(() => "127.0.0.1"),
-  handleRateLimitBlocked: jest.fn(),
-  getNoCacheHeaders: jest.fn(() => ({ "Cache-Control": "no-store, no-cache, must-revalidate" })),
-  validateRequestBody: jest.fn().mockReturnValue({ isValid: true, errors: [] }),
-  validateCsrfHeaders: jest.fn(),
-  checkTokenRateLimitWithPolicy: jest.fn(),
-  recordSuccessfulTokenUsageWithPolicy: jest.fn(),
-}));
+jest.mock("@/lib/api-utils", () => {
+  const actual = jest.requireActual("@/lib/api-utils");
+  return {
+    ...actual,
+    parseJsonBody: jest.fn(),
+    getClientIp: jest.fn(() => "127.0.0.1"),
+    handleRateLimitBlocked: jest.fn(),
+    validateRequestBody: jest.fn().mockReturnValue({ isValid: true, errors: [] }),
+    validateCsrfHeaders: jest.fn(),
+    checkTokenRateLimitWithPolicy: jest.fn(),
+    recordSuccessfulTokenUsageWithPolicy: jest.fn(),
+  };
+});
 
 function createMockRequest(body: Record<string, unknown>) {
   return {
@@ -159,8 +160,8 @@ describe("/api/invitations/[token] route", () => {
       const data = await response.json();
 
       expect(response.status).toBe(500);
-      expect(data.error).toBe("Ein Fehler ist aufgetreten");
-      expect(logApiError).toHaveBeenCalled();
+      expect(data.error).toBe("Ein Fehler ist aufgetreten. Bitte versuchen Sie es später erneut.");
+      expect(logError).toHaveBeenCalled();
     });
   });
 
@@ -437,8 +438,8 @@ describe("/api/invitations/[token] route", () => {
       const data = await response.json();
 
       expect(response.status).toBe(500);
-      expect(data.error).toBe("Ein Fehler ist aufgetreten");
-      expect(logApiError).toHaveBeenCalled();
+      expect(data.error).toBe("Ein Fehler ist aufgetreten. Bitte versuchen Sie es später erneut.");
+      expect(logError).toHaveBeenCalled();
     });
   });
 

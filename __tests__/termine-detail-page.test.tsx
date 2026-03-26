@@ -2,6 +2,10 @@ import { render, screen, waitFor, act } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import EventDetailPage from "@/app/termine/[id]/page";
 
+jest.mock("@/components/confirm-dialog", () => ({
+  useConfirmDialog: () => jest.fn().mockResolvedValue(true),
+}));
+
 const mockFetch = jest.fn();
 const mockPush = jest.fn();
 const mockSessionState = {

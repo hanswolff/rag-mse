@@ -6,6 +6,7 @@ import {
   createLoginProof,
   authOptions,
 } from "@/lib/auth";
+import { RateLimitUnavailableError } from "@/lib/errors";
 import { prisma } from "@/lib/prisma";
 import { checkLoginRateLimit, recordSuccessfulLogin } from "@/lib/rate-limiter";
 import { shouldFailOpenOnRateLimiterError } from "@/lib/rate-limit-policy";
@@ -75,7 +76,7 @@ describe("auth", () => {
       data: { lastLoginAt: expect.any(Date) },
     });
     expect(mockCheckLoginRateLimit).not.toHaveBeenCalled();
-    expect(mockRecordSuccessfulLogin).not.toHaveBeenCalled();
+    expect(mockRecordSuccessfulLogin).toHaveBeenCalledWith("203.0.113.10", email);
   });
 
   it("blocks login when rate limiter is unavailable and fail-open is disabled", async () => {
@@ -90,7 +91,7 @@ describe("auth", () => {
         },
         { ip: "203.0.113.20", headers: {} }
       )
-    ).rejects.toThrow("RATE_LIMIT_UNAVAILABLE");
+    ).rejects.toThrow(RateLimitUnavailableError);
   });
 
   it("continues login when rate limiter is unavailable and fail-open is enabled", async () => {

@@ -55,7 +55,7 @@ export default function FormularePage() {
               Wählen Sie Ihr Anliegen aus und gehen Sie direkt zum passenden Formular.
             </p>
             <h2 className="text-xl sm:text-2xl font-bold text-gray-900 pt-2">Was möchten Sie tun?</h2>
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 mt-2">
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 mt-2">
               {pathways.map((pathway) => (
                 <article
                   key={pathway.title}
