@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { VERSION_INFO } from "@/lib/version-info";
+import { appName } from "@/lib/site-config";
 
 const LEGAL_LINKS = [
   { href: "/impressum", label: "Impressum" },
@@ -21,14 +22,14 @@ export function Footer() {
           <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-[1fr_0.5fr_0.5fr] gap-4 sm:gap-5">
             <div>
               <h3 className="text-sm sm:text-base font-semibold mb-2 sm:mb-2.5 text-brand-gold-400">
-                RAG Schießsport MSE
+                {appName}
               </h3>
               <p className="text-sm text-brand-blue-100 mb-1 sm:mb-1.5">
                 Untergliederung des Verbandes der Reservisten der Deutschen
                 Bundeswehr e. V.
               </p>
               <p className="text-[10px] text-gray-400">
-                &copy; {new Date().getFullYear()} RAG Schießsport MSE &bull; v
+                &copy; {new Date().getFullYear()} {appName} &bull; v
                 {VERSION_INFO.version} &bull; Build-Datum:{" "}
                 {VERSION_INFO.buildDate}
               </p>

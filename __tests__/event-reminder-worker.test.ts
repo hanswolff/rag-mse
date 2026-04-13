@@ -16,9 +16,6 @@ jest.mock("@/lib/prisma", () => ({
       update: jest.fn(),
       delete: jest.fn(),
     },
-    invitation: {
-      findMany: jest.fn(),
-    },
   },
 }));
 
@@ -42,7 +39,6 @@ describe("event-reminder-worker", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     (prisma.eventReminderDispatch.findUnique as jest.Mock).mockResolvedValue(null);
-    (prisma.invitation.findMany as jest.Mock).mockResolvedValue([]);
     process.env = {
       ...originalEnv,
       APP_URL: "https://example.org",
@@ -305,14 +301,10 @@ describe("event-reminder-worker", () => {
     expect(queued).toBe(0);
   });
 
-  it("excludes users with pending invitations from reminders", async () => {
+  it("excludes non-activated users from reminders", async () => {
     (prisma.user.findMany as jest.Mock).mockResolvedValue([
       { id: "user-1", email: "active@example.org", role: "MEMBER", eventReminderDaysBefore: 7 },
-      { id: "user-2", email: "pending@example.org", role: "MEMBER", eventReminderDaysBefore: 7 },
-    ]);
-    // user-2 has a pending invitation
-    (prisma.invitation.findMany as jest.Mock).mockResolvedValue([
-      { email: "pending@example.org" },
+      // user-2 is not returned because activatedAt: { not: null } filters it out in the real query
     ]);
     (prisma.event.findMany as jest.Mock).mockResolvedValue([
       {
@@ -329,7 +321,6 @@ describe("event-reminder-worker", () => {
 
     const queued = await processEventReminders(new Date("2026-02-01T16:56:00.000Z"));
 
-    // Only user-1 should get a reminder, user-2 is excluded due to pending invitation
     expect(queued).toBe(1);
     expect(sendEventReminderEmail).toHaveBeenCalledTimes(1);
     expect(sendEventReminderEmail).toHaveBeenCalledWith(
@@ -339,12 +330,10 @@ describe("event-reminder-worker", () => {
     );
   });
 
-  it("sends reminders to users after invitation is used", async () => {
+  it("sends reminders to activated users", async () => {
     (prisma.user.findMany as jest.Mock).mockResolvedValue([
       { id: "user-1", email: "activated@example.org", role: "MEMBER", eventReminderDaysBefore: 7 },
     ]);
-    // No pending invitations (invitation was used)
-    (prisma.invitation.findMany as jest.Mock).mockResolvedValue([]);
     (prisma.event.findMany as jest.Mock).mockResolvedValue([
       {
         id: "event-1",
@@ -372,7 +361,6 @@ describe("event-reminder-worker", () => {
     (prisma.user.findMany as jest.Mock).mockResolvedValue([
       { id: "auditor-1", email: "audit@example.org", role: "AUDITOR", eventReminderDaysBefore: 7 },
     ]);
-    (prisma.invitation.findMany as jest.Mock).mockResolvedValue([]);
     (prisma.event.findMany as jest.Mock).mockResolvedValue([
       {
         id: "event-1",

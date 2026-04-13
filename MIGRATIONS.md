@@ -42,3 +42,18 @@ pnpm run db:push
 - Migrationen sind versionsgeführt und werden nur einmal angewendet.
 - Bereits angewendete Migrationen mit verändertem Inhalt werden erkannt und
   brechen mit Fehler ab, um Dateninkonsistenzen zu verhindern.
+
+## Migrationshistorie
+
+### 20260413_add_activated_at
+
+Fügt das Feld `activatedAt DateTime?` zur Tabelle `User` hinzu.
+
+**Zweck:** Explizites Aktivierungsdatum, das **ausschließlich** beim Einlösen einer
+Einladung gesetzt wird. Ersetzt `passwordUpdatedAt` als Aktivierungsindikator
+(dieses Feld wird weiterhin für Audit-Zwecke gepflegt, zeigt aber den Zeitpunkt
+der letzten Passwortänderung, nicht die Kontoaktivierung).
+
+**Backfill:** Für alle Nutzer mit vorhandenem `passwordUpdatedAt` wird
+`activatedAt = passwordUpdatedAt` gesetzt, da diese Nutzer ihre Einladung bereits
+eingelöst haben.

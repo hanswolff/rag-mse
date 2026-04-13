@@ -6,6 +6,7 @@ import { formatDate } from "@/lib/date-utils";
 import { isAdmin } from "@/lib/role-utils";
 import { authOptions } from "@/lib/auth";
 import { BackLink } from "@/components/back-link";
+import { appName } from "@/lib/site-config";
 
 export { generateMetadata } from "./metadata";
 
@@ -37,11 +38,11 @@ export default async function NewsDetailPage({
     inLanguage: "de-DE",
     author: {
       "@type": "Organization",
-      name: "RAG Schießsport MSE",
+      name: appName,
     },
     publisher: {
       "@type": "Organization",
-      name: "RAG Schießsport MSE",
+      name: appName,
       logo: {
         "@type": "ImageObject",
         url: `${siteUrl}/og-logo.png`,

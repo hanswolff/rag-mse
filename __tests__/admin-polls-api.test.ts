@@ -520,7 +520,7 @@ describe("/api/admin/polls", () => {
 
       expect(mockUserFindMany).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: { pollNotificationEnabled: true },
+          where: { pollNotificationEnabled: true, activatedAt: { not: null } },
         })
       );
       expect(mockSendTemplateEmail).toHaveBeenCalledTimes(2);

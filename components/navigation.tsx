@@ -11,6 +11,7 @@ import { MenuIcon, XIcon } from "./icons";
 import { ImpersonationBanner } from "./nav/impersonation-banner";
 import { DesktopInfoMenu, MobileInfoMenu, INFO_ITEMS, MEMBER_DOCUMENTS_ITEM } from "./nav/info-menu";
 import { DesktopUserMenu, MobileUserMenu } from "./nav/user-menu";
+import { appName } from "@/lib/site-config";
 
 const NAV_ITEMS = [
   { href: "/", label: "Startseite" },
@@ -181,7 +182,7 @@ export function Navigation() {
                 />
               </div>
               <span className="text-base sm:text-lg font-bold leading-tight text-brand-blue-900 truncate max-w-[11rem] sm:max-w-none">
-                RAG Schießsport MSE
+                {appName}
               </span>
             </Link>
           </div>

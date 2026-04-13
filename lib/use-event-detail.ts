@@ -4,6 +4,7 @@ import { formatDate, isEventInPast } from "@/lib/date-utils";
 import { buildLoginUrlWithReturnUrl } from "@/lib/return-url";
 import type { Vote, VoteCounts } from "@/components/voting-results";
 import type { Event } from "@/types";
+import { appName } from "@/lib/site-config";
 
 export interface EventWithVotes extends Event {
   votes?: Vote[];
@@ -81,7 +82,7 @@ export function useEventDetail(id: string): UseEventDetailReturn {
         },
         organizer: {
           "@type": "Organization",
-          name: "RAG Schießsport MSE",
+          name: appName,
         },
         description: event.description.replace(/\s+/g, " ").trim().slice(0, 220),
       }

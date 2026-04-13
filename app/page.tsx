@@ -13,6 +13,7 @@ import { prisma } from "@/lib/prisma";
 import { getStartOfToday } from "@/lib/date-picker-utils";
 import { authOptions } from "@/lib/auth";
 import { canReadMemberDocuments } from "@/lib/role-utils";
+import { appName, appTagline, appDescription } from "@/lib/site-config";
 
 const CORE_FEATURE_CARDS = [
   {
@@ -105,8 +106,7 @@ export default async function Home() {
   const organizationJsonLd = {
     "@context": "https://schema.org",
     "@type": "SportsOrganization",
-    name: "RAG Schießsport MSE",
-    url: siteUrl,
+    name: appName,
     logo: `${siteUrl}/og-logo.png`,
     sameAs: ["https://github.com/hanswolff/rag-mse"],
     contactPoint: {
@@ -128,14 +128,13 @@ export default async function Home() {
         <div className="relative max-w-7xl mx-auto px-4 text-center sm:px-6 lg:px-8">
           <span className="hero-eyebrow mb-4 hidden sm:inline-flex">
             <TargetIcon className="h-4 w-4" />
-            Sportliches Schießen in der Mecklenburgischen Seenplatte
+            {appTagline}
           </span>
           <h1 className="sr-only sm:not-sr-only sm:text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight">
-            RAG Schießsport MSE
+            {appName}
           </h1>
           <p className="mt-2 sm:mt-4 mx-auto max-w-2xl text-base text-brand-blue-100 sm:text-lg md:text-xl lg:text-2xl">
-            Reservistenarbeitsgemeinschaft für sportliches Schießen in der
-            Mecklenburgischen Seenplatte
+            {appDescription}
           </p>
           <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
             <Link

@@ -8,6 +8,7 @@ import { getFieldErrors } from "@/lib/zod-form-errors";
 import { PasswordRequirements } from "@/components/password-requirements";
 import { ValidatedInput } from "@/components/validated-input";
 import { AlertBox } from "@/components/alert-box";
+import { appName } from "@/lib/site-config";
 
 interface UseResetPasswordFormResult {
   password: string;
@@ -166,7 +167,7 @@ export default function ResetPasswordPage({ params }: { params: Promise<{ token:
         <div className="w-full max-w-md">
           <div className="card">
             <h1 className="text-2xl sm:text-3xl font-bold text-center mb-4 sm:mb-6 text-brand-blue-900">
-              RAG Schießsport MSE
+              {appName}
             </h1>
             <h2 className="text-lg sm:text-xl font-semibold text-center mb-4 sm:mb-6 text-brand-red-700">
               Passwort zurücksetzen
@@ -195,7 +196,7 @@ export default function ResetPasswordPage({ params }: { params: Promise<{ token:
         <div className="w-full max-w-md">
           <div className="card">
             <h1 className="text-2xl sm:text-3xl font-bold text-center mb-4 sm:mb-6 text-brand-blue-900">
-              RAG Schießsport MSE
+              {appName}
             </h1>
             <h2 className="text-lg sm:text-xl font-semibold text-center mb-4 sm:mb-6 text-brand-red-700">
               Passwort zurücksetzen
@@ -214,7 +215,7 @@ export default function ResetPasswordPage({ params }: { params: Promise<{ token:
         <div className="w-full max-w-md">
           <div className="card">
             <h1 className="text-2xl sm:text-3xl font-bold text-center mb-4 sm:mb-6 text-brand-blue-900">
-              RAG Schießsport MSE
+              {appName}
             </h1>
             <h2 className="text-lg sm:text-xl font-semibold text-center mb-4 sm:mb-6 text-brand-red-700">
               Passwort zurücksetzen
@@ -236,7 +237,7 @@ export default function ResetPasswordPage({ params }: { params: Promise<{ token:
       <div className="w-full max-w-md">
         <div className="card">
           <h1 className="text-2xl sm:text-3xl font-bold text-center mb-4 sm:mb-6 text-brand-blue-900">
-            RAG Schießsport MSE
+            {appName}
           </h1>
           <h2 className="text-lg sm:text-xl font-semibold text-center mb-4 sm:mb-6 text-brand-red-700">
             Passwort zurücksetzen

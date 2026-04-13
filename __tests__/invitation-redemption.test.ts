@@ -200,6 +200,7 @@ describe("/api/invitations/[token] route", () => {
         expect.objectContaining({
           data: expect.objectContaining({
             passwordUpdatedAt: expect.any(Date),
+            activatedAt: expect.any(Date),
           }),
         })
       );
@@ -282,6 +283,7 @@ describe("/api/invitations/[token] route", () => {
         expect.objectContaining({
           data: expect.objectContaining({
             passwordUpdatedAt: expect.any(Date),
+            activatedAt: expect.any(Date),
           }),
         })
       );

@@ -316,6 +316,7 @@ export const GET = withApiErrorHandling(async () => {
       createdAt: true,
       lastLoginAt: true,
       passwordUpdatedAt: true,
+      activatedAt: true,
     },
   });
 

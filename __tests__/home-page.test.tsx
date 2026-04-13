@@ -44,7 +44,7 @@ describe("Home", () => {
     ).toBeInTheDocument();
     expect(
       screen.getByText(
-        "Reservistenarbeitsgemeinschaft für sportliches Schießen in der Mecklenburgischen Seenplatte"
+        "Reservistenarbeitsgemeinschaft für sportliches Schießen an der Mecklenburgischen Seenplatte"
       )
     ).toBeInTheDocument();
   });

@@ -9,9 +9,6 @@ jest.mock("@/lib/prisma", () => ({
     user: {
       findUnique: jest.fn(),
     },
-    invitation: {
-      findFirst: jest.fn(),
-    },
     $transaction: jest.fn(),
   },
 }));
@@ -45,6 +42,9 @@ describe("/api/auth/forgot-password/route", () => {
   const SUCCESS_MESSAGE =
     "Wenn diese E-Mail registriert ist, erhalten Sie in Kürze einen Link zum Zurücksetzen Ihres Passworts.";
 
+  const ACTIVATION_PENDING_MESSAGE =
+    "Ihr Konto wurde noch nicht aktiviert. Bitte prüfen Sie Ihre E-Mails nach der Einladung oder wenden Sie sich an einen Administrator.";
+
   beforeEach(() => {
     jest.clearAllMocks();
     process.env.APP_URL = "http://localhost:3000";
@@ -69,7 +69,7 @@ describe("/api/auth/forgot-password/route", () => {
     });
 
     it("returns same success message for existing user when email fails to send", async () => {
-      const mockUser = { id: "1", email: "existing@example.com" };
+      const mockUser = { id: "1", email: "existing@example.com", activatedAt: new Date() };
       (prisma.user.findUnique as jest.Mock).mockResolvedValue(mockUser);
       (sendTemplateEmail as jest.Mock).mockRejectedValue(new Error("SMTP error"));
 
@@ -90,7 +90,7 @@ describe("/api/auth/forgot-password/route", () => {
     });
 
     it("returns same success message for existing user when email succeeds", async () => {
-      const mockUser = { id: "1", email: "existing@example.com" };
+      const mockUser = { id: "1", email: "existing@example.com", activatedAt: new Date() };
       (prisma.user.findUnique as jest.Mock).mockResolvedValue(mockUser);
       (sendTemplateEmail as jest.Mock).mockResolvedValue({ messageId: "test-id" });
       (prisma.$transaction as jest.Mock).mockImplementation(async (callback) => {
@@ -138,6 +138,7 @@ describe("/api/auth/forgot-password/route", () => {
           (prisma.user.findUnique as jest.Mock).mockResolvedValue({
             id: "1",
             email: scenario.email,
+            activatedAt: new Date(),
           });
           (prisma.$transaction as jest.Mock).mockImplementation(async (callback) => {
             const mockTx = {
@@ -237,12 +238,12 @@ describe("/api/auth/forgot-password/route", () => {
 
       expect(prisma.user.findUnique).toHaveBeenCalledWith({
         where: { email: "test@example.com" },
-        select: { id: true, email: true, role: true, passwordUpdatedAt: true },
+        select: { id: true, email: true, role: true, activatedAt: true },
       });
     });
 
     it("accepts valid email format", async () => {
-      const mockUser = { id: "1", email: "test@example.com" };
+      const mockUser = { id: "1", email: "test@example.com", activatedAt: new Date() };
       (prisma.user.findUnique as jest.Mock).mockResolvedValue(mockUser);
       (prisma.$transaction as jest.Mock).mockImplementation(async (callback) => {
         const mockTx = {
@@ -265,15 +266,45 @@ describe("/api/auth/forgot-password/route", () => {
   });
 
   describe("Password Reset Flow", () => {
-    it("does not create reset tokens for pre-provisioned users with pending invitation", async () => {
+    it("returns activation pending message for non-activated user", async () => {
       const mockUser = {
         id: "1",
         email: "test@example.com",
         role: "MEMBER",
-        passwordUpdatedAt: null,
+        activatedAt: null,
       };
       (prisma.user.findUnique as jest.Mock).mockResolvedValue(mockUser);
-      (prisma.invitation.findFirst as jest.Mock).mockResolvedValue({ id: "inv-1" });
+
+      const request = createMockRequest({ email: "test@example.com" });
+      const response = await POST(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(data.message).toBe(ACTIVATION_PENDING_MESSAGE);
+      expect(prisma.$transaction).not.toHaveBeenCalled();
+      expect(sendTemplateEmail).not.toHaveBeenCalled();
+    });
+
+    it("sends reset email for activated user even if an old expired invitation exists", async () => {
+      const mockUser = {
+        id: "1",
+        email: "test@example.com",
+        role: "MEMBER",
+        activatedAt: new Date("2024-01-01"),
+      };
+      (prisma.user.findUnique as jest.Mock).mockResolvedValue(mockUser);
+
+      (prisma.$transaction as jest.Mock).mockImplementation(async (callback) => {
+        const mockTx = {
+          passwordReset: {
+            deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+            create: jest.fn().mockResolvedValue({}),
+          },
+        };
+        await callback(mockTx);
+        return "generated-token";
+      });
+      (sendTemplateEmail as jest.Mock).mockResolvedValue({ messageId: "test-id" });
 
       const request = createMockRequest({ email: "test@example.com" });
       const response = await POST(request);
@@ -281,12 +312,14 @@ describe("/api/auth/forgot-password/route", () => {
 
       expect(response.status).toBe(200);
       expect(data.message).toBe(SUCCESS_MESSAGE);
-      expect(prisma.$transaction).not.toHaveBeenCalled();
-      expect(sendTemplateEmail).not.toHaveBeenCalled();
+      expect(prisma.$transaction).toHaveBeenCalled();
+      expect(sendTemplateEmail).toHaveBeenCalledWith(
+        expect.objectContaining({ template: "passwort-zuruecksetzen" })
+      );
     });
 
     it("deletes existing password resets before creating new one", async () => {
-      const mockUser = { id: "1", email: "test@example.com", role: "MEMBER", passwordUpdatedAt: new Date() };
+      const mockUser = { id: "1", email: "test@example.com", role: "MEMBER", activatedAt: new Date() };
       (prisma.user.findUnique as jest.Mock).mockResolvedValue(mockUser);
       const mockDeleteMany = jest.fn().mockResolvedValue({ count: 1 });
       const mockCreate = jest.fn().mockResolvedValue({});
@@ -313,7 +346,7 @@ describe("/api/auth/forgot-password/route", () => {
     });
 
     it("sends email with correct template and variables", async () => {
-      const mockUser = { id: "1", email: "test@example.com", role: "MEMBER", passwordUpdatedAt: new Date() };
+      const mockUser = { id: "1", email: "test@example.com", role: "MEMBER", activatedAt: new Date() };
       (prisma.user.findUnique as jest.Mock).mockResolvedValue(mockUser);
       (prisma.$transaction as jest.Mock).mockImplementation(async (callback) => {
         const mockTx = {
@@ -347,7 +380,7 @@ describe("/api/auth/forgot-password/route", () => {
     it("uses APP_URL for reset links", async () => {
       process.env.APP_URL = "https://example.com";
 
-      const mockUser = { id: "1", email: "test@example.com", role: "MEMBER", passwordUpdatedAt: new Date() };
+      const mockUser = { id: "1", email: "test@example.com", role: "MEMBER", activatedAt: new Date() };
       (prisma.user.findUnique as jest.Mock).mockResolvedValue(mockUser);
       (prisma.$transaction as jest.Mock).mockImplementation(async (callback) => {
         const mockTx = {
@@ -381,7 +414,7 @@ describe("/api/auth/forgot-password/route", () => {
       process.env.NEXT_PUBLIC_APP_URL = "https://wrong.example.org";
       process.env.APP_URL = "https://example.com";
 
-      const mockUser = { id: "1", email: "test@example.com", role: "MEMBER", passwordUpdatedAt: new Date() };
+      const mockUser = { id: "1", email: "test@example.com", role: "MEMBER", activatedAt: new Date() };
       (prisma.user.findUnique as jest.Mock).mockResolvedValue(mockUser);
       (prisma.$transaction as jest.Mock).mockImplementation(async (callback) => {
         const mockTx = {
@@ -412,7 +445,7 @@ describe("/api/auth/forgot-password/route", () => {
     it("uses localhost as final fallback when APP_URL is missing", async () => {
       delete process.env.APP_URL;
 
-      const mockUser = { id: "1", email: "test@example.com", role: "MEMBER", passwordUpdatedAt: new Date() };
+      const mockUser = { id: "1", email: "test@example.com", role: "MEMBER", activatedAt: new Date() };
       (prisma.user.findUnique as jest.Mock).mockResolvedValue(mockUser);
       (prisma.$transaction as jest.Mock).mockImplementation(async (callback) => {
         const mockTx = {
@@ -475,7 +508,7 @@ describe("/api/auth/forgot-password/route", () => {
     });
 
     it("returns generic success for transaction errors", async () => {
-      const mockUser = { id: "1", email: "test@example.com", role: "MEMBER", passwordUpdatedAt: new Date() };
+      const mockUser = { id: "1", email: "test@example.com", role: "MEMBER", activatedAt: new Date() };
       (prisma.user.findUnique as jest.Mock).mockResolvedValue(mockUser);
       (prisma.$transaction as jest.Mock).mockRejectedValue(new Error("Transaction failed"));
 
@@ -504,7 +537,7 @@ describe("/api/auth/forgot-password/route", () => {
     });
 
     it("logs info when password reset email is sent successfully", async () => {
-      const mockUser = { id: "1", email: "test@example.com", role: "MEMBER", passwordUpdatedAt: new Date() };
+      const mockUser = { id: "1", email: "test@example.com", role: "MEMBER", activatedAt: new Date() };
       (prisma.user.findUnique as jest.Mock).mockResolvedValue(mockUser);
       (prisma.$transaction as jest.Mock).mockImplementation(async (callback) => {
         const mockTx = {
@@ -531,7 +564,7 @@ describe("/api/auth/forgot-password/route", () => {
     });
 
     it("logs error when email fails to send", async () => {
-      const mockUser = { id: "1", email: "test@example.com", role: "MEMBER", passwordUpdatedAt: new Date() };
+      const mockUser = { id: "1", email: "test@example.com", role: "MEMBER", activatedAt: new Date() };
       (prisma.user.findUnique as jest.Mock).mockResolvedValue(mockUser);
       (prisma.$transaction as jest.Mock).mockImplementation(async (callback) => {
         const mockTx = {

@@ -1,10 +1,11 @@
 import type { Metadata } from "next";
+import { appName } from "@/lib/site-config";
 
 export const metadata: Metadata = {
   title: "Startseite",
-  description: "Willkommen auf der Website der RAG Schießsport MSE. Informieren Sie sich über Termine, News und kontaktieren Sie uns.",
+  description: `Willkommen auf der Website der ${appName}. Informieren Sie sich über Termine, News und kontaktieren Sie uns.`,
   openGraph: {
-    title: "RAG Schießsport MSE - Startseite",
-    description: "Willkommen auf der Website der RAG Schießsport MSE"
+    title: `${appName} - Startseite`,
+    description: `Willkommen auf der Website der ${appName}`
   }
 };

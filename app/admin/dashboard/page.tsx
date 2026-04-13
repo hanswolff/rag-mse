@@ -5,6 +5,7 @@ import { useSession } from "next-auth/react";
 import Link from "next/link";
 import { Permissions } from "@/lib/permissions";
 import { LoadingScreen } from "@/components/loading-screen";
+import { appName } from "@/lib/site-config";
 
 export default function AdminDashboardPage() {
   const { data: session, status } = useSession();
@@ -24,7 +25,7 @@ export default function AdminDashboardPage() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
         <div className="mb-8">
           <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Adminbereich Dashboard</h1>
-          <p className="text-base sm:text-base text-gray-600 mt-2">Willkommen im Administrationsbereich der RAG Schießsport MSE</p>
+          <p className="text-base sm:text-base text-gray-600 mt-2">Willkommen im Administrationsbereich der {appName}</p>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">

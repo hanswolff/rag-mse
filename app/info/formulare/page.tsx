@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { DownloadDocumentIcon, ExternalLinkIcon } from "@/components/icons";
+import { appName } from "@/lib/site-config";
 
 const ACTION_CLASSES = "inline-flex items-center gap-2 text-sm";
 
@@ -7,7 +8,7 @@ const pathways = [
   {
     title: "Mitglied werden",
     description:
-      "Sie möchten der RAG Schießsport MSE beitreten. Nutzen Sie den Aufnahmeantrag für die Anmeldung.",
+      `Sie möchten der ${appName} beitreten. Nutzen Sie den Aufnahmeantrag für die Anmeldung.`,
     actions: [
       {
         label: "Aufnahmeantrag herunterladen",

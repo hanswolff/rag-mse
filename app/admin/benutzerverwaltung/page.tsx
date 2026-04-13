@@ -10,7 +10,7 @@ import { UserFormModal } from "@/components/user-form-modal";
 import { LoadingButton } from "@/components/loading-button";
 import { BackLink } from "@/components/back-link";
 import { Permissions } from "@/lib/permissions";
-import { PencilIcon, TrashIcon, UserIcon, UsersIcon } from "@/components/icons";
+import { PencilIcon, TrashIcon, UserIcon, UsersIcon, MailIcon } from "@/components/icons";
 import type { User } from "@/types";
 import { AlertBox } from "@/components/alert-box";
 
@@ -78,6 +78,8 @@ function UserList({
   canImpersonateUser,
   onImpersonate,
   impersonatingUserId,
+  onResendInvitation,
+  resendingInvitationEmail,
 }: {
   users: User[];
   onEdit: (u: User) => void;
@@ -88,6 +90,8 @@ function UserList({
   canImpersonateUser: (u: User) => boolean;
   onImpersonate: (u: User) => Promise<void>;
   impersonatingUserId: string | null;
+  onResendInvitation: (email: string) => Promise<void>;
+  resendingInvitationEmail: string | null;
 }) {
   if (users.length === 0) return <p className="text-gray-500">Keine Benutzer gefunden</p>;
   return (
@@ -138,6 +142,21 @@ function UserList({
                       <UserIcon className="h-4 w-4" />
                     </button>
                   )}
+                  {!user.activatedAt && (
+                    <button
+                      onClick={() => void onResendInvitation(user.email)}
+                      disabled={resendingInvitationEmail !== null}
+                      aria-label={`Einladung erneut senden: ${user.name}`}
+                      title="Einladung erneut senden"
+                      className={`inline-flex h-8 w-8 items-center justify-center rounded-md focus:outline-none focus:ring-2 focus:ring-brand-red-600/30 ${
+                        resendingInvitationEmail === null
+                          ? "bg-blue-100 text-blue-800 hover:bg-blue-200"
+                          : "bg-gray-100 text-gray-400 cursor-not-allowed"
+                      }`}
+                    >
+                      <MailIcon className="h-4 w-4" />
+                    </button>
+                  )}
                   <button
                     onClick={() => onEdit(user)}
                     disabled={!canEdit}
@@ -161,7 +180,7 @@ function UserList({
             </div>
             <div className="mt-2 border-t border-gray-200 pt-2 text-xs sm:text-sm text-gray-500 break-words">
               <p className="leading-relaxed">
-                Erstellt: {formatDate(user.createdAt)} &bull; Letzter Login: {user.lastLoginAt ? formatDate(user.lastLoginAt) : "Nie"} &bull; Passwort-Änderung: {user.passwordUpdatedAt ? formatDate(user.passwordUpdatedAt) : "-"}
+                Erstellt: {formatDate(user.createdAt)} &bull; Letzter Login: {user.lastLoginAt ? formatDate(user.lastLoginAt) : "Nie"} &bull; {user.activatedAt ? `Aktiviert: ${formatDate(user.activatedAt)}` : "Noch nicht aktiviert"}
               </p>
             </div>
           </article>
@@ -259,7 +278,7 @@ export default function BenutzerverwaltungPage() {
                 )}
               </div>
             ) : (
-              <UserList
+            <UserList
                 users={userManagement.users}
                 onEdit={userManagement.startEditingUser}
                 onDelete={userManagement.handleDeleteUser}
@@ -298,6 +317,8 @@ export default function BenutzerverwaltungPage() {
                   }
                 }}
                 impersonatingUserId={impersonatingUserId}
+                onResendInvitation={userManagement.handleResendInvitation}
+                resendingInvitationEmail={userManagement.isResendingInvite}
               />
             )}
           </div>

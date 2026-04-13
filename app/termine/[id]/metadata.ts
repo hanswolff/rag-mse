@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { appName } from "@/lib/site-config";
 import { prisma } from "@/lib/prisma";
 import { formatDate, formatTime } from "@/lib/date-utils";
 
@@ -50,7 +51,7 @@ export async function generateMetadata({
       canonical: `/termine/${event.id}`,
     },
     openGraph: {
-      title: `${title} | RAG Schießsport MSE`,
+      title: `${title} | ${appName}`,
       description,
       type: "article",
       modifiedTime: event.updatedAt.toISOString(),

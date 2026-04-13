@@ -1,4 +1,5 @@
 import { BackLink } from "@/components/back-link";
+import { appName } from "@/lib/site-config";
 
 export default function ImpressumPage() {
   return (
@@ -30,7 +31,7 @@ export default function ImpressumPage() {
           <section className="mb-6 sm:mb-8">
             <h2 className="text-lg sm:text-xl font-semibold mb-3 sm:mb-4 text-gray-900">Untergliederung</h2>
             <div className="space-y-2 text-base sm:text-base text-gray-800">
-              <p>RAG Schießsport MSE (Untergliederung des Verbandes der Reservisten der Deutschen Bundeswehr e. V.)</p>
+              <p>{appName} (Untergliederung des Verbandes der Reservisten der Deutschen Bundeswehr e. V.)</p>
             </div>
           </section>
 

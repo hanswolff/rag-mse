@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { appName } from "@/lib/site-config";
 import { prisma } from "@/lib/prisma";
 
 function buildDescription(content: string): string {
@@ -41,7 +42,7 @@ export async function generateMetadata({
       canonical: `/news/${id}`,
     },
     openGraph: {
-      title: `${newsItem.title} | RAG Schießsport MSE`,
+      title: `${newsItem.title} | ${appName}`,
       description,
       type: "article",
       modifiedTime: newsItem.updatedAt.toISOString(),

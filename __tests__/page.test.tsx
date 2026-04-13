@@ -38,7 +38,7 @@ describe("Home", () => {
   it("renders the welcome message", async () => {
     render(await Home());
     const message = screen.getByText(
-      "Reservistenarbeitsgemeinschaft für sportliches Schießen in der Mecklenburgischen Seenplatte"
+      "Reservistenarbeitsgemeinschaft für sportliches Schießen an der Mecklenburgischen Seenplatte"
     );
     expect(message).toBeInTheDocument();
     expect(message.tagName).toBe("P");

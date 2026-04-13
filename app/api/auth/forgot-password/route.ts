@@ -12,9 +12,13 @@ import { logInfo, logValidationFailure, logError, logWarn, maskEmail } from "@/l
 import { checkForgotPasswordRateLimit } from "@/lib/rate-limiter";
 import { validateEmail } from "@/lib/validation-schema";
 import { shouldFailOpenOnRateLimiterError } from "@/lib/rate-limit-policy";
+import { appName } from "@/lib/site-config";
 
 const SUCCESS_MESSAGE =
   "Wenn diese E-Mail registriert ist, erhalten Sie in Kürze einen Link zum Zurücksetzen Ihres Passworts.";
+
+const ACTIVATION_PENDING_MESSAGE =
+  "Ihr Konto wurde noch nicht aktiviert. Bitte prüfen Sie Ihre E-Mails nach der Einladung oder wenden Sie sich an einen Administrator.";
 
 interface ForgotPasswordRequest {
   email: string;
@@ -27,21 +31,8 @@ const forgotPasswordSchema = {
 async function findUserByEmail(email: string) {
   return prisma.user.findUnique({
     where: { email },
-    select: { id: true, email: true, role: true, passwordUpdatedAt: true },
+    select: { id: true, email: true, role: true, activatedAt: true },
   });
-}
-
-async function hasPendingInvitation(email: string): Promise<boolean> {
-  const invitation = await prisma.invitation.findFirst({
-    where: {
-      email,
-      usedAt: null,
-      expiresAt: { gt: new Date() },
-    },
-    select: { id: true },
-  });
-
-  return Boolean(invitation);
 }
 
 async function createPasswordReset(email: string) {
@@ -136,11 +127,11 @@ export async function POST(request: NextRequest) {
     const user = await findUserByEmail(email);
 
     if (user) {
-      const userNeedsActivation = !user.passwordUpdatedAt && await hasPendingInvitation(email);
+      const userNeedsActivation = !user.activatedAt;
 
       if (userNeedsActivation) {
         return NextResponse.json({
-          message: SUCCESS_MESSAGE,
+          message: ACTIVATION_PENDING_MESSAGE,
         });
       }
 
@@ -153,7 +144,7 @@ export async function POST(request: NextRequest) {
           template: "passwort-zuruecksetzen",
           variables: {
             resetUrl,
-            appName: "RAG Schießsport MSE",
+            appName,
           },
           to: email,
         });

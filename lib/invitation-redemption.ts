@@ -66,6 +66,7 @@ function buildProfileUpdateData(input: RedeemProfileInput) {
     address: toNullableText(input.address),
     phone: toNullableText(input.phone),
     passwordUpdatedAt: new Date(),
+    activatedAt: new Date(),
     dateOfBirth: toNullableDate(input.dateOfBirth),
     rank: toNullableText(input.rank),
     pk: toNullableText(input.pk),

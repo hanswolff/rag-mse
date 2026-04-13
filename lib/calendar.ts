@@ -1,3 +1,5 @@
+import { appName } from "@/lib/site-config";
+
 interface CalendarEventOptions {
   uid: string;
   title: string;
@@ -43,7 +45,7 @@ export function buildCalendarEvent(options: CalendarEventOptions): string {
   const lines = [
     "BEGIN:VCALENDAR",
     "VERSION:2.0",
-    "PRODID:-//RAG Schießsport MSE//Termine//DE",
+    `PRODID:-//${appName}//Termine//DE`,
     "CALSCALE:GREGORIAN",
     "METHOD:PUBLISH",
     "BEGIN:VEVENT",

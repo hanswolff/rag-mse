@@ -2,6 +2,7 @@ import { sendTemplateEmail } from "./email-sender";
 import { logInfo } from "./logger";
 import { logApiError } from "./api-utils";
 import { generateRandomToken, hashToken } from "./crypto-utils";
+import { appName } from "./site-config";
 
 export const INVITATION_VALIDITY_DAYS = 14;
 export const INVITATION_EMAIL_TEMPLATE = "einladung-zur-rag-mse";
@@ -42,8 +43,6 @@ export async function sendInvitationEmail({
   inviteUrl,
   logContext = {}
 }: SendInvitationEmailOptions): Promise<{ success: boolean; error?: Error }> {
-  const appName = process.env.APP_NAME || "RAG Schießsport MSE";
-
   try {
     await sendTemplateEmail({
       template: INVITATION_EMAIL_TEMPLATE,

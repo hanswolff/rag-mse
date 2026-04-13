@@ -1,10 +1,11 @@
 import type { Metadata } from "next";
+import { appName } from "@/lib/site-config";
 
 export const metadata: Metadata = {
   title: "Termine",
-  description: "Termine-Verwaltung der RAG Schießsport MSE. Erstellen, bearbeiten und verwalten Sie Trainingstermine und Wettkämpfe.",
+  description: `Termine-Verwaltung der ${appName}. Erstellen, bearbeiten und verwalten Sie Trainingstermine und Wettkämpfe.`,
   robots: "noindex, nofollow",
   openGraph: {
-    title: "Termine | RAG Schießsport MSE"
+    title: `Termine | ${appName}`
   }
 };

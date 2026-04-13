@@ -93,6 +93,7 @@ export interface User {
   createdAt: string;
   lastLoginAt?: string | null;
   passwordUpdatedAt?: string | null;
+  activatedAt?: string | null;
 }
 
 /**

@@ -56,13 +56,6 @@ export const POST = withApiErrorHandling(async (request: NextRequest, { params }
     );
   }
 
-  if (invitation.expiresAt <= new Date()) {
-    return NextResponse.json(
-      { error: "Einladung ist abgelaufen" },
-      { status: 409 }
-    );
-  }
-
   const appUrl = process.env.APP_URL;
   if (!appUrl) {
     throw new BadRequestError("APP_URL ist nicht konfiguriert");

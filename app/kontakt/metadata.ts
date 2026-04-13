@@ -1,10 +1,11 @@
 import type { Metadata } from "next";
+import { appName } from "@/lib/site-config";
 
 export const metadata: Metadata = {
   title: "Kontakt",
-  description: "Kontaktieren Sie die RAG Schießsport MSE. Nutzen Sie unser Kontaktformular für Anfragen und Fragen.",
+  description: `Kontaktieren Sie die ${appName}. Nutzen Sie unser Kontaktformular für Anfragen und Fragen.`,
   openGraph: {
-    title: "Kontakt | RAG Schießsport MSE",
+    title: `Kontakt | ${appName}`,
     description: "Kontaktieren Sie uns"
   }
 };

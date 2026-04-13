@@ -14,6 +14,7 @@ import { formatDate, formatTime } from "@/lib/date-utils";
 import { useTableSorting } from "@/lib/use-table-sorting";
 import { Permissions } from "@/lib/permissions";
 import { AlertBox } from "@/components/alert-box";
+import { appName } from "@/lib/site-config";
 
 type EventNotificationItem = {
   id: string;
@@ -513,7 +514,7 @@ Wenn du diese Erinnerung für zukünftige Termine nicht mehr erhalten möchtest,
 [Link enthält persönlichen Abmelde-Token]
 
 Viele Grüße
-RAG Schießsport MSE`}
+${appName}`}
                     </div>
                   </div>
                 </>
@@ -539,7 +540,7 @@ Hier kannst du abstimmen:
 [Link enthält persönlichen Token]
 
 Viele Grüße,
-RAG Schießsport MSE`}
+${appName}`}
                     </div>
                   </div>
                 </>

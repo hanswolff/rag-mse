@@ -56,6 +56,7 @@ model User {
   role              Role      @default(MEMBER)
   lastLoginAt       DateTime?
   passwordUpdatedAt DateTime?
+  activatedAt       DateTime?
   memberSince       DateTime?
   dateOfBirth       DateTime?
   rank              String?

@@ -3,9 +3,9 @@ import { validateProductionConfig, printValidationResults } from "@/lib/config-v
 import { startEmailOutboxWorker } from "@/lib/email-sender";
 import { startEventReminderWorker } from "@/lib/event-reminder-worker";
 import { VERSION_INFO } from "@/lib/version-info";
+import { appName } from "@/lib/site-config";
 
 export function registerNode() {
-  const appName = process.env.APP_NAME || "RAG Schießsport MSE";
   const nodeEnv = process.env.NODE_ENV || "unknown";
   const appUrl = process.env.APP_URL || "http://localhost:3000";
 

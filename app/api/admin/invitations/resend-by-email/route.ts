@@ -62,14 +62,13 @@ export const POST = withApiErrorHandling(async (request: NextRequest) => {
     where: {
       email,
       usedAt: null,
-      expiresAt: { gt: new Date() },
     },
     include: { invitedBy: true },
   });
 
   if (!invitation) {
     return NextResponse.json(
-      { error: "Keine aktive Einladung für diese E-Mail gefunden" },
+      { error: "Keine Einladung für diese E-Mail gefunden" },
       { status: 404 }
     );
   }

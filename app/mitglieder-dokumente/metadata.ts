@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
+import { appName } from "@/lib/site-config";
 
 export const metadata: Metadata = {
-  title: "Dokumente für Mitglieder | RAG Schießsport MSE",
-  description: "Dokumente für Mitglieder der RAG Schießsport MSE",
+  title: `Dokumente für Mitglieder | ${appName}`,
+  description: `Dokumente für Mitglieder der ${appName}`,
   robots: "noindex, nofollow",
 };

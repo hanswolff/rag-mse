@@ -63,6 +63,7 @@ export const POST = withApiErrorHandling(async (request: NextRequest, context: R
     const members = await prisma.user.findMany({
       where: {
         pollNotificationEnabled: true,
+        activatedAt: { not: null },
       },
       select: { id: true, name: true, email: true },
     });

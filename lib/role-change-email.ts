@@ -2,6 +2,7 @@ import { sendTemplateEmail } from "./email-sender";
 import { logInfo } from "./logger";
 import { logApiError } from "./api-utils";
 import { Permissions } from "./permissions";
+import { appName } from "./site-config";
 
 export const ROLE_CHANGE_EMAIL_TEMPLATE = "rollenaenderung";
 
@@ -42,7 +43,6 @@ export async function sendRoleChangeEmail({
   changedByName,
   logContext = {},
 }: SendRoleChangeEmailOptions): Promise<{ success: boolean; error?: Error }> {
-  const appName = process.env.APP_NAME || "RAG Schießsport MSE";
   const appUrl = process.env.APP_URL || "";
 
   const oldRoleLabel = Permissions.getRoleLabel(oldRole);

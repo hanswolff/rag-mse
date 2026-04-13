@@ -1,5 +1,6 @@
 import Image from "next/image";
 import { PageHeader } from "@/components/page-header";
+import { appName, appDescription } from "@/lib/site-config";
 
 const BOARD_MEMBERS = [
   {
@@ -18,15 +19,15 @@ export default function UeberUnsPage() {
   return (
     <main className="flex-1 bg-gray-50">
       <PageHeader
-        title="Über die RAG Schießsport MSE"
-        subtitle="Reservistenarbeitsgemeinschaft für sportliches Schießen in der Mecklenburgischen Seenplatte"
+        title={`Über die ${appName}`}
+        subtitle={appDescription}
       />
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
         <section className="card mb-6 border border-slate-100 p-6 shadow-xl shadow-slate-200/60 sm:mb-8 sm:p-8">
           <span className="section-kicker">Gemeinschaft</span>
           <div className="space-y-4 pt-3 text-base leading-relaxed text-gray-700 sm:text-lg">
             <p>
-              Die RAG Schießsport MSE ist eine Reservistenarbeitsgemeinschaft im
+              Die {appName} ist eine Reservistenarbeitsgemeinschaft im
               Verband der Reservisten der Deutschen Bundeswehr e. V. in
               Mecklenburg-Vorpommern. Wir sind ein Zusammenschluss
               schießsportinteressierter Verbandsmitglieder aus der Region

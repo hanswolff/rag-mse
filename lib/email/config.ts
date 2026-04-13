@@ -16,8 +16,10 @@ export function getSmtpTimeouts() {
   };
 }
 
+import { appName } from "@/lib/site-config";
+
 export function getOutgoingSenderName(): string {
-  return (process.env.APP_NAME || "RAG Schießsport MSE").trim() || "RAG Schießsport MSE";
+  return appName;
 }
 
 export function getSmtpFromAddress(smtpFrom: string): string {

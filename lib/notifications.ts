@@ -7,6 +7,7 @@ import { logApiError } from "./api-utils";
 import { logInfo } from "./logger";
 import { buildNotificationRsvpUrl, buildNotificationUnsubscribeUrl, normalizeAppUrl } from "./notification-links";
 import { buildCalendarEvent } from "./calendar";
+import { appName } from "./site-config";
 
 export const EVENT_REMINDER_EMAIL_TEMPLATE = "termin-erinnerung";
 
@@ -80,8 +81,8 @@ function buildEventCalendarAttachment(event: Pick<Event, "id" | "date" | "timeFr
 
   const content = buildCalendarEvent({
     uid: `event-${event.id}@rag-mse`,
-    title: "RAG Schießsport MSE Termin",
-    description: "Termin der RAG Schießsport MSE",
+    title: `${appName} Termin`,
+    description: `Termin der ${appName}`,
     location: event.location,
     start,
     end: safeEnd,
@@ -101,8 +102,6 @@ export async function sendEventReminderEmail({
   rsvpUrl,
   unsubscribeUrl,
 }: SendEventReminderEmailOptions): Promise<{ success: boolean; error?: Error }> {
-  const appName = process.env.APP_NAME || "RAG Schießsport MSE";
-
   try {
     await sendTemplateEmail({
       template: EVENT_REMINDER_EMAIL_TEMPLATE,

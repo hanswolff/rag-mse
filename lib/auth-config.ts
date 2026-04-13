@@ -101,7 +101,10 @@ async function authorizeUser(credentials?: { email?: string; password?: string; 
 
     await prisma.user.update({
       where: { id: user.id },
-      data: { lastLoginAt: new Date() },
+      data: {
+        lastLoginAt: new Date(),
+        ...(user.role === "SITE_ADMINISTRATOR" && !user.activatedAt ? { activatedAt: new Date() } : {}),
+      },
     });
     try {
       await recordSuccessfulLogin(clientIp, user.email);
@@ -195,7 +198,10 @@ async function authorizeUser(credentials?: { email?: string; password?: string; 
   }
   await prisma.user.update({
     where: { id: user.id },
-    data: { lastLoginAt: new Date() },
+    data: {
+      lastLoginAt: new Date(),
+      ...(user.role === "SITE_ADMINISTRATOR" && !user.activatedAt ? { activatedAt: new Date() } : {}),
+    },
   });
   logInfo('login_success', 'User logged in successfully', { email: maskEmail(user.email), userId: user.id, role: user.role, clientIp });
   return mapUserToAuthUser(user);

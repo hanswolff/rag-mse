@@ -34,6 +34,7 @@ export function useUserManagement() {
   const [isCreatingUser, setIsCreatingUser] = useState(false);
   const [isUpdatingUser, setIsUpdatingUser] = useState(false);
   const [isSendingInvite, setIsSendingInvite] = useState(false);
+  const [isResendingInvite, setIsResendingInvite] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [fieldErrors, setFieldErrors] = useState<FieldError[]>([]);
   const [success, setSuccess] = useState("");
@@ -152,6 +153,28 @@ export function useUserManagement() {
     setInviteError("Einladung konnte nicht versendet werden. Bitte Eingabe prüfen.");
   }, [sendInvite, inviteEmail]);
 
+  const handleResendInvitation = useCallback(async (email: string) => {
+    setIsResendingInvite(email);
+    setError("");
+    try {
+      const response = await fetch("/api/admin/invitations/resend-by-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-csrf-protection": "1" },
+        body: JSON.stringify({ email }),
+      });
+      const data = await response.json() as { message?: string; error?: string };
+      if (response.ok) {
+        setSuccess(data.message || "Einladung wurde erneut versendet");
+      } else {
+        setError(data.error || "Einladung konnte nicht versendet werden");
+      }
+    } catch {
+      setError("Ein Fehler ist aufgetreten. Bitte versuchen Sie es erneut.");
+    } finally {
+      setIsResendingInvite(null);
+    }
+  }, []);
+
   const handleInviteEmailChange = useCallback((value: string) => {
     setInviteEmail(value);
     if (inviteError) {
@@ -257,6 +280,8 @@ export function useUserManagement() {
     initialUserData,
     isModalOpen,
     editingUser,
+    isResendingInvite,
+    handleResendInvitation,
     setInviteEmail: handleInviteEmailChange,
     handleCreateUser,
     handleUpdateUser,

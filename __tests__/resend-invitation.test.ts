@@ -73,7 +73,7 @@ describe("POST /api/admin/invitations/[id]/resend", () => {
     delete process.env.APP_URL;
   });
 
-  it("should resend invitation email successfully", async () => {
+  it("should resend invitation email successfully for non-expired invitation", async () => {
     const mockInvitation: MockInvitation = {
       id: "inv-123",
       email: "user@example.com",
@@ -124,6 +124,37 @@ describe("POST /api/admin/invitations/[id]/resend", () => {
         userEmail: "admin@example.com",
       },
     });
+  });
+
+  it("should resend invitation email successfully for expired invitation", async () => {
+    const mockInvitation: MockInvitation = {
+      id: "inv-456",
+      email: "user@example.com",
+      tokenHash: "old-hash",
+      role: "MEMBER",
+      expiresAt: new Date("2020-01-01T00:00:00Z"),
+      usedAt: null,
+      invitedBy: { email: "admin@example.com" },
+    };
+
+    mockedPrisma.invitation.findUnique.mockResolvedValue(mockInvitation);
+    mockedPrisma.invitation.update.mockResolvedValue({
+      ...mockInvitation,
+      tokenHash: "hashed-new-token-123",
+      expiresAt: new Date("2099-12-31T23:59:59Z"),
+    });
+
+    const request = new Request("https://example.com/api/admin/invitations/inv-456/resend", {
+      method: "POST",
+    });
+    const response = await resendById(request, {
+      params: Promise.resolve({ id: "inv-456" }),
+    });
+    const data = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(data.message).toBe("Einladung wurde erneut versendet.");
+    expect(mockedSendInvitationEmail).toHaveBeenCalled();
   });
 
   it("should return 404 if invitation not found", async () => {
@@ -286,11 +317,39 @@ describe("POST /api/admin/invitations/resend-by-email", () => {
       where: {
         email: "user@example.com",
         usedAt: null,
-        expiresAt: { gt: expect.any(Date) },
       },
       include: { invitedBy: true },
     });
     expect(sendInvitationEmail).toHaveBeenCalled();
+  });
+
+  it("should resend by email successfully for expired invitation", async () => {
+    const mockInvitation: MockInvitation = {
+      id: "inv-789",
+      email: "user@example.com",
+      tokenHash: "old-hash",
+      role: "MEMBER",
+      expiresAt: new Date("2020-01-01T00:00:00Z"),
+      usedAt: null,
+      invitedBy: { email: "admin@example.com" },
+    };
+
+    mockedPrisma.invitation.findFirst.mockResolvedValue(mockInvitation);
+    mockedPrisma.invitation.update.mockResolvedValue({
+      ...mockInvitation,
+      tokenHash: "hashed-new-token-123",
+    });
+
+    const request = new Request("https://example.com/api/admin/invitations/resend-by-email", {
+      method: "POST",
+      body: JSON.stringify({ email: "user@example.com" }),
+    });
+    const response = await resendByEmail(request);
+    const data = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(data.message).toBe("Einladung wurde erneut versendet.");
+    expect(mockedSendInvitationEmail).toHaveBeenCalled();
   });
 
   it("should normalize email to lowercase and trim", async () => {
@@ -323,7 +382,6 @@ describe("POST /api/admin/invitations/resend-by-email", () => {
       where: {
         email: "user@example.com",
         usedAt: null,
-        expiresAt: { gt: expect.any(Date) },
       },
       include: { invitedBy: true },
     });
@@ -352,7 +410,7 @@ describe("POST /api/admin/invitations/resend-by-email", () => {
     const data = await response.json();
 
     expect(response.status).toBe(404);
-    expect(data.error).toBe("Keine aktive Einladung für diese E-Mail gefunden");
+    expect(data.error).toBe("Keine Einladung für diese E-Mail gefunden");
   });
 
   it("should return 400 if APP_URL is not configured", async () => {

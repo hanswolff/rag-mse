@@ -16,6 +16,7 @@ import {
   UserIcon,
 } from "@/components/icons";
 import { AlertBox } from "@/components/alert-box";
+import { appName } from "@/lib/site-config";
 
 interface UseLoginFormResult {
   email: string;
@@ -217,7 +218,7 @@ export default function LoginPage() {
             Geschützter Mitgliederbereich
           </div>
           <h2 className="text-4xl font-bold text-white mb-4">
-            RAG Schießsport MSE
+            {appName}
           </h2>
           <p className="text-brand-blue-100 text-lg leading-relaxed max-w-lg">
             Mitgliederbereich der Reservistenarbeitsgemeinschaft für sportliches
@@ -255,7 +256,7 @@ export default function LoginPage() {
         <div className="w-full max-w-md">
           <div className="card border border-white/70 shadow-2xl shadow-slate-200/70 backdrop-blur-sm">
             <h1 className="text-2xl sm:text-3xl font-bold text-center mb-4 sm:mb-6 text-brand-blue-900">
-              RAG Schießsport MSE
+              {appName}
             </h1>
             <h2 className="text-lg sm:text-xl font-semibold text-center mb-4 sm:mb-6 text-brand-red-700">
               Login

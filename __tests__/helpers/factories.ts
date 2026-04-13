@@ -29,6 +29,7 @@ export interface MockUser {
   adminNotes: string | null;
   lastLoginAt: Date | null;
   passwordUpdatedAt: Date | null;
+  activatedAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -55,6 +56,7 @@ export function buildUser(overrides: Partial<MockUser> = {}): MockUser {
     adminNotes: null,
     lastLoginAt: null,
     passwordUpdatedAt: null,
+    activatedAt: null,
     createdAt: new Date("2024-01-01T00:00:00Z"),
     updatedAt: new Date("2024-01-01T00:00:00Z"),
     ...overrides,

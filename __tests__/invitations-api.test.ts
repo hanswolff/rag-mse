@@ -9,15 +9,15 @@ import {
 import { sendTemplateEmail } from "../lib/email-sender";
 
 jest.mock("../lib/email-sender");
+jest.mock("../lib/site-config", () => ({
+  appName: "Test App",
+  appTagline: "Test Tagline",
+  appDescription: "Test Description",
+}));
 
 describe("lib/invitations", () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    process.env.APP_NAME = "Test App";
-  });
-
-  afterEach(() => {
-    delete process.env.APP_NAME;
   });
 
   describe("generateInvitationToken", () => {
@@ -161,8 +161,7 @@ describe("lib/invitations", () => {
       });
     });
 
-    it("should use default app name when not set", async () => {
-      delete process.env.APP_NAME;
+    it("should use configured app name", async () => {
       const email = "test@example.com";
       const inviteUrl = "https://example.com/einladung/token123";
 
@@ -174,7 +173,7 @@ describe("lib/invitations", () => {
       expect(sendTemplateEmail).toHaveBeenCalledWith({
         template: "einladung-zur-rag-mse",
         variables: {
-          appName: "RAG Schießsport MSE",
+          appName: "Test App",
           inviteUrl,
           inviteValidityDays: "14",
         },

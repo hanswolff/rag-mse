@@ -345,18 +345,11 @@ export async function processEventReminders(now = new Date()): Promise<number> {
   const pollIntervalMs = getPollIntervalMs();
   const notificationTimeZone = getNotificationTimeZone();
 
-  // Get emails with pending (unused) invitations to exclude them
-  const pendingInvitationEmails = await prisma.invitation.findMany({
-    where: {
-      usedAt: null,
-      expiresAt: { gt: now },
-    },
-    select: { email: true },
-  });
-  const excludedEmails = new Set(pendingInvitationEmails.map((inv) => inv.email.toLowerCase()));
-
   const users = await prisma.user.findMany({
-    where: { eventReminderEnabled: true },
+    where: {
+      eventReminderEnabled: true,
+      activatedAt: { not: null },
+    },
     select: {
       id: true,
       email: true,
@@ -365,9 +358,9 @@ export async function processEventReminders(now = new Date()): Promise<number> {
     },
   });
 
-  // Filter out users with pending invitations and read-only roles.
+  // Filter out users without vote permission.
   const activeUsers = users.filter(
-    (user) => !excludedEmails.has(user.email.toLowerCase()) && Permissions.canVoteAttendance(user.role)
+    (user) => Permissions.canVoteAttendance(user.role)
   );
 
   let queued = 0;

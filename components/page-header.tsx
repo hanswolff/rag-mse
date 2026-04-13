@@ -1,3 +1,4 @@
+import { appName } from "@/lib/site-config";
 import { TargetIcon } from "@/components/icons";
 
 export function PageHeader({
@@ -14,7 +15,7 @@ export function PageHeader({
       <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-10 lg:py-12">
         <span className="hidden sm:inline-flex items-center rounded-full border border-white/20 bg-white/10 px-3 py-1 text-sm font-semibold uppercase tracking-[0.22em] text-brand-gold-400">
           <TargetIcon className="mr-2 h-4 w-4" />
-          RAG Schießsport MSE
+          {appName}
         </span>
         <h1 className="sm:mt-4 text-2xl font-bold text-white sm:text-3xl md:text-4xl">
           {title}

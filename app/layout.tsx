@@ -4,18 +4,19 @@ import { Providers } from "@/components/providers";
 import { CookieBanner } from "@/components/cookie-banner";
 import { Navigation } from "@/components/navigation";
 import { Footer } from "@/components/footer";
+import { appName, appDescription } from "@/lib/site-config";
 
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://rag-mse.de";
 
 export const metadata: Metadata = {
   title: {
-    default: "RAG Schießsport MSE",
-    template: "%s | RAG Schießsport MSE"
+    default: appName,
+    template: `%s | ${appName}`
   },
-  description: "Website der RAG Schießsport MSE - Reservistenarbeitsgemeinschaft für sportliches Schießen in Mecklenburg-Vorpommern",
+  description: `Website der ${appName} - ${appDescription}`,
   authors: [{ name: "Hans Wolff" }],
   creator: "Hans Wolff",
-  keywords: ["RAG Schießsport MSE", "Reservistenarbeitsgemeinschaft", "Schießsport", "Mecklenburg-Vorpommern", "Schützen"],
+  keywords: [appName, "Reservistenarbeitsgemeinschaft", "Schießsport", "Mecklenburg-Vorpommern", "Schützen"],
   metadataBase: new URL(siteUrl),
   icons: {
     icon: [
@@ -28,18 +29,18 @@ export const metadata: Metadata = {
   openGraph: {
     type: "website",
     locale: "de_DE",
-    siteName: "RAG Schießsport MSE",
+    siteName: appName,
     images: [{
       url: "/og-image.png",
       width: 1200,
       height: 630,
-      alt: "RAG Schießsport MSE Logo"
+      alt: `${appName} Logo`
     }]
   },
   twitter: {
     card: "summary_large_image",
-    title: "RAG Schießsport MSE",
-    description: "Website der RAG Schießsport MSE",
+    title: appName,
+    description: `Website der ${appName}`,
     images: ["/og-image.png"]
   },
   robots: "index, follow"

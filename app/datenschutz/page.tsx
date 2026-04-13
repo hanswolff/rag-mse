@@ -1,4 +1,5 @@
 import { BackLink } from "@/components/back-link";
+import { appName } from "@/lib/site-config";
 
 export default function DatenschutzPage() {
   return (
@@ -23,7 +24,7 @@ export default function DatenschutzPage() {
           <section className="mb-6 sm:mb-8">
             <h2 className="text-lg sm:text-xl font-semibold mb-3 sm:mb-4 text-gray-900">2. Verantwortlicher</h2>
             <p className="text-base sm:text-base text-gray-800">
-              Verantwortlich für die Datenverarbeitung ist die RAG Schießsport MSE. Die Kontaktdaten finden Sie im
+              Verantwortlich für die Datenverarbeitung ist die {appName}. Die Kontaktdaten finden Sie im
               Abschnitt &ldquo;Kontakt für Datenschutz&rdquo; am Ende dieser Seite.
             </p>
           </section>
