@@ -23,10 +23,10 @@ export default function WaffentechnischeBegriffePage() {
                 href="/dokumente/Waffentechnische_Begriffe.pdf"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="btn-secondary inline-flex items-center gap-2 text-base"
+                className="btn-secondary document-download-link text-base"
               >
-                <DownloadDocumentIcon className="w-5 h-5" />
-                Waffentechnische Begriffe herunterladen (PDF)
+                <DownloadDocumentIcon className="h-5 w-5 shrink-0" />
+                <span className="document-download-label">Waffentechnische Begriffe herunterladen (PDF)</span>
               </Link>
             </div>
           </div>

@@ -236,10 +236,10 @@ export default async function SchiesssportordnungPage() {
                 href="/dokumente/vdrbw_sportordnung.pdf"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="btn-secondary inline-flex items-center gap-2 text-base"
+                className="btn-secondary document-download-link text-base"
               >
-                <DownloadDocumentIcon className="w-5 h-5" />
-                Schießsportordnung herunterladen (PDF)
+                <DownloadDocumentIcon className="h-5 w-5 shrink-0" />
+                <span className="document-download-label">Schießsportordnung herunterladen (PDF)</span>
               </Link>
             </div>
           </div>

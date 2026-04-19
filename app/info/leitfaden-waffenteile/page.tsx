@@ -34,10 +34,10 @@ export default function LeitfadenWaffenteilePage() {
                 href="/dokumente/LeitfadenWaffenteile_DE.pdf"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="btn-secondary inline-flex items-center gap-2 text-base"
+                className="btn-secondary document-download-link text-base"
               >
-                <DownloadDocumentIcon className="w-5 h-5" />
-                Leitfaden herunterladen (PDF)
+                <DownloadDocumentIcon className="h-5 w-5 shrink-0" />
+                <span className="document-download-label">Leitfaden herunterladen (PDF)</span>
               </Link>
             </div>
           </div>
@@ -58,10 +58,10 @@ export default function LeitfadenWaffenteilePage() {
                 href="https://www.bmi.bund.de/DE/themen/sicherheit/waffen/das-nationale-waffenregister/das-nationale-waffenregister-node.html"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="btn-primary inline-flex items-center gap-2 text-base"
+                className="btn-primary document-download-link text-base"
               >
-                <ExternalLinkIcon className="w-5 h-5" />
-                Informationsseite Nationales Waffenregister (BMI)
+                <ExternalLinkIcon className="h-5 w-5 shrink-0" />
+                <span className="document-download-label">Informationsseite Nationales Waffenregister (BMI)</span>
               </Link>
             </div>
           </div>

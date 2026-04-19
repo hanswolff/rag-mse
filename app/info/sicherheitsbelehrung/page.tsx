@@ -50,15 +50,41 @@ export default function SicherheitsbelehrungPage() {
               <li>Rauchverbot</li>
             </ul>
 
-            <div className="mt-8 text-center">
+            <div className="mt-8">
               <Link
                 href="/dokumente/RAG_Schiesssport_Sicherheitsbelehrung_Stand_01-2019.pdf"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="btn-secondary inline-flex items-center gap-2 text-base"
+                className="document-download-link document-download-link-download document-download-link-start"
               >
-                <DownloadDocumentIcon className="w-5 h-5" />
-                Sicherheitsbelehrung herunterladen (PDF)
+                <DownloadDocumentIcon className="h-5 w-5 shrink-0" />
+                <span className="document-download-label">Sicherheitsbelehrung (PDF)</span>
+              </Link>
+            </div>
+          </div>
+        </section>
+        <section className="card mt-6 p-6 sm:p-8 bg-brand-blue-50 border border-brand-blue-100">
+          <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-4">
+            Merkblatt zur Waffenaufbewahrung
+          </h2>
+          <div className="space-y-4 text-base sm:text-lg text-gray-700 leading-relaxed">
+            <p>
+              Ergänzend zur jährlichen Sicherheitsbelehrung steht ein kompaktes Merkblatt zur
+              sicheren und rechtskonformen Aufbewahrung von Waffen und Munition bereit.
+            </p>
+            <p>
+              Das Dokument eignet sich als schnelle Orientierung zu zentralen Anforderungen für
+              Lagerung, Zugriffsschutz und organisatorische Sorgfalt im Alltag.
+            </p>
+            <div className="mt-6">
+              <Link
+                href="/dokumente/Merkblatt_Waffenaufbewahrung.pdf"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="document-download-link document-download-link-download document-download-link-start"
+              >
+                <DownloadDocumentIcon className="h-5 w-5 shrink-0" />
+                <span className="document-download-label">Merkblatt Waffenaufbewahrung (PDF)</span>
               </Link>
             </div>
           </div>

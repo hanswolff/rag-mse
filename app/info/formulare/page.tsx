@@ -6,14 +6,26 @@ const ACTION_CLASSES = "inline-flex items-center gap-2 text-sm";
 
 const pathways = [
   {
+    title: "Mitglied im Reservistenverband werden",
+    description:
+      "Sie möchten Mitglied im Reservistenverband werden. Nutzen Sie den Aufnahmeantrag für die Anmeldung.",
+    actions: [
+      {
+        label: "Aufnahmeantrag Reservistenverband",
+        href: "/dokumente/Antrag_Mitgliedschaft_Reservistenverband.pdf",
+        className: "btn-secondary"
+      }
+    ]
+  },
+  {
     title: "Mitglied werden",
     description:
       `Sie möchten der ${appName} beitreten. Nutzen Sie den Aufnahmeantrag für die Anmeldung.`,
     actions: [
       {
-        label: "Aufnahmeantrag herunterladen",
+        label: "Aufnahmeantrag",
         href: "/dokumente/Antrag_Mitgliedschaft_RAG.pdf",
-        className: "btn-secondary"
+        className: "document-download-link-download"
       }
     ]
   },
@@ -23,9 +35,9 @@ const pathways = [
       "Für Mitglieder ohne waffenrechtliche Erlaubnis. Das Formular wird vor Ort vom Schießleiter ausgefüllt.",
     actions: [
       {
-        label: "Formular Munitionserwerb herunterladen",
+        label: "Formular Munitionserwerb",
         href: "/dokumente/Munitionserwerb.pdf",
-        className: "btn-secondary"
+        className: "document-download-link-download"
       }
     ]
   },
@@ -35,9 +47,21 @@ const pathways = [
       "Die Schießkladde dient der strukturierten Dokumentation von Schießterminen, Ergebnissen und Munitionsverbrauch.",
     actions: [
       {
-        label: "Schiesskladde RAG herunterladen",
+        label: "Schiesskladde RAG",
         href: "/dokumente/Schiesskladde_RAG.pdf",
-        className: "btn-secondary"
+        className: "document-download-link-download"
+      }
+    ]
+  },
+  {
+    title: "Waffen überlassen",
+    description:
+      "Nutzen Sie dieses Formular, wenn eine Waffe im vorgesehenen Verfahren überlassen oder übernommen werden soll.",
+    actions: [
+      {
+        label: "Formular Waffenüberlassung",
+        href: "/dokumente/RAG_Ueberlassung_Waffen.pdf",
+        className: "document-download-link-download"
       }
     ]
   }
@@ -71,10 +95,10 @@ export default function FormularePage() {
                         href={action.href}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className={`${action.className} ${ACTION_CLASSES}`}
+                        className={`${action.className} ${ACTION_CLASSES} document-download-link`}
                       >
-                        <DownloadDocumentIcon className="w-4 h-4" />
-                        {action.label}
+                        <DownloadDocumentIcon className="h-4 w-4 shrink-0" />
+                        <span className="document-download-label">{action.label}</span>
                       </Link>
                     ))}
                   </div>
@@ -99,10 +123,10 @@ export default function FormularePage() {
                 href="https://www.lk-mecklenburgische-seenplatte.de/Angebote/Waffenrecht-Formulare.php?object=tx,2761.5.1&ModID=7&FID=2761.20694.1&NavID=2761.8&La=1"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="btn-primary inline-flex items-center gap-2 text-base"
+                className="document-download-link document-download-link-external document-download-link-start"
               >
-                <ExternalLinkIcon className="w-5 h-5" />
-                Waffenrecht-Formulare des Landkreises
+                <ExternalLinkIcon className="h-5 w-5 shrink-0" />
+                <span className="document-download-label">Waffenrecht-Formulare des Landkreises</span>
               </Link>
             </div>
           </div>

@@ -100,6 +100,30 @@ body {
     @apply inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-base font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-white/50 focus:ring-offset-2 focus:ring-offset-brand-blue-900 disabled:opacity-60 disabled:cursor-not-allowed border border-white text-white hover:bg-white hover:text-brand-blue-900;
   }
 
+  .document-download-link {
+    @apply inline-flex w-full items-center justify-center gap-2 whitespace-normal rounded-md border px-4 py-2 text-center text-base font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-brand-red-600/30 focus:ring-offset-2 focus:ring-offset-white sm:w-auto;
+  }
+
+  .document-download-link-download {
+    @apply border-brand-blue-200 bg-brand-blue-800 text-white hover:border-brand-blue-900 hover:bg-brand-blue-900;
+  }
+
+  .document-download-link-external {
+    @apply border-brand-red-600 bg-brand-red-600 text-white hover:border-brand-red-700 hover:bg-brand-red-700;
+  }
+
+  .document-download-link-start {
+    @apply justify-start text-left;
+  }
+
+  .document-download-label {
+    @apply text-center break-words leading-snug;
+  }
+
+  .document-download-link-start .document-download-label {
+    @apply text-left;
+  }
+
   .link-primary {
     @apply text-brand-red-700 hover:text-brand-red-800 hover:underline;
   }

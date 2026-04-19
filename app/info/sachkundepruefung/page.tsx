@@ -37,10 +37,10 @@ export default function SachkundepruefungPage() {
                   href={document.href}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="btn-secondary inline-flex items-center justify-center gap-2 text-base"
+                  className="btn-secondary document-download-link text-base"
                 >
-                  <DownloadDocumentIcon className="w-5 h-5" />
-                  {document.label}
+                  <DownloadDocumentIcon className="h-5 w-5 shrink-0" />
+                  <span className="document-download-label">{document.label}</span>
                 </Link>
               ))}
             </div>
