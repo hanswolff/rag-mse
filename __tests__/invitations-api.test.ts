@@ -35,9 +35,9 @@ describe("lib/invitations", () => {
       expect(token).toMatch(/^[0-9a-zA-Z]+$/);
     });
 
-    it("should generate an 8-character alphanumeric string", () => {
+    it("should generate a 10-character alphanumeric string", () => {
       const token = generateInvitationToken();
-      expect(token.length).toBe(8);
+      expect(token.length).toBe(10);
     });
   });
 

@@ -9,7 +9,7 @@ import { canAccessAdminArea, canManageOwnProfile, canReadMemberDocuments } from 
 import { API_ROUTES } from "@/lib/api-routes";
 import { MenuIcon, XIcon } from "./icons";
 import { ImpersonationBanner } from "./nav/impersonation-banner";
-import { DesktopInfoMenu, MobileInfoMenu, INFO_ITEMS, MEMBER_DOCUMENTS_ITEM } from "./nav/info-menu";
+import { DesktopInfoMenu, MobileInfoMenu, INFO_ITEMS, TOP_INFO_ITEMS, MEMBER_DOCUMENTS_ITEM } from "./nav/info-menu";
 import { DesktopUserMenu, MobileUserMenu } from "./nav/user-menu";
 import { appName } from "@/lib/site-config";
 
@@ -154,7 +154,10 @@ export function Navigation() {
     }
   };
 
-  const isInfoActive = INFO_ITEMS.some((item) => isActive(item.href)) || isActive(MEMBER_DOCUMENTS_ITEM.href);
+  const isInfoActive =
+    TOP_INFO_ITEMS.some((item) => isActive(item.href)) ||
+    INFO_ITEMS.some((item) => isActive(item.href)) ||
+    isActive(MEMBER_DOCUMENTS_ITEM.href);
   const infoButtonClassName = `${BASE_LINK_CLASSES} ${isInfoActive ? ACTIVE_CLASSES : INACTIVE_CLASSES} flex items-center gap-1`;
 
   return (

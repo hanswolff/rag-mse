@@ -5,7 +5,13 @@ const pdfjs = {
   version: "0.0.0",
 };
 
-function Document({ children, ...props }) {
+function Document({ children, onLoadSuccess, ...props }) {
+  React.useEffect(() => {
+    if (typeof onLoadSuccess === "function") {
+      onLoadSuccess({ numPages: 1 });
+    }
+  }, [onLoadSuccess]);
+
   return React.createElement("div", { "data-testid": "pdf-document", ...props }, children);
 }
 

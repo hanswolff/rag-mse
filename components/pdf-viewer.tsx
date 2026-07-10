@@ -12,7 +12,10 @@ const VIEWPORT_MARGIN = "600px";
 
 function PageLoadingPlaceholder({ height }: { height: number }) {
   return (
-    <div className="flex items-center justify-center text-gray-400" style={{ height }}>
+    <div
+      className="flex items-center justify-center text-gray-400"
+      style={{ height }}
+    >
       <LoadingIndicator size="md" className="text-gray-400" />
     </div>
   );
@@ -28,14 +31,20 @@ function LazyPage({
   scrollRoot: HTMLElement | null;
 }) {
   const ref = useRef<HTMLDivElement>(null);
-  const [isVisible, setIsVisible] = useState(false);
+  const [isVisible, setIsVisible] = useState(
+    () => typeof IntersectionObserver === "undefined"
+  );
 
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
+    if (typeof IntersectionObserver === "undefined") {
+      return;
+    }
+
     const observer = new IntersectionObserver(
       ([entry]) => setIsVisible(entry.isIntersecting),
-      { root: scrollRoot, rootMargin: VIEWPORT_MARGIN },
+      { root: scrollRoot, rootMargin: VIEWPORT_MARGIN }
     );
     observer.observe(el);
     return () => observer.disconnect();
@@ -44,7 +53,10 @@ function LazyPage({
   const estimatedHeight = width ? Math.round(width * 1.414) : 800;
 
   return (
-    <div ref={ref} style={{ minHeight: isVisible ? undefined : estimatedHeight }}>
+    <div
+      ref={ref}
+      style={{ minHeight: isVisible ? undefined : estimatedHeight }}
+    >
       {isVisible ? (
         <Page
           pageNumber={pageNumber}
@@ -61,24 +73,37 @@ function LazyPage({
 export function PdfViewer({ source }: { source: string }) {
   const [numPages, setNumPages] = useState<number | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const [containerWidth, setContainerWidth] = useState<number | undefined>(undefined);
+  const [containerWidth, setContainerWidth] = useState<number | undefined>(
+    undefined
+  );
+  const [scrollRoot, setScrollRoot] = useState<HTMLDivElement | null>(null);
 
   useEffect(() => {
-    if (!containerRef.current) return;
+    const container = containerRef.current;
+    if (!container) return;
+
+    setScrollRoot(container);
+
     const observer = new ResizeObserver((entries) => {
       for (const entry of entries) {
         setContainerWidth(entry.contentRect.width);
       }
     });
-    observer.observe(containerRef.current);
+
+    observer.observe(container);
     return () => observer.disconnect();
   }, []);
 
-  const onDocumentLoadSuccess = useCallback(({ numPages }: { numPages: number }) => {
-    setNumPages(numPages);
-  }, []);
+  const onDocumentLoadSuccess = useCallback(
+    ({ numPages }: { numPages: number }) => {
+      setNumPages(numPages);
+    },
+    []
+  );
 
-  const pageWidth = containerWidth ? Math.min(containerWidth - 32, 1200) : undefined;
+  const pageWidth = containerWidth
+    ? Math.min(containerWidth - 32, 1200)
+    : undefined;
 
   return (
     <div className="flex flex-col min-h-0 flex-1">
@@ -95,12 +120,21 @@ export function PdfViewer({ source }: { source: string }) {
               <span>PDF wird geladen…</span>
             </div>
           }
-          error={<div className="flex items-center justify-center p-8 text-red-600">PDF konnte nicht geladen werden.</div>}
+          error={
+            <div className="flex items-center justify-center p-8 text-red-600">
+              PDF konnte nicht geladen werden.
+            </div>
+          }
         >
           <div className="flex flex-col items-center gap-4 py-4">
             {numPages &&
               Array.from({ length: numPages }, (_, i) => (
-                <LazyPage key={i + 1} pageNumber={i + 1} width={pageWidth} scrollRoot={containerRef.current} />
+                <LazyPage
+                  key={i + 1}
+                  pageNumber={i + 1}
+                  width={pageWidth}
+                  scrollRoot={scrollRoot}
+                />
               ))}
           </div>
         </Document>

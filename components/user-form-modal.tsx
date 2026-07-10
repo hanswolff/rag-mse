@@ -113,6 +113,8 @@ export function UserFormModal({
       onClose={handleClose}
       title={isEditing ? "Benutzer bearbeiten" : "Benutzer erstellen"}
       size="2xl"
+      closeOnOutsideClick={false}
+      closeOnEscape={false}
     >
       <form onSubmit={handleSubmit} className="space-y-4" noValidate>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

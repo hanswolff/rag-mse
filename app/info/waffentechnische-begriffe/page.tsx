@@ -1,3 +1,5 @@
+export { metadata } from "./metadata";
+
 import Link from "next/link";
 import { DownloadDocumentIcon } from "@/components/icons";
 

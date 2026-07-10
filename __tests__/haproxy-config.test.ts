@@ -71,8 +71,10 @@ describe('HAProxy Configuration', () => {
       expect(configContent).toContain('X-Content-Type-Options');
     });
 
-    it('should set X-XSS-Protection header', () => {
-      expect(configContent).toContain('X-XSS-Protection');
+    it('does not set the deprecated X-XSS-Protection header', () => {
+      // Von allen Browsern entfernt bzw. ignoriert; kann in alten Browsern
+      // sogar Lücken öffnen — CSP übernimmt den Schutz
+      expect(configContent).not.toContain('X-XSS-Protection');
     });
 
     it('should set Referrer-Policy header', () => {
@@ -124,8 +126,8 @@ describe('HAProxy Configuration', () => {
       expect(configContent).toContain('CHANGEME_PASSWORD');
     });
 
-    it('should have comment about backend IP configuration', () => {
-      expect(configContent).toMatch(/IP muss.*angepasst/i);
+    it('should have comment about backend address configuration', () => {
+      expect(configContent).toMatch(/rootless-Podman-Container auf 127\.0\.0\.1:3000/i);
     });
   });
 });

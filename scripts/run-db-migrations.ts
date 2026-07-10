@@ -257,6 +257,26 @@ function canTreatMigrationAsAlreadyApplied(
   return false;
 }
 
+// Nicht-Schema-Statements (UPDATE-Backfills, INSERTs, PRAGMAs) einer Migration,
+// deren Schema-Statements bereits erfüllt sind (z. B. durch ein früheres `db push`).
+// Sie müssen trotzdem ausgeführt werden, sonst fehlen Daten-Backfills still.
+export function extractDataStatements(migrationSql: string): string[] {
+  return splitSqlStatements(migrationSql).filter((statement) => !isSchemaStatement(statement));
+}
+
+export function runDataStatementsForSatisfiedMigration(
+  db: SqliteDatabase,
+  migrationSql: string
+): number {
+  const dataStatements = extractDataStatements(migrationSql);
+
+  for (const statement of dataStatements) {
+    db.exec(`${statement};`);
+  }
+
+  return dataStatements.length;
+}
+
 export function needsBaselineInitialization(db: SqliteDatabase): boolean {
   return !tableExists(db, "User");
 }
@@ -302,8 +322,22 @@ function run(): void {
       continue;
     }
 
+    // Fremdschlüssel während der Migration deaktivieren (Prisma-Standardmuster für
+    // Tabellen-Neubauten): innerhalb einer Transaktion ist `PRAGMA foreign_keys=OFF`
+    // wirkungslos, und bei aktiven FKs löst ein DROP TABLE die ON-DELETE-CASCADE-Aktionen
+    // der Kind-Tabellen aus. Konsistenz wird nach der Migration per foreign_key_check geprüft.
+    db.pragma("foreign_keys = OFF");
+
     const tx = db.transaction(() => {
       db.exec(migration.sql);
+
+      const violations = db.prepare("PRAGMA foreign_key_check;").all();
+      if (violations.length > 0) {
+        throw new Error(
+          `Migration ${migration.name} hinterlässt Fremdschlüssel-Verletzungen: ${JSON.stringify(violations)}`
+        );
+      }
+
       insertStmt.run(migration.name, migration.checksum);
     });
 
@@ -315,10 +349,21 @@ function run(): void {
         throw error;
       }
 
-      insertStmt.run(migration.name, migration.checksum);
+      // Schema-Statements sind bereits erfüllt — Daten-Backfills der Migration
+      // müssen trotzdem laufen (die ursprüngliche Transaktion wurde zurückgerollt).
+      const backfillTx = db.transaction(() => {
+        const executed = runDataStatementsForSatisfiedMigration(db, migration.sql);
+        insertStmt.run(migration.name, migration.checksum);
+        return executed;
+      });
+      const executedCount = backfillTx();
+
       console.warn(
-        `Migration als bereits angewendet markiert (Schema bereits vorhanden): ${migration.name}`
+        `Migration als bereits angewendet markiert (Schema bereits vorhanden), ` +
+          `${executedCount} Daten-Statement(s) ausgeführt: ${migration.name}`
       );
+    } finally {
+      db.pragma("foreign_keys = ON");
     }
   }
 

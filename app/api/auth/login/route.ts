@@ -60,13 +60,13 @@ export const POST = withApiErrorHandling(async (request: NextRequest) => {
       const minutes = error.blockedMinutes;
       const minuteLabel = pluralize(minutes, "Minute", "Minuten");
       return NextResponse.json(
-        { error: `Zu viele fehlgeschlagene Anmeldeversuche. Bitte versuchen Sie es in ${minutes} ${minuteLabel} erneut.` },
+        { error: `Zu viele fehlgeschlagene Login-Versuche. Bitte versuchen Sie es in ${minutes} ${minuteLabel} erneut.` },
         { status: 429 }
       );
     }
     if (error instanceof RateLimitUnavailableError) {
       return NextResponse.json(
-        { error: "Anmeldung ist vorübergehend nicht verfügbar. Bitte versuchen Sie es erneut." },
+        { error: "Login ist vorübergehend nicht verfügbar. Bitte versuchen Sie es erneut." },
         { status: 503 }
       );
     }

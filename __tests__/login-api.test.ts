@@ -69,7 +69,7 @@ describe("/api/auth/login/route", () => {
     const data = await response.json();
 
     expect(response.status).toBe(429);
-    expect(data.error).toContain("Zu viele fehlgeschlagene Anmeldeversuche");
+    expect(data.error).toContain("Zu viele fehlgeschlagene Login-Versuche");
   });
 
   it("returns 401 when credentials are invalid", async () => {

@@ -98,6 +98,14 @@ export class Permissions {
     return this.canManageAdminArea(userOrRole);
   }
 
+  static canReadAusschreibungenAdmin(userOrRole: UserWithRole | string | undefined): boolean {
+    return this.canAccessAdminArea(userOrRole);
+  }
+
+  static canManageAusschreibungen(userOrRole: UserWithRole | string | undefined): boolean {
+    return this.canManageAdminArea(userOrRole);
+  }
+
   static canReadNotificationsAdmin(userOrRole: UserWithRole | string | undefined): boolean {
     return this.canManageAdminArea(userOrRole);
   }

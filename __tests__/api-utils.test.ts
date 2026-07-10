@@ -202,8 +202,8 @@ describe("withApiErrorHandling", () => {
 
   describe("token rate limit helpers", () => {
     afterEach(() => {
-      delete process.env.RATE_LIMIT_FAIL_OPEN;
-      delete process.env.NODE_ENV;
+      delete (process.env as Record<string, string | undefined>).RATE_LIMIT_FAIL_OPEN;
+      delete (process.env as Record<string, string | undefined>).NODE_ENV;
     });
 
     it("returns 503 when token rate limiter is unavailable in fail-closed mode", async () => {
@@ -222,7 +222,7 @@ describe("withApiErrorHandling", () => {
     });
 
     it("fails open when token rate limiter is unavailable in development", async () => {
-      process.env.NODE_ENV = "development";
+      (process.env as Record<string, string | undefined>).NODE_ENV = "development";
       (checkTokenRateLimit as jest.Mock).mockRejectedValue(new Error("redis down"));
 
       const result = await checkTokenRateLimitWithPolicy("/api/test/[token]", "GET", "127.0.0.1", "hash", "abc...");
@@ -252,11 +252,11 @@ describe("withApiErrorHandling", () => {
 
   describe("logApiError", () => {
     afterEach(() => {
-      delete process.env.NODE_ENV;
+      delete (process.env as Record<string, string | undefined>).NODE_ENV;
     });
 
     it("logs Error objects with full details including stack in development", () => {
-      process.env.NODE_ENV = 'development';
+      (process.env as Record<string, string | undefined>).NODE_ENV = 'development';
       const error = new Error("Test error");
       logApiError(error, { route: "/test", method: "GET", status: 500 });
 
@@ -275,7 +275,7 @@ describe("withApiErrorHandling", () => {
     });
 
     it("hides stack traces in production", () => {
-      process.env.NODE_ENV = 'production';
+      (process.env as Record<string, string | undefined>).NODE_ENV = 'production';
       const error = new Error("Test error");
       logApiError(error, { route: "/test", method: "GET", status: 500 });
 
@@ -586,7 +586,7 @@ describe("withApiErrorHandling", () => {
 
     it("uses custom validator when provided", () => {
       const schema = {
-        email: { type: 'string' as const, validator: (v) => typeof v === 'string' && v.includes('@') },
+        email: { type: 'string' as const, validator: (v: unknown) => typeof v === 'string' && v.includes('@') },
       } as const;
 
       const body = { email: "invalid-email" };
@@ -598,7 +598,7 @@ describe("withApiErrorHandling", () => {
 
     it("passes valid data with custom validator", () => {
       const schema = {
-        email: { type: 'string' as const, validator: (v) => typeof v === 'string' && v.includes('@') },
+        email: { type: 'string' as const, validator: (v: unknown) => typeof v === 'string' && v.includes('@') },
       } as const;
 
       const body = { email: "valid@example.com" };
@@ -631,7 +631,7 @@ describe("withApiErrorHandling", () => {
 
     afterEach(() => {
       process.env.APP_URL = originalAppUrl;
-      process.env.NODE_ENV = originalNodeEnv;
+      (process.env as Record<string, string | undefined>).NODE_ENV = originalNodeEnv;
       process.env.DEVELOPMENT_DEPLOYMENT = originalDevelopmentDeployment;
     });
 
@@ -836,7 +836,7 @@ describe("withApiErrorHandling", () => {
       });
 
       it("does not validate in development when APP_URL is not configured", () => {
-        process.env.NODE_ENV = "development";
+        (process.env as Record<string, string | undefined>).NODE_ENV = "development";
         const mockRequest = new Request("http://localhost:3000/api/test", {
           method: "POST",
           headers: {
@@ -850,7 +850,7 @@ describe("withApiErrorHandling", () => {
       });
 
       it("rejects browser requests in production when APP_URL is missing", () => {
-        process.env.NODE_ENV = "production";
+        (process.env as Record<string, string | undefined>).NODE_ENV = "production";
         delete process.env.DEVELOPMENT_DEPLOYMENT;
 
         const mockRequest = new Request("http://localhost:3000/api/test", {
@@ -865,7 +865,7 @@ describe("withApiErrorHandling", () => {
       });
 
       it("rejects browser requests in production when APP_URL is invalid", () => {
-        process.env.NODE_ENV = "production";
+        (process.env as Record<string, string | undefined>).NODE_ENV = "production";
         delete process.env.DEVELOPMENT_DEPLOYMENT;
         process.env.APP_URL = "not-a-url";
 

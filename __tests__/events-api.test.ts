@@ -78,7 +78,7 @@ describe("/api/events/route", () => {
         },
       ]);
 
-      getServerSession.mockResolvedValue(null);
+      (getServerSession as jest.Mock).mockResolvedValue(null);
 
       const request = new NextRequest("http://localhost:3000/api/events?page=1&limit=20");
       const response = await GET(request);
@@ -100,7 +100,7 @@ describe("/api/events/route", () => {
       (prisma.event.findMany as jest.Mock).mockResolvedValue([]);
       (prisma.event.count as jest.Mock).mockResolvedValue(0);
       (prisma.shootingRange.findMany as jest.Mock).mockResolvedValue([]);
-      getServerSession.mockResolvedValue(null);
+      (getServerSession as jest.Mock).mockResolvedValue(null);
 
       const request = new NextRequest("http://localhost:3000/api/events");
       await GET(request);
@@ -117,7 +117,7 @@ describe("/api/events/route", () => {
       (prisma.event.findMany as jest.Mock).mockResolvedValue([]);
       (prisma.event.count as jest.Mock).mockResolvedValue(0);
       (prisma.shootingRange.findMany as jest.Mock).mockResolvedValue([]);
-      getServerSession.mockResolvedValue(null);
+      (getServerSession as jest.Mock).mockResolvedValue(null);
 
       const request = new NextRequest("http://localhost:3000/api/events");
       await GET(request);
@@ -132,7 +132,7 @@ describe("/api/events/route", () => {
       (prisma.event.findMany as jest.Mock).mockResolvedValue([]);
       (prisma.event.count as jest.Mock).mockResolvedValue(0);
       (prisma.shootingRange.findMany as jest.Mock).mockResolvedValue([]);
-      getServerSession.mockResolvedValue({
+      (getServerSession as jest.Mock).mockResolvedValue({
         user: { id: "user-123", email: "test@example.com", role: "MEMBER" },
       });
 
@@ -152,7 +152,7 @@ describe("/api/events/route", () => {
       (prisma.event.findMany as jest.Mock).mockResolvedValue([]);
       (prisma.event.count as jest.Mock).mockResolvedValue(0);
       (prisma.shootingRange.findMany as jest.Mock).mockResolvedValue([]);
-      getServerSession.mockResolvedValue({
+      (getServerSession as jest.Mock).mockResolvedValue({
         user: { id: "admin-123", email: "admin@example.com", role: "ADMIN" },
       });
 
@@ -170,7 +170,7 @@ describe("/api/events/route", () => {
       (prisma.event.findMany as jest.Mock).mockResolvedValue([]);
       (prisma.event.count as jest.Mock).mockResolvedValue(0);
       (prisma.shootingRange.findMany as jest.Mock).mockResolvedValue([]);
-      getServerSession.mockResolvedValue(null);
+      (getServerSession as jest.Mock).mockResolvedValue(null);
 
       const request = new NextRequest("http://localhost:3000/api/events?page=2&limit=10");
       await GET(request);
@@ -188,7 +188,7 @@ describe("/api/events/route", () => {
       (prisma.event.findMany as jest.Mock).mockResolvedValue([]);
       (prisma.event.count as jest.Mock).mockResolvedValue(0);
       (prisma.shootingRange.findMany as jest.Mock).mockResolvedValue([]);
-      getServerSession.mockResolvedValue(null);
+      (getServerSession as jest.Mock).mockResolvedValue(null);
 
       const request = new NextRequest("http://localhost:3000/api/events?pastPage=3&limit=20");
       await GET(request);
@@ -202,7 +202,7 @@ describe("/api/events/route", () => {
       (prisma.event.findMany as jest.Mock).mockResolvedValue([]);
       (prisma.event.count as jest.Mock).mockResolvedValue(0);
       (prisma.shootingRange.findMany as jest.Mock).mockResolvedValue([]);
-      getServerSession.mockResolvedValue(null);
+      (getServerSession as jest.Mock).mockResolvedValue(null);
 
       const request = new NextRequest("http://localhost:3000/api/events?limit=100");
       await GET(request);
@@ -214,7 +214,7 @@ describe("/api/events/route", () => {
     it("handles errors gracefully", async () => {
       (prisma.event.findMany as jest.Mock).mockRejectedValue(new Error("Database error"));
       (prisma.shootingRange.findMany as jest.Mock).mockResolvedValue([]);
-      getServerSession.mockResolvedValue(null);
+      (getServerSession as jest.Mock).mockResolvedValue(null);
 
       const request = new NextRequest("http://localhost:3000/api/events");
       const response = await GET(request);
@@ -230,7 +230,7 @@ describe("/api/events/route", () => {
         .mockResolvedValueOnce(25)
         .mockResolvedValueOnce(10);
       (prisma.shootingRange.findMany as jest.Mock).mockResolvedValue([]);
-      getServerSession.mockResolvedValue(null);
+      (getServerSession as jest.Mock).mockResolvedValue(null);
 
       const request = new NextRequest("http://localhost:3000/api/events?limit=10");
       const response = await GET(request);
@@ -247,7 +247,7 @@ describe("/api/events/route", () => {
       (prisma.event.findMany as jest.Mock).mockResolvedValue([]);
       (prisma.event.count as jest.Mock).mockResolvedValue(0);
       (prisma.shootingRange.findMany as jest.Mock).mockResolvedValue([]);
-      getServerSession.mockResolvedValue(null);
+      (getServerSession as jest.Mock).mockResolvedValue(null);
 
       const request = new NextRequest("http://localhost:3000/api/events");
       const response = await GET(request);
@@ -262,7 +262,7 @@ describe("/api/events/route", () => {
       (prisma.event.findMany as jest.Mock).mockResolvedValue([]);
       (prisma.event.count as jest.Mock).mockResolvedValue(0);
       (prisma.shootingRange.findMany as jest.Mock).mockResolvedValue([]);
-      getServerSession.mockResolvedValue(null);
+      (getServerSession as jest.Mock).mockResolvedValue(null);
 
       const request = new NextRequest("http://localhost:3000/api/events");
       await GET(request);
@@ -275,7 +275,7 @@ describe("/api/events/route", () => {
       (prisma.event.findMany as jest.Mock).mockResolvedValue([]);
       (prisma.event.count as jest.Mock).mockResolvedValue(0);
       (prisma.shootingRange.findMany as jest.Mock).mockResolvedValue([]);
-      getServerSession.mockResolvedValue(null);
+      (getServerSession as jest.Mock).mockResolvedValue(null);
 
       const request = new NextRequest("http://localhost:3000/api/events?limit=invalid");
       await GET(request);
@@ -288,7 +288,7 @@ describe("/api/events/route", () => {
       (prisma.event.findMany as jest.Mock).mockResolvedValue([]);
       (prisma.event.count as jest.Mock).mockResolvedValue(0);
       (prisma.shootingRange.findMany as jest.Mock).mockResolvedValue([]);
-      getServerSession.mockResolvedValue(null);
+      (getServerSession as jest.Mock).mockResolvedValue(null);
 
       const request = new NextRequest("http://localhost:3000/api/events?limit=-5");
       await GET(request);
@@ -303,7 +303,7 @@ describe("/api/events/route", () => {
       (prisma.event.findMany as jest.Mock).mockResolvedValue([]);
       (prisma.event.count as jest.Mock).mockResolvedValue(0);
       (prisma.shootingRange.findMany as jest.Mock).mockResolvedValue([]);
-      getServerSession.mockResolvedValue(null);
+      (getServerSession as jest.Mock).mockResolvedValue(null);
 
       const request = new NextRequest("http://localhost:3000/api/events");
       await GET(request);
@@ -316,7 +316,7 @@ describe("/api/events/route", () => {
       (prisma.event.findMany as jest.Mock).mockResolvedValue([]);
       (prisma.event.count as jest.Mock).mockResolvedValue(0);
       (prisma.shootingRange.findMany as jest.Mock).mockResolvedValue([]);
-      getServerSession.mockResolvedValue(null);
+      (getServerSession as jest.Mock).mockResolvedValue(null);
 
       const request = new NextRequest("http://localhost:3000/api/events?page=invalid");
       await GET(request);
@@ -328,7 +328,7 @@ describe("/api/events/route", () => {
     it("returns 1 when value is negative", async () => {
       (prisma.event.findMany as jest.Mock).mockResolvedValue([]);
       (prisma.event.count as jest.Mock).mockResolvedValue(0);
-      getServerSession.mockResolvedValue(null);
+      (getServerSession as jest.Mock).mockResolvedValue(null);
 
       const request = new NextRequest("http://localhost:3000/api/events?page=-2");
       await GET(request);

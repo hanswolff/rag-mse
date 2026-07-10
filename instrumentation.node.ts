@@ -2,6 +2,7 @@ import { logInfo, logError } from "@/lib/logger";
 import { validateProductionConfig, printValidationResults } from "@/lib/config-validation";
 import { startEmailOutboxWorker } from "@/lib/email-sender";
 import { startEventReminderWorker } from "@/lib/event-reminder-worker";
+import { startMaintenanceWorker } from "@/lib/maintenance-worker";
 import { VERSION_INFO } from "@/lib/version-info";
 import { appName } from "@/lib/site-config";
 
@@ -42,4 +43,5 @@ export function registerNode() {
 
   startEmailOutboxWorker();
   startEventReminderWorker();
+  startMaintenanceWorker();
 }

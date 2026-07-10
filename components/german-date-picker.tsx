@@ -29,6 +29,12 @@ export function GermanDatePicker({ id, value, onChange, onBlur, error, label, re
 
   function handleDateChange(date: Date | null) {
     if (date) {
+      // react-datepicker parst Teileingaben schon beim Tippen ("12.03.20" → Jahr 0020);
+      // unplausible Jahre nicht committen, bis die Eingabe vollständig ist
+      const year = date.getFullYear();
+      if (year < 1900 || year > 2100) {
+        return;
+      }
       onChange(format(date, 'yyyy-MM-dd'));
     } else {
       onChange('');
@@ -72,6 +78,9 @@ export function GermanDatePicker({ id, value, onChange, onBlur, error, label, re
           required={required}
           disabled={disabled}
           autoFocus={autoFocus}
+          ariaDescribedBy={errorId}
+          ariaInvalid={error ? "true" : undefined}
+          ariaRequired={required ? "true" : undefined}
         />
         <FiCalendar className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
         {showCheckmark && (

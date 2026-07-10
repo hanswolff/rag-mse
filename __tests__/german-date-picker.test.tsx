@@ -43,4 +43,38 @@ describe("GermanDatePicker", () => {
       expect(input).toHaveValue("10.02.2026");
     });
   });
+
+  it("does not commit implausible partial years while typing", async () => {
+    const user = userEvent.setup();
+    const committedValues: string[] = [];
+
+    function Wrapper() {
+      const [value, setValue] = useState("");
+      return (
+        <GermanDatePicker
+          id="test-date"
+          label="Datum"
+          value={value}
+          onChange={(next) => {
+            committedValues.push(next);
+            setValue(next);
+          }}
+        />
+      );
+    }
+
+    render(<Wrapper />);
+
+    const input = screen.getByLabelText("Datum");
+    await user.click(input);
+    await user.type(input, "12.03.2026");
+
+    await waitFor(() => {
+      expect(input).toHaveValue("12.03.2026");
+    });
+
+    // Während des Tippens von "12.03.20…" darf kein Jahr wie 0020 gespeichert werden
+    expect(committedValues.every((v) => v === "" || v.startsWith("2026-"))).toBe(true);
+    expect(committedValues).toContain("2026-03-12");
+  });
 });

@@ -8,8 +8,9 @@ import {
   validateCsrfHeaders,
   MAX_REQUEST_BODY_SIZE,
 } from "@/lib/api-utils";
-import { logInfo, logValidationFailure, maskEmail } from "@/lib/logger";
+import { logInfo, logValidationFailure, maskEmail, logError } from "@/lib/logger";
 import { logAdminAction } from "@/lib/audit-log";
+import { triggerImmediateEventReminders } from "@/lib/event-reminder-worker";
 import { formatDateForStorage, parseDateAndTime } from "@/lib/date-picker-utils";
 import { hasEventDescriptionContent, sanitizeEventDescriptionHtml } from "@/lib/event-description";
 import { VoteType } from "@prisma/client";
@@ -134,6 +135,15 @@ export const POST = withApiErrorHandling(async (request: NextRequest) => {
     date: eventDate.toISOString(),
     location,
   });
+
+  if (newEvent.visible) {
+    void triggerImmediateEventReminders(newEvent.id).catch((err: unknown) =>
+      logError("event_created_reminder_failed", "Failed to trigger immediate reminders", {
+        eventId: newEvent.id,
+        error: err instanceof Error ? err.message : String(err),
+      })
+    );
+  }
 
   return NextResponse.json({
     ...newEvent,

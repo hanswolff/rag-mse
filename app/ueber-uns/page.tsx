@@ -1,3 +1,5 @@
+export { metadata } from "./metadata";
+
 import Image from "next/image";
 import { PageHeader } from "@/components/page-header";
 import { appName, appDescription } from "@/lib/site-config";
@@ -18,34 +20,51 @@ const BOARD_MEMBERS = [
 export default function UeberUnsPage() {
   return (
     <main className="flex-1 bg-gray-50">
-      <PageHeader
-        title={`Über die ${appName}`}
-        subtitle={appDescription}
-      />
+      <PageHeader title={`Über die ${appName}`} subtitle={appDescription} />
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
         <section className="card mb-6 border border-slate-100 p-6 shadow-xl shadow-slate-200/60 sm:mb-8 sm:p-8">
           <span className="section-kicker">Gemeinschaft</span>
           <div className="space-y-4 pt-3 text-base leading-relaxed text-gray-700 sm:text-lg">
             <p>
-              Die {appName} ist eine Reservistenarbeitsgemeinschaft im
-              Verband der Reservisten der Deutschen Bundeswehr e. V. in
+              Der Verband der Reservisten der Deutschen Bundeswehr e. V. ist ein
+              vom Bundesverwaltungsamt anerkannter Schießsportverband mit
+              eigener Schießsportordnung (SSpO VdRBw e. V.). Diese Anerkennung
+              bedeutet jedoch nicht, dass jedes Verbandsmitglied automatisch
+              waffenrechtliche Befugnisse besitzt.
+            </p>
+            <p>
+              Aus waffenrechtlichen Gründen dürfen den Schießsport im VdRBw e.
+              V. ausschließlich Mitglieder einer RAG Schießsport sowie die
+              Schießsport-Verantwortlichen der jeweiligen Verbandsebene
+              eigenständig organisieren und durchführen.
+              Reservistenkameradschaften, andere Untergliederungen oder
+              Vorgesetzte des Reservistenverbandes erhalten daraus keine eigenen
+              waffenrechtlichen oder schießsportlichen Befugnisse.
+            </p>
+            <p>
+              Die {appName} ist eine Reservistenarbeitsgemeinschaft im Verband
+              der Reservisten der Deutschen Bundeswehr e. V. der Landesgruppe
               Mecklenburg-Vorpommern. Wir sind ein Zusammenschluss
               schießsportinteressierter Verbandsmitglieder aus der Region
               Mecklenburgische Seenplatte.
             </p>
             <p>
+              Unsere Mitglieder betreiben den zivilen Schießsport entsprechend
+              der genehmigten Schießsportordnung ausschließlich in
+              Zivilkleidung. Das Tragen von Bekleidung mit Tarnmuster, Uniformen
+              aller Streitkräfte sowie deren Hoheitsabzeichen ist nicht
+              gestattet.
+            </p>
+            <p>
               Im Mittelpunkt stehen sportliches Schießen, sichere
-              Waffenhandhabung sowie Training und Wettkämpfe nach der
-              Schießsportordnung des Verbandes und den waffenrechtlichen
-              Vorgaben. Der Schießsport wird dabei als sportlicher Wettbewerb
-              und als Training betrieben. Übungen mit militärischem oder
-              polizeilichem Charakter sind im schießsportlichen Rahmen
-              ausgeschlossen.
+              Waffenhandhabung, Training und Wettkämpfe nach den Vorgaben des
+              Verbandes. Übungen mit militärischem oder polizeilichem Charakter
+              sind im schießsportlichen Rahmen ausgeschlossen.
             </p>
             <p>
               Wir bieten regelmäßige Schießtermine, Aus- und Fortbildungen,
               Meisterschaften und kameradschaftliche Treffen. Interessierte sind
-              nach vorheriger Anmeldung willkommen - werde Teil unserer
+              nach vorheriger Anmeldung willkommen – werde Teil unserer
               Gemeinschaft!
             </p>
           </div>

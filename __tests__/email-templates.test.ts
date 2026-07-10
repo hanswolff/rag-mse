@@ -50,7 +50,7 @@ describe("email templates", () => {
     });
 
     expect(result.subject).toContain("Erinnerung");
-    expect(result.body).toContain("7 Tag");
+    expect(result.body).toContain("Für einen anstehenden Termin ist noch keine Teilnahme von Ihnen hinterlegt.");
     expect(result.body).toContain("20.02.2026");
     expect(result.body).toContain("https://example.com/anmeldung/token");
     expect(result.body).toContain("https://example.com/benachrichtigungen/abmelden/token");

@@ -50,7 +50,7 @@ describe("ShootingRangePicker", () => {
       const mockOnSelect = jest.fn();
       render(<ShootingRangePicker onSelect={mockOnSelect} />);
 
-      const triggerButton = screen.getByRole("button", { name: "Schießstand auswählen" });
+      const triggerButton = screen.getByRole("button", { name: "Standort auswählen" });
       expect(triggerButton).toBeInTheDocument();
     });
 
@@ -65,7 +65,7 @@ describe("ShootingRangePicker", () => {
       const mockOnSelect = jest.fn();
       render(<ShootingRangePicker disabled={true} onSelect={mockOnSelect} />);
 
-      const triggerButton = screen.getByRole("button", { name: "Schießstand auswählen" });
+      const triggerButton = screen.getByRole("button", { name: "Standort auswählen" });
       expect(triggerButton).toBeDisabled();
     });
   });
@@ -82,11 +82,11 @@ describe("ShootingRangePicker", () => {
 
       render(<ShootingRangePicker onSelect={mockOnSelect} />);
 
-      const triggerButton = screen.getByRole("button", { name: "Schießstand auswählen" });
+      const triggerButton = screen.getByRole("button", { name: "Standort auswählen" });
       await user.click(triggerButton);
 
       expect(screen.getByRole("dialog")).toBeInTheDocument();
-      expect(screen.getByRole("heading", { name: "Schießstand auswählen" })).toBeInTheDocument();
+      expect(screen.getByRole("heading", { name: "Standort auswählen" })).toBeInTheDocument();
     });
 
     it("should fetch ranges when modal opens", async () => {
@@ -100,7 +100,7 @@ describe("ShootingRangePicker", () => {
 
       render(<ShootingRangePicker onSelect={mockOnSelect} />);
 
-      const triggerButton = screen.getByRole("button", { name: "Schießstand auswählen" });
+      const triggerButton = screen.getByRole("button", { name: "Standort auswählen" });
       await user.click(triggerButton);
 
       expect(mockFetch).toHaveBeenCalledWith("/api/ranges");
@@ -128,10 +128,10 @@ describe("ShootingRangePicker", () => {
 
       render(<ShootingRangePicker onSelect={mockOnSelect} />);
 
-      const triggerButton = screen.getByRole("button", { name: "Schießstand auswählen" });
+      const triggerButton = screen.getByRole("button", { name: "Standort auswählen" });
       await user.click(triggerButton);
 
-      expect(screen.getByText("Schießstände werden geladen...")).toBeInTheDocument();
+      expect(screen.getByText("Standorte werden geladen...")).toBeInTheDocument();
     });
   });
 
@@ -147,11 +147,11 @@ describe("ShootingRangePicker", () => {
 
       render(<ShootingRangePicker onSelect={mockOnSelect} />);
 
-      const triggerButton = screen.getByRole("button", { name: "Schießstand auswählen" });
+      const triggerButton = screen.getByRole("button", { name: "Standort auswählen" });
       await user.click(triggerButton);
 
       await waitFor(() => {
-        expect(screen.queryByText("Schießstände werden geladen...")).not.toBeInTheDocument();
+        expect(screen.queryByText("Standorte werden geladen...")).not.toBeInTheDocument();
       });
 
       const rangeButtons = screen.getAllByRole("button").filter(
@@ -175,7 +175,7 @@ describe("ShootingRangePicker", () => {
 
       render(<ShootingRangePicker onSelect={mockOnSelect} />);
 
-      const triggerButton = screen.getByRole("button", { name: "Schießstand auswählen" });
+      const triggerButton = screen.getByRole("button", { name: "Standort auswählen" });
       await user.click(triggerButton);
 
       await waitFor(() => {
@@ -194,7 +194,7 @@ describe("ShootingRangePicker", () => {
 
       render(<ShootingRangePicker onSelect={mockOnSelect} />);
 
-      const triggerButton = screen.getByRole("button", { name: "Schießstand auswählen" });
+      const triggerButton = screen.getByRole("button", { name: "Standort auswählen" });
       await user.click(triggerButton);
 
       await waitFor(() => {
@@ -213,11 +213,11 @@ describe("ShootingRangePicker", () => {
 
       render(<ShootingRangePicker onSelect={mockOnSelect} />);
 
-      const triggerButton = screen.getByRole("button", { name: "Schießstand auswählen" });
+      const triggerButton = screen.getByRole("button", { name: "Standort auswählen" });
       await user.click(triggerButton);
 
       await waitFor(() => {
-        expect(screen.getByText("Keine Schießstände verfügbar.")).toBeInTheDocument();
+        expect(screen.getByText("Keine Standorte verfügbar.")).toBeInTheDocument();
       });
     });
   });
@@ -234,7 +234,7 @@ describe("ShootingRangePicker", () => {
 
       render(<ShootingRangePicker onSelect={mockOnSelect} />);
 
-      const triggerButton = screen.getByRole("button", { name: "Schießstand auswählen" });
+      const triggerButton = screen.getByRole("button", { name: "Standort auswählen" });
       await user.click(triggerButton);
 
       await waitFor(() => {
@@ -250,7 +250,7 @@ describe("ShootingRangePicker", () => {
 
       render(<ShootingRangePicker onSelect={mockOnSelect} />);
 
-      const triggerButton = screen.getByRole("button", { name: "Schießstand auswählen" });
+      const triggerButton = screen.getByRole("button", { name: "Standort auswählen" });
       await user.click(triggerButton);
 
       await waitFor(() => {
@@ -271,11 +271,11 @@ describe("ShootingRangePicker", () => {
 
       render(<ShootingRangePicker onSelect={mockOnSelect} />);
 
-      const triggerButton = screen.getByRole("button", { name: "Schießstand auswählen" });
+      const triggerButton = screen.getByRole("button", { name: "Standort auswählen" });
       await user.click(triggerButton);
 
       await waitFor(() => {
-        expect(screen.queryByText("Schießstände werden geladen...")).not.toBeInTheDocument();
+        expect(screen.queryByText("Standorte werden geladen...")).not.toBeInTheDocument();
       });
 
       const rangeButton = screen.getByRole("button", { name: /Schießstand Berlin/i });
@@ -299,11 +299,11 @@ describe("ShootingRangePicker", () => {
 
       render(<ShootingRangePicker onSelect={mockOnSelect} />);
 
-      const triggerButton = screen.getByRole("button", { name: "Schießstand auswählen" });
+      const triggerButton = screen.getByRole("button", { name: "Standort auswählen" });
       await user.click(triggerButton);
 
       await waitFor(() => {
-        expect(screen.queryByText("Schießstände werden geladen...")).not.toBeInTheDocument();
+        expect(screen.queryByText("Standorte werden geladen...")).not.toBeInTheDocument();
       });
 
       const rangeButton = screen.getByRole("button", { name: /Schießstand Berlin/i });
@@ -327,11 +327,11 @@ describe("ShootingRangePicker", () => {
 
       render(<ShootingRangePicker onSelect={mockOnSelect} />);
 
-      const triggerButton = screen.getByRole("button", { name: "Schießstand auswählen" });
+      const triggerButton = screen.getByRole("button", { name: "Standort auswählen" });
       await user.click(triggerButton);
 
       await waitFor(() => {
-        expect(screen.queryByText("Schießstände werden geladen...")).not.toBeInTheDocument();
+        expect(screen.queryByText("Standorte werden geladen...")).not.toBeInTheDocument();
       });
 
       const closeButton = screen.getByLabelText("Schließen");
@@ -351,11 +351,11 @@ describe("ShootingRangePicker", () => {
 
       render(<ShootingRangePicker onSelect={mockOnSelect} />);
 
-      const triggerButton = screen.getByRole("button", { name: "Schießstand auswählen" });
+      const triggerButton = screen.getByRole("button", { name: "Standort auswählen" });
       await user.click(triggerButton);
 
       await waitFor(() => {
-        expect(screen.queryByText("Schießstände werden geladen...")).not.toBeInTheDocument();
+        expect(screen.queryByText("Standorte werden geladen...")).not.toBeInTheDocument();
       });
 
       const backdrop = screen.getByRole("dialog").querySelector(".fixed.inset-0");
@@ -377,11 +377,11 @@ describe("ShootingRangePicker", () => {
 
       render(<ShootingRangePicker onSelect={mockOnSelect} />);
 
-      const triggerButton = screen.getByRole("button", { name: "Schießstand auswählen" });
+      const triggerButton = screen.getByRole("button", { name: "Standort auswählen" });
       await user.click(triggerButton);
 
       await waitFor(() => {
-        expect(screen.queryByText("Schießstände werden geladen...")).not.toBeInTheDocument();
+        expect(screen.queryByText("Standorte werden geladen...")).not.toBeInTheDocument();
       });
 
       await user.keyboard("{Escape}");
@@ -400,7 +400,7 @@ describe("ShootingRangePicker", () => {
 
       render(<ShootingRangePicker onSelect={mockOnSelect} />);
 
-      const triggerButton = screen.getByRole("button", { name: "Schießstand auswählen" });
+      const triggerButton = screen.getByRole("button", { name: "Standort auswählen" });
       await user.click(triggerButton);
 
       await waitFor(() => {
@@ -432,11 +432,11 @@ describe("ShootingRangePicker", () => {
 
       render(<ShootingRangePicker onSelect={mockOnSelect} />);
 
-      const triggerButton = screen.getByRole("button", { name: "Schießstand auswählen" });
+      const triggerButton = screen.getByRole("button", { name: "Standort auswählen" });
       await user.click(triggerButton);
 
       await waitFor(() => {
-        expect(screen.queryByText("Schießstände werden geladen...")).not.toBeInTheDocument();
+        expect(screen.queryByText("Standorte werden geladen...")).not.toBeInTheDocument();
       });
 
       const rangeButtons = screen.getAllByRole("button").filter(
@@ -461,11 +461,11 @@ describe("ShootingRangePicker", () => {
 
       render(<ShootingRangePicker onSelect={mockOnSelect} />);
 
-      const triggerButton = screen.getByRole("button", { name: "Schießstand auswählen" });
+      const triggerButton = screen.getByRole("button", { name: "Standort auswählen" });
       await user.click(triggerButton);
 
       await waitFor(() => {
-        expect(screen.queryByText("Schießstände werden geladen...")).not.toBeInTheDocument();
+        expect(screen.queryByText("Standorte werden geladen...")).not.toBeInTheDocument();
       });
 
       const dialog = screen.getByRole("dialog");

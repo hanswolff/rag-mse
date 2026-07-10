@@ -85,7 +85,7 @@ export const POST = withApiErrorHandling(async (request: NextRequest) => {
 
   if (existing) {
     return NextResponse.json(
-      { error: "Ein Schießstand mit diesem Namen existiert bereits" },
+      { error: "Ein Standort mit diesem Namen existiert bereits" },
       { status: 409 }
     );
   }

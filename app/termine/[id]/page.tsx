@@ -18,6 +18,7 @@ import { Modal } from "@/components/modal";
 import { AlertBox } from "@/components/alert-box";
 import { useEventDetail } from "@/lib/use-event-detail";
 import { useEventVoting } from "@/lib/use-event-voting";
+import { serializeJsonLd } from "@/lib/json-ld";
 
 function getOpenStreetMapUrl(latitude: number, longitude: number): string {
   return `https://www.openstreetmap.org/?mlat=${latitude}&mlon=${longitude}#map=15/${latitude}/${longitude}`;
@@ -95,7 +96,7 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
             {eventJsonLd && (
               <script
                 type="application/ld+json"
-                dangerouslySetInnerHTML={{ __html: JSON.stringify(eventJsonLd) }}
+                dangerouslySetInnerHTML={{ __html: serializeJsonLd(eventJsonLd) }}
               />
             )}
             <article className="card">
@@ -165,7 +166,7 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
                     Teilnahmeanmeldung
                   </h2>
                   <p className="text-gray-600 mb-4 text-base sm:text-base">
-                    Bitte einloggen, um deine Teilnahme anzumelden
+                    Bitte einloggen, um Ihre Teilnahme anzumelden
                   </p>
                   <a href={loginUrl} className="btn-primary text-base font-semibold inline-block">
                     Zur Anmeldung bitte Einloggen
@@ -191,11 +192,11 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
                     <p className="text-gray-600 mb-3 sm:mb-4 text-base sm:text-base">
                       {isPast
                         ? voting.currentUserVote
-                          ? "Du hast dich für diesen Termin angemeldet:"
+                          ? "Sie haben sich für diesen Termin angemeldet:"
                           : "Keine Anmeldung vorhanden"
                         : voting.currentUserVote
-                          ? "Du hast dich bereits angemeldet:"
-                          : "Melde deine Teilnahme an:"}
+                          ? "Sie haben sich bereits angemeldet:"
+                          : "Melden Sie Ihre Teilnahme an:"}
                     </p>
 
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3">
@@ -203,7 +204,7 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
                         <LoadingButton
                           key={option.value}
                           onClick={() => voting.handleVote(option.value)}
-                          disabled={isPast}
+                          disabled={isPast || voting.isVoting}
                           loading={voting.isVoting && voting.pendingVote === option.value}
                           loadingText={option.label}
                           className={`px-4 sm:px-6 py-3 rounded-lg font-medium border-2 transition-all text-base sm:text-base touch-manipulation ${
@@ -390,12 +391,13 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
         setEventData={eventManagement.setModalEventData}
         isEditing={!!eventManagement.editingEvent}
         errors={eventManagement.error ? { general: eventManagement.error } : {}}
-        fieldErrors={eventManagement.fieldErrors}        initialEventData={eventManagement.initialEventData}
+        fieldErrors={eventManagement.fieldErrors}
+        initialEventData={eventManagement.initialEventData}
         isGeocoding={eventManagement.isGeocoding}
         onGeocode={eventManagement.handleGeocode}
         geocodeSuccess={eventManagement.geocodeSuccess}
-        onUseLastDescription={eventManagement.handleUseLatestDescription}
-        isLoadingLastDescription={eventManagement.isLoadingLatestDescription}
+        onUseLastEvent={eventManagement.handleUseLatestDescription}
+        isLoadingLastEvent={eventManagement.isLoadingLatestDescription}
       />
     </main>
   );

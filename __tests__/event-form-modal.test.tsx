@@ -99,8 +99,8 @@ describe("EventFormModal", () => {
       expect(screen.getByRole("button", { name: "Erstellen" })).toBeInTheDocument();
     });
 
-    it("should render button to copy description from last event in create mode", () => {
-      const mockCopyDescription = jest.fn();
+    it("should render button to copy data from last event in create mode", () => {
+      const mockCopyLastEvent = jest.fn();
 
       render(
         <EventFormModal
@@ -112,17 +112,17 @@ describe("EventFormModal", () => {
           setEventData={jest.fn()}
           isEditing={false}
           initialEventData={undefined}
-          onUseLastDescription={mockCopyDescription}
+          onUseLastEvent={mockCopyLastEvent}
         />
       );
 
       expect(
-        screen.getByRole("button", { name: "Beschreibung vom letzten Termin übernehmen" })
+        screen.getByRole("button", { name: "Daten vom letzten Termin übernehmen" })
       ).toBeInTheDocument();
     });
 
-    it("should call callback when copy-description button is clicked", async () => {
-      const mockCopyDescription = jest.fn();
+    it("should call callback when copy-last-event button is clicked", async () => {
+      const mockCopyLastEvent = jest.fn();
       const user = userEvent.setup();
 
       render(
@@ -135,15 +135,15 @@ describe("EventFormModal", () => {
           setEventData={jest.fn()}
           isEditing={false}
           initialEventData={undefined}
-          onUseLastDescription={mockCopyDescription}
+          onUseLastEvent={mockCopyLastEvent}
         />
       );
 
       await user.click(
-        screen.getByRole("button", { name: "Beschreibung vom letzten Termin übernehmen" })
+        screen.getByRole("button", { name: "Daten vom letzten Termin übernehmen" })
       );
 
-      expect(mockCopyDescription).toHaveBeenCalledTimes(1);
+      expect(mockCopyLastEvent).toHaveBeenCalledTimes(1);
     });
   });
 
@@ -182,7 +182,7 @@ describe("EventFormModal", () => {
       expect(screen.getByRole("button", { name: "Aktualisieren" })).toBeInTheDocument();
     });
 
-    it("should not render button to copy description from last event in edit mode", () => {
+    it("should not render button to copy data from last event in edit mode", () => {
       render(
         <EventFormModal
           isOpen={true}
@@ -193,12 +193,12 @@ describe("EventFormModal", () => {
           setEventData={jest.fn()}
           isEditing={true}
           initialEventData={initialEventData}
-          onUseLastDescription={jest.fn()}
+          onUseLastEvent={jest.fn()}
         />
       );
 
       expect(
-        screen.queryByRole("button", { name: "Beschreibung vom letzten Termin übernehmen" })
+        screen.queryByRole("button", { name: "Daten vom letzten Termin übernehmen" })
       ).not.toBeInTheDocument();
     });
   });
@@ -298,7 +298,7 @@ describe("EventFormModal", () => {
         />
       );
 
-      expect(screen.getByRole("button", { name: "Schießstand auswählen" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Standort auswählen" })).toBeInTheDocument();
     });
   });
 

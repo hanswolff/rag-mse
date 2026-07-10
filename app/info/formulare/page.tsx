@@ -1,3 +1,5 @@
+export { metadata } from "./metadata";
+
 import Link from "next/link";
 import { DownloadDocumentIcon, ExternalLinkIcon } from "@/components/icons";
 import { appName } from "@/lib/site-config";

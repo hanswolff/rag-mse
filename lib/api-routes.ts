@@ -12,10 +12,12 @@ export const API_ROUTES = {
   CONTACT: "/api/contact",
   RANGES: "/api/ranges",
   POLLS: "/api/polls",
+  AUSSCHREIBUNGEN: "/api/ausschreibungen",
   ADMIN: {
     EVENTS: "/api/admin/events",
     DOCUMENTS: "/api/admin/documents",
     DOCUMENT_DIRECTORIES: "/api/admin/document-directories",
+    AUSSCHREIBUNGEN: "/api/admin/ausschreibungen",
   },
   MEMBER: {
     DOCUMENTS: "/api/member/documents",

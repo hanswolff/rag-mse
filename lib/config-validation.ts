@@ -48,26 +48,6 @@ export function validateProductionConfig(): ValidationResult {
     }
   };
 
-  const requireValidRedisUrl = (): void => {
-    const value = process.env.REDIS_URL;
-    if (!value?.trim()) {
-      result.isValid = false;
-      result.errors.push("REDIS_URL (Redis-Verbindungsstring) muss in Produktion gesetzt sein");
-      return;
-    }
-
-    try {
-      const url = new URL(value);
-      if (url.protocol !== "redis:" && url.protocol !== "rediss:") {
-        result.isValid = false;
-        result.errors.push(`REDIS_URL muss redis:// oder rediss:// verwenden (aktuell: ${value})`);
-      }
-    } catch {
-      result.isValid = false;
-      result.errors.push(`REDIS_URL ist keine gültige URL: ${value}`);
-    }
-  };
-
   const rejectLocalhost = (name: string, url?: string): void => {
     if (url && (url.includes("localhost") || url.includes("127.0.0.1"))) {
       result.isValid = false;
@@ -102,10 +82,29 @@ export function validateProductionConfig(): ValidationResult {
         "NEXTAUTH_SECRET muss gesetzt sein und mindestens 32 Zeichen lang sein (in allen Umgebungen)"
       );
       result.isValid = false;
+      return;
+    }
+
+    if (hasPlaceholderPrefix(process.env.NEXTAUTH_SECRET)) {
+      result.errors.push(
+        "NEXTAUTH_SECRET ist noch der Platzhalterwert aus .env.example und muss durch einen zufälligen Wert ersetzt werden"
+      );
+      result.isValid = false;
+    }
+  };
+
+  const validateSelftestToken = (): void => {
+    const token = process.env.SELFTEST_TOKEN;
+    if (token && hasPlaceholderPrefix(token)) {
+      result.errors.push(
+        "SELFTEST_TOKEN ist noch der Platzhalterwert aus .env.example — /api/selftest wäre mit öffentlich bekanntem Token erreichbar"
+      );
+      result.isValid = false;
     }
   };
 
   validateNextAuthSecret();
+  validateSelftestToken();
   validatePositiveIntegerEnvVar("APP_UID");
   validatePositiveIntegerEnvVar("APP_GID");
   validatePositiveIntegerEnvVar("NOTIFICATION_TOKEN_VALIDITY_DAYS");
@@ -138,7 +137,6 @@ export function validateProductionConfig(): ValidationResult {
     requireEnv("SMTP_PASSWORD", "SMTP-Passwort");
     requireEnv("SMTP_FROM", "Absender-E-Mail");
     requireEnv("ADMIN_EMAILS", "Admin-Empfänger-Liste");
-    requireValidRedisUrl();
 
     const seedAdminEmail = process.env.SEED_ADMIN_EMAIL;
     const seedAdminPassword = process.env.SEED_ADMIN_PASSWORD;

@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { useAdminAuth } from "./use-admin-auth";
 import { useAdminCrud } from "./use-admin-crud";
 import { useSuccessTimer } from "./use-success-timer";
@@ -47,6 +47,20 @@ function formatDateForInput(value: string): string {
   return formatDateForStorage(date);
 }
 
+export function eventToFormData(event: Event): NewEvent {
+  return {
+    date: formatDateForInput(event.date),
+    timeFrom: event.timeFrom,
+    timeTo: event.timeTo,
+    location: event.location,
+    description: event.description,
+    latitude: event.latitude?.toString() || "",
+    longitude: event.longitude?.toString() || "",
+    type: event.type || "",
+    visible: event.visible ?? true,
+  };
+}
+
 interface UseEventManagementOptions {
   enforceAdminRedirect?: boolean;
   enabled?: boolean;
@@ -61,6 +75,7 @@ export function useEventManagement(options: UseEventManagementOptions = {}) {
   const [isLoading, setIsLoading] = useState(true);
   const [isCreatingEvent, setIsCreatingEvent] = useState(false);
   const [isEditingEvent, setIsEditingEvent] = useState(false);
+  const [isDeletingEvent, setIsDeletingEvent] = useState(false);
   const [isGeocoding, setIsGeocoding] = useState(false);
   const [isLoadingLatestDescription, setIsLoadingLatestDescription] = useState(false);
   const [publishingEventId, setPublishingEventId] = useState<string | null>(null);
@@ -78,9 +93,16 @@ export function useEventManagement(options: UseEventManagementOptions = {}) {
 
   useSuccessTimer(success, setSuccess);
 
+  // Stale-Response-Guard: Bei schneller Paginierung darf nur die zuletzt
+  // angeforderte Seite den State setzen
+  const fetchEventsRequestIdRef = useRef(0);
+
   const fetchEvents = useCallback(async (page: number) => {
     setError("");
     setIsLoading(true);
+
+    const requestId = ++fetchEventsRequestIdRef.current;
+    const isStale = () => requestId !== fetchEventsRequestIdRef.current;
 
     const requestedPage = Number.isFinite(page) && page > 0 ? Math.floor(page) : 1;
 
@@ -106,14 +128,19 @@ export function useEventManagement(options: UseEventManagementOptions = {}) {
         data = await response.json();
       }
 
+      if (isStale()) return;
+
       setEvents(data.events ?? []);
       setTotalEvents(data.pagination?.total ?? 0);
       setTotalPages(data.pagination?.pages ?? 0);
       setCurrentPage(targetPage);
     } catch (err: unknown) {
+      if (isStale()) return;
       setError(err instanceof Error ? err.message : "Ein Fehler ist aufgetreten");
     } finally {
-      setIsLoading(false);
+      if (!isStale()) {
+        setIsLoading(false);
+      }
     }
   }, []);
 
@@ -143,7 +170,7 @@ export function useEventManagement(options: UseEventManagementOptions = {}) {
     "/api/admin/events",
     "DELETE",
     setError,
-    setIsCreatingEvent
+    setIsDeletingEvent
   );
 
   const handleCreateEvent = useCallback(async (e: React.FormEvent) => {
@@ -187,23 +214,13 @@ export function useEventManagement(options: UseEventManagementOptions = {}) {
     deleteEvent,
     setSuccess,
     "Termin wurde erfolgreich gelöscht",
+    // eslint-disable-next-line react-hooks/refs -- refresh only runs inside the click-triggered delete handler, never during render
     () => fetchEvents(currentPage)
   );
 
   const startEditingEvent = useCallback((event: Event) => {
     setEditingEvent(event);
-    const dateStr = formatDateForInput(event.date);
-    const eventData = {
-      date: dateStr,
-      timeFrom: event.timeFrom,
-      timeTo: event.timeTo,
-      location: event.location,
-      description: event.description,
-      latitude: event.latitude?.toString() || "",
-      longitude: event.longitude?.toString() || "",
-      type: event.type || "",
-      visible: event.visible ?? true,
-    };
+    const eventData = eventToFormData(event);
     setModalEventData(eventData);
     setInitialEventData(eventData);
     setError("");
@@ -278,22 +295,17 @@ export function useEventManagement(options: UseEventManagementOptions = {}) {
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error || "Fehler beim Laden der letzten Beschreibung");
+        throw new Error(data.error || "Fehler beim Laden des letzten Termins");
       }
 
-      const latestDescription = typeof data?.events?.[0]?.description === "string"
-        ? data.events[0].description
-        : "";
+      const latestEvent = data?.events?.[0] as Event | undefined;
 
-      if (!latestDescription.trim()) {
-        setError("Kein letzter Termin mit Beschreibung gefunden");
+      if (!latestEvent) {
+        setError("Kein letzter Termin gefunden");
         return;
       }
 
-      setModalEventData((prev) => ({
-        ...prev,
-        description: latestDescription,
-      }));
+      setModalEventData(eventToFormData(latestEvent));
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Ein Fehler ist aufgetreten");
     } finally {
@@ -335,6 +347,7 @@ export function useEventManagement(options: UseEventManagementOptions = {}) {
     isLoading,
     isCreatingEvent,
     isEditingEvent,
+    isDeletingEvent,
     publishingEventId,
     isGeocoding,
     isLoadingLatestDescription,

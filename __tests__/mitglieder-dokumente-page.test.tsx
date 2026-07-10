@@ -76,7 +76,7 @@ describe("MemberDocumentsPage", () => {
     expect(screen.getByText("Suche aktiv:")).toBeInTheDocument();
     expect(screen.getByText('"ordnung"')).toBeInTheDocument();
     expect(screen.queryByRole("cell", { name: "Anträge" })).not.toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Download" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Herunterladen" })).toBeInTheDocument();
   });
 
   it("shows clear no-result message for active search", () => {

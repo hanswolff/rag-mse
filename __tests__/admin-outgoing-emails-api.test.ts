@@ -54,6 +54,8 @@ describe("/api/admin/outgoing-emails", () => {
         template: "contact",
         toRecipients: "admin@example.com",
         subject: "Kontaktanfrage",
+        textBody: "Hallo, ich habe eine Frage.",
+        htmlBody: "<p>Hallo, ich habe eine Frage.</p>",
         status: OutgoingEmailStatus.SENT,
         attemptCount: 1,
         firstQueuedAt: new Date("2026-02-15T09:00:00.000Z"),
@@ -134,6 +136,37 @@ describe("/api/admin/outgoing-emails", () => {
 
     const firstCall = (prisma.outgoingEmail.findMany as jest.Mock).mock.calls[0][0];
     expect(firstCall.orderBy).toEqual([{ createdAt: "asc" }, { id: "desc" }]);
+  });
+
+  it("redacts raw reset/invitation tokens from email bodies", async () => {
+    (prisma.outgoingEmail.findMany as jest.Mock).mockResolvedValue([
+      {
+        id: "email-reset",
+        template: "passwort-zuruecksetzen",
+        toRecipients: "member@example.com",
+        subject: "Passwort zurücksetzen",
+        textBody: "Link: https://example.com/passwort-zuruecksetzen/super-secret-raw-token",
+        htmlBody: '<a href="https://example.com/passwort-zuruecksetzen/super-secret-raw-token">Link</a>',
+        status: OutgoingEmailStatus.SENT,
+        attemptCount: 1,
+        firstQueuedAt: new Date("2026-02-15T09:00:00.000Z"),
+        nextAttemptAt: new Date("2026-02-15T09:00:00.000Z"),
+        lastAttemptAt: new Date("2026-02-15T09:00:05.000Z"),
+        lastError: null,
+        sentAt: new Date("2026-02-15T09:00:05.000Z"),
+        createdAt: new Date("2026-02-15T09:00:00.000Z"),
+      },
+    ]);
+    (prisma.outgoingEmail.count as jest.Mock).mockResolvedValue(1);
+
+    const request = new NextRequest("http://localhost:3000/api/admin/outgoing-emails");
+    const response = await GET(request);
+    const data = await response.json();
+    const rawBody = JSON.stringify(data);
+
+    expect(rawBody).not.toContain("super-secret-raw-token");
+    expect(data.emails[0].textBody).toContain("***REDACTED***");
+    expect(data.emails[0].htmlBody).toContain("***REDACTED***");
   });
 
   it("returns 403 for auditor role", async () => {

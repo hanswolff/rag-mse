@@ -110,7 +110,7 @@ describe("Navigation", () => {
 
     expect(screen.getAllByText("Profil").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Benachrichtigungen").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("Abmelden").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Ausloggen").length).toBeGreaterThan(0);
   });
 
   it("opens the infos dropdown on desktop", async () => {
@@ -269,7 +269,7 @@ describe("Navigation", () => {
     expect(screen.getAllByText("Test User").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Profil").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Benachrichtigungen").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("Abmelden").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Ausloggen").length).toBeGreaterThan(0);
   });
 
   it("shows member self-service links for auditor users", async () => {

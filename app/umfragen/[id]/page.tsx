@@ -113,7 +113,7 @@ export default function PollDetailPage() {
         throw new Error(data.error || "Fehler beim Abstimmen");
       }
 
-      setVoteSuccess("Deine Stimme wurde gespeichert");
+      setVoteSuccess("Ihre Stimme wurde gespeichert");
       window.dispatchEvent(new CustomEvent(POLL_VOTE_CHANGED_EVENT));
       await fetchPoll();
     } catch (err) {
@@ -141,7 +141,7 @@ export default function PollDetailPage() {
         throw new Error(data.error || "Fehler beim Zurückziehen");
       }
 
-      setVoteSuccess("Deine Stimme wurde zurückgezogen");
+      setVoteSuccess("Ihre Stimme wurde zurückgezogen");
       setSelectedOptions(new Set());
       window.dispatchEvent(new CustomEvent(POLL_VOTE_CHANGED_EVENT));
       await fetchPoll();
@@ -264,7 +264,7 @@ export default function PollDetailPage() {
                           {option.text}
                         </span>
                         {isUserVote && (
-                          <span className="text-xs font-medium text-brand-red-700">Deine Stimme</span>
+                          <span className="text-xs font-medium text-brand-red-700">Ihre Stimme</span>
                         )}
                       </div>
                       <div className="shrink-0 text-sm text-gray-600">

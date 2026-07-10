@@ -152,6 +152,25 @@ export interface DocumentDirectoryItem {
   documentCount: number;
 }
 
+export interface AusschreibungItem {
+  id: string;
+  title: string;
+  description: string | null;
+  expiresAt: string;
+  originalFileName: string;
+  mimeType: string;
+  sizeBytes: number;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export interface NewAusschreibungInput {
+  title: string;
+  description: string;
+  expiresAt: string;
+  file: File | null;
+}
+
 export interface ShootingRangeItem {
   id: string;
   name: string;

@@ -17,22 +17,57 @@ const globalForEmailOutbox = globalThis as typeof globalThis & {
 
 let currentWorkerInstanceId: string | null = null;
 
+export function isEmailOutboxWorkerRunning(): boolean {
+  return globalForEmailOutbox.emailOutboxWorkerStarted === true;
+}
+
+export function createSmtpTransport(smtpConfig = getSmtpConfig()): nodemailer.Transporter {
+  const { SMTP_TIMEOUT_MS, SMTP_CONNECTION_TIMEOUT_MS } = getSmtpTimeouts();
+
+  return nodemailer.createTransport({
+    host: smtpConfig.host,
+    port: smtpConfig.port,
+    secure: smtpConfig.secure,
+    auth: {
+      user: smtpConfig.user,
+      pass: smtpConfig.password,
+    },
+    connectionTimeout: SMTP_CONNECTION_TIMEOUT_MS,
+    greetingTimeout: SMTP_TIMEOUT_MS,
+    socketTimeout: SMTP_TIMEOUT_MS,
+  });
+}
+
+function buildClaimableWhere(now: Date) {
+  return {
+    OR: [
+      {
+        status: {
+          in: [OutgoingEmailStatus.QUEUED, OutgoingEmailStatus.RETRYING],
+        },
+        nextAttemptAt: {
+          lte: now,
+        },
+        OR: [
+          { lockedUntil: null },
+          { lockedUntil: { lte: now } },
+        ],
+      },
+      // PROCESSING mit abgelaufenem Lock: der Prozess ist mitten im Versand
+      // gestorben (z. B. OOM-Kill); die Zeile wird erneut beansprucht.
+      {
+        status: OutgoingEmailStatus.PROCESSING,
+        lockedUntil: { lte: now },
+      },
+    ],
+  };
+}
+
 async function claimNextEmail(lockMs: number): Promise<ClaimedOutgoingEmail | null> {
   const now = new Date();
 
   const nextEmail = await prisma.outgoingEmail.findFirst({
-    where: {
-      status: {
-        in: [OutgoingEmailStatus.QUEUED, OutgoingEmailStatus.RETRYING],
-      },
-      nextAttemptAt: {
-        lte: now,
-      },
-      OR: [
-        { lockedUntil: null },
-        { lockedUntil: { lte: now } },
-      ],
-    },
+    where: buildClaimableWhere(now),
     orderBy: [{ nextAttemptAt: "asc" }, { createdAt: "asc" }],
   });
 
@@ -43,16 +78,7 @@ async function claimNextEmail(lockMs: number): Promise<ClaimedOutgoingEmail | nu
   const claimed = await prisma.outgoingEmail.updateMany({
     where: {
       id: nextEmail.id,
-      status: {
-        in: [OutgoingEmailStatus.QUEUED, OutgoingEmailStatus.RETRYING],
-      },
-      nextAttemptAt: {
-        lte: now,
-      },
-      OR: [
-        { lockedUntil: null },
-        { lockedUntil: { lte: now } },
-      ],
+      ...buildClaimableWhere(now),
     },
     data: {
       status: OutgoingEmailStatus.PROCESSING,
@@ -92,20 +118,7 @@ async function sendEmailBySmtp(email: ClaimedOutgoingEmail): Promise<{ messageId
     };
   }
 
-  const { SMTP_TIMEOUT_MS, SMTP_CONNECTION_TIMEOUT_MS } = getSmtpTimeouts();
-
-  const transporter = nodemailer.createTransport({
-    host: smtpConfig.host,
-    port: smtpConfig.port,
-    secure: smtpConfig.secure,
-    auth: {
-      user: smtpConfig.user,
-      pass: smtpConfig.password,
-    },
-    connectionTimeout: SMTP_CONNECTION_TIMEOUT_MS,
-    greetingTimeout: SMTP_TIMEOUT_MS,
-    socketTimeout: SMTP_TIMEOUT_MS,
-  });
+  const transporter = createSmtpTransport(smtpConfig);
 
   const result = await transporter.sendMail({
     from: smtpConfig.from,

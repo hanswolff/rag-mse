@@ -12,7 +12,6 @@ const staticPaths = [
   "/news",
   "/ueber-uns",
   "/kontakt",
-  "/info",
   "/info/schiesssportordnung",
   "/info/leitfaden-waffenteile",
   "/info/waffentechnische-begriffe",

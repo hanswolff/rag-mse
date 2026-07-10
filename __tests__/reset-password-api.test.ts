@@ -11,6 +11,7 @@ jest.mock("@/lib/prisma", () => ({
     passwordReset: {
       findUnique: jest.fn(),
       update: jest.fn(),
+      updateMany: jest.fn(),
     },
     user: {
       findUnique: jest.fn(),
@@ -48,10 +49,11 @@ jest.mock("bcryptjs", () => ({
   hash: jest.fn(),
 }));
 
-const mockedPrisma = prisma as {
+const mockedPrisma = prisma as unknown as {
   passwordReset: {
     findUnique: jest.Mock;
     update: jest.Mock;
+    updateMany: jest.Mock;
   };
   user: {
     findUnique: jest.Mock;
@@ -100,10 +102,11 @@ describe("/api/auth/reset-password/[token] route - Security Regression Tests", (
     checkTokenRateLimitWithPolicy.mockResolvedValue({ allowed: true, attemptCount: 1 });
     recordSuccessfulTokenUsageWithPolicy.mockResolvedValue(undefined);
     mockedHash.mockResolvedValue("hashed-new-password");
+    mockedPrisma.passwordReset.updateMany.mockResolvedValue({ count: 1 });
     mockedPrisma.$transaction.mockImplementation(async (callback) => {
       return callback(mockedPrisma);
     });
-    handleRateLimitBlocked.mockImplementation((action, route, tokenHash, clientIp, blockedUntil) => {
+    handleRateLimitBlocked.mockImplementation((action: string, route: string, tokenHash: string, clientIp: string, blockedUntil: number | undefined) => {
       if (blockedUntil) {
         const blockedMinutes = Math.ceil((blockedUntil - Date.now()) / 60000);
         return NextResponse.json(
@@ -430,6 +433,7 @@ describe("/api/auth/reset-password/[token] route - Security Regression Tests", (
         },
         passwordReset: {
           update: jest.fn().mockResolvedValue({}),
+          updateMany: jest.fn().mockResolvedValue({ count: 1 }),
         },
       };
 
@@ -452,10 +456,26 @@ describe("/api/auth/reset-password/[token] route - Security Regression Tests", (
           passwordUpdatedAt: expect.any(Date),
         },
       });
-      expect(mockTx.passwordReset.update).toHaveBeenCalledWith({
-        where: { id: mockValidReset.id },
+      expect(mockTx.passwordReset.updateMany).toHaveBeenCalledWith({
+        where: { id: mockValidReset.id, usedAt: null },
         data: { usedAt: expect.any(Date) },
       });
+    });
+
+    it("should return 410 when a concurrent submission already consumed the token", async () => {
+      mockedPrisma.passwordReset.findUnique.mockResolvedValue(mockValidReset);
+      mockedPrisma.user.findUnique.mockResolvedValue(mockUser);
+      mockedPrisma.passwordReset.updateMany.mockResolvedValue({ count: 0 });
+
+      const request = createMockRequest({ password: VALID_PASSWORD });
+
+      const response = await POST(request, { params: createMockParams("valid-token") });
+      const data = await response.json();
+
+      expect(response.status).toBe(410);
+      expect(data.error).toBe("Der Link ist abgelaufen");
+      expect(mockedPrisma.user.update).not.toHaveBeenCalled();
+      expect(recordSuccessfulTokenUsageWithPolicy).not.toHaveBeenCalled();
     });
 
     it("should return 404 if user not found for reset token", async () => {

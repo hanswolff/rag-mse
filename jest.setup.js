@@ -5,12 +5,6 @@ process.env.APP_URL = process.env.APP_URL || "http://localhost:3000";
 process.env.NEXTAUTH_SECRET =
   process.env.NEXTAUTH_SECRET || "this-is-a-test-secret-with-32-plus-chars";
 
-jest.mock("ioredis", () => {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const IORedisMock = require("ioredis-mock");
-  return IORedisMock;
-});
-
 if (typeof TextEncoder === "undefined") {
   global.TextEncoder = class TextEncoder {
     encode(str) {

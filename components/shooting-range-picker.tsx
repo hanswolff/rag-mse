@@ -52,7 +52,7 @@ export function ShootingRangePicker({ disabled, onSelect }: ShootingRangePickerP
         const response = await fetch(API_ROUTES.RANGES);
         const data = await response.json();
         if (!response.ok) {
-          throw new Error(data.error || "Schießstände konnten nicht geladen werden");
+          throw new Error(data.error || "Standorte konnten nicht geladen werden");
         }
         if (isMounted) {
           setRanges(data.ranges || []);
@@ -91,20 +91,20 @@ export function ShootingRangePicker({ disabled, onSelect }: ShootingRangePickerP
         disabled={disabled}
         className="w-full sm:w-auto px-4 py-2.5 sm:py-2 bg-brand-blue-600 text-white rounded-md hover:bg-brand-blue-700 focus:outline-none focus:ring-2 focus:ring-brand-blue-500 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap text-base sm:text-base touch-manipulation"
       >
-        Schießstand auswählen
+        Standort auswählen
       </button>
       <Modal
         isOpen={isOpen}
         onClose={() => setIsOpen(false)}
-        title="Schießstand auswählen"
+        title="Standort auswählen"
         size="lg"
         maxHeight={COMPACT_MODAL_MAX_HEIGHT}
       >
         <div className="space-y-4">
           <AlertBox type="error" message={error} />
-          {isLoading && <p className="text-gray-600">Schießstände werden geladen...</p>}
+          {isLoading && <p className="text-gray-600">Standorte werden geladen...</p>}
           {!isLoading && !error && sortedRanges.length === 0 && (
-            <p className="text-gray-500">Keine Schießstände verfügbar.</p>
+            <p className="text-gray-500">Keine Standorte verfügbar.</p>
           )}
           {!isLoading && !error && sortedRanges.length > 0 && (
             <div className="space-y-3">

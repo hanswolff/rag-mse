@@ -2,6 +2,7 @@
 
 import { type FormEvent, useEffect, useState, useCallback } from "react";
 import { Modal } from "@/components/modal";
+import { ConfirmCloseModal } from "@/components/confirm-close-modal";
 import { AlertBox } from "@/components/alert-box";
 import { LoadingButton } from "@/components/loading-button";
 import { useFormModal } from "@/lib/use-form-modal";
@@ -22,6 +23,7 @@ interface PollFormModalProps {
   isSubmitting: boolean;
   pollData: NewPollData;
   setPollData: (data: NewPollData) => void;
+  initialPollData?: NewPollData;
   isEditing: boolean;
   error?: string;
 }
@@ -47,12 +49,14 @@ export function PollFormModal({
   isSubmitting,
   pollData,
   setPollData,
+  initialPollData,
   isEditing,
   error,
 }: PollFormModalProps) {
   const [events, setEvents] = useState<EventOption[]>([]);
   const [isLoadingEvents, setIsLoadingEvents] = useState(false);
   const [optionErrors, setOptionErrors] = useState<Record<number, string>>({});
+  const [eventError, setEventError] = useState("");
 
   const loadEvents = useCallback(async () => {
     setIsLoadingEvents(true);
@@ -88,13 +92,19 @@ export function PollFormModal({
   const {
     handleChange,
     handleBlur,
+    handleClose,
     handleSubmit,
     shouldShowError,
     validationErrors,
+    showCloseConfirm,
+    handleConfirmClose,
+    cancelClose,
   } = useFormModal<NewPollData>({
     validationConfig: pollValidationConfig,
     formData: pollData,
     setFormData: setPollData,
+    defaultData: initialPollData,
+    initialData: initialPollData,
     isOpen,
     isSubmitting,
     onClose,
@@ -102,10 +112,20 @@ export function PollFormModal({
     getFieldValues: (data) => ({ title: data.title }),
     extraValidation: () => {
       const optionsValid = validateOptions();
-      if (pollData.type === "TERMIN" && !isEditing && !pollData.eventId) return false;
+      if (pollData.type === "TERMIN" && !isEditing && !pollData.eventId) {
+        setEventError("Bitte wählen Sie einen Termin aus");
+        return false;
+      }
+      setEventError("");
       return optionsValid;
     },
   });
+
+  useEffect(() => {
+    if (isOpen) {
+      setEventError("");
+    }
+  }, [isOpen]);
 
   useEffect(() => {
     if (isOpen && pollData.type === "TERMIN") {
@@ -157,8 +177,10 @@ export function PollFormModal({
   return (
     <Modal
       isOpen={isOpen}
-      onClose={onClose}
+      onClose={handleClose}
       title={isEditing ? "Umfrage bearbeiten" : "Neue Umfrage erstellen"}
+      closeOnOutsideClick={false}
+      closeOnEscape={false}
     >
       <form onSubmit={handleSubmit} className="space-y-4" noValidate>
         <AlertBox type="error" message={error} />
@@ -221,8 +243,13 @@ export function PollFormModal({
               <select
                 id="poll-event"
                 value={pollData.eventId}
-                onChange={(e) => setPollData({ ...pollData, eventId: e.target.value })}
-                className="form-input"
+                onChange={(e) => {
+                  setPollData({ ...pollData, eventId: e.target.value });
+                  if (e.target.value) setEventError("");
+                }}
+                className={`form-input ${eventError ? "border-red-500" : ""}`}
+                aria-invalid={eventError ? true : undefined}
+                aria-describedby={eventError ? "poll-event-error" : undefined}
                 disabled={isSubmitting}
               >
                 <option value="">Bitte wählen</option>
@@ -232,6 +259,9 @@ export function PollFormModal({
                   </option>
                 ))}
               </select>
+            )}
+            {eventError && (
+              <p id="poll-event-error" className="text-sm text-red-600 mt-1" role="alert">{eventError}</p>
             )}
           </div>
         )}
@@ -314,7 +344,7 @@ export function PollFormModal({
         <div className="flex justify-end gap-3 pt-4 border-t">
           <button
             type="button"
-            onClick={onClose}
+            onClick={handleClose}
             disabled={isSubmitting}
             className="btn-outline"
           >
@@ -330,6 +360,11 @@ export function PollFormModal({
           </LoadingButton>
         </div>
       </form>
+      <ConfirmCloseModal
+        isOpen={showCloseConfirm}
+        onConfirm={handleConfirmClose}
+        onCancel={cancelClose}
+      />
     </Modal>
   );
 }

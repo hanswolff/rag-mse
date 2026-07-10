@@ -4,7 +4,7 @@ describe("Configuration Validation", () => {
   const originalEnv = process.env;
 
   const setProductionEnv = (overrides: Record<string, string> = {}) => {
-    process.env.NODE_ENV = "production";
+    (process.env as Record<string, string | undefined>).NODE_ENV = "production";
     process.env.NEXTAUTH_SECRET = "production-secret-key-with-enough-length-32chars";
     process.env.NEXTAUTH_URL = "https://example.com";
     process.env.APP_URL = "https://example.com";
@@ -15,7 +15,6 @@ describe("Configuration Validation", () => {
     process.env.SMTP_PASSWORD = "password";
     process.env.SMTP_FROM = "noreply@example.com";
     process.env.ADMIN_EMAILS = "admin@example.com";
-    process.env.REDIS_URL = "redis://redis:6379";
     Object.assign(process.env, overrides);
   };
 
@@ -30,7 +29,7 @@ describe("Configuration Validation", () => {
 
   describe("Development environment", () => {
     beforeEach(() => {
-      process.env.NODE_ENV = "development";
+      (process.env as Record<string, string | undefined>).NODE_ENV = "development";
     });
 
     it("should succeed with minimal configuration in development", () => {
@@ -54,6 +53,30 @@ describe("Configuration Validation", () => {
       expect(result.errors.some(e => e.includes("NEXTAUTH_SECRET"))).toBe(true);
     });
 
+    it("should fail with placeholder NEXTAUTH_SECRET from .env.example", () => {
+      process.env.NEXTAUTH_SECRET = "CHANGE_ME_USE_STRONG_RANDOM_VALUE_AT_LEAST_32_CHARS";
+      const result = validateProductionConfig();
+      expect(result.isValid).toBe(false);
+      expect(result.errors.some(e => e.includes("NEXTAUTH_SECRET") && e.includes("Platzhalter"))).toBe(true);
+    });
+
+    it("should fail with placeholder SELFTEST_TOKEN from .env.example", () => {
+      process.env.NEXTAUTH_SECRET = "dev-secret-key-with-enough-length";
+      process.env.SELFTEST_TOKEN = "CHANGE_ME_SELFTEST_TOKEN";
+      const result = validateProductionConfig();
+      delete process.env.SELFTEST_TOKEN;
+      expect(result.isValid).toBe(false);
+      expect(result.errors.some(e => e.includes("SELFTEST_TOKEN"))).toBe(true);
+    });
+
+    it("should accept a real SELFTEST_TOKEN", () => {
+      process.env.NEXTAUTH_SECRET = "dev-secret-key-with-enough-length";
+      process.env.SELFTEST_TOKEN = "f3a9c1d2e4b5a6978877665544332211";
+      const result = validateProductionConfig();
+      delete process.env.SELFTEST_TOKEN;
+      expect(result.isValid).toBe(true);
+    });
+
     it("should warn about missing NEXTAUTH_URL", () => {
       process.env.NEXTAUTH_SECRET = "dev-secret-key-with-enough-length";
       delete process.env.NEXTAUTH_URL;
@@ -65,7 +88,7 @@ describe("Configuration Validation", () => {
 
   describe("Production environment", () => {
     beforeEach(() => {
-      process.env.NODE_ENV = "production";
+      (process.env as Record<string, string | undefined>).NODE_ENV = "production";
     });
 
     it("should require all mandatory production values", () => {
@@ -110,21 +133,6 @@ describe("Configuration Validation", () => {
       const result = validateProductionConfig();
       expect(result.isValid).toBe(false);
       expect(result.errors.some(e => e.includes("EMAIL_DEV_MODE"))).toBe(true);
-    });
-
-    it("should require REDIS_URL in production", () => {
-      setProductionEnv();
-      delete process.env.REDIS_URL;
-      const result = validateProductionConfig();
-      expect(result.isValid).toBe(false);
-      expect(result.errors.some(e => e.includes("REDIS_URL"))).toBe(true);
-    });
-
-    it("should reject invalid REDIS_URL protocols in production", () => {
-      setProductionEnv({ REDIS_URL: "http://redis:6379" });
-      const result = validateProductionConfig();
-      expect(result.isValid).toBe(false);
-      expect(result.errors.some(e => e.includes("REDIS_URL") && e.includes("redis://"))).toBe(true);
     });
 
     it("should reject localhost URLs in production", () => {

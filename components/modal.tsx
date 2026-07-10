@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { XIcon } from "@/components/icons";
 
 export const DEFAULT_MODAL_MAX_HEIGHT = "90vh";
@@ -46,6 +46,10 @@ export function Modal({
   const previousActiveElement = useRef<HTMLElement | null>(null);
   const [isAnimating, setIsAnimating] = useState(false);
   const onCloseRef = useRef(onClose);
+  // Eindeutige Titel-ID pro Modal-Instanz: bei gestapelten Modals löste eine
+  // gemeinsame id="modal-title" das aria-labelledby des inneren Dialogs auf
+  // die Überschrift des äußeren auf.
+  const titleId = useId();
 
   useEffect(() => {
     onCloseRef.current = onClose;
@@ -147,7 +151,7 @@ export function Modal({
       }`}
       role="dialog"
       aria-modal="true"
-      aria-labelledby="modal-title"
+      aria-labelledby={titleId}
     >
       <div
         className={`fixed inset-0 bg-black/50 transition-opacity duration-200 ${
@@ -163,7 +167,7 @@ export function Modal({
         style={{ maxHeight }}
       >
         <div className="flex items-center justify-between gap-3 p-3 sm:p-4 border-b border-gray-200 shrink-0">
-          <h2 id="modal-title" className="min-w-0 flex-1 text-lg sm:text-xl font-semibold text-gray-900 break-words">
+          <h2 id={titleId} className="min-w-0 flex-1 text-lg sm:text-xl font-semibold text-gray-900 break-words">
             {title}
           </h2>
           <button

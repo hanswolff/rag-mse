@@ -45,6 +45,23 @@ pnpm run db:push
 
 ## Migrationshistorie
 
+### 20260709_fix_schema_drift
+
+Bereinigt Abweichungen zwischen `schema.prisma` und real ausgerollten Datenbanken:
+
+- `User.name` ist nullable (die Baseline hatte `NOT NULL`); `hasPossessionCard` als
+  `BOOLEAN DEFAULT false`.
+- `Poll` verliert die nur in der Datenbank vorhandenen CHECK-Constraints und den
+  Spalten-Default `'SONSTIGES'` — beides ist in `schema.prisma` nicht abbildbar,
+  Enum-Werte erzwingt der Prisma-Client.
+- `News.newsDate` ist auf allen Installationspfaden `NOT NULL` (mit Backfill aus
+  `createdAt` für Alt-Datenbanken).
+- Der in `schema.prisma` deklarierte Index `Invitation_email_usedAt_idx` wird angelegt.
+
+Ein Test in `__tests__/run-db-migrations.test.ts` spielt die Migrationskette in eine
+frische Datenbank ein und erzwingt, dass `prisma migrate diff` gegen `schema.prisma`
+leer bleibt.
+
 ### 20260413_add_activated_at
 
 Fügt das Feld `activatedAt DateTime?` zur Tabelle `User` hinzu.

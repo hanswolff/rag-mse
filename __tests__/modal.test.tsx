@@ -42,7 +42,29 @@ describe("Modal", () => {
 
       const dialog = screen.getByRole("dialog");
       expect(dialog).toHaveAttribute("aria-modal", "true");
-      expect(dialog).toHaveAttribute("aria-labelledby", "modal-title");
+      const heading = screen.getByRole("heading", { name: "Test Modal" });
+      expect(dialog).toHaveAttribute("aria-labelledby", heading.id);
+    });
+
+    it("gives stacked modals distinct title ids", () => {
+      render(
+        <>
+          <Modal isOpen={true} onClose={mockOnClose} title="Äußeres Modal">
+            <p>Outer</p>
+          </Modal>
+          <Modal isOpen={true} onClose={mockOnClose} title="Inneres Modal">
+            <p>Inner</p>
+          </Modal>
+        </>
+      );
+
+      const outerHeading = screen.getByRole("heading", { name: "Äußeres Modal" });
+      const innerHeading = screen.getByRole("heading", { name: "Inneres Modal" });
+      expect(outerHeading.id).not.toBe(innerHeading.id);
+
+      const dialogs = screen.getAllByRole("dialog");
+      expect(dialogs[0]).toHaveAttribute("aria-labelledby", outerHeading.id);
+      expect(dialogs[1]).toHaveAttribute("aria-labelledby", innerHeading.id);
     });
 
     it("should render close button", () => {

@@ -32,6 +32,7 @@ export function useNewsManagement() {
   const [news, setNews] = useState<News[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isCreatingNews, setIsCreatingNews] = useState(false);
+  const [isDeletingNews, setIsDeletingNews] = useState(false);
   const [isEditingNews, setIsEditingNews] = useState(false);
   const [publishingNewsId, setPublishingNewsId] = useState<string | null>(null);
   const [error, setError] = useState("");
@@ -79,7 +80,7 @@ export function useNewsManagement() {
     "/api/admin/news",
     "DELETE",
     setError,
-    setIsCreatingNews
+    setIsDeletingNews
   );
 
   const handleCreateNews = useCallback(async (e: React.FormEvent) => {
@@ -180,6 +181,7 @@ export function useNewsManagement() {
     news,
     isLoading,
     isCreatingNews,
+    isDeletingNews,
     isEditingNews,
     publishingNewsId,
     error,

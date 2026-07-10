@@ -144,6 +144,78 @@ describe("Admin CRUD utilities", () => {
       expect(returnResult).toEqual({ success: true, data: mockData });
     });
 
+    it("shows a German network error message when fetch fails with a TypeError", async () => {
+      const { result } = renderHook(() => useAdminCrud());
+      const mockSetError = jest.fn();
+      const mockSetIsLoading = jest.fn();
+
+      mockFetch.mockRejectedValueOnce(new TypeError("Failed to fetch"));
+
+      const handler = result.current.createFetchHandler(
+        "/api/test",
+        "POST",
+        mockSetError,
+        mockSetIsLoading,
+        { name: "test" }
+      );
+
+      const returnResult = await handler();
+
+      expect(mockSetError).toHaveBeenCalledWith(
+        "Netzwerkfehler: Der Server ist nicht erreichbar. Bitte versuchen Sie es erneut."
+      );
+      expect(returnResult).toEqual({ success: false });
+    });
+
+    it("handles empty or non-JSON response bodies without throwing", async () => {
+      const { result } = renderHook(() => useAdminCrud());
+      const mockSetError = jest.fn();
+      const mockSetIsLoading = jest.fn();
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        status: 204,
+        json: () => Promise.reject(new SyntaxError("Unexpected end of JSON input")),
+      });
+
+      const handler = result.current.createFetchHandler(
+        "/api/test",
+        "DELETE",
+        mockSetError,
+        mockSetIsLoading
+      );
+
+      const returnResult = await handler("123");
+
+      expect(mockSetError).not.toHaveBeenCalledWith(expect.stringContaining("Unexpected"));
+      expect(returnResult).toEqual({ success: true, data: {} });
+    });
+
+    it("uses the German fallback for error responses without JSON body", async () => {
+      const { result } = renderHook(() => useAdminCrud());
+      const mockSetError = jest.fn();
+      const mockSetIsLoading = jest.fn();
+
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 502,
+        json: () => Promise.reject(new SyntaxError("Unexpected token < in JSON")),
+      });
+
+      const handler = result.current.createFetchHandler(
+        "/api/test",
+        "POST",
+        mockSetError,
+        mockSetIsLoading,
+        { name: "test" }
+      );
+
+      const returnResult = await handler();
+
+      expect(mockSetError).toHaveBeenCalledWith("Ein Fehler ist aufgetreten");
+      expect(returnResult).toEqual({ success: false });
+    });
+
     it("should set error and return failure on API error", async () => {
       const { result } = renderHook(() => useAdminCrud());
       const mockSetError = jest.fn();

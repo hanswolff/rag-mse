@@ -51,7 +51,7 @@ jest.mock("@/lib/user-validation", () => ({
   validateEmail: jest.fn(() => ({ isValid: true })),
 }));
 
-const mockedPrisma = prisma as {
+const mockedPrisma = prisma as unknown as {
   user: {
     findUnique: jest.Mock;
   };

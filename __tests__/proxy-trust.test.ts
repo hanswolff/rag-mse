@@ -13,19 +13,35 @@ describe("proxy-trust", () => {
   });
 
   describe("getClientIdentifier", () => {
-    it("uses deterministic fallback fingerprint when source IP is missing", () => {
-      process.env.TRUSTED_PROXY_IPS = "192.168.1.100";
+    it("extracts the client IP from X-Forwarded-For when no socket source IP is available", () => {
+      // Next.js 16 does not populate NextRequest.ip, so the real request path always has a
+      // null source IP. The forwarding headers from the trusted reverse proxy must still be
+      // used, skipping known proxy hops in the chain.
+      process.env.TRUSTED_PROXY_IPS = "10.0.0.0/8";
 
       const request = new NextRequest("http://example.com", {
         headers: {
-          "x-forwarded-for": "203.0.113.1, 198.51.100.1",
-          "x-real-ip": "192.168.1.100",
+          "x-forwarded-for": "203.0.113.1, 10.0.0.5",
           "user-agent": "Mozilla/5.0 (X11; Linux x86_64)",
           "accept-language": "de-DE,de;q=0.9",
         },
       });
 
-      expect(getClientIdentifier(request)).toMatch(/^fallback:[0-9a-f]{24}$/);
+      expect(getClientIdentifier(request)).toBe("203.0.113.1");
+    });
+
+    it("extracts the client IP from X-Real-IP when no socket source IP and no X-Forwarded-For", () => {
+      process.env.TRUSTED_PROXY_IPS = "10.0.0.0/8";
+
+      const request = new NextRequest("http://example.com", {
+        headers: {
+          "x-real-ip": "198.51.100.7",
+          "user-agent": "Mozilla/5.0 (X11; Linux x86_64)",
+          "accept-language": "de-DE,de;q=0.9",
+        },
+      });
+
+      expect(getClientIdentifier(request)).toBe("198.51.100.7");
     });
 
     it("returns fallback identifier when no IP headers are present", () => {
@@ -107,7 +123,7 @@ describe("proxy-trust", () => {
       expect(getClientIdentifierFromHeaders(headers, "::ffff:127.0.0.1")).toBe("203.0.113.22");
     });
 
-    it("does not trust Docker bridge source IPs by default", () => {
+    it("does not trust untrusted private source IPs by default", () => {
       const headers = new Headers({
         "x-forwarded-for": "203.0.113.30",
       });

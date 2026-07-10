@@ -501,7 +501,7 @@ export default function AdminNotificationsPage() {
                     <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 text-base text-gray-800 whitespace-pre-wrap">
                       {`Hallo,
 
-in ${viewingNotification.daysBefore} Tag(en) findet ein Termin statt, für den noch keine Teilnahme von dir hinterlegt ist.
+Für einen anstehenden Termin ist noch keine Teilnahme von Ihnen hinterlegt.
 
 Datum: ${formatDate(viewingNotification.event.date)}
 Uhrzeit: ${formatTime(viewingNotification.event.timeFrom)} - ${formatTime(viewingNotification.event.timeTo)}
@@ -510,7 +510,7 @@ Ort: ${viewingNotification.event.location}
 Direkt zur Anmeldung (Ja/Nein/Vielleicht):
 [Link enthält persönlichen Anmelde-Token]
 
-Wenn du diese Erinnerung für zukünftige Termine nicht mehr erhalten möchtest, kannst du sie mit einem Klick deaktivieren:
+Wenn Sie diese Erinnerung für zukünftige Termine nicht mehr erhalten möchten, können Sie sie mit einem Klick deaktivieren:
 [Link enthält persönlichen Abmelde-Token]
 
 Viele Grüße
@@ -536,7 +536,7 @@ es wurde eine neue Umfrage veröffentlicht: "${viewingNotification.poll.title}"
 
 ${viewingNotification.poll.description || ""}
 
-Hier kannst du abstimmen:
+Hier können Sie abstimmen:
 [Link enthält persönlichen Token]
 
 Viele Grüße,

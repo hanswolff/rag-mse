@@ -1,4 +1,4 @@
-import { FormEvent, useState, useEffect, useCallback, Dispatch, SetStateAction } from "react";
+import { FormEvent, useState, useEffect, useCallback, useRef, Dispatch, SetStateAction } from "react";
 import { VoteType } from "@prisma/client";
 import type { Session } from "next-auth";
 import type { Vote, EditableRegistration } from "@/components/voting-results";
@@ -52,6 +52,8 @@ export function useEventVoting({
   isAdminUser,
 }: UseEventVotingParams) {
   const [isVoting, setIsVoting] = useState(false);
+  // Doppel-Submit-Schutz: State-Updates greifen erst beim Re-Render, der Ref sofort
+  const isVotingRef = useRef(false);
   const confirm = useConfirmDialog();
   const [pendingVote, setPendingVote] = useState<VoteType | null>(null);
   const [voteError, setVoteError] = useState("");
@@ -223,7 +225,9 @@ export function useEventVoting({
 
   async function handleVote(vote: VoteType) {
     if (!event || !session?.user?.id) return;
+    if (isVotingRef.current) return;
 
+    isVotingRef.current = true;
     setIsVoting(true);
     setPendingVote(vote);
     setVoteError("");
@@ -237,7 +241,7 @@ export function useEventVoting({
 
       if (!response.ok) {
         if (response.status === 401) {
-          setVoteError("Bitte einloggen, um deine Teilnahme anzumelden");
+          setVoteError("Bitte einloggen, um Ihre Teilnahme anzumelden");
         } else {
           throw new Error("Fehler bei der Teilnahmeanmeldung");
         }
@@ -248,6 +252,7 @@ export function useEventVoting({
     } catch (err: unknown) {
       setVoteError(err instanceof Error ? err.message : "Ein Fehler ist aufgetreten");
     } finally {
+      isVotingRef.current = false;
       setIsVoting(false);
       setPendingVote(null);
     }
@@ -255,7 +260,9 @@ export function useEventVoting({
 
   async function handleDeleteVote() {
     if (!event || !session?.user?.id) return;
+    if (isVotingRef.current) return;
 
+    isVotingRef.current = true;
     setIsVoting(true);
     setVoteError("");
 
@@ -266,7 +273,6 @@ export function useEventVoting({
 
       if (!response.ok) {
         throw new Error("Fehler beim Zurückziehen der Anmeldung");
-        return;
       }
 
       setEvent((prev) => {
@@ -314,6 +320,7 @@ export function useEventVoting({
     } catch (err: unknown) {
       setVoteError(err instanceof Error ? err.message : "Ein Fehler ist aufgetreten");
     } finally {
+      isVotingRef.current = false;
       setIsVoting(false);
     }
   }

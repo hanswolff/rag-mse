@@ -73,7 +73,7 @@ Copy `.env.example` to `.env` and update the following values:
 
 ### 3. Database Setup
 
-- [ ] Ensure database file is in persistent volume (Docker)
+- [ ] Ensure database file is in persistent volume (rootless Podman bind mount ./data)
 - [ ] Verify database directory has correct permissions
 - [ ] Sicherstellen, dass `DATABASE_URL` auf die produktive SQLite-Datei zeigt, z. B. `file:/app/data/prod.db`
 - [ ] Neue Datenbank durch `pnpm run db:migrate` bzw. den ersten Containerstart initialisieren
@@ -99,12 +99,13 @@ Copy `.env.example` to `.env` and update the following values:
 - [ ] HTTPS certificate is installed on reverse proxy
 - [ ] Both `www` and non-`www` variants redirect correctly (if needed)
 
-### 6. Docker Configuration
+### 6. Podman Configuration
 
-- [ ] `docker-compose.yml` is configured for production
+- [ ] `compose.yaml` is configured for production
 - [ ] Build args and runtime user use the same IDs (`APP_UID` / `APP_GID`)
+- [ ] Rootless `userns_mode: keep-id` keeps the host-owned `./data` bind mount writable
 - [ ] App container runs with expected UID:GID
-  - Verify in container: `docker compose exec -T app id`
+  - Verify in container: `podman-compose exec -T app id`
 - [ ] Volume mounts are correct for data persistence
 - [ ] Database backup strategy is in place
 - [ ] Container restart policies are configured
@@ -115,7 +116,7 @@ Copy `.env.example` to `.env` and update the following values:
 - [ ] HAProxy is installed and running
 - [ ] Configuration is tested: `sudo haproxy -c -f /etc/haproxy/haproxy.cfg`
 - [ ] SSL certificate path is correct
-- [ ] Backend server IP/Port matches Docker configuration
+- [ ] Backend server IP/Port matches Podman configuration (`127.0.0.1:3000`)
 - [ ] X-Forwarded-* headers are properly set
 - [ ] Stats endpoint is secured with strong password
 - [ ] HAProxy logs are monitored
@@ -136,7 +137,7 @@ Copy `.env.example` to `.env` and update the following values:
 
 ### 10. Monitoring and Logging
 
-- [ ] Application logs are accessible: `docker-compose logs -f app`
+- [ ] Application logs are accessible: `podman-compose logs -f app`
 - [ ] HAProxy logs are monitored: `sudo tail -f /var/log/haproxy.log`
 - [ ] Database backups are scheduled
 - [ ] Error notifications are configured (if needed)
@@ -230,6 +231,13 @@ The geocoding endpoint uses in-memory rate limiting (Map-based) which works corr
 
 ## Post-Deployment Checklist
 
+### 0. Self-Test (Deployment-Verifikation)
+- [ ] `SELFTEST_TOKEN` is set to a long random value (e.g. `openssl rand -hex 32`)
+- [ ] Run the deep self-test and confirm HTTP **200** with `"status":"ok"`:
+  - `curl -i -H "Authorization: Bearer $SELFTEST_TOKEN" https://<host>/api/selftest`
+  - Investigate any `errors[]` (HTTP 503) before considering the deploy healthy; review `warnings[]` (HTTP 200)
+- [ ] The self-test exercises DB + migrations, critical data, document storage, SMTP, workers, config and disk — read-only, no state change
+
 ### 1. Monitoring
 - [ ] Set up uptime monitoring
 - [ ] Configure error tracking (if needed)
@@ -292,7 +300,7 @@ SMTP_HOST="your-production-smtp.com"
 - Verify firewall allows SMTP traffic (port 587 or 465)
 
 **Database not persisting**
-- Check Docker volume mounts
+- Check Podman volume mounts
 - Verify directory permissions
 - Check database file path in `DATABASE_URL`
 
@@ -302,67 +310,88 @@ SMTP_HOST="your-production-smtp.com"
 - Verify `COOKIE_SECURE="true"`
 
 **HAProxy 502 Bad Gateway**
-- Check Docker container is running: `docker-compose ps`
+- Check Podman container is running: `podman-compose ps`
 - Verify backend IP/Port in HAProxy config
-- Check application logs: `docker-compose logs app`
+- Check application logs: `podman-compose logs app`
 
 ## Deployment Rollback Procedure
 
-### Verhalten bei fehlgeschlagenem Deployment
+### Verhalten bei fehlgeschlagenem Deployment (automatischer Rollback)
 
-`deploy.sh` bricht bei Fehlern ab, ohne laufende Container absichtlich zu stoppen. Wenn der Build oder das Recreate fehlschlägt, bleibt der vorherige Container in der Regel aktiv. Es findet kein destruktives Rollback statt.
+`deploy.sh` rollt bei einem fehlgeschlagenen Deployment automatisch zurück:
 
-### Container Rollback
+- **Fehlgeschlagener Image-Build oder Recreate:** Das Skript bricht ab; der zuvor laufende
+  Container wird nicht angefasst. Die vorherigen `.next`-Build-Artefakte werden auf dem Host
+  wiederhergestellt.
+- **Neuer Container wird nicht healthy** (z. B. fehlgeschlagene Migration in einer Crash-Loop)
+  **oder der CSP-Smoke-Check schlägt fehl:** Das Skript stoppt den neuen Container, spielt das
+  Pre-Deploy-Datenbank-Backup (`./data/backups/pre-deploy-*.db`) automatisch zurück, taggt das
+  vorherige Image wieder als aktuelles Compose-Image und startet den Container mit dem alten
+  Stand neu. Anschließend wird erneut auf `healthy` gewartet. Die vorherigen `.next`-Artefakte
+  werden ebenfalls wiederhergestellt.
+- Beim **ersten Deployment** (kein vorheriges Image vorhanden) bleibt der Container nach einem
+  Fehlschlag gestoppt; das DB-Backup wird, sofern vorhanden, trotzdem zurückgespielt.
 
-Falls ein fehlerhaftes Image deployed wurde und die Anwendung nicht korrekt läuft:
+Schlägt auch der Rollback fehl, meldet das Skript `ROLLBACK FAILED` — dann ist manuelles
+Eingreifen nach dem folgenden Ablauf nötig.
+
+### Manueller Container-Rollback
+
+Falls ein fehlerhaftes Image deployed wurde und der automatische Rollback nicht gegriffen hat:
 
 1. Stoppe die laufenden Container:
    ```bash
-   docker compose down
+   podman-compose down
    ```
 2. Checkout des letzten funktionierenden Commits:
    ```bash
    git checkout <previous-commit-sha>
    ```
-3. Rebuild und Neustart:
+3. Deploy-Skript aus dem alten Stand ausführen (baut `.next` auf dem Host neu — das
+   Containerfile kopiert die Host-Artefakte ins Image, ein reines `podman-compose build`
+   würde die auf Platte liegenden Artefakte des fehlgeschlagenen Builds einpacken):
    ```bash
-   docker compose build app
-   docker compose up -d
+   ./deploy.sh
    ```
 4. Prüfe, ob die Anwendung korrekt läuft:
    ```bash
-   docker compose ps
-   docker compose logs --tail=50 app
+   podman-compose ps
+   podman-compose logs --tail=50 app
    ```
 
 ### Datenbank-Wiederherstellung
 
-Automatische Backups werden täglich um 02:10 Uhr durch `ops/systemd/beta-rag-db-backup.timer` erstellt. Die Backup-Dateien liegen unter `/zfs/backups/beta-rag-mse/` (konfiguriert in `ops/systemd/beta-rag-db-backup.service`).
+Automatische Backups werden täglich um 02:10 Uhr durch `ops/systemd/beta-rag-db-backup.timer` erstellt. Die Backup-Dateien liegen unter `/zfs/backups/beta-rag-mse/` (konfiguriert in `ops/systemd/beta-rag-db-backup.service`; das Skript-Default in `scripts/backup-sqlite.sh` zeigt auf dasselbe Verzeichnis). Neben der Datenbank (`prod.db.<datum>.sqlite3.gz`) sichert der Job auch die Upload-Verzeichnisse `data/documents` und `data/ausschreibungen` (`files.<datum>.tar.gz`).
 
 Wiederherstellung aus einem Backup:
 
 1. Container stoppen:
    ```bash
-   docker compose down
+   podman-compose down
    ```
-2. Backup entpacken und an den DB-Pfad kopieren:
+2. Datenbank-Backup entpacken und an den DB-Pfad kopieren:
    ```bash
-   gunzip -k /zfs/backups/beta-rag-mse/<backup-file>.db.gz
-   cp /zfs/backups/beta-rag-mse/<backup-file>.db ./data/prod.db
+   gunzip -k /zfs/backups/beta-rag-mse/prod.db.<datum>.sqlite3.gz
+   cp /zfs/backups/beta-rag-mse/prod.db.<datum>.sqlite3 ./data/prod.db
+   rm -f ./data/prod.db-wal ./data/prod.db-shm
    ```
-3. Container neu starten:
+3. Falls nötig, Dokument-Verzeichnisse wiederherstellen:
    ```bash
-   docker compose up -d
+   tar -xzf /zfs/backups/beta-rag-mse/files.<datum>.tar.gz -C .
+   ```
+4. Container neu starten:
+   ```bash
+   podman-compose up -d
    ```
 
 ### Quick Recovery Steps (Notfall-Rollback)
 
-1. `docker compose down`
+1. `podman-compose down`
 2. `git log --oneline -5` — letzten stabilen Commit identifizieren
 3. `git checkout <stable-commit>`
 4. Falls DB-Wiederherstellung nötig: Backup aus `/zfs/backups/beta-rag-mse/` entpacken und nach `./data/prod.db` kopieren
-5. `docker compose build app && docker compose up -d`
-6. `docker compose ps` und `docker compose logs --tail=50 app` — Zustand prüfen
+5. `./deploy.sh` — baut Host-Artefakte und Image aus dem alten Stand neu und startet den Container
+6. `podman-compose ps` und `podman-compose logs --tail=50 app` — Zustand prüfen
 
 ## Additional Resources
 

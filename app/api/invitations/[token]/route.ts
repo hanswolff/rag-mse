@@ -23,6 +23,7 @@ import { formatDateInputValue } from "@/lib/date-picker-utils";
 import { validateOptionalProfileFields } from "@/lib/profile-fields";
 import {
   findValidInvitation,
+  hashRedemptionPassword,
   INVITATION_ERROR_MESSAGES,
   redeemInvitationInTransaction,
   type RedemptionResult,
@@ -224,6 +225,8 @@ export const POST = withApiErrorHandling(async (
     return NextResponse.json({ error: message }, { status });
   }
 
+  const passwordHash = await hashRedemptionPassword(password);
+
   try {
     const result = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       await validateInvitationInTransaction(tx, invitation.id, token);
@@ -234,7 +237,7 @@ export const POST = withApiErrorHandling(async (
           name,
           address,
           phone,
-          password,
+          passwordHash,
           dateOfBirth,
           rank,
           pk,

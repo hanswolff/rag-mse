@@ -72,7 +72,7 @@ jest.mock("bcryptjs", () => ({
   hash: jest.fn(),
 }));
 
-const mockedPrisma = prisma as {
+const mockedPrisma = prisma as unknown as {
   $transaction: jest.Mock;
 };
 
@@ -508,7 +508,7 @@ describe("POST /api/admin/users - User creation with transaction", () => {
   });
 
   it("should validate CSRF headers", async () => {
-    validateCsrfHeaders.mockImplementationOnce(() => {
+    (validateCsrfHeaders as jest.Mock).mockImplementationOnce(() => {
       throw new Error("Invalid CSRF token");
     });
 

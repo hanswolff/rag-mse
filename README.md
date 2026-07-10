@@ -9,14 +9,14 @@ Website für die RAG Schießsport MSE mit Mitgliederverwaltung, Admin-gestellten
 - **Database**: SQLite (via Prisma ORM)
 - **Testing**: Jest + React Testing Library
 - **Authentication**: NextAuth
-- **Deployment**: Docker + Docker Compose
+- **Deployment**: rootless Podman + podman-compose
 
 ## Lokale Entwicklung
 
 ### Voraussetzungen
 
 - Node.js 22 LTS+ und pnpm
-- Docker und Docker Compose (für den vollständigen lokalen Stack mit App und Redis)
+- Podman und podman-compose (für den vollständigen lokalen Stack)
 
 ### Installation
 
@@ -39,7 +39,7 @@ Die `.env`-Datei enthält alle benötigten Konfigurationen:
 - App-URLs und Zeitzone
 - SMTP-Konfiguration für Kontaktformular
 - Admin-E-Mail-Adressen
-- Redis- und Proxy-Konfiguration
+- Proxy-Konfiguration
 
 ### Entwicklungserver starten
 
@@ -72,10 +72,8 @@ pnpm run db:seed
 
 Der Seed-Script verwendet `dotenv`, Umgebungsvariablen werden automatisch aus der `.env`-Datei im Projektverzeichnis geladen. Sie müssen also keine `export`-Befehle verwenden.
 
-Standardwerte (falls SEED_ADMIN_* nicht in `.env` gesetzt sind):
-- Email: `admin@rag-mse.de`
-- Passwort: `AdminPass123` (WARNUNG: Dies ist ein unsicheres Standardpasswort!)
-- Name: `Administrator`
+Es gibt keine Standard-Credentials: Fehlen `SEED_ADMIN_EMAIL` oder `SEED_ADMIN_PASSWORD`,
+überspringt das Skript das Anlegen des Admin-Benutzers mit einer Warnung.
 
 **Empfohlene Vorgehensweise:**
 
@@ -102,7 +100,7 @@ pnpm run db:seed
 |---------|-------------------------------------|
 | Lokal mit `pnpm run db:seed` | Automatisch via `dotenv` aus `.env` |
 | Lokal mit `pnpm run dev` | Automatisch via Next.js aus `.env` |
-| Docker Compose | Aus `docker-compose.yml` environment mapping |
+| podman-compose | Aus `compose.yaml` environment mapping |
 | Direkter `tsx prisma/seed.ts` Aufruf | Automatisch via `dotenv` aus `.env` |
 
 ### Weitere Datenbank-Skripte
@@ -177,7 +175,7 @@ automatisch gestartet.
    ./scripts/backup-sqlite.sh
 
    # Aktualisierte Anwendung bereitstellen
-   docker-compose up -d
+   podman-compose up -d
 
    # Migrationen laufen beim Containerstart automatisch
    ```
@@ -185,7 +183,7 @@ automatisch gestartet.
 3. **Verifikation:**
    ```bash
    # Logs prüfen
-   docker-compose logs -f app
+   podman-compose logs -f app
 
    # Gesundheitstest
    curl http://localhost:3000/api/health
@@ -196,14 +194,17 @@ automatisch gestartet.
 - Verwenden Sie `ALLOW_DB_SEED` nur beim initialen Setup und entfernen Sie die Variable danach wieder
 - Testen Sie alle Schema-Änderungen in einer Staging-Umgebung vor dem Produktions-Einsatz
 
-## Docker Compose
+## Container-Betrieb (rootless Podman)
 
-Docker Compose wird verwendet, um die Anwendung mit allen Abhängigkeiten zu betreiben:
+podman-compose wird verwendet, um die Anwendung mit allen Abhängigkeiten zu betreiben:
 - **App Container**: Next.js Anwendung
-- **Redis**: Für verteiltes Rate-Limiting
-- **Persistent Volumes**: SQLite-Datenbank und Redis-Daten
+- **Rate-Limiting**: In-Process (im Arbeitsspeicher der App), kein externer Dienst nötig
+- **Persistente Volumes**: SQLite-Datenbank
 
-### Mit Docker Compose starten
+> Migrieren Sie einen bestehenden Docker-Stack? Siehe den
+> [Migrationsleitfaden Docker → rootless Podman](DOCKER_TO_PODMAN_MIGRATION.md).
+
+### Mit podman-compose starten
 
 Erstellen Sie zuerst ein lokales Datenverzeichnis und kopieren Sie die Umgebungsvariablen:
 
@@ -224,35 +225,30 @@ COOKIE_SECURE="true"
 - `NEXTAUTH_SECRET` MUSS mit einem starken, zufälligen Wert gesetzt werden (mindestens 32 Zeichen)
 - Alle Secrets müssen in der Produktion gesetzt sein, sonst startet die Anwendung nicht
 
-Starten Sie dann die Anwendung:
+Das Runtime-Image (`Containerfile`) enthält ausschließlich die fertigen Build-Artefakte;
+der Next.js-Build läuft auf dem Host. Erzeugen Sie die Artefakte daher vor dem ersten Start:
 
 ```bash
-docker-compose up -d
+pnpm install --frozen-lockfile
+pnpm exec prisma generate
+pnpm run build:scripts
+pnpm run build
 ```
 
-Der Docker-Build erstellt die Next.js-Artefakte jetzt vollständig im Container. Ein vorheriger Host-Build ist nicht erforderlich.
-
-Hinweis: Der Dockerfile nutzt BuildKit-Cache fuer pnpm. Falls BuildKit deaktiviert ist, bauen Sie so:
+Starten Sie dann die Anwendung (rootless):
 
 ```bash
-DOCKER_BUILDKIT=1 docker-compose up -d --build
+podman-compose up -d
 ```
 
-### pnpm Store auf dem Host teilen (schnellere Builds)
+`compose.yaml` baut das Image aus `Containerfile` und kopiert die zuvor erzeugten
+Artefakte hinein. Der host-seitige bind mount `./data` bleibt dank
+`userns_mode: keep-id` für den Container-Benutzer schreibbar. Für den produktiven
+Rollout übernimmt `deploy.sh` Build, Backup, Health-Checks und Neustart automatisch.
 
-Standard: `.pnpm-store` im Projektverzeichnis (wird in den Build-Kontext aufgenommen). Legen Sie das Verzeichnis einmal an und nutzen Sie es in Builds:
-
-```bash
-mkdir -p .pnpm-store
-DEPS_STAGE=deps-hostcache PNPM_STORE_DIR=.pnpm-store DOCKER_BUILDKIT=1 docker-compose build app
-```
-
-Optional koennen Sie ein eigenes Cache-Verzeichnis verwenden (Docker muss Zugriff auf den Host-Pfad haben):
-
-```bash
-mkdir -p /pfad/zum/pnpm-store
-DEPS_STAGE=deps-hostcache PNPM_STORE_DIR=/pfad/zum/pnpm-store DOCKER_BUILDKIT=1 docker-compose build app
-```
+Damit der Stack nach einem Reboot automatisch startet, kann die rootless
+systemd-User-Unit `ops/systemd/rag-mse.service` installiert werden (siehe Kommentar
+im Unit-File; benötigt `loginctl enable-linger`).
 
 ### Volume persistenz
 
@@ -272,19 +268,19 @@ gunzip -c /zfs/backups/beta-rag-mse/prod.db.YYYY-MM-DD.sqlite3.gz > data/prod.db
 ### Container stoppen
 
 ```bash
-docker-compose down
+podman-compose down
 ```
 
 ### Logs anzeigen
 
 ```bash
-docker-compose logs -f app
+podman-compose logs -f app
 ```
 
 ### Container neu starten
 
 ```bash
-docker-compose restart app
+podman-compose restart app
 ```
 
 ### Erstes Produktions-Setup
@@ -386,28 +382,55 @@ sudo cat ihr-domain.de.crt \
 sudo chmod 600 /etc/ssl/haproxy/rag-mse.pem
 ```
 
-### Docker-Netzwerk-Konfiguration
+### Podman-Netzwerk-Konfiguration
 
-Wenn HAProxy auf demselben Server wie Docker läuft, müssen Sie sicherstellen, dass HAProxy auf den Docker-Container zugreifen kann.
+Wenn HAProxy auf demselben Server wie Podman läuft, greift es über den vom Container
+veröffentlichten Loopback-Port auf die Anwendung zu.
 
-**Option 1: Host-Port-Mapping (empfohlen für einfache Setups)**
+**Host-Port-Mapping (verwendetes Setup)**
 
-Die `docker-compose.yml` verwendet bereits Port-Mapping (`3000:3000`), sodass HAProxy über `127.0.0.1:3000` auf die Anwendung zugreifen kann.
+`compose.yaml` veröffentlicht den App-Port auf `127.0.0.1:3000`, sodass HAProxy über
+`127.0.0.1:3000` auf die Anwendung zugreifen kann (siehe `haproxy.cfg.example`).
 
-**Option 2: Docker-Bridge-Netzwerk**
+**Trusted Proxy / Client-IP**
+
+Unter rootless Podman unterscheidet sich die im Container sichtbare Quell-IP von Docker.
+Setzen Sie `TRUSTED_PROXY_IPS` passend (Default in `compose.yaml`:
+`127.0.0.1/32,::1,10.0.2.0/24,10.88.0.0/16`) und prüfen Sie nach dem ersten Deploy die
+tatsächlich beobachtete Quell-IP, damit Rate-Limiting und Client-IP-Logging korrekt
+funktionieren. Erscheint die Quell-IP als Podman-Gateway, kann der App-Container
+alternativ mit Host-Networking (`network_mode: host`) betrieben werden.
+
+### Deployment-Selbsttest (`/api/selftest`)
+
+Neben dem flachen Liveness-Check `/api/health` (nur `SELECT 1`) gibt es einen tiefen,
+**zustandsfreien** Selbsttest, der nach einem Deploy alle wichtigen Teilsysteme prüft:
+Datenbank-Verbindung und angewendete Migrationen, Vorhandensein kritischer Daten
+(mind. ein `SITE_ADMINISTRATOR`), Dokumentenspeicher (Verzeichnis beschreibbar, Dateien
+vorhanden), SMTP (Live-`verify()` ohne E-Mail-Versand), Hintergrund-Worker, Konfiguration
+und freier Speicherplatz. Es werden ausschließlich lesende Operationen ausgeführt – keine
+Daten werden verändert und keine E-Mail versendet.
+
+Der Endpunkt ist über ein Bearer-Token (`SELFTEST_TOKEN`) geschützt. Ohne gesetztes Token
+antwortet er mit `503 self-test not configured` und führt keinen Test aus.
 
 ```bash
-# Docker-Netzwerk erstellen
-docker network create --driver bridge rag-mse-network
-
-# docker-compose.yml anpassen:
-networks:
-  rag-mse-network:
-    external: true
-
-# HAProxy-Config anpassen:
-server app1 rag-mse-app:3000 check inter 5s rise 2 fall 3
+curl -i -H "Authorization: Bearer $SELFTEST_TOKEN" http://localhost:3000/api/selftest
 ```
+
+Status-Codes:
+
+- **200** `{"status":"ok", ...}` – alles in Ordnung.
+- **200** `{"status":"warn", "warnings":[...]}` – nur nicht-kritische Hinweise (z. B. wenig
+  Speicherplatz, fehlgeschlagene E-Mails in der Warteschlange).
+- **503** `{"status":"error", "errors":[...]}` – mindestens ein Teilsystem ist defekt.
+- **401** – Token fehlt oder ist falsch.
+
+Jede Prüfung erscheint im JSON unter `checks[]` mit `name`, `component` (das betroffene Teil
+der Anwendung), `status` und `message`. Die Felder `warnings[]`/`errors[]` fassen die
+Probleme samt betroffenem `component` zusammen.
+
+Details zu geprüften Teilsystemen und Design-Entscheidungen: siehe [`docs/SELFTEST.md`](docs/SELFTEST.md).
 
 ### HAProxy Monitoring
 
@@ -462,7 +485,7 @@ sudo journalctl -xe -u haproxy
 
 **502 Bad Gateway:**
 
-- Prüfen Sie, ob der Docker-Container läuft: `docker-compose ps`
+- Prüfen Sie, ob der Container läuft: `podman-compose ps`
 - Überprüfen Sie die Backend-IP in der HAProxy-Konfiguration
 - Prüfen Sie die HAProxy-Logs: `sudo tail -f /var/log/haproxy.log`
 
@@ -544,6 +567,36 @@ pnpm run lint
 pnpm run format
 ```
 
+### Abhängigkeiten aktuell halten
+
+```bash
+# Veraltete Pakete anzeigen
+pnpm outdated
+
+# Pakete innerhalb ihres Major-Bereichs aktualisieren
+pnpm update --latest <paket>
+```
+
+Nach jedem Update von `prisma`/`@prisma/client` muss der Client neu generiert werden
+(`pnpm exec prisma generate`); `deploy.sh` erledigt das für Produktions-Deployments
+automatisch.
+
+Stand 09.07.2026 bewusst **nicht** auf die jeweils neueste Major-Version gehoben, da
+inkompatibel mit dem aktuellen Stack:
+
+- **TypeScript** (5.9.x statt 6.x/7.x): Sowohl 6.0.3 als auch 7.0.2 brechen die
+  generierten Typen von `@prisma/client` 7.8 (`has no exported member 'PrismaClient'` u.a.)
+  in ca. 60 Stellen im Code.
+- **ESLint** (9.x statt 10.x): `eslint-plugin-react` 7.37.5 (transitive Abhängigkeit von
+  `eslint-config-next`) ist nicht kompatibel mit ESLint 10 (`contextOrFilename.getFilename
+  is not a function`).
+- **Babel** `@babel/core`/`preset-env`/`preset-react`/`preset-typescript` (7.x statt 8.x):
+  `@babel/preset-typescript` 8 kann `new Foo<Generic>()`-Syntax nicht mehr parsen, was in
+  Jest-Tests zu Syntaxfehlern führt (91 von 134 Testsuiten schlugen fehl).
+
+Vor einem erneuten Versuch prüfen, ob die Ökosysteme (Prisma-Typgenerierung,
+`eslint-plugin-react`, `@babel/preset-typescript`) inzwischen nachgezogen haben.
+
 ### Wiederverwendbare UI-Komponenten
 
 #### ConfirmDialog (Bestätigungsdialog)
@@ -611,9 +664,6 @@ ADMIN_EMAILS="admin1@example.com,admin2@example.com"
 TRUSTED_PROXY_IPS="127.0.0.1/32,172.16.0.0/12"
 RATE_LIMIT_FAIL_OPEN="false"
 
-# Redis für verteilte Rate-Limits
-REDIS_URL="redis://localhost:6379"
-
 # Datenbank-Operationen in Produktion (SICHERHEIT!)
 ALLOW_DB_SEED=false     # Aktiviert einmaliges Seed beim ersten Start mit leerer DB
 
@@ -627,7 +677,7 @@ NEXT_PUBLIC_SITE_URL="http://localhost:3000"
 EVENT_REMINDER_POLL_INTERVAL_MS="3600000"
 NOTIFICATION_TOKEN_VALIDITY_DAYS="60"
 
-# Container-User für Docker (muss Schreibrechte auf ./data haben)
+# Container-User für rootless Podman (muss Schreibrechte auf ./data haben)
 APP_UID="1000"
 APP_GID="1000"
 
@@ -769,7 +819,7 @@ Administratoren verwalten die Bereiche über zwei getrennte Admin-Seiten:
 Die Anwendung wird hinter einem Reverse Proxy (z.B. HAProxy) auf einem VPS bereitgestellt.
 
 > Die Deployment-Konfiguration ist vollständig implementiert und produktiv im Einsatz.
-> Siehe AGENTS.md für die produktive Behandlung der docker-compose.yml.
+> Siehe AGENTS.md für die produktive Behandlung der compose.yaml.
 
 ### Produktions-Build erstellen
 
@@ -799,11 +849,11 @@ APP_GID="1000"
 - `NEXTAUTH_SECRET` MUSS mit einem starken, zufälligen Wert gesetzt werden (mindestens 32 Zeichen)
 - Verwenden Sie HTTPS in der Produktion
 - Alle oben genannten Secrets sind PFLICHT für den Produktionsbetrieb
-- Prüfen Sie nach dem Start: `docker compose exec -T app id` (muss die erwartete UID:GID anzeigen)
+- Prüfen Sie nach dem Start: `podman-compose exec -T app id` (muss die erwartete UID:GID anzeigen)
 
 ## Backup-Strategie
 
-Die SQLite-Datenbank wird in einem Docker-Volume gespeichert, das auf ein lokales Verzeichnis gemountet wird. Regelmäßige Backups der Datenbankdatei werden empfohlen.
+Die SQLite-Datenbank wird in einem host-gemounteten Volume (./data) gespeichert. Regelmäßige Backups der Datenbankdatei werden empfohlen.
 
 ## Lizenzen und Branding
 

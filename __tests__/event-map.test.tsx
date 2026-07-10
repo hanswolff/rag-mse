@@ -4,8 +4,9 @@ import L from "leaflet";
 
 describe("EventMap", () => {
   beforeEach(() => {
-    if (L.Icon.Default.prototype._getIconUrl) {
-      delete L.Icon.Default.prototype._getIconUrl;
+    const proto = L.Icon.Default.prototype as unknown as Record<string, unknown>;
+    if (proto._getIconUrl) {
+      delete proto._getIconUrl;
     }
   });
 

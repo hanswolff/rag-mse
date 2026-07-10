@@ -32,12 +32,18 @@ var __importStar = (this && this.__importStar) || (function () {
         return result;
     };
 })();
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.main = main;
+const node_path_1 = __importDefault(require("node:path"));
+const promises_1 = require("node:fs/promises");
 const client_1 = require("@prisma/client");
 const adapter_better_sqlite3_1 = require("@prisma/adapter-better-sqlite3");
 const bcryptjs_1 = require("bcryptjs");
 const password_validation_1 = require("../lib/password-validation");
+const ausschreibung_storage_1 = require("../lib/ausschreibung-storage");
 void Promise.resolve().then(() => __importStar(require("dotenv/config"))).catch(() => undefined);
 let prisma;
 function getPrismaClient() {
@@ -232,6 +238,48 @@ async function main(prismaOverride) {
         });
     }
     console.log(`Schießstände synchronisiert: ${shootingRanges.length}`);
+    await seedLandesmeisterschaftAusschreibung(prismaClient);
+}
+const LANDESMEISTERSCHAFT_TITLE = "Landesmeisterschaft Schießsport";
+const LANDESMEISTERSCHAFT_EXPIRES_AT = new Date(Date.UTC(2026, 7, 1));
+const LANDESMEISTERSCHAFT_SOURCE_FILE = "2026-08-01_Ausschreibung_Landesmeisterschaft_Schießsport.pdf";
+async function seedLandesmeisterschaftAusschreibung(prismaClient) {
+    const existing = await prismaClient.ausschreibung.findFirst({
+        where: { title: LANDESMEISTERSCHAFT_TITLE },
+    });
+    if (existing) {
+        console.log(`Ausschreibung "${LANDESMEISTERSCHAFT_TITLE}" existiert bereits. Überspringe Seed.`);
+        return;
+    }
+    const sourcePath = node_path_1.default.join(process.cwd(), "data", LANDESMEISTERSCHAFT_SOURCE_FILE);
+    const adopted = await (0, ausschreibung_storage_1.adoptAusschreibungFile)(sourcePath);
+    if (!adopted) {
+        console.warn(`Quelldatei für Ausschreibungs-Seed nicht gefunden (${sourcePath}). Überspringe Seed.`);
+        return;
+    }
+    const { size: sizeBytes } = await (0, promises_1.stat)(adopted.filePath);
+    try {
+        await prismaClient.ausschreibung.create({
+            data: {
+                title: LANDESMEISTERSCHAFT_TITLE,
+                expiresAt: LANDESMEISTERSCHAFT_EXPIRES_AT,
+                originalFileName: LANDESMEISTERSCHAFT_SOURCE_FILE,
+                storedFileName: adopted.storedFileName,
+                mimeType: "application/pdf",
+                sizeBytes,
+            },
+        });
+    }
+    catch (error) {
+        try {
+            await (0, promises_1.rename)(adopted.filePath, sourcePath);
+        }
+        catch (renameError) {
+            console.error(`Konnte adoptierte Datei nach fehlgeschlagenem Seed nicht zurückverschieben (${adopted.filePath} -> ${sourcePath}):`, renameError);
+        }
+        throw error;
+    }
+    console.log(`Ausschreibung "${LANDESMEISTERSCHAFT_TITLE}" angelegt.`);
 }
 async function run() {
     try {

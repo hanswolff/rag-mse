@@ -172,12 +172,13 @@ export default function TerminePage() {
             setEventData={eventManagement.setModalEventData}
             isEditing={!!eventManagement.editingEvent}
             errors={eventManagement.error ? { general: eventManagement.error } : {}}
-            fieldErrors={eventManagement.fieldErrors}            initialEventData={eventManagement.initialEventData}
+            fieldErrors={eventManagement.fieldErrors}
+            initialEventData={eventManagement.initialEventData}
             isGeocoding={eventManagement.isGeocoding}
             onGeocode={eventManagement.handleGeocode}
             geocodeSuccess={eventManagement.geocodeSuccess}
-            onUseLastDescription={eventManagement.handleUseLatestDescription}
-            isLoadingLastDescription={eventManagement.isLoadingLatestDescription}
+            onUseLastEvent={eventManagement.handleUseLatestDescription}
+            isLoadingLastEvent={eventManagement.isLoadingLatestDescription}
           />
         )}
       </div>

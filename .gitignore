@@ -24,6 +24,8 @@ yarn-error.log*
 *.db
 /data/
 /db/
+# Pre-cutover data snapshots created during Docker->Podman migration
+/data.backup-*/
 
 # OS / editor
 .DS_Store

@@ -110,7 +110,7 @@ export function DesktopUserMenu({
             onClick={onLogout}
             className="block w-full text-left px-4 py-2 text-base text-gray-700 hover:bg-gray-100 transition-colors"
           >
-            Abmelden
+            Ausloggen
           </button>
         </div>
       )}
@@ -213,7 +213,7 @@ export function MobileUserMenu({
         onClick={onLogout}
         className="w-full text-left px-3 py-2 rounded-md text-base font-semibold uppercase tracking-wide text-brand-blue-900 hover:bg-brand-blue-50 hover:text-brand-red-700 transition-colors touch-manipulation"
       >
-        Abmelden
+        Ausloggen
       </button>
     </>
   );

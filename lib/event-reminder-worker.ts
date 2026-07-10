@@ -23,6 +23,10 @@ const globalForReminderWorker = globalThis as typeof globalThis & {
   eventReminderTimer?: NodeJS.Timeout;
 };
 
+export function isEventReminderWorkerRunning(): boolean {
+  return globalForReminderWorker.eventReminderWorkerStarted === true;
+}
+
 function getPollIntervalMs(): number {
   const raw = process.env.EVENT_REMINDER_POLL_INTERVAL_MS;
   if (!raw) {
@@ -447,6 +451,97 @@ export async function processEventReminders(now = new Date()): Promise<number> {
           });
         }
       }
+    }
+  }
+
+  return queued;
+}
+
+export async function triggerImmediateEventReminders(
+  eventId: string,
+  now = new Date()
+): Promise<number> {
+  const appUrl = process.env.APP_URL;
+  if (!appUrl) {
+    logError("event_reminder_missing_app_url", "APP_URL is required for event reminder links");
+    return 0;
+  }
+
+  const notificationTimeZone = getNotificationTimeZone();
+
+  const event = await prisma.event.findUnique({
+    where: { id: eventId },
+    select: {
+      id: true,
+      date: true,
+      timeFrom: true,
+      timeTo: true,
+      location: true,
+      visible: true,
+    },
+  });
+
+  if (!event?.visible) {
+    return 0;
+  }
+
+  const users = await prisma.user.findMany({
+    where: {
+      eventReminderEnabled: true,
+      activatedAt: { not: null },
+    },
+    select: {
+      id: true,
+      email: true,
+      role: true,
+      eventReminderDaysBefore: true,
+    },
+  });
+
+  const activeUsers = users.filter((user) => Permissions.canVoteAttendance(user.role));
+
+  const eventDateTime = buildEventDateTime(event.date, event.timeFrom, notificationTimeZone);
+
+  if (eventDateTime <= now) {
+    return 0;
+  }
+
+  let queued = 0;
+
+  for (const user of activeUsers) {
+    const reminderTime = new Date(
+      eventDateTime.getTime() - user.eventReminderDaysBefore * 24 * 60 * 60 * 1000
+    );
+
+    if (reminderTime > now) {
+      continue;
+    }
+
+    try {
+      const sent = await queueReminderForUserEvent({
+        userId: user.id,
+        userEmail: user.email,
+        event: {
+          id: event.id,
+          date: event.date,
+          timeFrom: event.timeFrom,
+          timeTo: event.timeTo,
+          location: event.location,
+        },
+        daysBefore: user.eventReminderDaysBefore,
+        appUrl,
+        now,
+      });
+
+      if (sent) {
+        queued += 1;
+      }
+    } catch (error) {
+      logError("event_reminder_queue_failed", "Failed to queue immediate reminder for user/event", {
+        userId: user.id,
+        eventId: event.id,
+        error: error instanceof Error ? error.message : String(error),
+      });
     }
   }
 

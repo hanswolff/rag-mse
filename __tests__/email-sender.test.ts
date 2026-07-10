@@ -159,6 +159,54 @@ describe("Email Sender", () => {
       );
     });
 
+    it("reclaims a PROCESSING email whose lock expired (crashed worker)", async () => {
+      const firstQueuedAt = new Date("2026-02-08T10:00:00.000Z");
+
+      (mockPrisma.outgoingEmail.findFirst as jest.Mock)
+        .mockResolvedValueOnce({ id: "mail-crashed" })
+        .mockResolvedValueOnce(null);
+      (mockPrisma.outgoingEmail.updateMany as jest.Mock).mockResolvedValue({ count: 1 });
+      (mockPrisma.outgoingEmail.findUnique as jest.Mock).mockResolvedValue({
+        id: "mail-crashed",
+        template: "passwort-zuruecksetzen",
+        toRecipients: "member@example.com",
+        subject: "Subject",
+        textBody: "Body",
+        htmlBody: "Body",
+        attachmentsJson: null,
+        attemptCount: 2,
+        firstQueuedAt,
+        lastAttemptAt: new Date("2026-02-08T10:01:00.000Z"),
+      });
+      mockSendMail.mockResolvedValue({ messageId: "m-recovered" });
+      (mockPrisma.outgoingEmail.update as jest.Mock).mockResolvedValue({});
+
+      const processed = await processDueEmailOutboxBatch();
+      expect(processed).toBe(1);
+
+      // Die Claim-Query muss PROCESSING-Zeilen mit abgelaufenem Lock einschließen,
+      // sonst bleiben E-Mails eines abgestürzten Prozesses für immer hängen.
+      const claimWhere = (mockPrisma.outgoingEmail.findFirst as jest.Mock).mock.calls[0][0].where;
+      const processingBranch = claimWhere.OR.find(
+        (branch: { status?: unknown }) => branch.status === "PROCESSING"
+      );
+      expect(processingBranch).toBeDefined();
+      expect(processingBranch.lockedUntil.lte).toBeInstanceOf(Date);
+
+      const updateManyWhere = (mockPrisma.outgoingEmail.updateMany as jest.Mock).mock.calls[0][0].where;
+      expect(updateManyWhere.id).toBe("mail-crashed");
+      expect(updateManyWhere.OR.some(
+        (branch: { status?: unknown }) => branch.status === "PROCESSING"
+      )).toBe(true);
+
+      expect(mockPrisma.outgoingEmail.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: "mail-crashed" },
+          data: expect.objectContaining({ status: "SENT" }),
+        })
+      );
+    });
+
     it("schedules retry for transient SMTP errors", async () => {
       const now = new Date();
       const firstQueuedAt = new Date(now.getTime() - 10 * 60 * 1000);

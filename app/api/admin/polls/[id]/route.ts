@@ -11,6 +11,13 @@ import { logInfo, logResourceNotFound, logValidationFailure } from "@/lib/logger
 
 type RouteParams = { params: Promise<{ id: string }> };
 
+class PollNotDraftError extends Error {
+  constructor() {
+    super("Poll is not in DRAFT status");
+    this.name = "PollNotDraftError";
+  }
+}
+
 export const GET = withApiErrorHandling(async (_request: NextRequest, context: RouteParams) => {
   await requireAdmin("read");
   const { id } = await context.params;
@@ -72,26 +79,49 @@ export const PATCH = withApiErrorHandling(async (request: NextRequest, context: 
   if (body.description !== undefined) updateData.description = body.description?.trim() || null;
   if (body.multipleChoice !== undefined) updateData.multipleChoice = body.multipleChoice;
 
-  if (body.options !== undefined) {
-    await prisma.$transaction([
-      prisma.pollOption.deleteMany({ where: { pollId: id } }),
-      prisma.pollOption.createMany({
-        data: body.options.map((opt, index) => ({
-          pollId: id,
-          text: opt.text.trim(),
-          position: opt.position ?? index,
-        })),
-      }),
-    ]);
-  }
+  // Status-Prüfung und Options-Austausch in EINER Transaktion: der Vorab-Check oben
+  // ist nur für die schnelle Fehlermeldung — ein gleichzeitiges Publish zwischen
+  // Check und Update darf Optionen/Stimmen einer LIVE-Umfrage nicht löschen.
+  let updated;
+  try {
+    updated = await prisma.$transaction(async (tx) => {
+      const current = await tx.poll.findUnique({
+        where: { id },
+        select: { status: true },
+      });
 
-  const updated = await prisma.poll.update({
-    where: { id },
-    data: updateData,
-    include: {
-      options: { orderBy: { position: "asc" } },
-    },
-  });
+      if (!current || current.status !== "DRAFT") {
+        throw new PollNotDraftError();
+      }
+
+      if (body.options !== undefined) {
+        await tx.pollOption.deleteMany({ where: { pollId: id } });
+        await tx.pollOption.createMany({
+          data: body.options.map((opt, index) => ({
+            pollId: id,
+            text: opt.text.trim(),
+            position: opt.position ?? index,
+          })),
+        });
+      }
+
+      return tx.poll.update({
+        where: { id },
+        data: updateData,
+        include: {
+          options: { orderBy: { position: "asc" } },
+        },
+      });
+    });
+  } catch (error) {
+    if (error instanceof PollNotDraftError) {
+      return NextResponse.json(
+        { error: "Nur Umfragen im Entwurfsstatus können bearbeitet werden" },
+        { status: 409 }
+      );
+    }
+    throw error;
+  }
 
   logInfo("poll_updated", "Poll updated", { pollId: id, userId: user.id });
 

@@ -60,6 +60,7 @@ export function usePollManagement() {
   const [success, setSuccess] = useState("");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalPollData, setModalPollData] = useState<NewPollData>({ ...DEFAULT_POLL_DATA });
+  const [modalInitialPollData, setModalInitialPollData] = useState<NewPollData>({ ...DEFAULT_POLL_DATA });
   const [editingPoll, setEditingPoll] = useState<Poll | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [publishingPollId, setPublishingPollId] = useState<string | null>(null);
@@ -100,21 +101,25 @@ export function usePollManagement() {
 
   const openCreateModal = useCallback(() => {
     setEditingPoll(null);
-    setModalPollData({ ...DEFAULT_POLL_DATA });
+    const initial = { ...DEFAULT_POLL_DATA };
+    setModalPollData(initial);
+    setModalInitialPollData(initial);
     setIsModalOpen(true);
     setError("");
   }, []);
 
   const openEditModal = useCallback((poll: Poll) => {
     setEditingPoll(poll);
-    setModalPollData({
+    const initial: NewPollData = {
       title: poll.title,
       description: poll.description || "",
       type: poll.type,
       multipleChoice: poll.multipleChoice,
       eventId: poll.eventId || "",
       options: poll.options.map((o) => ({ text: o.text, position: o.position })),
-    });
+    };
+    setModalPollData(initial);
+    setModalInitialPollData(initial);
     setIsModalOpen(true);
     setError("");
   }, []);
@@ -233,6 +238,7 @@ export function usePollManagement() {
     isModalOpen,
     modalPollData,
     setModalPollData,
+    modalInitialPollData,
     editingPoll,
     isSubmitting,
     publishingPollId,

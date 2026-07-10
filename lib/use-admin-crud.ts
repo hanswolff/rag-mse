@@ -9,6 +9,30 @@ interface CrudResult {
   fieldErrors?: FieldError[];
 }
 
+const GENERIC_ERROR_MESSAGE = "Ein Fehler ist aufgetreten";
+const NETWORK_ERROR_MESSAGE =
+  "Netzwerkfehler: Der Server ist nicht erreichbar. Bitte versuchen Sie es erneut.";
+
+// 204- oder Nicht-JSON-Antworten dürfen keinen "Unexpected end of JSON input"-Fehler auslösen
+async function parseJsonBody(response: Response): Promise<Record<string, unknown>> {
+  try {
+    return await response.json();
+  } catch {
+    return {};
+  }
+}
+
+// fetch wirft bei Netzwerkfehlern TypeError mit englischer Browser-Meldung ("Failed to fetch")
+function toDisplayErrorMessage(err: unknown, fallback: string = GENERIC_ERROR_MESSAGE): string {
+  if (err instanceof TypeError) {
+    return NETWORK_ERROR_MESSAGE;
+  }
+  if (err instanceof SyntaxError) {
+    return fallback;
+  }
+  return err instanceof Error && err.message ? err.message : fallback;
+}
+
 export function useAdminCrud() {
   const confirm = useConfirmDialog();
 
@@ -33,16 +57,18 @@ export function useAdminCrud() {
           ...(data && { body: JSON.stringify(data) }),
         });
 
-        const responseData = await response.json();
+        const responseData = await parseJsonBody(response);
 
         if (!response.ok) {
-          setError(responseData.error || "Ein Fehler ist aufgetreten");
-          return { success: false, fieldErrors: responseData.fieldErrors };
+          setError(
+            (typeof responseData.error === "string" && responseData.error) || GENERIC_ERROR_MESSAGE
+          );
+          return { success: false, fieldErrors: responseData.fieldErrors as FieldError[] | undefined };
         }
 
         return { success: true, data: responseData };
       } catch (err: unknown) {
-        setError(err instanceof Error ? err.message : "Ein Fehler ist aufgetreten");
+        setError(toDisplayErrorMessage(err));
         return { success: false };
       } finally {
         setIsLoading(false);
@@ -130,7 +156,7 @@ export function useAdminCrud() {
           return;
         }
 
-        setError(err instanceof Error ? err.message : "Ein Fehler ist aufgetreten");
+        setError(toDisplayErrorMessage(err, "Fehler beim Laden der Daten"));
       } finally {
         if (!isRequestStale()) {
           setIsLoading(false);
@@ -158,15 +184,14 @@ export function useAdminCrud() {
         });
 
         if (!response.ok) {
-          const data = await response.json();
-          throw new Error(data.error || messages.error);
+          const data = await parseJsonBody(response);
+          throw new Error((typeof data.error === "string" && data.error) || messages.error);
         }
 
         setSuccess(messages.success);
         await refresh();
       } catch (err: unknown) {
-        const errorMessage = err instanceof Error ? err.message : "Ein Fehler ist aufgetreten";
-        setError(errorMessage);
+        setError(toDisplayErrorMessage(err));
       }
     };
   }, []);

@@ -1,4 +1,4 @@
-import { getRedisClient } from "./redis-client";
+import { getRateLimitStore } from "./rate-limit-store";
 
 const LOGIN_WINDOW_MS = 15 * 60 * 1000;
 const IP_WINDOW_MS = 15 * 60 * 1000;
@@ -35,13 +35,13 @@ const GEOCODE_PREFIX = `${RATE_LIMIT_PREFIX}geocode:`;
 const BLOCKED_UNTIL_PREFIX = `${RATE_LIMIT_PREFIX}blocked:`;
 
 async function deleteRateLimitEntry(key: string): Promise<void> {
-  const redis = getRedisClient();
-  await redis.del(key);
+  const store = getRateLimitStore();
+  store.del(key);
 }
 
 async function getCounterValue(key: string): Promise<number> {
-  const redis = getRedisClient();
-  const value = await redis.get(key);
+  const store = getRateLimitStore();
+  const value = store.get(key);
   if (!value) {
     return 0;
   }
@@ -51,11 +51,11 @@ async function getCounterValue(key: string): Promise<number> {
 }
 
 async function incrementFixedWindowCounter(key: string, windowMs: number): Promise<number> {
-  const redis = getRedisClient();
-  const count = await redis.incr(key);
+  const store = getRateLimitStore();
+  const count = store.incr(key);
 
   if (count === 1) {
-    await redis.pexpire(key, windowMs);
+    store.pexpire(key, windowMs);
   }
 
   return count;
@@ -63,11 +63,11 @@ async function incrementFixedWindowCounter(key: string, windowMs: number): Promi
 
 async function decrementIpCounter(ip: string): Promise<void> {
   const ipKey = `${IP_PREFIX}${ip}`;
-  const redis = getRedisClient();
-  const decremented = await redis.decr(ipKey);
+  const store = getRateLimitStore();
+  const decremented = store.decr(ipKey);
 
   if (decremented <= 0) {
-    await redis.del(ipKey);
+    store.del(ipKey);
   }
 }
 
@@ -124,8 +124,8 @@ async function checkRateLimit(
 
   const key = `${keyPrefix}${keySuffix}`;
   const blockedUntilKey = `${BLOCKED_UNTIL_PREFIX}${keyPrefix}${keySuffix}`;
-  const redis = getRedisClient();
-  const blockedUntilRaw = await redis.get(blockedUntilKey);
+  const store = getRateLimitStore();
+  const blockedUntilRaw = store.get(blockedUntilKey);
   const blockedUntil = blockedUntilRaw ? Number.parseInt(blockedUntilRaw, 10) : NaN;
   const currentCount = await getCounterValue(key);
 
@@ -138,9 +138,9 @@ async function checkRateLimit(
   const blockDuration = checkThresholds(attemptCount, thresholds);
   if (blockDuration > 0) {
     const nextBlockedUntil = now + blockDuration;
-    const counterTtlMs = await redis.pttl(key);
+    const counterTtlMs = store.pttl(key);
     const effectiveTtlMs = Math.max(windowMs, blockDuration, counterTtlMs > 0 ? counterTtlMs : 0);
-    await redis.set(blockedUntilKey, `${nextBlockedUntil}`, "PX", effectiveTtlMs);
+    store.set(blockedUntilKey, `${nextBlockedUntil}`, "PX", effectiveTtlMs);
     return { allowed: false, blockedUntil: nextBlockedUntil, attemptCount };
   }
 
@@ -214,15 +214,13 @@ export async function getRateLimitStats(): Promise<{
   contactAttemptsCount: number;
   geocodeAttemptsCount: number;
 }> {
-  const redis = getRedisClient();
-  const [loginKeys, ipKeys, tokenKeys, forgotKeys, contactKeys, geocodeKeys] = await Promise.all([
-    redis.keys(`${LOGIN_PREFIX}*`),
-    redis.keys(`${IP_PREFIX}*`),
-    redis.keys(`${TOKEN_PREFIX}*`),
-    redis.keys(`${FORGOT_PASSWORD_PREFIX}*`),
-    redis.keys(`${CONTACT_PREFIX}*`),
-    redis.keys(`${GEOCODE_PREFIX}*`),
-  ]);
+  const store = getRateLimitStore();
+  const loginKeys = store.keys(`${LOGIN_PREFIX}*`);
+  const ipKeys = store.keys(`${IP_PREFIX}*`);
+  const tokenKeys = store.keys(`${TOKEN_PREFIX}*`);
+  const forgotKeys = store.keys(`${FORGOT_PASSWORD_PREFIX}*`);
+  const contactKeys = store.keys(`${CONTACT_PREFIX}*`);
+  const geocodeKeys = store.keys(`${GEOCODE_PREFIX}*`);
 
   return {
     loginAttemptsCount: loginKeys.length,
@@ -235,6 +233,6 @@ export async function getRateLimitStats(): Promise<{
 }
 
 export async function resetRateLimitForTesting(): Promise<void> {
-  const { resetRedisForTesting } = await import("./redis-client");
-  await resetRedisForTesting();
+  const { resetRateLimitStore } = await import("./rate-limit-store");
+  resetRateLimitStore();
 }

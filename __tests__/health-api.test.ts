@@ -4,27 +4,18 @@ jest.mock("@/lib/prisma", () => ({
   },
 }));
 
-jest.mock("@/lib/redis-client", () => ({
-  getRedisClient: jest.fn(),
-}));
-
 import { GET } from "@/app/api/health/route";
 import { prisma } from "@/lib/prisma";
-import { getRedisClient } from "@/lib/redis-client";
 
 describe("/api/health", () => {
   const mockQueryRaw = prisma.$queryRaw as jest.Mock;
-  const mockGetRedisClient = getRedisClient as jest.Mock;
-  const mockPing = jest.fn();
 
   beforeEach(() => {
     jest.clearAllMocks();
-    mockGetRedisClient.mockReturnValue({ ping: mockPing });
   });
 
-  it("returns ok only when database and redis are reachable", async () => {
+  it("returns ok when the database is reachable", async () => {
     mockQueryRaw.mockResolvedValue([{ 1: 1 }]);
-    mockPing.mockResolvedValue("PONG");
 
     const response = await GET();
     const payload = await response.json();
@@ -35,7 +26,6 @@ describe("/api/health", () => {
       timestamp: expect.any(String),
       checks: {
         database: "ok",
-        redis: "ok",
       },
     });
   });

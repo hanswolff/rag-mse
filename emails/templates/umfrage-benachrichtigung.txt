@@ -6,7 +6,7 @@ es wurde eine neue Umfrage veröffentlicht: "{{pollTitle}}"
 
 {{pollDescription}}
 
-Hier kannst du abstimmen:
+Hier können Sie abstimmen:
 {{pollUrl}}
 
 Viele Grüße,

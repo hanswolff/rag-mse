@@ -116,12 +116,12 @@ function useLoginForm(): UseLoginFormResult {
       if (response.status === 429) {
         setError(
           data.error ||
-            "Zu viele Anmeldeversuche. Bitte versuchen Sie es später erneut."
+            "Zu viele Login-Versuche. Bitte versuchen Sie es später erneut."
         );
       } else if (response.status === 503) {
         setError(
           data.error ||
-            "Anmeldung ist vorübergehend nicht verfügbar. Bitte versuchen Sie es erneut."
+            "Login ist vorübergehend nicht verfügbar. Bitte versuchen Sie es erneut."
         );
       } else if (response.status === 401) {
         setFieldErrors({
@@ -151,11 +151,11 @@ function useLoginForm(): UseLoginFormResult {
             "Minuten"
           );
           setError(
-            `Zu viele fehlgeschlagene Anmeldeversuche. Bitte versuchen Sie es in ${minutes} ${minuteLabel} erneut.`
+            `Zu viele fehlgeschlagene Login-Versuche. Bitte versuchen Sie es in ${minutes} ${minuteLabel} erneut.`
           );
         } else if (result?.error === "RATE_LIMIT_UNAVAILABLE") {
           setError(
-            "Anmeldung ist vorübergehend nicht verfügbar. Bitte versuchen Sie es erneut."
+            "Login ist vorübergehend nicht verfügbar. Bitte versuchen Sie es erneut."
           );
         } else if (result?.error) {
           setError("Ungültige E-Mail oder Passwort");
@@ -235,7 +235,7 @@ export default function LoginPage() {
             <div className="login-highlight-card">
               <NewsIcon className="h-5 w-5 text-brand-gold-400" />
               <p className="mt-3 text-sm font-semibold text-white">
-                Abstimmung
+                Teilnahme
               </p>
               <p className="mt-1 text-sm text-brand-blue-200">
                 Teilnahme schnell zusagen, absagen oder offen halten.
@@ -322,10 +322,10 @@ export default function LoginPage() {
               <LoadingButton
                 type="submit"
                 loading={isLoading}
-                loadingText="Anmeldung..."
+                loadingText="Einloggen..."
                 className="w-full btn-primary py-2.5 sm:py-2 text-base sm:text-base touch-manipulation"
               >
-                Anmelden
+                Einloggen
               </LoadingButton>
             </form>
 

@@ -189,8 +189,8 @@ export const DocumentRow = memo(function DocumentRow({
             href={downloadUrl}
             target="_blank"
             rel="noopener noreferrer"
-            aria-label="Download"
-            title="Download"
+            aria-label="Herunterladen"
+            title="Herunterladen"
             onClick={(event) => event.stopPropagation()}
           >
             <DownloadIcon className="w-4 h-4 text-gray-700" />

@@ -93,7 +93,7 @@ export default function TokenRsvpPage({ params }: { params: Promise<{ token: str
           },
         };
       });
-      setSuccess("Deine Teilnahme wurde gespeichert");
+      setSuccess("Ihre Teilnahme wurde gespeichert");
     } catch (voteError) {
       setError(voteError instanceof Error ? voteError.message : "Ein Fehler ist aufgetreten");
     } finally {
@@ -111,7 +111,7 @@ export default function TokenRsvpPage({ params }: { params: Promise<{ token: str
       <main className="flex-1 bg-gray-50">
         <div className="max-w-3xl mx-auto px-4 py-6 sm:py-8 lg:py-10">
           <div className="card text-center">
-            <h1 className="text-2xl font-bold text-gray-900 mb-4">Terminanmeldung</h1>
+            <h1 className="text-2xl font-bold text-gray-900 mb-4">Teilnahmeanmeldung</h1>
             <p className="text-red-700">{error}</p>
           </div>
         </div>
@@ -129,9 +129,9 @@ export default function TokenRsvpPage({ params }: { params: Promise<{ token: str
     <main className="flex-1 bg-gray-50">
       <div className="max-w-3xl mx-auto px-4 py-6 sm:py-8 lg:py-10 space-y-6">
         <article className="card">
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">Terminanmeldung</h1>
+          <h1 className="text-2xl font-bold text-gray-900 mb-2">Teilnahmeanmeldung</h1>
           <p className="text-gray-600 mb-4">
-            Hallo {data.user.name?.trim() || "Mitglied"}, bitte wähle deine Teilnahme für diesen Termin.
+            Hallo {data.user.name?.trim() || "Mitglied"}, bitte wählen Sie Ihre Teilnahme für diesen Termin.
           </p>
 
           <div className="space-y-2 text-gray-800">
@@ -159,7 +159,7 @@ export default function TokenRsvpPage({ params }: { params: Promise<{ token: str
           ) : (
             <>
               <p className="text-gray-700 mb-4">
-                {data.currentVote ? `Deine aktuelle Auswahl: ${VOTE_OPTIONS.find((o) => o.value === data.currentVote?.vote)?.label}` : "Bitte wählen:"}
+                {data.currentVote ? `Ihre aktuelle Auswahl: ${VOTE_OPTIONS.find((o) => o.value === data.currentVote?.vote)?.label}` : "Bitte wählen:"}
               </p>
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">

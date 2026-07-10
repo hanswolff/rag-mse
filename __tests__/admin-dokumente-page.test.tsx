@@ -169,7 +169,7 @@ describe("AdminDocumentsPage", () => {
     expect(screen.getByText("antrag-max.pdf")).toBeInTheDocument();
     expect(screen.getAllByText("Anträge").length).toBeGreaterThan(0);
     expect(screen.getAllByRole("button", { name: "Bearbeiten" }).length).toBeGreaterThan(0);
-    expect(screen.getAllByRole("link", { name: "Download" }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole("link", { name: "Herunterladen" }).length).toBeGreaterThan(0);
   });
 
   it("submits search input", async () => {

@@ -146,8 +146,7 @@ describe("/api/member/document-directories", () => {
     ]);
     (prisma.document.count as jest.Mock).mockResolvedValue(3);
 
-    const request = new NextRequest("http://localhost:3000/api/member/document-directories");
-    const response = await GetDirectories(request);
+    const response = await GetDirectories();
     const data = await response.json();
 
     expect(response.status).toBe(200);

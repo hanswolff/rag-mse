@@ -75,7 +75,7 @@ describe("/api/invitations/[token] route", () => {
         invitation: prisma.invitation,
         user: prisma.user,
       };
-      return callback(tx);
+      return callback(tx as unknown as typeof prisma);
     });
     (parseJsonBody as jest.Mock).mockImplementation(async (req: NextRequest) => req.json());
   });

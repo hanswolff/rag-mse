@@ -81,7 +81,7 @@ export function RangeFormModal({
     <Modal
       isOpen={isOpen}
       onClose={handleClose}
-      title={isEditing ? "Schießstand bearbeiten" : "Neuen Schießstand erstellen"}
+      title={isEditing ? "Standort bearbeiten" : "Neuen Standort erstellen"}
       size="xl"
       closeOnOutsideClick={false}
       closeOnEscape={false}

@@ -1,3 +1,4 @@
+import { NextRequest } from "next/server";
 import { prisma } from "../lib/prisma";
 import { requireAdmin } from "../lib/auth-utils";
 import { sendInvitationEmail } from "../lib/invitations";
@@ -42,7 +43,7 @@ interface MockInvitation {
   } | null;
 }
 
-const mockedPrisma = prisma as {
+const mockedPrisma = prisma as unknown as {
   invitation: {
     findUnique: jest.Mock;
     findFirst: jest.Mock;
@@ -93,7 +94,7 @@ describe("POST /api/admin/invitations/[id]/resend", () => {
       expiresAt: FUTURE_DATE,
     });
 
-    const request = new Request("https://example.com/api/admin/invitations/inv-123/resend", {
+    const request = new NextRequest("https://example.com/api/admin/invitations/inv-123/resend", {
       method: "POST",
     });
     const response = await resendById(request, {
@@ -144,7 +145,7 @@ describe("POST /api/admin/invitations/[id]/resend", () => {
       expiresAt: new Date("2099-12-31T23:59:59Z"),
     });
 
-    const request = new Request("https://example.com/api/admin/invitations/inv-456/resend", {
+    const request = new NextRequest("https://example.com/api/admin/invitations/inv-456/resend", {
       method: "POST",
     });
     const response = await resendById(request, {
@@ -160,7 +161,7 @@ describe("POST /api/admin/invitations/[id]/resend", () => {
   it("should return 404 if invitation not found", async () => {
     mockedPrisma.invitation.findUnique.mockResolvedValue(null);
 
-    const request = new Request("https://example.com/api/admin/invitations/nonexistent/resend", {
+    const request = new NextRequest("https://example.com/api/admin/invitations/nonexistent/resend", {
       method: "POST",
     });
     const response = await resendById(request, {
@@ -187,7 +188,7 @@ describe("POST /api/admin/invitations/[id]/resend", () => {
 
     mockedPrisma.invitation.findUnique.mockResolvedValue(mockInvitation);
 
-    const request = new Request("https://example.com/api/admin/invitations/inv-123/resend", {
+    const request = new NextRequest("https://example.com/api/admin/invitations/inv-123/resend", {
       method: "POST",
     });
     const response = await resendById(request, {
@@ -216,7 +217,7 @@ describe("POST /api/admin/invitations/[id]/resend", () => {
 
     mockedPrisma.invitation.findUnique.mockResolvedValue(mockInvitation);
 
-    const request = new Request("https://example.com/api/admin/invitations/inv-123/resend", {
+    const request = new NextRequest("https://example.com/api/admin/invitations/inv-123/resend", {
       method: "POST",
     });
     const response = await resendById(request, {
@@ -248,7 +249,7 @@ describe("POST /api/admin/invitations/[id]/resend", () => {
     });
     mockedSendInvitationEmail.mockResolvedValue({ success: false, error: new Error("SMTP failed") });
 
-    const request = new Request("https://example.com/api/admin/invitations/inv-123/resend", {
+    const request = new NextRequest("https://example.com/api/admin/invitations/inv-123/resend", {
       method: "POST",
     });
     const response = await resendById(request, {
@@ -304,7 +305,7 @@ describe("POST /api/admin/invitations/resend-by-email", () => {
       tokenHash: "hashed-new-token-123",
     });
 
-    const request = new Request("https://example.com/api/admin/invitations/resend-by-email", {
+    const request = new NextRequest("https://example.com/api/admin/invitations/resend-by-email", {
       method: "POST",
       body: JSON.stringify({ email: "user@example.com" }),
     });
@@ -340,7 +341,7 @@ describe("POST /api/admin/invitations/resend-by-email", () => {
       tokenHash: "hashed-new-token-123",
     });
 
-    const request = new Request("https://example.com/api/admin/invitations/resend-by-email", {
+    const request = new NextRequest("https://example.com/api/admin/invitations/resend-by-email", {
       method: "POST",
       body: JSON.stringify({ email: "user@example.com" }),
     });
@@ -371,7 +372,7 @@ describe("POST /api/admin/invitations/resend-by-email", () => {
       tokenHash: "hashed-new-token-123",
     });
 
-    const request = new Request("https://example.com/api/admin/invitations/resend-by-email", {
+    const request = new NextRequest("https://example.com/api/admin/invitations/resend-by-email", {
       method: "POST",
       body: JSON.stringify({ email: "  USER@EXAMPLE.COM  " }),
     });
@@ -388,7 +389,7 @@ describe("POST /api/admin/invitations/resend-by-email", () => {
   });
 
   it("should return 400 for invalid email format", async () => {
-    const request = new Request("https://example.com/api/admin/invitations/resend-by-email", {
+    const request = new NextRequest("https://example.com/api/admin/invitations/resend-by-email", {
       method: "POST",
       body: JSON.stringify({ email: "invalid-email" }),
     });
@@ -402,7 +403,7 @@ describe("POST /api/admin/invitations/resend-by-email", () => {
   it("should return 404 if no active invitation found for email", async () => {
     mockedPrisma.invitation.findFirst.mockResolvedValue(null);
 
-    const request = new Request("https://example.com/api/admin/invitations/resend-by-email", {
+    const request = new NextRequest("https://example.com/api/admin/invitations/resend-by-email", {
       method: "POST",
       body: JSON.stringify({ email: "user@example.com" }),
     });
@@ -430,7 +431,7 @@ describe("POST /api/admin/invitations/resend-by-email", () => {
 
     mockedPrisma.invitation.findFirst.mockResolvedValue(mockInvitation);
 
-    const request = new Request("https://example.com/api/admin/invitations/resend-by-email", {
+    const request = new NextRequest("https://example.com/api/admin/invitations/resend-by-email", {
       method: "POST",
       body: JSON.stringify({ email: "user@example.com" }),
     });
@@ -461,7 +462,7 @@ describe("POST /api/admin/invitations/resend-by-email", () => {
     });
     mockedSendInvitationEmail.mockResolvedValue({ success: false, error: new Error("SMTP failed") });
 
-    const request = new Request("https://example.com/api/admin/invitations/resend-by-email", {
+    const request = new NextRequest("https://example.com/api/admin/invitations/resend-by-email", {
       method: "POST",
       body: JSON.stringify({ email: "user@example.com" }),
     });

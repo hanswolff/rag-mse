@@ -64,7 +64,7 @@ export const PUT = withApiErrorHandling(async (
   const existing = await prisma.shootingRange.findUnique({ where: { id } });
   if (!existing) {
     logResourceNotFound("shooting_range", id, "/api/admin/ranges/[id]", "PUT");
-    return NextResponse.json({ error: "Schießstand nicht gefunden" }, { status: 404 });
+    return NextResponse.json({ error: "Standort nicht gefunden" }, { status: 404 });
   }
 
   const { name, street, postalCode, city, latitude, longitude } = result.data;
@@ -83,7 +83,7 @@ export const PUT = withApiErrorHandling(async (
     const duplicate = await prisma.shootingRange.findUnique({ where: { name } });
     if (duplicate) {
       return NextResponse.json(
-        { error: "Ein Schießstand mit diesem Namen existiert bereits" },
+        { error: "Ein Standort mit diesem Namen existiert bereits" },
         { status: 409 }
       );
     }
@@ -121,7 +121,7 @@ export const DELETE = withApiErrorHandling(async (
   const existing = await prisma.shootingRange.findUnique({ where: { id } });
   if (!existing) {
     logResourceNotFound("shooting_range", id, "/api/admin/ranges/[id]", "DELETE");
-    return NextResponse.json({ error: "Schießstand nicht gefunden" }, { status: 404 });
+    return NextResponse.json({ error: "Standort nicht gefunden" }, { status: 404 });
   }
 
   await prisma.shootingRange.delete({ where: { id } });

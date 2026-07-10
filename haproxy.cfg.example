@@ -58,9 +58,6 @@ frontend https-in
     # X-Content-Type-Options
     http-response set-header X-Content-Type-Options "nosniff"
 
-    # X-XSS-Protection
-    http-response set-header X-XSS-Protection "1; mode=block"
-
     # Referrer-Policy
     http-response set-header Referrer-Policy "strict-origin-when-cross-origin"
 
@@ -87,8 +84,8 @@ backend rag-mse-app
     http-check expect status 200
 
     # Server-Konfiguration (Next.js Container)
-    # Hinweis: IP muss an Ihre Docker-Netzwerkkonfiguration angepasst werden
-    # Bei Docker Compose kann der Container-Name als Host verwendet werden
+    # Hinweis: Der Port wird vom rootless-Podman-Container auf 127.0.0.1:3000
+    # veröffentlicht (siehe compose.yaml), daher genügt hier die Loopback-Adresse.
     server app1 127.0.0.1:3000 check inter 5s rise 2 fall 3
 
     # Sticky Sessions (für NextAuth Sessions, falls benötigt)

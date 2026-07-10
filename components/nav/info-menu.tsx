@@ -4,13 +4,17 @@ import type { RefObject } from "react";
 import Link from "next/link";
 import { ChevronDownIcon } from "../icons";
 
+export const TOP_INFO_ITEMS = [
+  { href: "/ausschreibungen", label: "Ausschreibungen" },
+  { href: "/info/formulare", label: "Formulare" },
+] as const;
+
 export const INFO_ITEMS = [
   { href: "/info/schiesssportordnung", label: "Schießsportordnung" },
   { href: "/info/leitfaden-waffenteile", label: "Leitfaden Waffenteile" },
   { href: "/info/waffentechnische-begriffe", label: "Waffentechnische Begriffe" },
   { href: "/info/sachkundepruefung", label: "Sachkundeprüfung" },
   { href: "/info/sicherheitsbelehrung", label: "Sicherheitsbelehrung" },
-  { href: "/info/formulare", label: "Formulare" },
 ] as const;
 
 export const MEMBER_DOCUMENTS_ITEM = { href: "/mitglieder-dokumente", label: "Dokumente für Mitglieder" };
@@ -47,7 +51,7 @@ export function DesktopInfoMenu({
 
       {isOpen && (
         <div className="absolute left-0 mt-2 w-auto min-w-[15rem] bg-white rounded-md shadow-lg py-1 z-dropdown border border-gray-200">
-          {INFO_ITEMS.map((item) => (
+          {TOP_INFO_ITEMS.map((item) => (
             <Link
               key={item.href}
               href={item.href}
@@ -58,17 +62,25 @@ export function DesktopInfoMenu({
             </Link>
           ))}
           {showMemberDocuments && (
-            <>
-              <div className="border-t border-gray-200 my-1" />
-              <Link
-                href={MEMBER_DOCUMENTS_ITEM.href}
-                onClick={onItemClick}
-                className="block px-4 py-2 text-base text-gray-700 hover:bg-gray-100 transition-colors"
-              >
-                {MEMBER_DOCUMENTS_ITEM.label}
-              </Link>
-            </>
+            <Link
+              href={MEMBER_DOCUMENTS_ITEM.href}
+              onClick={onItemClick}
+              className="block px-4 py-2 text-base text-gray-700 hover:bg-gray-100 transition-colors"
+            >
+              {MEMBER_DOCUMENTS_ITEM.label}
+            </Link>
           )}
+          <div className="border-t border-gray-200 my-1" />
+          {INFO_ITEMS.map((item) => (
+            <Link
+              key={item.href}
+              href={item.href}
+              onClick={onItemClick}
+              className="block px-4 py-2 text-base text-gray-700 hover:bg-gray-100 transition-colors"
+            >
+              {item.label}
+            </Link>
+          ))}
         </div>
       )}
     </div>
@@ -103,7 +115,7 @@ export function MobileInfoMenu({
       </button>
       {isOpen && (
         <div className="space-y-1">
-          {INFO_ITEMS.map((item) => (
+          {TOP_INFO_ITEMS.map((item) => (
             <Link
               key={item.href}
               href={item.href}
@@ -122,6 +134,17 @@ export function MobileInfoMenu({
               {MEMBER_DOCUMENTS_ITEM.label}
             </Link>
           )}
+          <div className="border-t border-gray-200 my-1" />
+          {INFO_ITEMS.map((item) => (
+            <Link
+              key={item.href}
+              href={item.href}
+              className={`${getLinkClasses(item.href, true)} pl-6`}
+              onClick={onItemClick}
+            >
+              {item.label}
+            </Link>
+          ))}
         </div>
       )}
     </>

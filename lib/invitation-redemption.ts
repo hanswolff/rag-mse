@@ -28,7 +28,9 @@ type RedeemProfileInput = {
   name: string;
   address: string | null;
   phone: string | null;
-  password: string;
+  // bereits gehashtes Passwort — bcrypt muss vor der Transaktion laufen,
+  // um die einzelne SQLite-Schreibverbindung nicht ~100 ms zu blockieren
+  passwordHash: string;
   dateOfBirth?: string | null;
   rank?: string | null;
   pk?: string | null;
@@ -125,12 +127,16 @@ export async function validateInvitationInTransaction(
   }
 }
 
+export async function hashRedemptionPassword(password: string): Promise<string> {
+  return hash(password, BCRYPT_SALT_ROUNDS);
+}
+
 export async function redeemInvitationInTransaction(
   tx: Prisma.TransactionClient,
   invitation: InvitationIdentity,
   profile: RedeemProfileInput
 ): Promise<RedemptionResult> {
-  const passwordHash = await hash(profile.password, BCRYPT_SALT_ROUNDS);
+  const passwordHash = profile.passwordHash;
   const profileUpdateData = buildProfileUpdateData(profile);
 
   const existingUser = await tx.user.findUnique({

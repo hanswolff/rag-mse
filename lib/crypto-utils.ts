@@ -6,7 +6,7 @@ export function generateRandomBytes(length: number, encoding: "hex" | "base64" =
   return crypto.randomBytes(length).toString(encoding);
 }
 
-export function generateRandomToken(length = 8): string {
+export function generateRandomToken(length = 10): string {
   // Generate random bytes and convert to base62
   // We generate extra bytes to have enough entropy for the full length
   const bytesNeeded = Math.ceil((length * 6) / 8) + 4;

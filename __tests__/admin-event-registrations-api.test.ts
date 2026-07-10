@@ -45,7 +45,7 @@ describe("/api/admin/events/[id]/registrations", () => {
     ]);
 
     const response = await GET(new NextRequest("http://localhost:3000/api/admin/events/event-1/registrations"), {
-      params: { id: "event-1" },
+      params: Promise.resolve({ id: "event-1" }),
     });
     const json = await response.json();
 
@@ -74,7 +74,7 @@ describe("/api/admin/events/[id]/registrations", () => {
       body: JSON.stringify({ type: "member", userId: "user-1", vote: "NEIN" }),
     });
 
-    const response = await POST(request, { params: { id: "event-1" } });
+    const response = await POST(request, { params: Promise.resolve({ id: "event-1" }) });
     const json = await response.json();
 
     expect(response.status).toBe(200);
@@ -93,7 +93,7 @@ describe("/api/admin/events/[id]/registrations", () => {
       body: JSON.stringify({ type: "guest", name: "", vote: "JA" }),
     });
 
-    const response = await POST(request, { params: { id: "event-1" } });
+    const response = await POST(request, { params: Promise.resolve({ id: "event-1" }) });
 
     expect(response.status).toBe(400);
   });
@@ -110,7 +110,7 @@ describe("/api/admin/events/[id]/registrations", () => {
       body: JSON.stringify({ type: "guest", name: "Gast A" }),
     });
 
-    const response = await DELETE(request, { params: { id: "event-1" } });
+    const response = await DELETE(request, { params: Promise.resolve({ id: "event-1" }) });
     const json = await response.json();
 
     expect(response.status).toBe(200);

@@ -95,6 +95,19 @@ export default function AdminDashboardPage() {
           </Link>
 
           <Link
+            href="/admin/ausschreibungen"
+            className="block p-6 bg-white border border-gray-200 rounded-lg hover:shadow-md transition-shadow"
+          >
+            <div className="flex items-center gap-3 mb-3">
+              <span className="text-2xl sm:text-3xl">📢</span>
+              <h2 className="text-lg sm:text-xl font-semibold text-gray-900">Ausschreibungen</h2>
+            </div>
+            <p className="text-sm sm:text-base text-gray-600">
+              Verwalten Sie öffentliche Ausschreibungen inklusive PDF-Upload, Bearbeiten und Löschen.
+            </p>
+          </Link>
+
+          <Link
             href="/admin/dokumente"
             className="block p-6 bg-white border border-gray-200 rounded-lg hover:shadow-md transition-shadow"
           >

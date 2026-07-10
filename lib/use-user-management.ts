@@ -32,6 +32,7 @@ export function useUserManagement() {
   const [users, setUsers] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isCreatingUser, setIsCreatingUser] = useState(false);
+  const [isDeletingUser, setIsDeletingUser] = useState(false);
   const [isUpdatingUser, setIsUpdatingUser] = useState(false);
   const [isSendingInvite, setIsSendingInvite] = useState(false);
   const [isResendingInvite, setIsResendingInvite] = useState<string | null>(null);
@@ -95,7 +96,7 @@ export function useUserManagement() {
         "/api/admin/users",
         "DELETE",
         setError,
-        setIsCreatingUser
+        setIsDeletingUser
       ),
     [createFetchHandler]
   );
@@ -268,6 +269,7 @@ export function useUserManagement() {
     users,
     isLoading,
     isCreatingUser,
+    isDeletingUser,
     isUpdatingUser,
     isSendingInvite,
     error,

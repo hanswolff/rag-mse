@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { requireAuth, ForbiddenError } from "@/lib/auth-utils";
 import { withApiErrorHandling } from "@/lib/api-utils";
 import { Permissions } from "@/lib/permissions";
+import { redactSensitiveLinkTokens } from "@/lib/email/redact";
 import {
   parsePageNumber,
   parsePageSize,
@@ -85,6 +86,8 @@ export const GET = withApiErrorHandling(async (request: NextRequest) => {
   return NextResponse.json({
     emails: emails.map((email) => ({
       ...email,
+      textBody: redactSensitiveLinkTokens(email.textBody),
+      htmlBody: redactSensitiveLinkTokens(email.htmlBody),
       firstQueuedAt: email.firstQueuedAt.toISOString(),
       nextAttemptAt: email.nextAttemptAt.toISOString(),
       lastAttemptAt: email.lastAttemptAt?.toISOString() ?? null,

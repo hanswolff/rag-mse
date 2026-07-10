@@ -18,6 +18,9 @@ import { logInfo, logValidationFailure, logResourceNotFound, maskToken, maskEmai
 
 const BCRYPT_SALT_ROUNDS = 10;
 
+// Zwei parallele Submissions dürfen den Token nur einmal verbrauchen
+class ResetTokenAlreadyUsedError extends Error {}
+
 interface ResetPasswordRequest {
   password: string;
 }
@@ -148,20 +151,34 @@ export const POST = withApiErrorHandling(async (
 
   const hashedPassword = await hash(password, BCRYPT_SALT_ROUNDS);
 
-  await prisma.$transaction(async (tx: Omit<typeof prisma, "\$connect" | "\$disconnect" | "\$on" | "\$transaction" | "\$extends">) => {
-    await tx.user.update({
-      where: { id: user.id },
-      data: {
-        password: hashedPassword,
-        passwordUpdatedAt: new Date(),
-      },
-    });
+  try {
+    await prisma.$transaction(async (tx: Omit<typeof prisma, "\$connect" | "\$disconnect" | "\$on" | "\$transaction" | "\$extends">) => {
+      const consumed = await tx.passwordReset.updateMany({
+        where: { id: reset.id, usedAt: null },
+        data: { usedAt: new Date() },
+      });
 
-    await tx.passwordReset.update({
-      where: { id: reset.id },
-      data: { usedAt: new Date() },
+      if (consumed.count === 0) {
+        throw new ResetTokenAlreadyUsedError();
+      }
+
+      await tx.user.update({
+        where: { id: user.id },
+        data: {
+          password: hashedPassword,
+          passwordUpdatedAt: new Date(),
+        },
+      });
     });
-  });
+  } catch (error) {
+    if (error instanceof ResetTokenAlreadyUsedError) {
+      logResourceNotFound('password_reset', maskToken(token), '/api/auth/reset-password/[token]', 'POST', {
+        reason: 'already_used',
+      });
+      return NextResponse.json({ error: "Der Link ist abgelaufen" }, { status: 410 });
+    }
+    throw error;
+  }
 
   await recordSuccessfulTokenUsageWithPolicy(
     "/api/auth/reset-password/[token]",

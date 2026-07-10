@@ -205,7 +205,7 @@ describe("/api/notifications/rsvp/[token]", () => {
 
   it("fails open on GET when token rate limiter is unavailable outside production", async () => {
     delete process.env.RATE_LIMIT_FAIL_OPEN;
-    process.env.NODE_ENV = "development";
+    (process.env as Record<string, string | undefined>).NODE_ENV = "development";
     (checkTokenRateLimit as jest.Mock).mockRejectedValue(new Error("redis down"));
     (prisma.eventReminderDispatch.findUnique as jest.Mock).mockResolvedValue({
       rsvpTokenExpiresAt: new Date(Date.now() + 60_000),

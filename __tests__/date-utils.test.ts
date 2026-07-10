@@ -35,6 +35,14 @@ describe("date-utils", () => {
       const date = "2026-01-15T00:00:00.000Z";
       expect(formatDate(date)).toBe("15.01.2026");
     });
+
+    it("shows the Berlin calendar date for late-night UTC instants", () => {
+      // 23:30 UTC am 14.06. ist 01:30 Berliner Sommerzeit am 15.06. —
+      // die frühere UTC-Extraktion zeigte hier einen Tag zu früh an.
+      expect(formatDate("2026-06-14T23:30:00.000Z")).toBe("15.06.2026");
+      // Winterzeit (UTC+1): 23:30 UTC am 14.01. ist 00:30 am 15.01.
+      expect(formatDate("2026-01-14T23:30:00.000Z")).toBe("15.01.2026");
+    });
   });
 
   describe("formatTime", () => {

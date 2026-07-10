@@ -64,8 +64,8 @@ fi
 
 mkdir -p "$PROJECT_DIR/data"
 echo "Checking write permissions for ./data with user ${APP_RUNTIME_UID}:${APP_RUNTIME_GID}..."
-if ! docker run --rm \
-  --user "${APP_RUNTIME_UID}:${APP_RUNTIME_GID}" \
+if ! podman run --rm \
+  --userns=keep-id \
   -v "$PROJECT_DIR/data:/data:rw" \
   alpine:3.20 \
   sh -lc 'touch /data/.rag-mse-write-test && rm -f /data/.rag-mse-write-test' >/dev/null 2>&1; then
@@ -78,10 +78,21 @@ fi
 
 LOG_FILE="$(mktemp -t rag-mse-deploy-XXXXXX.log)"
 NEXT_BUILD_BACKUP_DIR=""
+DEPLOY_SUCCEEDED=0
 cleanup() {
   rm -f "$LOG_FILE"
-  if [ -n "$NEXT_BUILD_BACKUP_DIR" ] && [ -d "$NEXT_BUILD_BACKUP_DIR" ]; then
-    rm -rf "$NEXT_BUILD_BACKUP_DIR"
+
+  if [ -n "$NEXT_BUILD_BACKUP_DIR" ] && [ -d "$NEXT_BUILD_BACKUP_DIR/.next" ]; then
+    if [ "$DEPLOY_SUCCEEDED" -eq 1 ]; then
+      rm -rf "$NEXT_BUILD_BACKUP_DIR"
+    else
+      # Fehlgeschlagenes Deployment: vorherige Build-Artefakte wiederherstellen,
+      # damit der Host-Zustand zum (zurückgerollten) laufenden Stand passt.
+      echo "Restoring previous .next build artifacts from $NEXT_BUILD_BACKUP_DIR..." >&2
+      rm -rf "$PROJECT_DIR/.next"
+      mv "$NEXT_BUILD_BACKUP_DIR/.next" "$PROJECT_DIR/.next"
+      rm -rf "$NEXT_BUILD_BACKUP_DIR"
+    fi
   fi
 }
 trap cleanup EXIT
@@ -120,30 +131,73 @@ wait_for_service_health() {
   local container_id
   local service_status=""
 
-  container_id="$(docker compose ps -q "$service_name" | head -n 1)"
+  # podman-compose `ps` has no service-name positional (unlike docker compose);
+  # this is a single-service project, so list project containers and take the first.
+  container_id="$(podman-compose ps -q | head -n 1)"
   if [ -z "${container_id:-}" ]; then
-    echo "Deployment failed: container for service '$service_name' not found." >&2
-    docker compose ps >&2 || true
-    exit 1
+    echo "Health check failed: container for service '$service_name' not found." >&2
+    podman-compose ps >&2 || true
+    return 1
   fi
 
   while [ "$attempt" -le "$max_attempts" ]; do
-    service_status="$(docker inspect --format='{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "$container_id" 2>/dev/null || true)"
+    service_status="$(podman inspect --format='{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "$container_id" 2>/dev/null || true)"
     if [ "$service_status" = "$expected_status" ]; then
       return 0
     fi
+    # Healthcheck aktiv ausführen: rootless Podman braucht für die Timer eine
+    # funktionierende systemd-User-Instanz; ohne sie bliebe der Status ewig "starting".
+    if [ "$service_status" = "starting" ]; then
+      podman healthcheck run "$container_id" >/dev/null 2>&1 || true
+      service_status="$(podman inspect --format='{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "$container_id" 2>/dev/null || true)"
+      if [ "$service_status" = "$expected_status" ]; then
+        return 0
+      fi
+    fi
     if [ "$service_status" = "unhealthy" ] || [ "$service_status" = "restarting" ] || [ "$service_status" = "exited" ]; then
-      echo "Deployment failed: service '$service_name' status is '$service_status'." >&2
-      docker compose logs --no-color --tail=150 "$service_name" >&2 || true
-      exit 1
+      echo "Health check failed: service '$service_name' status is '$service_status'." >&2
+      podman-compose logs --tail=150 "$service_name" >&2 || true
+      return 1
     fi
     sleep 3
     attempt=$((attempt + 1))
   done
 
-  echo "Deployment failed: service '$service_name' did not reach '$expected_status' in time (last status: '$service_status')." >&2
-  docker compose logs --no-color --tail=150 "$service_name" >&2 || true
-  exit 1
+  echo "Health check failed: service '$service_name' did not reach '$expected_status' in time (last status: '$service_status')." >&2
+  podman-compose logs --tail=150 "$service_name" >&2 || true
+  return 1
+}
+
+# Automatischer Rollback: DB-Backup zurückspielen (Migrationen des neuen Stands
+# rückgängig machen) und den Container wieder mit dem vorherigen Image starten.
+rollback_deployment() {
+  echo "Rolling back deployment..." >&2
+
+  podman-compose stop app >&2 || true
+
+  if [ -n "${BACKUP_FILE:-}" ] && [ -f "$BACKUP_FILE" ] && [ -n "${DB_FILE:-}" ]; then
+    echo "Restoring pre-deploy database backup: $BACKUP_FILE" >&2
+    cp "$BACKUP_FILE" "$DB_FILE"
+    rm -f "$DB_FILE-wal" "$DB_FILE-shm"
+  else
+    echo "No pre-deploy database backup to restore." >&2
+  fi
+
+  if [ -n "${PREV_IMAGE_ID:-}" ] && [ -n "${PREV_IMAGE_NAME:-}" ]; then
+    echo "Restoring previous app image ($PREV_IMAGE_NAME -> $PREV_IMAGE_ID)..." >&2
+    podman tag "$PREV_IMAGE_ID" "$PREV_IMAGE_NAME" >&2 || true
+    podman-compose up -d --no-deps --force-recreate app >&2 || true
+
+    if wait_for_service_health "app" "healthy" 20; then
+      echo "Rollback succeeded: previous version is running again." >&2
+    else
+      echo "ROLLBACK FAILED: previous version did not become healthy. Manual intervention required." >&2
+      echo "Database backup (already restored): ${BACKUP_FILE:-none}" >&2
+    fi
+  else
+    echo "No previous image available (first deployment?); container remains stopped." >&2
+    echo "Database backup (already restored): ${BACKUP_FILE:-none}" >&2
+  fi
 }
 
 echo "Installing dependencies on host..."
@@ -181,15 +235,28 @@ if DB_FILE="$(resolve_host_sqlite_path "${DATABASE_URL:-}")" && [ -f "$DB_FILE" 
     cp "$DB_FILE" "$BACKUP_FILE"
   fi
   echo "✅ Pre-deploy backup: $BACKUP_FILE"
+
+  # Aufbewahrungsgrenze: nur die letzten 10 Pre-Deploy-Backups behalten
+  PRE_DEPLOY_KEEP=10
+  ls -1t "$BACKUP_DIR"/pre-deploy-*.db 2>/dev/null | tail -n "+$((PRE_DEPLOY_KEEP + 1))" | while IFS= read -r OLD_BACKUP; do
+    echo "Removing old pre-deploy backup: $OLD_BACKUP"
+    rm -f "$OLD_BACKUP"
+  done
 else
   echo "⚠️  No database file found at '${DB_FILE:-<DATABASE_URL not set>}' on host, skipping backup."
 fi
 
-PREV_APP_CONTAINER_ID="$(docker compose ps -q app | head -n 1)"
+PREV_APP_CONTAINER_ID="$(podman-compose ps -q | head -n 1)"
+PREV_IMAGE_ID=""
+PREV_IMAGE_NAME=""
+if [ -n "${PREV_APP_CONTAINER_ID:-}" ]; then
+  PREV_IMAGE_ID="$(podman inspect --format '{{.Image}}' "$PREV_APP_CONTAINER_ID" 2>/dev/null || true)"
+  PREV_IMAGE_NAME="$(podman inspect --format '{{.ImageName}}' "$PREV_APP_CONTAINER_ID" 2>/dev/null || true)"
+fi
 
 echo "Building app container image..."
 set +e
-docker compose build app 2>&1 | tee "$LOG_FILE"
+podman-compose build app 2>&1 | tee "$LOG_FILE"
 status=${PIPESTATUS[0]}
 set -e
 
@@ -198,14 +265,9 @@ if [ "$status" -ne 0 ]; then
   exit "$status"
 fi
 
-echo "Ensuring dependent services are running..."
-docker compose up -d redis 2>&1 | tee -a "$LOG_FILE"
-echo "Waiting for redis to become healthy..."
-wait_for_service_health "redis" "healthy" 20
-
 echo "Recreating app container with latest image..."
 set +e
-docker compose up -d --no-deps --force-recreate app 2>&1 | tee -a "$LOG_FILE"
+podman-compose up -d --no-deps --force-recreate app 2>&1 | tee -a "$LOG_FILE"
 status=${PIPESTATUS[0]}
 set -e
 
@@ -215,10 +277,10 @@ if [ "$status" -ne 0 ]; then
 fi
 
 echo "Waiting for app container to become healthy..."
-APP_CONTAINER_ID="$(docker compose ps -q app | head -n 1)"
+APP_CONTAINER_ID="$(podman-compose ps -q | head -n 1)"
 if [ -z "${APP_CONTAINER_ID:-}" ]; then
   echo "Deployment failed: app container for service 'app' not found." >&2
-  docker compose ps >&2 || true
+  podman-compose ps >&2 || true
   exit 1
 fi
 
@@ -227,12 +289,21 @@ if [ -n "${PREV_APP_CONTAINER_ID:-}" ] && [ "$APP_CONTAINER_ID" = "$PREV_APP_CON
   exit 1
 fi
 
-wait_for_service_health "app" "healthy" 20
+if ! wait_for_service_health "app" "healthy" 20; then
+  echo "Deployment failed: new app container did not become healthy (e.g. failed migration)." >&2
+  rollback_deployment
+  exit 1
+fi
 
 echo "Running post-deploy CSP smoke check..."
-node "$PROJECT_DIR/scripts/check-csp-smoke.js" "http://127.0.0.1:3000/"
+if ! node "$PROJECT_DIR/scripts/check-csp-smoke.js" "http://127.0.0.1:3000/"; then
+  echo "Deployment failed: CSP smoke check failed." >&2
+  rollback_deployment
+  exit 1
+fi
 
-echo "Cleaning up unused Docker images..."
-docker image prune -f >/dev/null
+echo "Cleaning up unused Podman images..."
+podman image prune -f >/dev/null
 
+DEPLOY_SUCCEEDED=1
 echo "Deployment completed successfully!"

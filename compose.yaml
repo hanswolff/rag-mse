@@ -1,27 +1,24 @@
-services:
-  redis:
-    image: redis:7-alpine
-    container_name: rag-mse-redis
-    restart: unless-stopped
-    command: redis-server --appendonly yes --appendfsync everysec
-    volumes:
-      - redis-data:/data
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 10s
+# Run the app container standalone (no pod). podman-compose creates a pod by
+# default, but a pod's shared user namespace conflicts with the per-container
+# `userns_mode: keep-id` we need for the rootless ./data bind mount
+# ("--userns and --pod cannot be set together"). in_pod:false avoids the pod.
+x-podman:
+  in_pod: false
 
+services:
   app:
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: Containerfile
       args:
         APP_UID: ${APP_UID:-1000}
         APP_GID: ${APP_GID:-1000}
     container_name: rag-mse-app
     user: "${APP_UID:-1000}:${APP_GID:-1000}"
+    # Rootless Podman: map the host user that runs podman to the container's
+    # APP_UID/APP_GID so the host-owned ./data bind mount stays writable
+    # regardless of the host user's actual UID.
+    userns_mode: "keep-id:uid=${APP_UID:-1000},gid=${APP_GID:-1000}"
     restart: unless-stopped
     ports:
       - "127.0.0.1:3000:3000"
@@ -41,6 +38,8 @@ services:
       - EMAIL_DEV_LOG_DIR=${EMAIL_DEV_LOG_DIR:-/app/data/logs/emails}
       - DOCUMENTS_DIR=${DOCUMENTS_DIR:-/app/data/documents}
       - DOCUMENT_UPLOAD_MAX_MB=${DOCUMENT_UPLOAD_MAX_MB:-15}
+      - AUSSCHREIBUNGEN_DIR=${AUSSCHREIBUNGEN_DIR:-/app/data/ausschreibungen}
+      - AUSSCHREIBUNG_UPLOAD_MAX_MB=${AUSSCHREIBUNG_UPLOAD_MAX_MB:-15}
       - EVENT_REMINDER_POLL_INTERVAL_MS=${EVENT_REMINDER_POLL_INTERVAL_MS:-3600000}
       - NOTIFICATION_TOKEN_VALIDITY_DAYS=${NOTIFICATION_TOKEN_VALIDITY_DAYS:-60}
       - ADMIN_EMAILS=${ADMIN_EMAILS}
@@ -50,23 +49,21 @@ services:
       - NEXT_PUBLIC_SITE_URL=${NEXT_PUBLIC_SITE_URL}
       - COOKIE_SECURE=${COOKIE_SECURE}
       - COOKIE_MAX_AGE=${COOKIE_MAX_AGE:-604800}
-      - REDIS_URL=${REDIS_URL:-redis://redis:6379}
-      - TRUSTED_PROXY_IPS=${TRUSTED_PROXY_IPS:-127.0.0.1/32,172.16.0.0/12}
+      - TRUSTED_PROXY_IPS=${TRUSTED_PROXY_IPS:-127.0.0.1/32,::1,10.0.2.0/24,10.88.0.0/16}
+      - SELFTEST_TOKEN=${SELFTEST_TOKEN}
+      - SELFTEST_CHECK_SMTP=${SELFTEST_CHECK_SMTP:-true}
+      - RATE_LIMIT_FAIL_OPEN=${RATE_LIMIT_FAIL_OPEN:-false}
+      - MAX_REQUEST_BODY_SIZE=${MAX_REQUEST_BODY_SIZE:-1048576}
       # Seed variables for initial admin user (optional, required for first-time setup)
+      - ALLOW_DB_SEED=${ALLOW_DB_SEED:-false}
       - SEED_ADMIN_EMAIL=${SEED_ADMIN_EMAIL}
       - SEED_ADMIN_PASSWORD=${SEED_ADMIN_PASSWORD}
       - SEED_ADMIN_NAME=${SEED_ADMIN_NAME}
     volumes:
       - ./data:/app/data:rw
-    depends_on:
-      redis:
-        condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://127.0.0.1:3000/api/health"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 40s
-
-volumes:
-  redis-data:

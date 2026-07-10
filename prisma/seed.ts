@@ -1,7 +1,10 @@
+import path from "node:path";
+import { rename, stat } from "node:fs/promises";
 import { PrismaClient, Role } from "@prisma/client";
 import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
 import { hash } from "bcryptjs";
 import { validatePassword } from "../lib/password-validation";
+import { adoptAusschreibungFile } from "../lib/ausschreibung-storage";
 
 void import("dotenv/config").catch(() => undefined);
 
@@ -227,6 +230,60 @@ export async function main(prismaOverride?: PrismaClient) {
   }
 
   console.log(`Schießstände synchronisiert: ${shootingRanges.length}`);
+
+  await seedLandesmeisterschaftAusschreibung(prismaClient);
+}
+
+const LANDESMEISTERSCHAFT_TITLE = "Landesmeisterschaft Schießsport";
+const LANDESMEISTERSCHAFT_EXPIRES_AT = new Date(Date.UTC(2026, 7, 1));
+const LANDESMEISTERSCHAFT_SOURCE_FILE = "2026-08-01_Ausschreibung_Landesmeisterschaft_Schießsport.pdf";
+
+async function seedLandesmeisterschaftAusschreibung(prismaClient: PrismaClient): Promise<void> {
+  const existing = await prismaClient.ausschreibung.findFirst({
+    where: { title: LANDESMEISTERSCHAFT_TITLE },
+  });
+
+  if (existing) {
+    console.log(`Ausschreibung "${LANDESMEISTERSCHAFT_TITLE}" existiert bereits. Überspringe Seed.`);
+    return;
+  }
+
+  const sourcePath = path.join(process.cwd(), "data", LANDESMEISTERSCHAFT_SOURCE_FILE);
+  const adopted = await adoptAusschreibungFile(sourcePath);
+
+  if (!adopted) {
+    console.warn(
+      `Quelldatei für Ausschreibungs-Seed nicht gefunden (${sourcePath}). Überspringe Seed.`
+    );
+    return;
+  }
+
+  const { size: sizeBytes } = await stat(adopted.filePath);
+
+  try {
+    await prismaClient.ausschreibung.create({
+      data: {
+        title: LANDESMEISTERSCHAFT_TITLE,
+        expiresAt: LANDESMEISTERSCHAFT_EXPIRES_AT,
+        originalFileName: LANDESMEISTERSCHAFT_SOURCE_FILE,
+        storedFileName: adopted.storedFileName,
+        mimeType: "application/pdf",
+        sizeBytes,
+      },
+    });
+  } catch (error) {
+    try {
+      await rename(adopted.filePath, sourcePath);
+    } catch (renameError) {
+      console.error(
+        `Konnte adoptierte Datei nach fehlgeschlagenem Seed nicht zurückverschieben (${adopted.filePath} -> ${sourcePath}):`,
+        renameError
+      );
+    }
+    throw error;
+  }
+
+  console.log(`Ausschreibung "${LANDESMEISTERSCHAFT_TITLE}" angelegt.`);
 }
 
 async function run() {

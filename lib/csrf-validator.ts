@@ -1,5 +1,3 @@
-import { NextRequest } from "next/server";
-
 export class CsrfError extends Error {
   constructor(message = "Ungültiger Origin oder Referer Header. Bitte versuchen Sie es erneut.") {
     super(message);
@@ -7,7 +5,7 @@ export class CsrfError extends Error {
   }
 }
 
-export function validateCsrfHeaders(request: NextRequest): void {
+export function validateCsrfHeaders(request: Request): void {
   const method = (request.method || "GET").toUpperCase();
   if (!["POST", "PUT", "PATCH", "DELETE"].includes(method)) {
     return;

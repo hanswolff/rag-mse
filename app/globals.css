@@ -251,6 +251,13 @@ body {
   text-decoration: underline;
 }
 
+/* Eingefügte lange URLs dürfen auf Mobil nicht über den Kartenrand hinauslaufen */
+.tiptap-content,
+.event-description-content {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
 .event-description-content p {
   margin: 0;
 }

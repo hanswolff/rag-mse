@@ -1,3 +1,5 @@
+export { metadata } from "./metadata";
+
 import Link from "next/link";
 import { access } from "node:fs/promises";
 import path from "node:path";
@@ -14,6 +16,7 @@ import { getStartOfToday } from "@/lib/date-picker-utils";
 import { authOptions } from "@/lib/auth";
 import { canReadMemberDocuments } from "@/lib/role-utils";
 import { appName, appTagline, appDescription } from "@/lib/site-config";
+import { serializeJsonLd } from "@/lib/json-ld";
 
 const CORE_FEATURE_CARDS = [
   {
@@ -121,7 +124,7 @@ export default async function Home() {
     <main className="flex-grow">
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationJsonLd) }}
+        dangerouslySetInnerHTML={{ __html: serializeJsonLd(organizationJsonLd) }}
       />
       <section className="hero-pattern overflow-hidden bg-gradient-to-br from-brand-blue-900 via-[#17314A] to-brand-blue-800 pt-4 pb-14 text-white sm:pt-6 sm:pb-14 md:pt-8 md:pb-16 lg:pt-10 lg:pb-18">
         <div className="hero-media" aria-hidden="true" />

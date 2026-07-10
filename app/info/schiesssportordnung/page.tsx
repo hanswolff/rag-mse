@@ -1,3 +1,5 @@
+export { metadata } from "./metadata";
+
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import Link from "next/link";

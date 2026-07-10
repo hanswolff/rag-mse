@@ -635,7 +635,7 @@ describe("EventDetailPage", () => {
     expect(screen.getByText("Keine Anmeldung vorhanden")).toBeInTheDocument();
   });
 
-  it("displays 'Du hast dich für diesen Termin angemeldet:' for past events with user vote", async () => {
+  it("displays 'Sie haben sich für diesen Termin angemeldet:' for past events with user vote", async () => {
     const pastDate = new Date();
     pastDate.setDate(pastDate.getDate() - 1);
 
@@ -671,7 +671,7 @@ describe("EventDetailPage", () => {
       expect(screen.queryByText("Laden...")).not.toBeInTheDocument();
     });
 
-    expect(screen.getByText("Du hast dich für diesen Termin angemeldet:")).toBeInTheDocument();
+    expect(screen.getByText("Sie haben sich für diesen Termin angemeldet:")).toBeInTheDocument();
   });
 
   it("displays OpenStreetMap link when event has coordinates", async () => {

@@ -54,11 +54,11 @@ export default function StandortePage() {
           <div>
             <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Standorte</h1>
             <p className="text-base text-gray-600 mt-1">
-              Verwalten Sie Schießstände und deren Adressdaten.
+              Verwalten Sie Standorte und deren Adressdaten.
             </p>
           </div>
           <button onClick={openCreateModal} className="btn-primary whitespace-nowrap">
-            + Neuer Schießstand
+            + Neuer Standort
           </button>
         </div>
 
@@ -70,7 +70,7 @@ export default function StandortePage() {
 
         {ranges.length === 0 ? (
           <div className="card text-center text-gray-500 py-12">
-            Keine Schießstände vorhanden. Erstellen Sie den ersten Schießstand.
+            Keine Standorte vorhanden. Erstellen Sie den ersten Standort.
           </div>
         ) : (
           <div className="space-y-3">

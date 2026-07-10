@@ -150,6 +150,9 @@ function buildHeaderFingerprint(headers: Headers): string {
 }
 
 export function getClientIdentifier(request: NextRequest): string {
+  // `NextRequest.ip` was removed in Next.js 15, so this is normally `undefined`. The cast keeps
+  // forward-compatibility with a custom server that might populate it; see the trust note in
+  // getClientIdentifierFromHeaders for how a null source IP is handled.
   const sourceIp = (request as NextRequest & { ip?: string | null }).ip || null;
   return getClientIdentifierFromHeaders(request.headers, sourceIp);
 }
@@ -158,16 +161,26 @@ export function getClientIdentifierFromHeaders(headers: Headers, sourceIp: strin
   const xForwardedFor = headers.get("x-forwarded-for");
   const xRealIp = headers.get("x-real-ip");
 
-  const isProxyTrusted = sourceIp ? isTrustedProxy(sourceIp) : false;
+  // Decide whether the forwarding headers (X-Forwarded-For / X-Real-IP) may be trusted.
+  //
+  // When a socket-level peer IP is available, only trust those headers if the peer is a
+  // configured trusted proxy (anti-spoofing). However, Next.js 16 no longer exposes a peer
+  // IP to route handlers, the proxy/middleware, or the NextAuth request (`NextRequest.ip` was
+  // removed in Next 15), so `sourceIp` is `null` in production. In that case we rely on the
+  // deployment constraint instead: the app is bound to loopback and is only reachable through
+  // the trusted reverse proxy, which appends the real client to X-Forwarded-For. Without this,
+  // every request would collapse to the weak header fingerprint below, silently disabling all
+  // IP-based rate limiting.
+  const proxyHeadersTrusted = sourceIp === null ? true : isTrustedProxy(sourceIp);
 
-  if (isProxyTrusted && xForwardedFor) {
+  if (proxyHeadersTrusted && xForwardedFor) {
     const forwardedIp = extractClientIpFromForwardedChain(xForwardedFor);
     if (forwardedIp) {
       return forwardedIp;
     }
   }
 
-  if (isProxyTrusted && xRealIp && isIP(xRealIp)) {
+  if (proxyHeadersTrusted && xRealIp && isIP(xRealIp)) {
     return xRealIp;
   }
 

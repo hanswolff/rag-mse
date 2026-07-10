@@ -5,6 +5,9 @@ export const metadata: Metadata = {
   title: "Über uns",
   description:
     `Informationen über die ${appName} und den Vorstand.`,
+  alternates: {
+    canonical: "/ueber-uns",
+  },
   openGraph: {
     title: `Über uns | ${appName}`,
     description:

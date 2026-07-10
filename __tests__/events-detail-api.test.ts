@@ -43,10 +43,10 @@ describe("/api/events/[id]/route", () => {
     it("sets cache-control headers on 404 for non-existent event", async () => {
       (prisma.event.findUnique as jest.Mock).mockResolvedValue(null);
       (prisma.shootingRange.findUnique as jest.Mock).mockResolvedValue(null);
-      getServerSession.mockResolvedValue(null);
+      (getServerSession as jest.Mock).mockResolvedValue(null);
 
       const request = new NextRequest("http://localhost:3000/api/events/1");
-      const response = await GET(request, { params: { id: "1" } });
+      const response = await GET(request, { params: Promise.resolve({ id: "1" }) });
 
       expect(response.status).toBe(404);
       expect(response.headers.get("Cache-Control")).toBe("no-store, no-cache, must-revalidate");
@@ -58,10 +58,10 @@ describe("/api/events/[id]/route", () => {
         visible: false,
       });
       (prisma.shootingRange.findUnique as jest.Mock).mockResolvedValue(null);
-      getServerSession.mockResolvedValue(null);
+      (getServerSession as jest.Mock).mockResolvedValue(null);
 
       const request = new NextRequest("http://localhost:3000/api/events/1");
-      const response = await GET(request, { params: { id: "1" } });
+      const response = await GET(request, { params: Promise.resolve({ id: "1" }) });
 
       expect(response.status).toBe(404);
       expect(response.headers.get("Cache-Control")).toBe("no-store, no-cache, must-revalidate");
@@ -75,10 +75,10 @@ describe("/api/events/[id]/route", () => {
         postalCode: "12345",
         city: "Musterstadt",
       });
-      getServerSession.mockResolvedValue(null);
+      (getServerSession as jest.Mock).mockResolvedValue(null);
 
       const request = new NextRequest("http://localhost:3000/api/events/1");
-      const response = await GET(request, { params: { id: "1" } });
+      const response = await GET(request, { params: Promise.resolve({ id: "1" }) });
       const json = await response.json();
 
       expect(response.status).toBe(200);
@@ -93,12 +93,12 @@ describe("/api/events/[id]/route", () => {
         votes: [],
       });
       (prisma.shootingRange.findUnique as jest.Mock).mockResolvedValue(null);
-      getServerSession.mockResolvedValue({
+      (getServerSession as jest.Mock).mockResolvedValue({
         user: { id: "user-123", email: "test@example.com", role: "MEMBER" },
       });
 
       const request = new NextRequest("http://localhost:3000/api/events/1");
-      const response = await GET(request, { params: { id: "1" } });
+      const response = await GET(request, { params: Promise.resolve({ id: "1" }) });
 
       expect(response.status).toBe(200);
       expect(response.headers.get("Cache-Control")).toBe("no-store, no-cache, must-revalidate");
@@ -116,12 +116,12 @@ describe("/api/events/[id]/route", () => {
       };
       (prisma.event.findUnique as jest.Mock).mockResolvedValue(mockEventWithVotes);
       (prisma.shootingRange.findUnique as jest.Mock).mockResolvedValue(null);
-      getServerSession.mockResolvedValue({
+      (getServerSession as jest.Mock).mockResolvedValue({
         user: { id: "admin-123", email: "admin@example.com", role: "ADMIN" },
       });
 
       const request = new NextRequest("http://localhost:3000/api/events/1");
-      const response = await GET(request, { params: { id: "1" } });
+      const response = await GET(request, { params: Promise.resolve({ id: "1" }) });
 
       expect(response.status).toBe(200);
       expect(response.headers.get("Cache-Control")).toBe("no-store, no-cache, must-revalidate");
@@ -140,12 +140,12 @@ describe("/api/events/[id]/route", () => {
       };
       (prisma.event.findUnique as jest.Mock).mockResolvedValue(mockEventWithVotes);
       (prisma.shootingRange.findUnique as jest.Mock).mockResolvedValue(null);
-      getServerSession.mockResolvedValue({
+      (getServerSession as jest.Mock).mockResolvedValue({
         user: { id: "user-1", email: "user@example.com", role: "MEMBER" },
       });
 
       const request = new NextRequest("http://localhost:3000/api/events/1");
-      const response = await GET(request, { params: { id: "1" } });
+      const response = await GET(request, { params: Promise.resolve({ id: "1" }) });
       const json = await response.json();
 
       expect(response.status).toBe(200);
@@ -164,12 +164,12 @@ describe("/api/events/[id]/route", () => {
       };
       (prisma.event.findUnique as jest.Mock).mockResolvedValue(mockEventWithVotes);
       (prisma.shootingRange.findUnique as jest.Mock).mockResolvedValue(null);
-      getServerSession.mockResolvedValue({
+      (getServerSession as jest.Mock).mockResolvedValue({
         user: { id: "admin-1", email: "admin@example.com", role: "ADMIN" },
       });
 
       const request = new NextRequest("http://localhost:3000/api/events/1");
-      const response = await GET(request, { params: { id: "1" } });
+      const response = await GET(request, { params: Promise.resolve({ id: "1" }) });
       const json = await response.json();
 
       expect(response.status).toBe(200);
@@ -193,12 +193,12 @@ describe("/api/events/[id]/route", () => {
       };
       (prisma.event.findUnique as jest.Mock).mockResolvedValue(mockEventWithVotes);
       (prisma.shootingRange.findUnique as jest.Mock).mockResolvedValue(null);
-      getServerSession.mockResolvedValue({
+      (getServerSession as jest.Mock).mockResolvedValue({
         user: { id: "user-123", email: "test@example.com", role: "MEMBER" },
       });
 
       const request = new NextRequest("http://localhost:3000/api/events/1");
-      const response = await GET(request, { params: { id: "1" } });
+      const response = await GET(request, { params: Promise.resolve({ id: "1" }) });
 
       expect(response.status).toBe(200);
       expect(response.headers.get("Cache-Control")).toBe("no-store, no-cache, must-revalidate");
@@ -212,12 +212,12 @@ describe("/api/events/[id]/route", () => {
         votes: [],
       });
       (prisma.shootingRange.findUnique as jest.Mock).mockResolvedValue(null);
-      getServerSession.mockResolvedValue({
+      (getServerSession as jest.Mock).mockResolvedValue({
         user: { id: "creator-123", email: "creator@example.com", role: "MEMBER" },
       });
 
       const request = new NextRequest("http://localhost:3000/api/events/1");
-      const response = await GET(request, { params: { id: "1" } });
+      const response = await GET(request, { params: Promise.resolve({ id: "1" }) });
 
       expect(response.status).toBe(200);
       expect(response.headers.get("Cache-Control")).toBe("no-store, no-cache, must-revalidate");
@@ -231,12 +231,12 @@ describe("/api/events/[id]/route", () => {
         votes: [],
       });
       (prisma.shootingRange.findUnique as jest.Mock).mockResolvedValue(null);
-      getServerSession.mockResolvedValue({
+      (getServerSession as jest.Mock).mockResolvedValue({
         user: { id: "other-user-123", email: "other@example.com", role: "MEMBER" },
       });
 
       const request = new NextRequest("http://localhost:3000/api/events/1");
-      const response = await GET(request, { params: { id: "1" } });
+      const response = await GET(request, { params: Promise.resolve({ id: "1" }) });
 
       expect(response.status).toBe(404);
       expect(response.headers.get("Cache-Control")).toBe("no-store, no-cache, must-revalidate");

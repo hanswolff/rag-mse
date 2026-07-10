@@ -1,3 +1,5 @@
+export { metadata } from "./metadata";
+
 import { BackLink } from "@/components/back-link";
 import { appName } from "@/lib/site-config";
 

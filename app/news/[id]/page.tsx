@@ -7,6 +7,7 @@ import { isAdmin } from "@/lib/role-utils";
 import { authOptions } from "@/lib/auth";
 import { BackLink } from "@/components/back-link";
 import { appName } from "@/lib/site-config";
+import { serializeJsonLd } from "@/lib/json-ld";
 
 export { generateMetadata } from "./metadata";
 
@@ -57,7 +58,7 @@ export default async function NewsDetailPage({
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
         <script
           type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+          dangerouslySetInnerHTML={{ __html: serializeJsonLd(jsonLd) }}
         />
 
         <div className="mb-8 flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">

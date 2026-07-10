@@ -140,7 +140,7 @@ export function RichTextEditor({
 
   return (
     <div>
-      <textarea id={id} value={value} readOnly disabled={disabled} className="sr-only" />
+      <textarea id={id} value={value} readOnly disabled={disabled} className="sr-only" tabIndex={-1} aria-hidden="true" />
 
       <div className="mb-2 flex flex-wrap gap-2">
         <button

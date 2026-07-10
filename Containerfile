@@ -18,9 +18,9 @@ COPY --chown=${APP_UID}:${APP_GID} emails ./emails
 COPY --chown=${APP_UID}:${APP_GID} prisma ./prisma
 COPY --chown=${APP_UID}:${APP_GID} prisma.config.ts ./prisma.config.ts
 COPY --chown=${APP_UID}:${APP_GID} scripts-dist ./scripts-dist
-COPY --chown=${APP_UID}:${APP_GID} docker-entrypoint.sh ./docker-entrypoint.sh
+COPY --chown=${APP_UID}:${APP_GID} entrypoint.sh ./entrypoint.sh
 
-RUN chmod +x /app/docker-entrypoint.sh
+RUN chmod +x /app/entrypoint.sh
 
 USER ${APP_UID}:${APP_GID}
 
@@ -29,4 +29,4 @@ EXPOSE 3000
 ENV PORT 3000
 ENV HOSTNAME "0.0.0.0"
 
-CMD ["/app/docker-entrypoint.sh"]
+CMD ["/app/entrypoint.sh"]

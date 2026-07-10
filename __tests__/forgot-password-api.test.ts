@@ -370,7 +370,7 @@ describe("/api/auth/forgot-password/route", () => {
           variables: expect.objectContaining({
             appName: "RAG Schießsport MSE",
             resetUrl: expect.stringMatching(
-              /^http:\/\/localhost:3000\/passwort-zuruecksetzen\/[0-9a-zA-Z]{8}$/
+              /^http:\/\/localhost:3000\/passwort-zuruecksetzen\/[0-9a-zA-Z]{10}$/
             ),
           }),
         })
@@ -401,7 +401,7 @@ describe("/api/auth/forgot-password/route", () => {
         expect.objectContaining({
           variables: expect.objectContaining({
             resetUrl: expect.stringMatching(
-              /^https:\/\/example\.com\/passwort-zuruecksetzen\/[0-9a-zA-Z]{8}$/
+              /^https:\/\/example\.com\/passwort-zuruecksetzen\/[0-9a-zA-Z]{10}$/
             ),
           }),
         })
@@ -435,7 +435,7 @@ describe("/api/auth/forgot-password/route", () => {
         expect.objectContaining({
           variables: expect.objectContaining({
             resetUrl: expect.stringMatching(
-              /^https:\/\/example\.com\/passwort-zuruecksetzen\/[0-9a-zA-Z]{8}$/
+              /^https:\/\/example\.com\/passwort-zuruecksetzen\/[0-9a-zA-Z]{10}$/
             ),
           }),
         })
@@ -466,7 +466,7 @@ describe("/api/auth/forgot-password/route", () => {
         expect.objectContaining({
           variables: expect.objectContaining({
             resetUrl: expect.stringMatching(
-              /^http:\/\/localhost:3000\/passwort-zuruecksetzen\/[0-9a-zA-Z]{8}$/
+              /^http:\/\/localhost:3000\/passwort-zuruecksetzen\/[0-9a-zA-Z]{10}$/
             ),
           }),
         })

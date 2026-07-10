@@ -74,6 +74,12 @@ class Permissions {
     static canManageMemberDocuments(userOrRole) {
         return this.canManageAdminArea(userOrRole);
     }
+    static canReadAusschreibungenAdmin(userOrRole) {
+        return this.canAccessAdminArea(userOrRole);
+    }
+    static canManageAusschreibungen(userOrRole) {
+        return this.canManageAdminArea(userOrRole);
+    }
     static canReadNotificationsAdmin(userOrRole) {
         return this.canManageAdminArea(userOrRole);
     }

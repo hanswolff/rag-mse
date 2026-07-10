@@ -31,7 +31,7 @@ describe("LoginPage", () => {
       expect(screen.getByText("Login")).toBeInTheDocument();
       expect(screen.getByLabelText(/E-Mail/i)).toBeInTheDocument();
       expect(screen.getByLabelText(/Passwort/i)).toBeInTheDocument();
-      expect(screen.getByRole("button", { name: "Anmelden" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Einloggen" })).toBeInTheDocument();
     });
 
     it("should display contact link for problems", () => {
@@ -54,7 +54,7 @@ describe("LoginPage", () => {
 
       const emailInput = screen.getByLabelText(/E-Mail/i);
       const passwordInput = screen.getByLabelText(/Passwort/i);
-      const submitButton = screen.getByRole("button", { name: "Anmelden" });
+      const submitButton = screen.getByRole("button", { name: "Einloggen" });
 
       fireEvent.change(emailInput, { target: { value: "test@example.com" } });
       fireEvent.change(passwordInput, { target: { value: "weak" } });
@@ -76,7 +76,7 @@ describe("LoginPage", () => {
 
       const emailInput = screen.getByLabelText(/E-Mail/i);
       const passwordInput = screen.getByLabelText(/Passwort/i);
-      const submitButton = screen.getByRole("button", { name: "Anmelden" });
+      const submitButton = screen.getByRole("button", { name: "Einloggen" });
 
       fireEvent.change(emailInput, { target: { value: "test@example.com" } });
       fireEvent.change(passwordInput, { target: { value: "simple" } });
@@ -111,7 +111,7 @@ describe("LoginPage", () => {
 
       fireEvent.change(screen.getByLabelText(/E-Mail/i), { target: { value: "test@example.com" } });
       fireEvent.change(screen.getByLabelText(/Passwort/i), { target: { value: "Password1" } });
-      fireEvent.click(screen.getByRole("button", { name: "Anmelden" }));
+      fireEvent.click(screen.getByRole("button", { name: "Einloggen" }));
 
       await waitFor(() => {
         expect(mockPush).toHaveBeenCalledWith("/profil");
@@ -136,7 +136,7 @@ describe("LoginPage", () => {
 
       fireEvent.change(screen.getByLabelText(/E-Mail/i), { target: { value: "test@example.com" } });
       fireEvent.change(screen.getByLabelText(/Passwort/i), { target: { value: "Password1" } });
-      fireEvent.click(screen.getByRole("button", { name: "Anmelden" }));
+      fireEvent.click(screen.getByRole("button", { name: "Einloggen" }));
 
       await waitFor(() => {
         expect(mockPush).toHaveBeenCalledWith("/");
@@ -158,7 +158,7 @@ describe("LoginPage", () => {
 
       const emailInput = screen.getByLabelText(/E-Mail/i);
       const passwordInput = screen.getByLabelText(/Passwort/i);
-      const submitButton = screen.getByRole("button", { name: "Anmelden" });
+      const submitButton = screen.getByRole("button", { name: "Einloggen" });
 
       fireEvent.change(emailInput, { target: { value: "test@example.com" } });
       fireEvent.change(passwordInput, { target: { value: "Password1" } });
@@ -191,7 +191,7 @@ describe("LoginPage", () => {
 
       const emailInput = screen.getByLabelText(/E-Mail/i);
       const passwordInput = screen.getByLabelText(/Passwort/i);
-      const submitButton = screen.getByRole("button", { name: "Anmelden" });
+      const submitButton = screen.getByRole("button", { name: "Einloggen" });
 
       fireEvent.change(emailInput, { target: { value: "admin@example.com" } });
       fireEvent.change(passwordInput, { target: { value: "AdminPassword" } });
@@ -221,7 +221,7 @@ describe("LoginPage", () => {
 
       const emailInput = screen.getByLabelText(/E-Mail/i);
       const passwordInput = screen.getByLabelText(/Passwort/i);
-      const submitButton = screen.getByRole("button", { name: "Anmelden" });
+      const submitButton = screen.getByRole("button", { name: "Einloggen" });
 
       fireEvent.change(emailInput, { target: { value: "test@example.com" } });
       fireEvent.change(passwordInput, { target: { value: "Password1" } });
@@ -229,7 +229,7 @@ describe("LoginPage", () => {
 
       await waitFor(() => {
         expect(submitButton).toBeDisabled();
-        expect(submitButton).toHaveTextContent("Anmeldung...");
+        expect(submitButton).toHaveTextContent("Einloggen...");
         expect(emailInput).toBeDisabled();
         expect(passwordInput).toBeDisabled();
       });
@@ -257,7 +257,7 @@ describe("LoginPage", () => {
 
       const emailInput = screen.getByLabelText(/E-Mail/i);
       const passwordInput = screen.getByLabelText(/Passwort/i);
-      const submitButton = screen.getByRole("button", { name: "Anmelden" });
+      const submitButton = screen.getByRole("button", { name: "Einloggen" });
 
       fireEvent.change(emailInput, { target: { value: "test@example.com" } });
       fireEvent.change(passwordInput, { target: { value: "Password1" } });
@@ -274,7 +274,7 @@ describe("LoginPage", () => {
 
       const emailInput = screen.getByLabelText(/E-Mail/i);
       const passwordInput = screen.getByLabelText(/Passwort/i);
-      const submitButton = screen.getByRole("button", { name: "Anmelden" });
+      const submitButton = screen.getByRole("button", { name: "Einloggen" });
 
       fireEvent.change(emailInput, { target: { value: "test@example.com" } });
       fireEvent.change(passwordInput, { target: { value: "Password1" } });
@@ -295,7 +295,7 @@ describe("LoginPage", () => {
 
       const emailInput = screen.getByLabelText(/E-Mail/i);
       const passwordInput = screen.getByLabelText(/Passwort/i);
-      const submitButton = screen.getByRole("button", { name: "Anmelden" });
+      const submitButton = screen.getByRole("button", { name: "Einloggen" });
 
       fireEvent.change(emailInput, { target: { value: "test@example.com" } });
       fireEvent.change(passwordInput, { target: { value: "Password1" } });

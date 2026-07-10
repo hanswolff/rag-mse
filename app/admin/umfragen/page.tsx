@@ -34,6 +34,7 @@ export default function AdminPollsPage() {
     isModalOpen,
     modalPollData,
     setModalPollData,
+    modalInitialPollData,
     editingPoll,
     isSubmitting,
     publishingPollId,
@@ -188,6 +189,7 @@ export default function AdminPollsPage() {
         isSubmitting={isSubmitting}
         pollData={modalPollData}
         setPollData={setModalPollData}
+        initialPollData={modalInitialPollData}
         isEditing={!!editingPoll}
         error={error}
       />

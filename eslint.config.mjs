@@ -7,6 +7,9 @@ const eslintConfig = [...nextCoreWebVitals, ...nextTypescript, {
       argsIgnorePattern: "^_",
       varsIgnorePattern: "^_",
     }],
+    // False positive on the codebase's standard useCallback+AbortController fetch-on-effect
+    // pattern (fetch fn is memoized and called via `void fetchX()`, not an inline setState).
+    "react-hooks/set-state-in-effect": "off",
   },
 }, {
   ignores: [
@@ -14,6 +17,7 @@ const eslintConfig = [...nextCoreWebVitals, ...nextTypescript, {
     ".next/**",
     "out/**",
     "build/**",
+    "scripts-dist/**",
     "next-env.d.ts",
     "coverage/**",
     "public/pdf.worker.min.mjs",

@@ -33,8 +33,10 @@ import { NextRequest } from "next/server";
 const mockAdmin = { id: "admin-1", role: "ADMIN", email: "admin@test.de" };
 
 function createRequest(url: string, options: RequestInit = {}) {
+  const { signal, ...rest } = options;
   return new NextRequest(new URL(url, "http://localhost:3000"), {
-    ...options,
+    ...rest,
+    signal: signal ?? undefined,
     headers: {
       "Content-Type": "application/json",
       Origin: "http://localhost:3000",
@@ -65,8 +67,7 @@ describe("/api/admin/ranges", () => {
     it("returns all ranges sorted by name", async () => {
       (prisma.shootingRange.findMany as jest.Mock).mockResolvedValue([sampleRange]);
 
-      const request = createRequest("http://localhost:3000/api/admin/ranges");
-      const response = await GET(request);
+      const response = await GET();
       const data = await response.json();
 
       expect(response.status).toBe(200);
@@ -77,8 +78,7 @@ describe("/api/admin/ranges", () => {
     it("requires admin authentication", async () => {
       (requireAdmin as jest.Mock).mockRejectedValue(new Error("Nicht autorisiert"));
 
-      const request = createRequest("http://localhost:3000/api/admin/ranges");
-      const response = await GET(request);
+      const response = await GET();
 
       expect(response.status).toBe(500);
     });

@@ -2,7 +2,8 @@
 set -euo pipefail
 
 DB_PATH="${DB_PATH:-/zfs/git/beta-rag-mse/data/prod.db}"
-BACKUP_DIR="${BACKUP_DIR:-/zfs/backup/rag-mse}"
+# Default entspricht ops/systemd/beta-rag-db-backup.service und der Doku.
+BACKUP_DIR="${BACKUP_DIR:-/zfs/backups/beta-rag-mse}"
 SQLITE_BIN="${SQLITE_BIN:-sqlite3}"
 LOG_PREFIX="${LOG_PREFIX:-[sqlite-backup]}"
 
@@ -46,13 +47,34 @@ gzip -9c "$tmp_db" >"$tmp_gz"
 mv -f "$tmp_gz" "$output_file"
 log "Wrote backup: $output_file"
 
+# Upload-Verzeichnisse (Dokumente, Ausschreibungen) mitsichern — sie liegen
+# nicht in der Datenbank und waeren sonst in keinem Backup-Job enthalten.
+DATA_DIR="${DATA_DIR:-$(dirname "$DB_PATH")}"
+files_output="$BACKUP_DIR/files.$today.tar.gz"
+file_dirs=()
+for dir in documents ausschreibungen; do
+  if [[ -d "$DATA_DIR/$dir" ]]; then
+    file_dirs+=("$dir")
+  fi
+done
+if ((${#file_dirs[@]} > 0)); then
+  tmp_tar="$tmp_dir/files.$today.tar.gz"
+  tar -czf "$tmp_tar" -C "$DATA_DIR" "${file_dirs[@]}"
+  mv -f "$tmp_tar" "$files_output"
+  log "Wrote file backup: $files_output (${file_dirs[*]})"
+else
+  log "No document directories found under $DATA_DIR, skipping file backup."
+fi
+
 shopt -s nullglob
 deleted=0
 kept=0
-for file in "$BACKUP_DIR"/prod.db.*.sqlite3.gz; do
+for file in "$BACKUP_DIR"/prod.db.*.sqlite3.gz "$BACKUP_DIR"/files.*.tar.gz; do
   name="$(basename "$file")"
   date_part="${name#prod.db.}"
+  date_part="${date_part#files.}"
   date_part="${date_part%.sqlite3.gz}"
+  date_part="${date_part%.tar.gz}"
 
   if ! date -d "$date_part" +%F >/dev/null 2>&1; then
     continue

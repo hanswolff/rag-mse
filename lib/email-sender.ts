@@ -8,7 +8,7 @@ import { normalizeRecipients, normalizeAttachments, serializeAttachments, buildH
 export type { SendTemplateEmailOptions } from "./email/types";
 export { classifyEmailError } from "./email/error-classification";
 export { getNextRetryTimeForTransientFailure } from "./email/utils";
-export { processDueEmailOutboxBatch, startEmailOutboxWorker, stopEmailOutboxWorkerForTests } from "./email/outbox-worker";
+export { processDueEmailOutboxBatch, startEmailOutboxWorker, stopEmailOutboxWorkerForTests, isEmailOutboxWorkerRunning, createSmtpTransport } from "./email/outbox-worker";
 
 export async function sendTemplateEmail({ template, variables, to, attachments }: SendTemplateEmailOptions) {
   const recipients = normalizeRecipients(to);

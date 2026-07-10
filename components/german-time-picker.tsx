@@ -45,7 +45,6 @@ export function GermanTimePicker({ id, value, onChange, onBlur, error, label, ti
       <div className="relative">
         <DatePicker
           id={id}
-          key={value}
           selected={time}
           onChange={handleTimeChange}
           onBlur={onBlur}
@@ -59,6 +58,9 @@ export function GermanTimePicker({ id, value, onChange, onBlur, error, label, ti
           className={`form-input w-full pl-10 ${showCheckmark ? 'pr-8 border-green-500 focus:border-green-500' : ''} ${error ? 'border-red-500' : ''}`}
           required={required}
           disabled={disabled}
+          ariaDescribedBy={errorId}
+          ariaInvalid={error ? "true" : undefined}
+          ariaRequired={required ? "true" : undefined}
         />
         <FiClock className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
         {showCheckmark && (

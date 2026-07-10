@@ -31,7 +31,7 @@ export function useRangeManagement() {
     setIsLoading(true);
     try {
       const response = await fetch("/api/admin/ranges");
-      if (!response.ok) throw new Error("Fehler beim Laden der Schießstände");
+      if (!response.ok) throw new Error("Fehler beim Laden der Standorte");
       const data = await response.json();
       setRanges(data.ranges ?? []);
     } catch (err: unknown) {
@@ -75,7 +75,7 @@ export function useRangeManagement() {
     setFieldErrors([]);
     const result = await createRange();
     if (result.success) {
-      setSuccess("Schießstand wurde erfolgreich erstellt");
+      setSuccess("Standort wurde erfolgreich erstellt");
       setIsModalOpen(false);
       setModalRangeData(EMPTY_SHOOTING_RANGE);
       setEditingRange(null);
@@ -91,7 +91,7 @@ export function useRangeManagement() {
     setFieldErrors([]);
     const result = await updateRange(editingRange.id);
     if (result.success) {
-      setSuccess("Schießstand wurde erfolgreich aktualisiert");
+      setSuccess("Standort wurde erfolgreich aktualisiert");
       setIsModalOpen(false);
       setModalRangeData(EMPTY_SHOOTING_RANGE);
       setEditingRange(null);
@@ -104,7 +104,7 @@ export function useRangeManagement() {
   const handleDeleteRange = createDeleteHandler(
     deleteRange,
     setSuccess,
-    "Schießstand wurde erfolgreich gelöscht",
+    "Standort wurde erfolgreich gelöscht",
     () => fetchRanges()
   );
 

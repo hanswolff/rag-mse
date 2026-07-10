@@ -101,6 +101,8 @@ function idContext(id: string) {
   return { params: Promise.resolve({ id }) } as never;
 }
 
+const mockTransaction = (prisma as unknown as { $transaction: jest.Mock }).$transaction;
+
 describe("/api/admin/polls", () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -108,6 +110,10 @@ describe("/api/admin/polls", () => {
     mockValidateCreate.mockReturnValue({ isValid: true, errors: [] });
     mockValidateUpdate.mockReturnValue({ isValid: true, errors: [] });
     mockGeneratePollId.mockResolvedValue("abc12345");
+    // Interaktive Transaktionen führen den Callback gegen das gemockte prisma aus.
+    mockTransaction.mockImplementation(async (arg: unknown) =>
+      typeof arg === "function" ? (arg as (tx: typeof prisma) => unknown)(prisma) : Promise.all(arg as Promise<unknown>[])
+    );
   });
 
   describe("GET /api/admin/polls (list)", () => {
@@ -344,7 +350,7 @@ describe("/api/admin/polls", () => {
 
   describe("PATCH /api/admin/polls/[id] (update)", () => {
     it("updates title and description", async () => {
-      mockPollFindUnique.mockResolvedValueOnce({ id: "p1", status: "DRAFT" });
+      mockPollFindUnique.mockResolvedValue({ id: "p1", status: "DRAFT" });
       const updatedPoll = {
         id: "p1",
         title: "Updated Title",
@@ -367,7 +373,7 @@ describe("/api/admin/polls", () => {
     });
 
     it("replaces options when provided", async () => {
-      mockPollFindUnique.mockResolvedValueOnce({ id: "p1", status: "DRAFT" });
+      mockPollFindUnique.mockResolvedValue({ id: "p1", status: "DRAFT" });
       mockPollUpdate.mockResolvedValueOnce({
         id: "p1",
         options: [
@@ -421,6 +427,28 @@ describe("/api/admin/polls", () => {
       expect(response.status).toBe(404);
       const json = await response.json();
       expect(json.error).toBe("Umfrage nicht gefunden");
+    });
+
+    it("returns 409 and keeps options when the poll goes LIVE between check and update", async () => {
+      // Vorab-Check sieht noch DRAFT, in der Transaktion ist die Umfrage bereits LIVE
+      // (gleichzeitiges Publish). Optionen und Stimmen dürfen nicht gelöscht werden.
+      mockPollFindUnique
+        .mockResolvedValueOnce({ id: "p1", status: "DRAFT" })
+        .mockResolvedValueOnce({ id: "p1", status: "LIVE" });
+
+      const request = new NextRequest("http://localhost:3000/api/admin/polls/p1", {
+        method: "PATCH",
+        body: JSON.stringify({ options: [{ text: "X" }] }),
+      });
+
+      const response = await updatePoll(request, idContext("p1"));
+
+      expect(response.status).toBe(409);
+      const json = await response.json();
+      expect(json.error).toContain("Entwurfsstatus");
+      expect(mockPollOptionDeleteMany).not.toHaveBeenCalled();
+      expect(mockPollOptionCreateMany).not.toHaveBeenCalled();
+      expect(mockPollUpdate).not.toHaveBeenCalled();
     });
   });
 

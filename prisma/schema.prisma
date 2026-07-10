@@ -9,6 +9,17 @@ datasource db {
   provider = "sqlite"
 }
 
+// Buchführung des eigenen Migrations-Runners (scripts/run-db-migrations.ts).
+// Wird nicht über den Prisma-Client angesprochen, ist hier aber abgebildet,
+// damit `prisma migrate diff` gegen reale Datenbanken leer bleibt.
+model AppMigration {
+  name      String   @id
+  checksum  String
+  appliedAt DateTime @default(now())
+
+  @@map("_AppMigration")
+}
+
 enum VoteType {
   JA
   NEIN
@@ -101,6 +112,8 @@ model Event {
   guestRegistrations GuestRegistration[]
   eventReminderDispatches EventReminderDispatch[]
   polls Poll[]
+
+  @@index([date])
 }
 
 model GuestRegistration {
@@ -141,6 +154,7 @@ model Vote {
   event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
 
   @@unique([userId, eventId])
+  @@index([eventId])
 }
 
 model News {
@@ -169,7 +183,6 @@ model Invitation {
   invitedBy User? @relation("InvitedBy", fields: [invitedById], references: [id], onDelete: SetNull)
 
   @@index([email, usedAt])
-  @@index([email])
 }
 
 model PasswordReset {
@@ -252,6 +265,21 @@ model Document {
   @@index([area])
 }
 
+model Ausschreibung {
+  id               String   @id @default(cuid())
+  title            String
+  description      String?
+  expiresAt        DateTime
+  originalFileName String
+  storedFileName   String   @unique
+  mimeType         String
+  sizeBytes        Int
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([expiresAt])
+}
+
 model DocumentDirectory {
   id             String       @id @default(cuid())
   name           String
@@ -320,6 +348,7 @@ model PollVote {
   @@unique([pollId, userId, optionId])
   @@index([pollId])
   @@index([userId])
+  @@index([optionId])
 }
 
 model PollNotificationDispatch {
@@ -336,4 +365,5 @@ model PollNotificationDispatch {
 
   @@unique([pollId, userId])
   @@index([pollId])
+  @@index([userId])
 }

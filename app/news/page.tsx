@@ -1,3 +1,5 @@
+export { metadata } from "./metadata";
+
 import Link from "next/link";
 import { getServerSession } from "next-auth";
 import { formatDate } from "@/lib/date-utils";

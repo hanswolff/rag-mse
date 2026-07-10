@@ -93,7 +93,7 @@ export default function NotificationsPage() {
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900 mt-4">Benachrichtigungen</h1>
           <p className="text-gray-600 mt-2">
-            Stelle ein, welche E-Mail-Benachrichtigungen du erhalten möchtest.
+            Stellen Sie ein, welche E-Mail-Benachrichtigungen Sie erhalten möchten.
           </p>
         </div>
 
@@ -114,10 +114,10 @@ export default function NotificationsPage() {
               />
               <div>
                 <label htmlFor="eventReminderEnabled" className="font-semibold text-gray-900">
-                  E-Mail-Erinnerung für offene Terminanmeldungen aktivieren
+                  E-Mail-Erinnerung für offene Teilnahmeanmeldungen aktivieren
                 </label>
                 <p className="text-gray-600 mt-1">
-                  Du erhältst eine E-Mail, wenn du dich für einen Termin noch nicht mit Ja/Nein/Vielleicht angemeldet hast.
+                  Sie erhalten eine E-Mail, wenn Sie sich für einen Termin noch nicht mit Ja/Nein/Vielleicht angemeldet haben.
                 </p>
               </div>
             </div>
@@ -173,7 +173,7 @@ export default function NotificationsPage() {
                   E-Mail-Benachrichtigung bei neuen Umfragen
                 </label>
                 <p className="text-gray-600 mt-1">
-                  Du erhältst eine E-Mail, wenn eine neue Umfrage veröffentlicht wird.
+                  Sie erhalten eine E-Mail, wenn eine neue Umfrage veröffentlicht wird.
                 </p>
               </div>
             </div>
