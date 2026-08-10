@@ -37,22 +37,43 @@ describe("email templates", () => {
     expect(result.body).toContain("24 Stunden");
   });
 
+  const reminderVariables = {
+    appName: "RAG Schießsport MSE",
+    daysBefore: "7",
+    eventHeadline: "",
+    eventDate: "20.02.2026",
+    eventTimeFrom: "18:00",
+    eventTimeTo: "20:00",
+    eventLocation: "Schießstand Ulm",
+    rsvpUrl: "https://example.com/anmeldung/token",
+    unsubscribeUrl: "https://example.com/benachrichtigungen/abmelden/token",
+  };
+
   it("renders event reminder template placeholders", async () => {
-    const result = await renderEmailTemplate("termin-erinnerung", {
-      appName: "RAG Schießsport MSE",
-      daysBefore: "7",
-      eventDate: "20.02.2026",
-      eventTimeFrom: "18:00",
-      eventTimeTo: "20:00",
-      eventLocation: "Schießstand Ulm",
-      rsvpUrl: "https://example.com/anmeldung/token",
-      unsubscribeUrl: "https://example.com/benachrichtigungen/abmelden/token",
-    });
+    const result = await renderEmailTemplate("termin-erinnerung", reminderVariables);
 
     expect(result.subject).toContain("Erinnerung");
     expect(result.body).toContain("Für einen anstehenden Termin ist noch keine Teilnahme von Ihnen hinterlegt.");
     expect(result.body).toContain("20.02.2026");
     expect(result.body).toContain("https://example.com/anmeldung/token");
     expect(result.body).toContain("https://example.com/benachrichtigungen/abmelden/token");
+  });
+
+  it("keeps the reminder unchanged when no headline is given", async () => {
+    const result = await renderEmailTemplate("termin-erinnerung", reminderVariables);
+
+    expect(result.body).not.toContain("{{");
+    expect(result.body).toContain("hinterlegt.\n\nDatum: 20.02.2026");
+  });
+
+  it("puts title and Terminart above the date when a headline is given", async () => {
+    const result = await renderEmailTemplate("termin-erinnerung", {
+      ...reminderVariables,
+      eventHeadline: "Titel: Dynamisches Pistolenschießen Level 1\nTerminart: Lehrgang\n",
+    });
+
+    expect(result.body).toContain(
+      "Titel: Dynamisches Pistolenschießen Level 1\nTerminart: Lehrgang\nDatum: 20.02.2026"
+    );
   });
 });

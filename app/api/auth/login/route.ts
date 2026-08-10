@@ -97,7 +97,7 @@ export const POST = withApiErrorHandling(async (request: NextRequest) => {
       error: proofError instanceof Error ? proofError.message : String(proofError),
     });
     return NextResponse.json(
-      { error: "Anmeldung ist vorübergehend nicht verfügbar. Bitte versuchen Sie es erneut." },
+      { error: "Login ist vorübergehend nicht verfügbar. Bitte versuchen Sie es erneut." },
       { status: 503 }
     );
   }

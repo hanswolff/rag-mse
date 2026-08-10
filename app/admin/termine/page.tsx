@@ -6,7 +6,8 @@ import { useEventManagement } from "@/lib/use-event-management";
 import { formatDate, formatTime } from "@/lib/date-utils";
 import { getEventDescriptionPreview } from "@/lib/event-description";
 import { pluralize } from "@/lib/pluralization";
-import { formatRegistrationCount } from "@/lib/registration-count";
+import { formatOccupancy, formatRegistrationCount, isOverbooked } from "@/lib/registration-count";
+import { EventTypeBadge } from "@/components/event-type-badge";
 import { EventFormModal } from "@/components/event-form-modal";
 import { LoadingButton } from "@/components/loading-button";
 import { LoadingScreen } from "@/components/loading-screen";
@@ -31,11 +32,26 @@ function EventList({
   publishingEventId: string | null;
   canManage: boolean;
 }) {
+  // Ohne voteCounts steht nur die Gesamtzahl der Mitglieder-Anmeldungen zur Verfügung —
+  // die taugt nicht als Belegung, weil sie Nein/Vielleicht mitzählt und Gäste auslässt.
+  function getOccupancy(event: Event) {
+    if (!event.voteCounts || typeof event.capacity !== "number") return null;
+    return { voteCounts: event.voteCounts, capacity: event.capacity };
+  }
+
   function getEventRegistrationCountLabel(event: Event): string {
-    if (event.voteCounts) {
-      return formatRegistrationCount(event.voteCounts);
+    const occupancy = getOccupancy(event);
+    if (occupancy) {
+      return formatOccupancy(occupancy.voteCounts, occupancy.capacity);
     }
-    return formatRegistrationCount({ JA: event._count?.votes || 0, NEIN: 0, VIELLEICHT: 0 });
+    return formatRegistrationCount(
+      event.voteCounts ?? { JA: event._count?.votes || 0, NEIN: 0, VIELLEICHT: 0 }
+    );
+  }
+
+  function isEventOverbooked(event: Event): boolean {
+    const occupancy = getOccupancy(event);
+    return !!occupancy && isOverbooked(occupancy.voteCounts, occupancy.capacity);
   }
 
   if (events.length === 0) {
@@ -54,15 +70,7 @@ function EventList({
             <div className="flex-1 min-w-0">
               <div className="flex flex-wrap items-center gap-2 mb-1">
                 <h3 className="font-medium text-gray-900">{event.locationDisplay || event.location}</h3>
-                {event.type && (
-                  <span className={`px-2 py-0.5 text-base font-medium rounded ${
-                    event.type === "Training"
-                      ? "bg-brand-blue-50 text-brand-blue-800"
-                      : "bg-orange-100 text-orange-800"
-                  }`}>
-                    {event.type}
-                  </span>
-                )}
+                <EventTypeBadge type={event.type} />
                 {!event.visible && (
                   <span className="px-2 py-0.5 text-base font-medium rounded bg-amber-100 text-amber-800">
                     Nicht sichtbar
@@ -76,6 +84,15 @@ function EventList({
               <p className="text-base text-gray-400 mt-2">
                 Anmeldungen: {getEventRegistrationCountLabel(event)}
               </p>
+              <AlertBox
+                type="warning"
+                className="mt-2"
+                message={
+                  isEventOverbooked(event)
+                    ? "Überbucht: mehr Ja-Anmeldungen als Plätze. Die Anmeldung bleibt trotzdem offen."
+                    : null
+                }
+              />
             </div>
             {canManage && (
               <div className="flex flex-col sm:flex-row gap-2 sm:ml-4">

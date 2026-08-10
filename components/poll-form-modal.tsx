@@ -1,6 +1,6 @@
 "use client";
 
-import { type FormEvent, useEffect, useState, useCallback } from "react";
+import { type FormEvent, useEffect, useState, useCallback, useRef } from "react";
 import { Modal } from "@/components/modal";
 import { ConfirmCloseModal } from "@/components/confirm-close-modal";
 import { AlertBox } from "@/components/alert-box";
@@ -57,6 +57,11 @@ export function PollFormModal({
   const [isLoadingEvents, setIsLoadingEvents] = useState(false);
   const [optionErrors, setOptionErrors] = useState<Record<number, string>>({});
   const [eventError, setEventError] = useState("");
+  // Stabile React-Keys für die umsortierbare Optionsliste: Index-Keys lassen
+  // Fokus/DOM-Zustand beim Verschieben an der Position statt an der Option kleben.
+  const [optionKeys, setOptionKeys] = useState<string[]>([]);
+  const nextOptionKeyRef = useRef(0);
+  const makeOptionKey = useCallback(() => `option-${nextOptionKeyRef.current++}`, []);
 
   const loadEvents = useCallback(async () => {
     setIsLoadingEvents(true);
@@ -124,8 +129,10 @@ export function PollFormModal({
   useEffect(() => {
     if (isOpen) {
       setEventError("");
+      setOptionKeys(pollData.options.map(() => makeOptionKey()));
     }
-  }, [isOpen]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- Keys nur beim Öffnen neu vergeben
+  }, [isOpen, makeOptionKey]);
 
   useEffect(() => {
     if (isOpen && pollData.type === "TERMIN") {
@@ -147,6 +154,7 @@ export function PollFormModal({
 
   const addOption = () => {
     setOptionErrors({});
+    setOptionKeys((prev) => [...prev, makeOptionKey()]);
     setPollData({
       ...pollData,
       options: [...pollData.options, { text: "", position: pollData.options.length }],
@@ -156,6 +164,7 @@ export function PollFormModal({
   const removeOption = (index: number) => {
     if (pollData.options.length <= 2) return;
     setOptionErrors({});
+    setOptionKeys((prev) => prev.filter((_, i) => i !== index));
     const newOptions = pollData.options
       .filter((_, i) => i !== index)
       .map((o, i) => ({ ...o, position: i }));
@@ -166,6 +175,11 @@ export function PollFormModal({
     const newIndex = index + direction;
     if (newIndex < 0 || newIndex >= pollData.options.length) return;
     setOptionErrors({});
+    setOptionKeys((prev) => {
+      const next = [...prev];
+      [next[index], next[newIndex]] = [next[newIndex], next[index]];
+      return next;
+    });
     const newOptions = [...pollData.options];
     [newOptions[index], newOptions[newIndex]] = [newOptions[newIndex], newOptions[index]];
     setPollData({
@@ -284,7 +298,7 @@ export function PollFormModal({
           <label className="form-label">Optionen *</label>
           <div className="space-y-2">
             {pollData.options.map((opt, index) => (
-              <div key={index}>
+              <div key={optionKeys[index] ?? index}>
                 <div className="flex items-center gap-2">
                   <span className="text-gray-400 text-sm w-6 text-right">{index + 1}.</span>
                   <input

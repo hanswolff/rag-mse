@@ -66,6 +66,24 @@ function getClientIpFromAuthRequest(req: unknown): string {
   return getClientIdentifierFromHeaders(headers, requestIp);
 }
 
+function invalidateToken<T extends object>(token: T): T {
+  const cleared = { ...token } as Record<string, unknown>;
+  delete cleared.id;
+  delete cleared.sub;
+  delete cleared.role;
+  delete cleared.impersonatedById;
+  delete cleared.impersonatedByRole;
+  delete cleared.impersonatedByName;
+  delete cleared.impersonatedByEmail;
+  return cleared as T;
+}
+
+// Site-Administratoren aktivieren sich beim ersten Login selbst; alle anderen
+// Konten werden erst mit der Einladungseinlösung nutzbar.
+function isActivationPending(user: { role: Role; activatedAt: Date | null }): boolean {
+  return user.role !== "SITE_ADMINISTRATOR" && !user.activatedAt;
+}
+
 function mapUserToAuthUser(user: { id: string; email: string; name: string | null; role: Role }): AuthUser {
   return {
     id: user.id,
@@ -94,6 +112,15 @@ async function authorizeUser(credentials?: { email?: string; password?: string; 
     if (!user) {
       logError("login_failed", "Login proof valid but user not found", {
         email: maskEmail(trimmedEmail),
+        clientIp,
+      });
+      return null;
+    }
+
+    if (isActivationPending(user)) {
+      logError("login_failed", "Login attempt failed: account not activated", {
+        email: maskEmail(user.email),
+        userId: user.id,
         clientIp,
       });
       return null;
@@ -187,6 +214,15 @@ async function authorizeUser(credentials?: { email?: string; password?: string; 
     return null;
   }
 
+  if (isActivationPending(user)) {
+    logError("login_failed", "Login attempt failed: account not activated", {
+      email: maskEmail(user.email),
+      userId: user.id,
+      clientIp,
+    });
+    return null;
+  }
+
   try {
     await recordSuccessfulLogin(clientIp, user.email);
   } catch (error) {
@@ -264,6 +300,11 @@ export const authOptions: NextAuthOptions = {
         if (currentUser) {
           token.role = currentUser.role;
           token.name = currentUser.name || "";
+        } else {
+          logWarn("session_user_deleted", "Session invalidated: user no longer exists", {
+            userId: String(token.id),
+          });
+          return invalidateToken(token);
         }
       }
       if (trigger === "update") {
@@ -356,11 +397,11 @@ export const authOptions: NextAuthOptions = {
           });
 
           if (!actorUser) {
-            logWarn("impersonation_stop_actor_missing", "Original actor missing during impersonation stop", {
+            logWarn("impersonation_stop_actor_missing", "Original actor missing during impersonation stop; session invalidated", {
               storedActorUserId,
               effectiveUserId,
             });
-            return token;
+            return invalidateToken(token);
           }
 
           token.id = actorUser.id;
@@ -389,6 +430,9 @@ export const authOptions: NextAuthOptions = {
       return token;
     },
     async session({ session, token }) {
+      if (!token?.id) {
+        return null as unknown as typeof session;
+      }
       if (token && session.user) {
         session.user.id = token.id as string;
         session.user.role = token.role as string;

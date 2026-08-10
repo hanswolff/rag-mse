@@ -37,6 +37,7 @@ export function Navigation() {
   const [isStoppingImpersonation, setIsStoppingImpersonation] = useState(false);
   const [impersonationError, setImpersonationError] = useState("");
   const [openPollsCount, setOpenPollsCount] = useState(0);
+  const [openAusschreibungenCount, setOpenAusschreibungenCount] = useState(0);
   const userMenuRef = useRef<HTMLDivElement>(null);
   const infoMenuRef = useRef<HTMLDivElement>(null);
   const { data: session, status, update } = useSession();
@@ -107,6 +108,32 @@ export function Navigation() {
       window.removeEventListener("poll-vote-changed", handlePollVoteChanged);
     };
   }, [status, canAccessSelfServiceMenu]);
+
+  // Badge im Infos-Menü: Anzahl der noch laufenden Ausschreibungen. Die Route ist
+  // öffentlich und liefert die Aufteilung aktuell/historisch bereits fertig, das
+  // Badge hängt daher nicht am Login-Status.
+  useEffect(() => {
+    let ignore = false;
+
+    const fetchOpenAusschreibungenCount = async () => {
+      try {
+        const response = await fetch(API_ROUTES.AUSSCHREIBUNGEN);
+        if (!response.ok || ignore) return;
+        const data = await response.json();
+        if (!ignore) {
+          setOpenAusschreibungenCount(Array.isArray(data.current) ? data.current.length : 0);
+        }
+      } catch {
+        // Silently fail - badge is optional
+      }
+    };
+
+    void fetchOpenAusschreibungenCount();
+
+    return () => {
+      ignore = true;
+    };
+  }, []);
 
   const handleLogout = async () => {
     setIsUserMenuOpen(false);
@@ -205,6 +232,7 @@ export function Navigation() {
                 menuRef={infoMenuRef}
                 buttonClassName={infoButtonClassName}
                 showMemberDocuments={showMemberDocuments}
+                openAusschreibungenCount={openAusschreibungenCount}
               />
 
               <Link href="/kontakt" className={getLinkClasses("/kontakt")}>
@@ -264,6 +292,7 @@ export function Navigation() {
             onItemClick={() => setIsMenuOpen(false)}
             showMemberDocuments={showMemberDocuments}
             getLinkClasses={getLinkClasses}
+            openAusschreibungenCount={openAusschreibungenCount}
           />
 
           <Link

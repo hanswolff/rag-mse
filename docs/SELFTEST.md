@@ -10,6 +10,20 @@ Liveness-Check `/api/health` (nur `SELECT 1`), ersetzt ihn aber nicht.
 curl -i -H "Authorization: Bearer $SELFTEST_TOKEN" https://<host>/api/selftest
 ```
 
+### Automatischer Aufruf im Deploy
+
+`deploy.sh` ruft den Selbsttest nach erfolgreichem Healthcheck als Post-Deploy-Gate
+auf (`http://127.0.0.1:3000/api/selftest`):
+
+- `error` (HTTP 503): Deploy schlägt fehl, Rollback im Modus `image-only` — die App
+  war bereits healthy, die Datenbank bleibt unangetastet (ADR 0008). Die `errors[]`
+  stehen im Deploy-Log.
+- `warn` (HTTP 200): Deploy gilt als erfolgreich; die Warnungen samt `component`
+  werden im Deploy-Log ausgegeben.
+- `SELFTEST_TOKEN` nicht gesetzt (Host oder Container): deutliche Warnung, aber kein
+  Fehlschlag und kein Rollback — `self-test not configured` ist eine
+  Konfigurationslücke, kein App-Defekt.
+
 ## Antwort
 
 JSON-Report mit Gesamtstatus und einer Liste isolierter Einzelprüfungen:

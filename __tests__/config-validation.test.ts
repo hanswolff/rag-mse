@@ -1,5 +1,36 @@
 import { validateProductionConfig } from "../lib/config-validation";
 
+// Jeder Wert, den validateProductionConfig() liest. Der Testlauf erbt die
+// Prozessumgebung (deploy.sh exportiert zusätzlich die komplette .env), daher
+// muss jeder dieser Namen vor jedem Test entfernt werden: Sonst entscheidet die
+// Host-Konfiguration über das Ergebnis statt der Test-Setup-Code — ein gesetztes
+// SEED_ADMIN_NAME ließ z.B. die "alle oder keine"-Prüfung scheinbar bestehen.
+const VALIDIERTE_ENV_VARIABLEN = [
+  "DEVELOPMENT_DEPLOYMENT",
+  "NEXTAUTH_SECRET",
+  "NEXTAUTH_URL",
+  "APP_URL",
+  "SELFTEST_TOKEN",
+  "APP_UID",
+  "APP_GID",
+  "NOTIFICATION_TOKEN_VALIDITY_DAYS",
+  "EVENT_REMINDER_POLL_INTERVAL_MS",
+  "MAX_REQUEST_BODY_SIZE",
+  "EMAIL_DEV_MODE",
+  "COOKIE_SECURE",
+  "SMTP_HOST",
+  "SMTP_PORT",
+  "SMTP_USER",
+  "SMTP_PASSWORD",
+  "SMTP_FROM",
+  "ADMIN_EMAILS",
+  "SEED_ADMIN_EMAIL",
+  "SEED_ADMIN_PASSWORD",
+  "SEED_ADMIN_NAME",
+  "ALLOW_DB_SEED",
+  "ALLOW_DB_PUSH",
+] as const;
+
 describe("Configuration Validation", () => {
   const originalEnv = process.env;
 
@@ -21,6 +52,9 @@ describe("Configuration Validation", () => {
   beforeEach(() => {
     jest.resetModules();
     process.env = { ...originalEnv };
+    for (const name of VALIDIERTE_ENV_VARIABLEN) {
+      delete process.env[name];
+    }
   });
 
   afterEach(() => {

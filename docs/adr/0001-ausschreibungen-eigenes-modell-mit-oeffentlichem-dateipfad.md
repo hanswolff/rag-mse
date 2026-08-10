@@ -15,7 +15,7 @@ Dateien ausliefert, die zu einer existierenden Ausschreibung gehören.
   auth-gegateten Dokumente-Pfade und deren Sicherheitsannahmen bleiben unberührt.
 - **Verworfen:** `Document` um `DocumentArea.PUBLIC` und `expiresAt` erweitern.
   Weniger neuer Code, aber es hätte öffentlichen, unauthentifizierten Zugriff und
-  Ablauf-Logik in Codepfade gezwungen, die bisher „jede Datei ist geschützt"
+  Ablauf-Logik in Codepfade gezwungen, die bisher „jede Datei ist geschützt“
   voraussetzen — ein riskanter Umbau einer sicherheitskritischen Annahme.
 
 ## Consequences

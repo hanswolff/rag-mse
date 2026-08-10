@@ -3,9 +3,15 @@
 import type { RefObject } from "react";
 import Link from "next/link";
 import { ChevronDownIcon } from "../icons";
+import { MenuBadge } from "./menu-badge";
+
+export const AUSSCHREIBUNGEN_HREF = "/ausschreibungen";
+
+// Beschriftung für Screenreader: das Badge zeigt nur die nackte Zahl.
+const AUSSCHREIBUNGEN_BADGE_LABEL = "offene Ausschreibungen";
 
 export const TOP_INFO_ITEMS = [
-  { href: "/ausschreibungen", label: "Ausschreibungen" },
+  { href: AUSSCHREIBUNGEN_HREF, label: "Ausschreibungen" },
   { href: "/info/formulare", label: "Formulare" },
 ] as const;
 
@@ -26,6 +32,7 @@ interface DesktopInfoMenuProps {
   menuRef: RefObject<HTMLDivElement | null>;
   buttonClassName: string;
   showMemberDocuments: boolean;
+  openAusschreibungenCount?: number;
 }
 
 export function DesktopInfoMenu({
@@ -35,6 +42,7 @@ export function DesktopInfoMenu({
   menuRef,
   buttonClassName,
   showMemberDocuments,
+  openAusschreibungenCount = 0,
 }: DesktopInfoMenuProps) {
   return (
     <div className="relative" ref={menuRef}>
@@ -45,7 +53,8 @@ export function DesktopInfoMenu({
         aria-expanded={isOpen}
         aria-haspopup="true"
       >
-        Infos
+        <span>Infos</span>
+        <MenuBadge count={openAusschreibungenCount} label={AUSSCHREIBUNGEN_BADGE_LABEL} />
         <ChevronDownIcon className="w-4 h-4" />
       </button>
 
@@ -56,9 +65,12 @@ export function DesktopInfoMenu({
               key={item.href}
               href={item.href}
               onClick={onItemClick}
-              className="block px-4 py-2 text-base text-gray-700 hover:bg-gray-100 transition-colors"
+              className="flex items-center justify-between px-4 py-2 text-base text-gray-700 hover:bg-gray-100 transition-colors"
             >
-              {item.label}
+              <span>{item.label}</span>
+              {item.href === AUSSCHREIBUNGEN_HREF && (
+                <MenuBadge count={openAusschreibungenCount} label={AUSSCHREIBUNGEN_BADGE_LABEL} />
+              )}
             </Link>
           ))}
           {showMemberDocuments && (
@@ -93,6 +105,7 @@ interface MobileInfoMenuProps {
   onItemClick: () => void;
   showMemberDocuments: boolean;
   getLinkClasses: (path: string, isMobile?: boolean) => string;
+  openAusschreibungenCount?: number;
 }
 
 export function MobileInfoMenu({
@@ -101,6 +114,7 @@ export function MobileInfoMenu({
   onItemClick,
   showMemberDocuments,
   getLinkClasses,
+  openAusschreibungenCount = 0,
 }: MobileInfoMenuProps) {
   return (
     <>
@@ -110,7 +124,10 @@ export function MobileInfoMenu({
         className="w-full flex items-center justify-between px-3 py-2 rounded-md text-base font-semibold uppercase tracking-wide text-brand-blue-700 hover:bg-brand-blue-50 transition-colors touch-manipulation"
         aria-expanded={isOpen}
       >
-        <span>Infos</span>
+        <span className="flex items-center">
+          <span>Infos</span>
+          <MenuBadge count={openAusschreibungenCount} label={AUSSCHREIBUNGEN_BADGE_LABEL} />
+        </span>
         <ChevronDownIcon className={`w-4 h-4 transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`} />
       </button>
       {isOpen && (
@@ -119,10 +136,13 @@ export function MobileInfoMenu({
             <Link
               key={item.href}
               href={item.href}
-              className={`${getLinkClasses(item.href, true)} pl-6`}
+              className={`${getLinkClasses(item.href, true)} pl-6 flex items-center justify-between`}
               onClick={onItemClick}
             >
-              {item.label}
+              <span>{item.label}</span>
+              {item.href === AUSSCHREIBUNGEN_HREF && (
+                <MenuBadge count={openAusschreibungenCount} label={AUSSCHREIBUNGEN_BADGE_LABEL} />
+              )}
             </Link>
           ))}
           {showMemberDocuments && (

@@ -25,7 +25,7 @@ async function checkCriticalData(): Promise<CheckVerdict> {
 
   const warnings: string[] = [];
   if (rangeCount === 0) {
-    warnings.push("Keine Schießstände angelegt");
+    warnings.push("Keine Standorte angelegt");
   }
   if (userCount <= siteAdmins) {
     warnings.push("Keine Mitglieder außer Administratoren vorhanden");
@@ -41,7 +41,7 @@ async function checkCriticalData(): Promise<CheckVerdict> {
 
   return {
     status: "ok",
-    message: `${siteAdmins} Administrator(en), ${userCount} Benutzer, ${rangeCount} Schießstände`,
+    message: `${siteAdmins} Administrator(en), ${userCount} Benutzer, ${rangeCount} Standorte`,
     details: { siteAdmins, userCount, rangeCount },
   };
 }

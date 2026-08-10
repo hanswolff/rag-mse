@@ -255,7 +255,7 @@ export default function InvitationPage({ params }: { params: Promise<{ token: st
         <div className="card">
           <h1 className="text-2xl font-bold text-brand-blue-900">Einladung annehmen</h1>
           <p className="text-brand-blue-800 mt-2">
-            Erstellen Sie Ihr Mitgliedskonto, um Zugriff auf Termine und Neuigkeiten zu erhalten.
+            Erstellen Sie Ihr Mitgliedskonto, um Zugriff auf Termine und News zu erhalten.
           </p>
 
           <AlertBox type="error" message={fatalError} className="mt-4" />

@@ -60,6 +60,7 @@ describe("auth", () => {
       email,
       name: "Member",
       role: Role.MEMBER,
+      activatedAt: new Date("2026-01-01T00:00:00Z"),
     });
 
     const loginProof = createLoginProof(email, "203.0.113.10", password);
@@ -77,6 +78,78 @@ describe("auth", () => {
     });
     expect(mockCheckLoginRateLimit).not.toHaveBeenCalled();
     expect(mockRecordSuccessfulLogin).toHaveBeenCalledWith("203.0.113.10", email);
+  });
+
+  it("rejects a non-activated account even with a valid password", async () => {
+    mockCheckLoginRateLimit.mockResolvedValue({ allowed: true, attemptCount: 0 });
+    mockPrismaUserFindUnique.mockResolvedValue({
+      id: "user-3",
+      email: "inaktiv@example.com",
+      name: "Inaktives Mitglied",
+      role: Role.MEMBER,
+      password: "hashed-password",
+      activatedAt: null,
+    });
+    mockCompare.mockResolvedValue(true);
+
+    const result = await authorizeCredentials(
+      { email: "inaktiv@example.com", password: "Secret123" },
+      { ip: "203.0.113.30", headers: {} }
+    );
+
+    expect(result).toBeNull();
+    expect(mockPrismaUserUpdate).not.toHaveBeenCalled();
+    expect(mockRecordSuccessfulLogin).not.toHaveBeenCalled();
+  });
+
+  it("rejects a valid login proof for a non-activated account", async () => {
+    const email = "inaktiv@example.com";
+    const password = "Secret123";
+    mockPrismaUserFindUnique.mockResolvedValue({
+      id: "user-3",
+      email,
+      name: "Inaktives Mitglied",
+      role: Role.MEMBER,
+      activatedAt: null,
+    });
+
+    const loginProof = createLoginProof(email, "203.0.113.31", password);
+    const result = await authorizeCredentials({ email, password, loginProof }, {
+      ip: "203.0.113.31",
+      headers: {},
+    });
+
+    expect(result).toBeNull();
+    expect(mockPrismaUserUpdate).not.toHaveBeenCalled();
+  });
+
+  it("activates a site administrator on first login instead of rejecting", async () => {
+    mockCheckLoginRateLimit.mockResolvedValue({ allowed: true, attemptCount: 0 });
+    mockPrismaUserFindUnique.mockResolvedValue({
+      id: "site-1",
+      email: "site@example.com",
+      name: "Site Admin",
+      role: Role.SITE_ADMINISTRATOR,
+      password: "hashed-password",
+      activatedAt: null,
+    });
+    mockCompare.mockResolvedValue(true);
+
+    const result = await authorizeCredentials(
+      { email: "site@example.com", password: "Secret123" },
+      { ip: "203.0.113.32", headers: {} }
+    );
+
+    expect(result).toEqual({
+      id: "site-1",
+      email: "site@example.com",
+      name: "Site Admin",
+      role: Role.SITE_ADMINISTRATOR,
+    });
+    expect(mockPrismaUserUpdate).toHaveBeenCalledWith({
+      where: { id: "site-1" },
+      data: { lastLoginAt: expect.any(Date), activatedAt: expect.any(Date) },
+    });
   });
 
   it("blocks login when rate limiter is unavailable and fail-open is disabled", async () => {
@@ -103,6 +176,7 @@ describe("auth", () => {
       name: "Member 2",
       role: Role.ADMIN,
       password: "hashed-password",
+      activatedAt: new Date("2026-01-01T00:00:00Z"),
     });
     mockCompare.mockResolvedValue(true);
 
@@ -196,6 +270,79 @@ describe("auth", () => {
 
     expect(result.id).toBe("actor-1");
     expect(result.role).toBe(Role.SITE_ADMINISTRATOR);
+    expect((result as { impersonatedById?: string }).impersonatedById).toBeUndefined();
+  });
+
+  it("invalidates the token when the user no longer exists", async () => {
+    mockPrismaUserFindUnique.mockResolvedValueOnce(null);
+
+    const jwtCallback = authOptions.callbacks?.jwt;
+    const result = await jwtCallback!({
+      token: {
+        id: "deleted-user",
+        sub: "deleted-user",
+        role: Role.ADMIN,
+        name: "Geloeschter Admin",
+        email: "deleted@example.com",
+      } as never,
+      user: undefined as never,
+      account: null,
+      profile: undefined,
+      trigger: undefined,
+      isNewUser: false,
+      session: undefined,
+    });
+
+    expect(result.id).toBeUndefined();
+    expect(result.sub).toBeUndefined();
+    expect(result.role).toBeUndefined();
+  });
+
+  it("returns no session when the token has no user id", async () => {
+    const sessionCallback = authOptions.callbacks?.session;
+    const result = await sessionCallback!({
+      session: {
+        user: { id: "", role: "", name: "", email: "" },
+        expires: new Date(Date.now() + 60000).toISOString(),
+      } as never,
+      token: {} as never,
+      user: undefined as never,
+      newSession: undefined,
+      trigger: "update",
+    });
+
+    expect(result).toBeNull();
+  });
+
+  it("invalidates the token when the impersonation actor was deleted before stop", async () => {
+    mockPrismaUserFindUnique
+      .mockResolvedValueOnce({ role: Role.MEMBER, name: "Member" })
+      .mockResolvedValueOnce(null);
+
+    const jwtCallback = authOptions.callbacks?.jwt;
+    const proof = createImpersonationStopProof("actor-1", "target-1");
+    const result = await jwtCallback!({
+      token: {
+        id: "target-1",
+        sub: "target-1",
+        role: Role.MEMBER,
+        name: "Member",
+        email: "member@example.com",
+        impersonatedById: "actor-1",
+        impersonatedByRole: Role.SITE_ADMINISTRATOR,
+        impersonatedByName: "Site Admin",
+        impersonatedByEmail: "site@example.com",
+      } as never,
+      user: undefined as never,
+      account: null,
+      profile: undefined,
+      trigger: "update",
+      isNewUser: false,
+      session: { impersonationStopProof: proof },
+    });
+
+    expect(result.id).toBeUndefined();
+    expect(result.role).toBeUndefined();
     expect((result as { impersonatedById?: string }).impersonatedById).toBeUndefined();
   });
 });

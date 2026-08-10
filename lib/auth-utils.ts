@@ -71,24 +71,32 @@ export async function requireSelfServiceAccess() {
   return user;
 }
 
+const ADMIN_PREFIX = "/admin";
+const MEMBER_PREFIXES = [
+  "/profil",
+  "/passwort-aendern",
+  "/mitglieder-dokumente",
+  "/benachrichtigungen",
+];
+
+// Einzige Quelle dafür, welche Pfade überhaupt eine Anmeldung verlangen. Der
+// Proxy leitet daraus ab, wann er den Auth-Token lesen muss.
+export const LOGIN_REQUIRED_PREFIXES = [ADMIN_PREFIX, ...MEMBER_PREFIXES];
+
+export function requiresLogin(pathname: string): boolean {
+  return LOGIN_REQUIRED_PREFIXES.some((prefix) => pathname.startsWith(prefix));
+}
+
 export function shouldRedirectToLogin(pathname: string, userRole: string | undefined): boolean {
   if (pathname.startsWith("/benachrichtigungen/abmelden")) {
     return false;
   }
 
-  if (pathname.startsWith("/admin") && !Permissions.canAccessAdminArea(userRole)) {
+  if (pathname.startsWith(ADMIN_PREFIX) && !Permissions.canAccessAdminArea(userRole)) {
     return true;
   }
 
-  if (
-    (
-      pathname.startsWith("/profil")
-      || pathname.startsWith("/passwort-aendern")
-      || pathname.startsWith("/mitglieder-dokumente")
-      || pathname.startsWith("/benachrichtigungen")
-    )
-    && !hasMemberRole(userRole)
-  ) {
+  if (MEMBER_PREFIXES.some((prefix) => pathname.startsWith(prefix)) && !hasMemberRole(userRole)) {
     return true;
   }
 

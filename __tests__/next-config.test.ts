@@ -104,6 +104,27 @@ describe("Next.js Configuration", () => {
       expect(cspHeader?.value).toContain("frame-ancestors 'self'");
     });
 
+    // Die Nonce-Umstellung läuft nur als Report-Only aus proxy.ts. Führte der
+    // erzwingende Header versehentlich eine Nonce, wären auf jeder statisch
+    // vorgerenderten Seite schlagartig alle Skripte blockiert.
+    it("should not yet enforce a nonce", async () => {
+      const { cspHeader } = await getCspHeader("production");
+      expect(cspHeader?.value).not.toContain("'nonce-");
+      expect(cspHeader?.value).not.toContain("'strict-dynamic'");
+      expect(cspHeader?.value).toContain("'unsafe-inline'");
+    });
+
+    it("should build the enforcing policy from the shared directive source", async () => {
+      const { cspHeader } = await getCspHeader("production");
+      const { buildContentSecurityPolicy, getPermissiveScriptSrc } = await import(
+        "../lib/csp-directives.mjs"
+      );
+
+      expect(cspHeader?.value).toBe(
+        buildContentSecurityPolicy({ scriptSrc: getPermissiveScriptSrc(true) })
+      );
+    });
+
     it("should emit the more permissive development CSP", async () => {
       const { cspHeader } = await getCspHeader("development");
       expect(cspHeader?.value).toContain("script-src 'self' 'unsafe-inline' 'unsafe-eval' https://unpkg.com");

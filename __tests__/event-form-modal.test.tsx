@@ -39,10 +39,13 @@ describe("EventFormModal", () => {
     timeFrom: "10:00",
     timeTo: "12:00",
     location: "Vereinsheim",
+    title: "",
     description: "Trainingstermin",
     latitude: "52.5200",
     longitude: "13.4050",
     type: "Training",
+    cost: "",
+    capacity: "",
     visible: true,
   };
 
@@ -51,10 +54,13 @@ describe("EventFormModal", () => {
     timeFrom: "14:00",
     timeTo: "16:00",
     location: "Sportplatz",
+    title: "",
     description: "Wettkampf",
     latitude: "51.3400",
     longitude: "12.3750",
     type: "Wettkampf",
+    cost: "",
+    capacity: "",
     visible: false,
   };
 
@@ -244,6 +250,55 @@ describe("EventFormModal", () => {
       expect(screen.getByRole("option", { name: "Kein Typ" })).toBeInTheDocument();
       expect(screen.getByRole("option", { name: "Training" })).toBeInTheDocument();
       expect(screen.getByRole("option", { name: "Wettkampf" })).toBeInTheDocument();
+      expect(screen.getByRole("option", { name: "Lehrgang" })).toBeInTheDocument();
+    });
+
+    it("should offer cost as an optional free-text field", () => {
+      render(
+        <EventFormModal
+          isOpen={true}
+          onClose={mockOnClose}
+          onSubmit={mockOnSubmit}
+          isSubmitting={false}
+          eventData={defaultEventData}
+          setEventData={jest.fn()}
+          isEditing={false}
+          initialEventData={undefined}
+        />
+      );
+
+      const costInput = screen.getByLabelText("Kosten");
+      expect(costInput).toHaveValue("");
+      expect(costInput).not.toBeRequired();
+      expect(costInput).toHaveAttribute("type", "text");
+    });
+
+    it("should let the title be filled and left empty", async () => {
+      const user = userEvent.setup();
+      const setEventData = jest.fn();
+
+      render(
+        <EventFormModal
+          isOpen={true}
+          onClose={mockOnClose}
+          onSubmit={mockOnSubmit}
+          isSubmitting={false}
+          eventData={defaultEventData}
+          setEventData={setEventData}
+          isEditing={false}
+          initialEventData={undefined}
+        />
+      );
+
+      const titleInput = screen.getByLabelText("Titel");
+      expect(titleInput).toHaveValue("");
+      expect(titleInput).not.toBeRequired();
+
+      await user.type(titleInput, "L");
+
+      expect(setEventData).toHaveBeenCalledWith(
+        expect.objectContaining({ title: "L" })
+      );
     });
 
     it("should render visibility checkbox", () => {
@@ -726,10 +781,13 @@ describe("EventFormModal", () => {
             timeFrom: "",
             timeTo: "",
             location: "",
+            title: "",
             description: "",
             latitude: "",
             longitude: "",
             type: "",
+            cost: "",
+            capacity: "",
             visible: true,
           }}
           setEventData={setEventData}

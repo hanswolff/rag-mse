@@ -87,10 +87,13 @@ export const EVENT_FIELD_KEYWORDS: Record<string, string[]> = {
   timeFrom: ["Uhrzeit von"],
   timeTo: ["Uhrzeit bis"],
   location: ["Ort"],
+  title: ["Titel"],
   description: ["Beschreibung"],
   latitude: ["Breitengrad"],
   longitude: ["Längengrad"],
   type: ["Typ"],
+  cost: ["Kosten"],
+  capacity: ["Plätze"],
 };
 
 export const NEWS_FIELD_KEYWORDS: Record<string, string[]> = {

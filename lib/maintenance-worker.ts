@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { logError, logInfo } from "@/lib/logger";
+import { PRUNED_ATTACHMENTS_MARKER } from "@/lib/email/types";
 
 // Aufbewahrungsgrenzen (Code-Review): E-Mail-Anhänge (base64 inline) und
 // verbrauchte/abgelaufene Token-Zeilen wachsen sonst unbegrenzt.
@@ -20,6 +21,7 @@ function daysAgo(days: number, now: Date): Date {
 
 export interface MaintenanceResult {
   clearedAttachments: number;
+  clearedSensitiveTokens: number;
   deletedPasswordResets: number;
   deletedInvitations: number;
   deletedReminderDispatches: number;
@@ -31,10 +33,21 @@ export async function runMaintenanceCleanup(now: Date = new Date()): Promise<Mai
   const clearedAttachments = await prisma.outgoingEmail.updateMany({
     where: {
       status: { in: ["SENT", "FAILED"] },
-      attachmentsJson: { not: null },
+      attachmentsJson: { not: null, notIn: [PRUNED_ATTACHMENTS_MARKER] },
       createdAt: { lt: daysAgo(ATTACHMENT_RETENTION_DAYS, now) },
     },
-    data: { attachmentsJson: null },
+    data: { attachmentsJson: PRUNED_ATTACHMENTS_MARKER },
+  });
+
+  // Einmal-Token fehlgeschlagener E-Mails (für den Admin-Retry aufbewahrt)
+  // nach derselben Frist endgültig entfernen; danach ist kein Retry mehr möglich
+  const clearedSensitiveTokens = await prisma.outgoingEmail.updateMany({
+    where: {
+      status: "FAILED",
+      sensitiveTokensJson: { not: null },
+      createdAt: { lt: daysAgo(TOKEN_RETENTION_DAYS, now) },
+    },
+    data: { sensitiveTokensJson: null },
   });
 
   const deletedPasswordResets = await prisma.passwordReset.deleteMany({
@@ -66,6 +79,7 @@ export async function runMaintenanceCleanup(now: Date = new Date()): Promise<Mai
 
   return {
     clearedAttachments: clearedAttachments.count,
+    clearedSensitiveTokens: clearedSensitiveTokens.count,
     deletedPasswordResets: deletedPasswordResets.count,
     deletedInvitations: deletedInvitations.count,
     deletedReminderDispatches: deletedReminderDispatches.count,
@@ -83,6 +97,7 @@ async function runMaintenanceTick(): Promise<void> {
     const result = await runMaintenanceCleanup();
     const total =
       result.clearedAttachments +
+      result.clearedSensitiveTokens +
       result.deletedPasswordResets +
       result.deletedInvitations +
       result.deletedReminderDispatches;

@@ -78,6 +78,36 @@ function buildProfileUpdateData(input: RedeemProfileInput) {
   };
 }
 
+// Bestandskonto: Das Einladungs-GET liefert aus Datenschutzgründen keine Stammdaten
+// mehr an den Browser, das Formular startet also leer. Leere Felder bedeuten hier
+// deshalb "unverändert lassen" — sonst würde die Wiedereinladung eines Mitglieds
+// dessen gespeicherte Stammdaten löschen.
+function buildExistingUserUpdateData(input: RedeemProfileInput): Prisma.UserUpdateInput {
+  const data: Prisma.UserUpdateInput = {
+    name: normalizeName(input.name),
+    passwordUpdatedAt: new Date(),
+    activatedAt: new Date(),
+  };
+
+  const address = toNullableText(input.address);
+  if (address) data.address = address;
+  const phone = toNullableText(input.phone);
+  if (phone) data.phone = phone;
+  const dateOfBirth = toNullableDate(input.dateOfBirth);
+  if (dateOfBirth) data.dateOfBirth = dateOfBirth;
+  const rank = toNullableText(input.rank);
+  if (rank) data.rank = rank;
+  const pk = toNullableText(input.pk);
+  if (pk) data.pk = pk;
+  const reservistsAssociation = toNullableText(input.reservistsAssociation);
+  if (reservistsAssociation) data.reservistsAssociation = reservistsAssociation;
+  const associationMemberNumber = toNullableText(input.associationMemberNumber);
+  if (associationMemberNumber) data.associationMemberNumber = associationMemberNumber;
+  if (input.hasPossessionCard) data.hasPossessionCard = true;
+
+  return data;
+}
+
 export async function findValidInvitation(token: string) {
   const tokenHash = hashInvitationToken(token);
   const invitation = await prisma.invitation.findUnique({
@@ -137,7 +167,6 @@ export async function redeemInvitationInTransaction(
   profile: RedeemProfileInput
 ): Promise<RedemptionResult> {
   const passwordHash = profile.passwordHash;
-  const profileUpdateData = buildProfileUpdateData(profile);
 
   const existingUser = await tx.user.findUnique({
     where: { email: invitation.email },
@@ -148,7 +177,7 @@ export async function redeemInvitationInTransaction(
     const user = await tx.user.update({
       where: { id: existingUser.id },
       data: {
-        ...profileUpdateData,
+        ...buildExistingUserUpdateData(profile),
         password: passwordHash,
       },
       select: { id: true, email: true, name: true },
@@ -167,7 +196,7 @@ export async function redeemInvitationInTransaction(
       email: invitation.email,
       role: invitation.role,
       password: passwordHash,
-      ...profileUpdateData,
+      ...buildProfileUpdateData(profile),
     },
     select: { id: true, email: true, name: true },
   });

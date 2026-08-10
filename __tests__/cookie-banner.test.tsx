@@ -56,7 +56,7 @@ describe("CookieBanner", () => {
       render(<CookieBanner />);
 
       const banner = screen.getByRole("dialog");
-      expect(banner).toHaveAttribute("aria-labelledby", "cookie-banner-title");
+      expect(banner).toHaveAttribute("aria-label", "Cookie-Hinweis");
       expect(banner).toHaveAttribute("aria-describedby", "cookie-banner-description");
 
       const description = screen.getByText(/Cookies für die Authentifizierung/i);

@@ -12,7 +12,7 @@ let prisma: PrismaClient;
 
 function getPrismaClient(): PrismaClient {
   if (!prisma) {
-    const databaseUrl = process.env.DATABASE_URL ?? "file:./data/dev.db";
+    const databaseUrl = process.env.DATABASE_URL ?? "file:./data/prod.db";
     const adapter = new PrismaBetterSqlite3({ url: databaseUrl });
     prisma = new PrismaClient({
       adapter,

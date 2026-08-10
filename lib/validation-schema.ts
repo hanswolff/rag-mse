@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { ASSIGNABLE_ROLES } from "./permissions";
+import { isEventType } from "./event-types";
 import { FieldValidationConfig } from "./useFormFieldValidation";
 import {
   MAX_EVENT_DESCRIPTION_BYTES,
@@ -188,6 +189,31 @@ const requiredTitleSchema = z
   .min(1, "Titel ist erforderlich")
   .max(200, "Titel darf maximal 200 Zeichen haben");
 
+export const MAX_EVENT_TITLE_LENGTH = 200;
+
+const optionalEventTitleSchema = z
+  .string()
+  .trim()
+  .max(MAX_EVENT_TITLE_LENGTH, `Titel darf maximal ${MAX_EVENT_TITLE_LENGTH} Zeichen haben`);
+
+export const MAX_EVENT_COST_LENGTH = 100;
+
+const optionalEventCostSchema = z
+  .string()
+  .trim()
+  .max(MAX_EVENT_COST_LENGTH, `Kosten dürfen maximal ${MAX_EVENT_COST_LENGTH} Zeichen haben`);
+
+export const EVENT_CAPACITY_ERROR = "Plätze müssen eine positive ganze Zahl sein";
+
+const optionalEventCapacitySchema = z
+  .string()
+  .trim()
+  .refine((value) => {
+    if (!value) return true;
+    if (!/^\d+$/.test(value)) return false;
+    return Number.parseInt(value, 10) > 0;
+  }, { message: EVENT_CAPACITY_ERROR });
+
 const requiredContentSchema = z
   .string()
   .trim()
@@ -350,11 +376,32 @@ export const getPasswordRequirements = (): string[] => [
   "Mindestens eine Ziffer",
 ];
 
+export const validateEventTitle = (title: string): boolean => {
+  if (typeof title !== "string") return false;
+  return optionalEventTitleSchema.safeParse(title).success;
+};
+
+export const validateEventCost = (cost: string): boolean => {
+  if (typeof cost !== "string") return false;
+  return optionalEventCostSchema.safeParse(cost).success;
+};
+
+export const validateEventCapacity = (capacity: number | string): boolean => {
+  if (typeof capacity === "number") {
+    return Number.isInteger(capacity) && capacity > 0;
+  }
+  if (typeof capacity !== "string") return false;
+  return optionalEventCapacitySchema.safeParse(capacity).success;
+};
+
 // Event type validation
-export const EVENT_TYPES = ["Training", "Wettkampf"] as const;
-export const validateEventType = (type: string): boolean => {
-  if (!type || type.trim() === "") return true;
-  return EVENT_TYPES.includes(type as (typeof EVENT_TYPES)[number]);
+// `unknown`, weil der Wert aus einem JSON-Body kommt: `type.trim()` warf bei
+// einem Objekt eine TypeError und die Route antwortete mit 500 statt 400.
+export const validateEventType = (type: unknown): boolean => {
+  if (type === null || type === undefined) return true;
+  if (typeof type !== "string") return false;
+  if (type.trim() === "") return true;
+  return isEventType(type);
 };
 
 // Role validation
@@ -469,6 +516,9 @@ export const eventValidationConfig: Record<string, FieldValidationConfig> = {
   timeFrom: { zod: requiredTimeSchema("Uhrzeit von ist erforderlich") },
   timeTo: { zod: requiredTimeSchema("Uhrzeit bis ist erforderlich") },
   location: { zod: requiredLocationSchema },
+  title: { zod: optionalEventTitleSchema },
+  cost: { zod: optionalEventCostSchema },
+  capacity: { zod: optionalEventCapacitySchema },
   description: { zod: requiredDescriptionSchema },
   latitude: { zod: optionalLatitudeSchema },
   longitude: { zod: optionalLongitudeSchema },

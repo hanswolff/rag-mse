@@ -5,6 +5,7 @@ import { buildLoginUrlWithReturnUrl } from "@/lib/return-url";
 import type { Vote, VoteCounts } from "@/components/voting-results";
 import type { Event } from "@/types";
 import { appName } from "@/lib/site-config";
+import { getEventDescriptionPreview } from "@/lib/event-description";
 
 export interface EventWithVotes extends Event {
   votes?: Vote[];
@@ -70,7 +71,7 @@ export function useEventDetail(id: string): UseEventDetailReturn {
     ? {
         "@context": "https://schema.org",
         "@type": "Event",
-        name: `Termin am ${formatDate(event.date)}`,
+        name: event.title || `Termin am ${formatDate(event.date)}`,
         startDate: `${event.date}T${event.timeFrom}:00`,
         endDate: `${event.date}T${event.timeTo}:00`,
         eventStatus: "https://schema.org/EventScheduled",
@@ -84,7 +85,7 @@ export function useEventDetail(id: string): UseEventDetailReturn {
           "@type": "Organization",
           name: appName,
         },
-        description: event.description.replace(/\s+/g, " ").trim().slice(0, 220),
+        description: getEventDescriptionPreview(event.description, 220),
       }
     : null;
 

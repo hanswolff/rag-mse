@@ -5,8 +5,10 @@ After=local-fs.target
 
 [Service]
 Type=oneshot
-User=root
-Group=root
+# Als App-Benutzer (UID/GID 1000) ausführen: Ein Root-Backup kann root-eigene
+# WAL/SHM-Dateien hinterlassen, die die rootless laufende App aussperren.
+User=1000
+Group=1000
 Environment=DB_PATH=/zfs/git/beta-rag-mse/data/prod.db
 Environment=BACKUP_DIR=/zfs/backups/beta-rag-mse
 ExecStart=/zfs/git/beta-rag-mse/scripts/backup-sqlite.sh

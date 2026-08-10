@@ -103,6 +103,63 @@ describe("TerminePage (Admin)", () => {
     expect(screen.getByRole("button", { name: "Weiter" })).toBeInTheDocument();
   });
 
+  it("shows the occupancy instead of the plain count when a capacity is set", () => {
+    (useEventManagement as jest.Mock).mockReturnValue({
+      ...defaultHook,
+      events: [{ ...defaultHook.events[0], capacity: 12 }],
+    });
+
+    render(<TerminePage />);
+
+    expect(
+      screen.getByText("Anmeldungen: 3 von 12 Plätzen belegt (+1 vielleicht)")
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/Überbucht/)).not.toBeInTheDocument();
+  });
+
+  it("warns about overbooking without blocking registrations", () => {
+    (useEventManagement as jest.Mock).mockReturnValue({
+      ...defaultHook,
+      events: [
+        {
+          ...defaultHook.events[0],
+          capacity: 2,
+          voteCounts: { JA: 3, NEIN: 0, VIELLEICHT: 0 },
+        },
+      ],
+    });
+
+    render(<TerminePage />);
+
+    expect(
+      screen.getByText(
+        "Überbucht: mehr Ja-Anmeldungen als Plätze. Die Anmeldung bleibt trotzdem offen."
+      )
+    ).toBeInTheDocument();
+  });
+
+  it("does not derive an occupancy from the plain vote count", () => {
+    const { voteCounts, ...eventWithoutVoteCounts } = defaultHook.events[0];
+    void voteCounts;
+    (useEventManagement as jest.Mock).mockReturnValue({
+      ...defaultHook,
+      events: [{ ...eventWithoutVoteCounts, capacity: 2, _count: { votes: 3 } }],
+    });
+
+    render(<TerminePage />);
+
+    expect(screen.queryByText(/belegt/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Überbucht/)).not.toBeInTheDocument();
+    expect(screen.getByText("Anmeldungen: 3 Anmeldungen")).toBeInTheDocument();
+  });
+
+  it("keeps the registration count unchanged without a capacity", () => {
+    render(<TerminePage />);
+
+    expect(screen.getByText("Anmeldungen: 3-4 Anmeldungen")).toBeInTheDocument();
+    expect(screen.queryByText(/belegt/)).not.toBeInTheDocument();
+  });
+
   it("calls page change handler on pagination click", async () => {
     const user = userEvent.setup();
     render(<TerminePage />);

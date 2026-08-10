@@ -15,10 +15,13 @@ type EventWithVotes = {
   timeFrom: string;
   timeTo: string;
   location: string;
+  title: string | null;
   description: string;
   latitude: number | null;
   longitude: number | null;
   type: string | null;
+  cost: string | null;
+  capacity: number | null;
   visible: boolean;
   createdById: string | null;
   createdAt: Date;
@@ -63,10 +66,13 @@ export const GET = withApiErrorHandling(async (
       timeFrom: true,
       timeTo: true,
       location: true,
+      title: true,
       description: true,
       latitude: true,
       longitude: true,
       type: true,
+      cost: true,
+      capacity: true,
       visible: true,
       createdById: true,
       createdAt: true,
@@ -96,10 +102,13 @@ export const GET = withApiErrorHandling(async (
       timeFrom: true,
       timeTo: true,
       location: true,
+      title: true,
       description: true,
       latitude: true,
       longitude: true,
       type: true,
+      cost: true,
+      capacity: true,
       visible: true,
       createdById: true,
       createdAt: true,

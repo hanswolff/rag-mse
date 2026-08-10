@@ -25,6 +25,7 @@ jest.mock("@/lib/prisma", () => ({
       findUnique: jest.fn(),
       create: jest.fn(),
       update: jest.fn(),
+      updateMany: jest.fn(),
       delete: jest.fn(),
       count: jest.fn(),
     },
@@ -82,6 +83,7 @@ const mockPollFindMany = prisma.poll.findMany as jest.Mock;
 const mockPollFindUnique = prisma.poll.findUnique as jest.Mock;
 const mockPollCreate = prisma.poll.create as jest.Mock;
 const mockPollUpdate = prisma.poll.update as jest.Mock;
+const mockPollUpdateMany = prisma.poll.updateMany as jest.Mock;
 const mockPollDelete = prisma.poll.delete as jest.Mock;
 const mockPollCount = prisma.poll.count as jest.Mock;
 const mockPollOptionDeleteMany = prisma.pollOption.deleteMany as jest.Mock;
@@ -503,8 +505,10 @@ describe("/api/admin/polls", () => {
           { id: "opt-2", text: "B", position: 1 },
         ],
       };
-      mockPollFindUnique.mockResolvedValueOnce(draftPoll);
-      mockPollUpdate.mockResolvedValueOnce(publishedPoll);
+      mockPollFindUnique
+        .mockResolvedValueOnce(draftPoll)
+        .mockResolvedValueOnce(publishedPoll);
+      mockPollUpdateMany.mockResolvedValueOnce({ count: 1 });
       mockUserFindMany.mockResolvedValueOnce([]);
 
       const request = new NextRequest("http://localhost:3000/api/admin/polls/abc12345/publish", {
@@ -517,12 +521,37 @@ describe("/api/admin/polls", () => {
       expect(response.status).toBe(200);
       expect(json.shortCode).toBe("abc12345");
       expect(json.pollUrl).toContain("/u/abc12345");
-      expect(mockPollUpdate).toHaveBeenCalledWith(
+      expect(mockPollUpdateMany).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: { id: "abc12345" },
+          where: { id: "abc12345", status: "DRAFT" },
           data: { status: "LIVE", shortCode: "abc12345" },
         })
       );
+    });
+
+    it("returns 409 when a concurrent publish already flipped the poll to LIVE", async () => {
+      const draftPoll = {
+        id: "abc12345",
+        title: "Draft Poll",
+        description: "",
+        status: "DRAFT",
+        options: [{ id: "opt-1" }, { id: "opt-2" }],
+      };
+      mockPollFindUnique.mockResolvedValueOnce(draftPoll);
+      mockPollUpdateMany.mockResolvedValueOnce({ count: 0 });
+      mockUserFindMany.mockResolvedValueOnce([
+        { id: "u1", name: "Max", email: "max@test.de" },
+      ]);
+
+      const request = new NextRequest("http://localhost:3000/api/admin/polls/abc12345/publish", {
+        method: "POST",
+      });
+
+      const response = await publishPoll(request, idContext("abc12345"));
+
+      expect(response.status).toBe(409);
+      expect(mockSendTemplateEmail).not.toHaveBeenCalled();
+      expect(mockPollNotificationCreate).not.toHaveBeenCalled();
     });
 
     it("sends notification emails to members with pollNotificationEnabled", async () => {
@@ -533,8 +562,10 @@ describe("/api/admin/polls", () => {
         status: "DRAFT",
         options: [{ id: "opt-1" }, { id: "opt-2" }],
       };
-      mockPollFindUnique.mockResolvedValueOnce(draftPoll);
-      mockPollUpdate.mockResolvedValueOnce({ ...draftPoll, status: "LIVE", shortCode: "abc12345" });
+      mockPollFindUnique
+        .mockResolvedValueOnce(draftPoll)
+        .mockResolvedValueOnce({ ...draftPoll, status: "LIVE", shortCode: "abc12345" });
+      mockPollUpdateMany.mockResolvedValueOnce({ count: 1 });
       mockUserFindMany.mockResolvedValueOnce([
         { id: "u1", name: "Max", email: "max@test.de" },
         { id: "u2", name: "Eva", email: "eva@test.de" },
@@ -556,9 +587,70 @@ describe("/api/admin/polls", () => {
         expect.objectContaining({
           template: "umfrage-benachrichtigung",
           to: ["max@test.de"],
-        })
+        }),
+        expect.anything()
       );
       expect(mockPollNotificationCreate).toHaveBeenCalledTimes(2);
+      // Dedupe-Eintrag muss vor dem E-Mail-Insert erfolgen
+      expect(mockPollNotificationCreate.mock.invocationCallOrder[0]).toBeLessThan(
+        mockSendTemplateEmail.mock.invocationCallOrder[0]
+      );
+    });
+
+    it("skips members that already have a dispatch entry (unique violation)", async () => {
+      const draftPoll = {
+        id: "abc12345",
+        title: "Notification Poll",
+        description: "",
+        status: "DRAFT",
+        options: [{ id: "opt-1" }, { id: "opt-2" }],
+      };
+      mockPollFindUnique
+        .mockResolvedValueOnce(draftPoll)
+        .mockResolvedValueOnce({ ...draftPoll, status: "LIVE", shortCode: "abc12345" });
+      mockPollUpdateMany.mockResolvedValueOnce({ count: 1 });
+      mockUserFindMany.mockResolvedValueOnce([
+        { id: "u1", name: "Max", email: "max@test.de" },
+        { id: "u2", name: "Eva", email: "eva@test.de" },
+      ]);
+      mockPollNotificationCreate
+        .mockRejectedValueOnce({ code: "P2002" })
+        .mockResolvedValueOnce({});
+
+      const request = new NextRequest("http://localhost:3000/api/admin/polls/abc12345/publish", {
+        method: "POST",
+      });
+
+      const response = await publishPoll(request, idContext("abc12345"));
+
+      expect(response.status).toBe(200);
+      expect(mockSendTemplateEmail).toHaveBeenCalledTimes(1);
+      expect(mockSendTemplateEmail).toHaveBeenCalledWith(
+        expect.objectContaining({ to: ["eva@test.de"] }),
+        expect.anything()
+      );
+    });
+
+    it("propagates a wholesale notification failure so the transaction rolls back", async () => {
+      const draftPoll = {
+        id: "abc12345",
+        title: "Notification Poll",
+        description: "",
+        status: "DRAFT",
+        options: [{ id: "opt-1" }, { id: "opt-2" }],
+      };
+      mockPollFindUnique.mockResolvedValueOnce(draftPoll);
+      mockPollUpdateMany.mockResolvedValueOnce({ count: 1 });
+      mockUserFindMany.mockResolvedValueOnce([
+        { id: "u1", name: "Max", email: "max@test.de" },
+      ]);
+      mockPollNotificationCreate.mockRejectedValueOnce(new Error("db down"));
+
+      const request = new NextRequest("http://localhost:3000/api/admin/polls/abc12345/publish", {
+        method: "POST",
+      });
+
+      await expect(publishPoll(request, idContext("abc12345"))).rejects.toThrow("db down");
     });
 
     it("returns 400 for non-DRAFT poll", async () => {

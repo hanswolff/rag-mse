@@ -7,13 +7,17 @@ export const DEFAULT_MODAL_MAX_HEIGHT = "90vh";
 
 const ANIMATION_DELAY_MS = 10;
 
+// Modulweiter Zähler offener Modals: body-Scroll wird erst wieder freigegeben,
+// wenn das letzte Modal geschlossen ist (gestapelte Modals).
+let openModalCount = 0;
+
 interface ModalProps {
   isOpen: boolean;
   onClose: () => void;
   title: string;
   children: React.ReactNode;
   footer?: React.ReactNode;
-  size?: "sm" | "md" | "lg" | "xl" | "2xl" | "3xl" | "4xl";
+  size?: "sm" | "md" | "lg" | "xl" | "2xl" | "3xl" | "4xl" | "full";
   maxHeight?: string;
   contentOverflow?: "auto" | "visible";
   closeOnOutsideClick?: boolean;
@@ -28,6 +32,10 @@ const sizeClasses = {
   "2xl": "max-w-3xl",
   "3xl": "max-w-4xl",
   "4xl": "max-w-7xl",
+  // Ohne Breitenbegrenzung füllt `w-full` den Overlay-Bereich, also die
+  // Seitenbreite abzüglich seines p-4-Randes. Für Dokumentvorschauen gedacht,
+  // deren Inhalt (PDF-Seiten, Bilder) von jedem Pixel Breite profitiert.
+  full: "max-w-none",
 };
 
 export function Modal({
@@ -112,6 +120,7 @@ export function Modal({
     if (isOpen) {
       const animationTimer = setTimeout(() => setIsAnimating(true), ANIMATION_DELAY_MS);
       previousActiveElement.current = document.activeElement as HTMLElement;
+      openModalCount += 1;
       document.body.style.overflow = "hidden";
 
       document.addEventListener("keydown", handleEscape);
@@ -133,7 +142,12 @@ export function Modal({
         document.removeEventListener("keydown", handleEscape);
         document.removeEventListener("keydown", handleTab);
         document.removeEventListener("mousedown", handleClickOutside);
-        document.body.style.overflow = "";
+        openModalCount = Math.max(0, openModalCount - 1);
+        // Bei gestapelten Modals (z.B. Standort-Picker im Termin-Modal) darf
+        // erst das letzte geschlossene Modal das Scrollen wieder freigeben.
+        if (openModalCount === 0) {
+          document.body.style.overflow = "";
+        }
         setIsAnimating(false);
         previousActiveElement.current?.focus();
       };

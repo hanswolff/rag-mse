@@ -33,7 +33,7 @@ Für Tests zusätzliches Mitglied erstellen.
 - [ ] Geben Sie gültige E-Mail, aber falsches Passwort ein
 - [ ] Klicken Sie auf "Login"
 - [ ] **Erwartet**: Keine Weiterleitung
-- [ ] **Erwartet**: Fehlermeldung wird angezeigt ("Ungültige Anmeldedaten")
+- [ ] **Erwartet**: Fehlermeldung wird angezeigt ("Ungültige E-Mail oder Passwort")
 - [ ] **Erwartet**: Keine Session wird erstellt
 
 ### 1.3 Login - Fehlgeschlagen (Nicht existierende E-Mail)
@@ -71,7 +71,7 @@ Für Tests zusätzliches Mitglied erstellen.
 Testen Sie Zugriff auf geschützte Seiten ohne Login:
 - [ ] Direkter Zugriff auf `/profil` → Weiterleitung zu `/login`
 - [ ] Direkter Zugriff auf `/admin` → Weiterleitung zu `/login`
-- [ ] Direkter Zugriff auf `/termine/vote` (falls vorhanden) → Weiterleitung zu `/login`
+- [ ] Direkter Zugriff auf `/benachrichtigungen` → Weiterleitung zu `/login`
 
 ## 2. Admin - Benutzerverwaltung
 
@@ -176,62 +176,62 @@ Testen Sie die Validierung bei der Terminerstellung:
 - [ ] Erstellen Sie Termin mit ungültigem Datum (vergangen) → Warnung oder Fehler
 - [ ] Erstellen Sie Termin mit Uhrzeit "von" nach "bis" → Fehlermeldung
 
-## 4. Abstimmung (Voting)
+## 4. Teilnahmeanmeldung (Ja/Nein/Vielleicht)
 
-### 4.1 Erste Abstimmung - Ja
+### 4.1 Erste Teilnahmeanmeldung - Ja
 - [ ] Melden Sie sich als Mitglied an
 - [ ] Navigieren Sie zur Termine-Seite (`/termine`)
 - [ ] Klicken Sie auf einen Termin
 - [ ] Klicken Sie auf "Ja" (Teilnahme)
-- [ ] **Erwartet**: Stimme wird gespeichert
+- [ ] **Erwartet**: Teilnahmeanmeldung wird gespeichert
 - [ ] **Erwartet**: "Ja" ist markiert/aktiv
-- [ ] **Erwartet**: Stimme wird in den Ergebnissen angezeigt
+- [ ] **Erwartet**: Teilnahmeanmeldung wird in den Ergebnissen angezeigt
 
-### 4.2 Abstimmung ändern - Von Ja zu Nein
+### 4.2 Teilnahmeanmeldung ändern - Von Ja zu Nein
 - [ ] Melden Sie sich als Mitglied an
 - [ ] Navigieren Sie zur Termine-Seite
-- [ ] Klicken Sie auf einen Termin, bei dem Sie bereits mit "Ja" abgestimmt haben
+- [ ] Klicken Sie auf einen Termin, bei dem Sie sich bereits mit "Ja" angemeldet haben
 - [ ] Klicken Sie auf "Nein"
-- [ ] **Erwartet**: Alte Stimme wird überschrieben
+- [ ] **Erwartet**: Alte Teilnahmeanmeldung wird überschrieben
 - [ ] **Erwartet**: "Nein" ist markiert/aktiv
-- [ ] **Erwartet**: Nur eine Stimme pro Benutzer wird angezeigt
+- [ ] **Erwartet**: Nur eine Teilnahmeanmeldung pro Benutzer wird angezeigt
 
-### 4.3 Abstimmung ändern - Von Nein zu Vielleicht
+### 4.3 Teilnahmeanmeldung ändern - Von Nein zu Vielleicht
 - [ ] Melden Sie sich als Mitglied an
 - [ ] Navigieren Sie zur Termine-Seite
-- [ ] Klicken Sie auf einen Termin, bei dem Sie mit "Nein" abgestimmt haben
+- [ ] Klicken Sie auf einen Termin, bei dem Sie sich mit "Nein" angemeldet haben
 - [ ] Klicken Sie auf "Vielleicht"
-- [ ] **Erwartet**: Alte Stimme wird überschrieben
+- [ ] **Erwartet**: Alte Teilnahmeanmeldung wird überschrieben
 - [ ] **Erwartet**: "Vielleicht" ist markiert/aktiv
 
-### 4.4 Eine Stimme pro Benutzer pro Termin
+### 4.4 Eine Teilnahmeanmeldung pro Benutzer pro Termin
 - [ ] Melden Sie sich als Mitglied an
-- [ ] Stimmen Sie für einen Termin mit "Ja"
-- [ ] Versuchen Sie, eine zweite Stimme abzugeben
-- [ ] **Erwartet**: Alte Stimme wird ersetzt (nicht zusätzlich hinzugefügt)
-- [ ] **Erwartet**: Immer nur eine aktive Stimme pro Benutzer
+- [ ] Geben Sie für einen Termin die Teilnahmeanmeldung "Ja" ab
+- [ ] Versuchen Sie, eine zweite Teilnahmeanmeldung abzugeben
+- [ ] **Erwartet**: Alte Teilnahmeanmeldung wird ersetzt (nicht zusätzlich hinzugefügt)
+- [ ] **Erwartet**: Immer nur eine aktive Teilnahmeanmeldung pro Benutzer
 
-### 4.5 Abstimmungsergebnisse anzeigen
+### 4.5 Ergebnisse der Teilnahmeanmeldungen anzeigen
 - [ ] Melden Sie sich als Admin oder Mitglied an
 - [ ] Navigieren Sie zu einem Termin
-- [ ] **Erwartet**: Anzahl der Ja-Stimmen wird angezeigt
-- [ ] **Erwartet**: Anzahl der Nein-Stimmen wird angezeigt
-- [ ] **Erwartet**: Anzahl der Vielleicht-Stimmen wird angezeigt
-- [ ] Optional: Liste der Abstimmenden mit Namen wird angezeigt
+- [ ] **Erwartet**: Anzahl der Ja-Anmeldungen wird angezeigt
+- [ ] **Erwartet**: Anzahl der Nein-Anmeldungen wird angezeigt
+- [ ] **Erwartet**: Anzahl der Vielleicht-Anmeldungen wird angezeigt
+- [ ] Optional: Liste der angemeldeten Benutzer mit Namen wird angezeigt
 
-### 4.6 Admins können auch abstimmen
+### 4.6 Admins können ebenfalls eine Teilnahmeanmeldung abgeben
 - [ ] Melden Sie sich als Admin an
 - [ ] Navigieren Sie zur Termine-Seite
-- [ ] Stimmen Sie für einen Termin
-- [ ] **Erwartet**: Admin-Stimme wird gezählt
-- [ ] **Erwartet**: Admin-Stimme erscheint in den Ergebnissen
+- [ ] Geben Sie für einen Termin eine Teilnahmeanmeldung ab
+- [ ] **Erwartet**: Admin-Teilnahmeanmeldung wird gezählt
+- [ ] **Erwartet**: Admin-Teilnahmeanmeldung erscheint in den Ergebnissen
 
-### 4.7 Abstimmung nach Termin-Änderung
+### 4.7 Teilnahmeanmeldung nach Termin-Änderung
 - [ ] Erstellen Sie einen Termin mit Datum
-- [ ] Stimmen Sie für den Termin
+- [ ] Geben Sie eine Teilnahmeanmeldung für den Termin ab
 - [ ] Ändern Sie als Admin das Datum oder die Uhrzeit
-- [ ] **Erwartet**: Abstimmungen bleiben erhalten
-- [ ] **Erwartet**: Stimmen werden nicht zurückgesetzt
+- [ ] **Erwartet**: Teilnahmeanmeldungen bleiben erhalten
+- [ ] **Erwartet**: Teilnahmeanmeldungen werden nicht zurückgesetzt
 
 ## 4.8 Benachrichtigungen (Reminder)
 
@@ -243,12 +243,12 @@ Testen Sie die Validierung bei der Terminerstellung:
 - [ ] **Erwartet**: Erfolgsmeldung wird angezeigt
 - [ ] **Erwartet**: Nach Neuladen bleiben die Einstellungen erhalten
 
-### 4.8.2 Reminder-Link zur Terminanmeldung
-- [ ] Stellen Sie sicher, dass ein zukünftiger Termin ohne eigene Stimme existiert
+### 4.8.2 Reminder-Link zur Teilnahmeanmeldung
+- [ ] Stellen Sie sicher, dass ein zukünftiger Termin ohne eigene Teilnahmeanmeldung existiert
 - [ ] Öffnen Sie den Reminder-Link `/anmeldung/[token]` aus der E-Mail
-- [ ] **Erwartet**: Termin-Daten und eigene aktuelle Stimme werden angezeigt
-- [ ] Stimmen Sie über den Link mit "Ja", "Nein" oder "Vielleicht" ab
-- [ ] **Erwartet**: Stimme wird gespeichert und als aktuelle Auswahl angezeigt
+- [ ] **Erwartet**: Termin-Daten und eigene aktuelle Teilnahmeanmeldung werden angezeigt
+- [ ] Geben Sie über den Link die Teilnahmeanmeldung "Ja", "Nein" oder "Vielleicht" ab
+- [ ] **Erwartet**: Teilnahmeanmeldung wird gespeichert und als aktuelle Auswahl angezeigt
 
 ### 4.8.3 Reminder-Link für vergangene oder unsichtbare Termine
 - [ ] Öffnen Sie einen Reminder-Link für einen nicht sichtbaren oder abgelaufenen Termin
@@ -649,19 +649,19 @@ Testen Sie die Validierung bei der Profilveränderung:
 
 ## 15. Datenbank-Integrität
 
-### 15.1 Termin-Stimmen nach Löschung
+### 15.1 Teilnahmeanmeldungen nach Termin-Löschung
 - [ ] Erstellen Sie einen Termin
-- [ ] Stimmen Sie für den Termin
+- [ ] Geben Sie eine Teilnahmeanmeldung für den Termin ab
 - [ ] Löschen Sie den Termin
 - [ ] **Erwartet**: Keine Fehler auftreten
-- [ ] **Erwartet**: Stimmen werden aus der Datenbank gelöscht (Cascade)
+- [ ] **Erwartet**: Teilnahmeanmeldungen werden aus der Datenbank gelöscht (Cascade)
 
-### 15.2 Benutzer-Stimmen nach Löschung
+### 15.2 Teilnahmeanmeldungen nach Benutzer-Löschung
 - [ ] Erstellen Sie einen Benutzer
-- [ ] Stimmen Sie für einen Termin als dieser Benutzer
+- [ ] Geben Sie als dieser Benutzer eine Teilnahmeanmeldung für einen Termin ab
 - [ ] Löschen Sie den Benutzer
 - [ ] **Erwartet**: Keine Fehler auftreten
-- [ ] **Erwartet**: Stimmen werden aus der Datenbank gelöscht oder anonymisiert
+- [ ] **Erwartet**: Teilnahmeanmeldungen werden aus der Datenbank gelöscht oder anonymisiert
 
 ## 16. Error-Handling
 
@@ -793,7 +793,7 @@ Die Anwendung unterscheidet zwei Dokumentenbereiche mit unterschiedlichen Zugrif
 
 ### 18.8 Navigation - Mitglieder-Dokumente
 
-- [ ] Melden Sie sich als eingeloggter Nutzer an
+- [ ] Melden Sie sich als eingeloggter Benutzer an
 - [ ] Prüfen Sie die Startseite
 - [ ] **Erwartet**: Karte "Mitglieder-Dokumente" ist sichtbar (nicht "Formulare")
 - [ ] Prüfen Sie das Menü "Infos"
@@ -819,6 +819,94 @@ Die Anwendung unterscheidet zwei Dokumentenbereiche mit unterschiedlichen Zugrif
 - [ ] **Erwartet**: Zugriff verweigert (403) da MEMBER keinen Admin-Zugriff hat
 - [ ] Versuchen Sie, `POST /api/admin/documents` mit `area=MEMBER` aufzurufen
 - [ ] **Erwartet**: Zugriff verweigert (403) da MEMBER keinen Admin-Zugriff hat
+
+## 19. Umfragen
+
+### 19.1 Umfrage als Entwurf erstellen
+- [ ] Melden Sie sich als Admin an
+- [ ] Navigieren Sie zum Adminbereich (`/admin/umfragen`)
+- [ ] Klicken Sie auf "Neue Umfrage erstellen"
+- [ ] Füllen Sie Titel, optional Beschreibung, Typ und Antwortoptionen aus
+- [ ] Speichern Sie die Umfrage
+- [ ] **Erwartet**: Umfrage erscheint mit Status "Entwurf" in der Liste
+- [ ] **Erwartet**: Entwurf ist für Mitglieder unter `/umfragen` nicht sichtbar
+
+### 19.2 Umfrage veröffentlichen (Benachrichtigung genau einmal)
+- [ ] Veröffentlichen Sie die Umfrage im Adminbereich
+- [ ] **Erwartet**: Status wechselt auf "Live"
+- [ ] **Erwartet**: Mitglieder werden per E-Mail benachrichtigt
+- [ ] Schließen Sie die Umfrage und öffnen Sie sie erneut
+- [ ] **Erwartet**: Es wird KEINE zweite Benachrichtigung an bereits benachrichtigte Mitglieder versendet (Dedupe pro Mitglied)
+
+### 19.3 Stimme abgeben
+- [ ] Melden Sie sich als Mitglied an
+- [ ] Navigieren Sie zu `/umfragen` und öffnen Sie eine Live-Umfrage
+- [ ] Geben Sie Ihre Stimme ab (bei Mehrfachauswahl mehrere Optionen)
+- [ ] **Erwartet**: Stimme wird gespeichert und als eigene Auswahl angezeigt
+- [ ] Ändern Sie Ihre Stimme
+- [ ] **Erwartet**: Alte Stimme wird ersetzt, keine Doppelzählung
+
+### 19.4 Umfrage schließen
+- [ ] Melden Sie sich als Admin an
+- [ ] Schließen Sie eine Live-Umfrage
+- [ ] **Erwartet**: Status wechselt auf "Geschlossen"
+- [ ] Melden Sie sich als Mitglied an
+- [ ] **Erwartet**: Keine Stimmabgabe mehr möglich; Ergebnisse bleiben sichtbar
+
+### 19.5 Umfrage wieder öffnen
+- [ ] Melden Sie sich als Admin an
+- [ ] Öffnen Sie eine geschlossene Umfrage wieder (Reopen)
+- [ ] **Erwartet**: Status wechselt zurück auf "Live"
+- [ ] **Erwartet**: Mitglieder können wieder abstimmen; bestehende Stimmen bleiben erhalten
+
+### 19.6 Kurzlink `/u/<code>`
+- [ ] Ermitteln Sie den Kurzlink-Code einer Umfrage
+- [ ] Öffnen Sie `/u/<code>` im Browser
+- [ ] **Erwartet**: Weiterleitung zur Umfrage-Detailseite (`/umfragen/[id]`)
+- [ ] Öffnen Sie `/u/<code>` mit ungültigem Code
+- [ ] **Erwartet**: 404-Seite wird angezeigt
+
+## 20. Ausschreibungen
+
+### 20.1 Ausschreibung hochladen (PDF)
+- [ ] Melden Sie sich als Admin an
+- [ ] Navigieren Sie zum Adminbereich (`/admin/ausschreibungen`)
+- [ ] Laden Sie ein Ausschreibungs-PDF hoch (Titel, optional Beschreibung, Ablaufdatum)
+- [ ] **Erwartet**: Erfolgsmeldung wird angezeigt
+- [ ] **Erwartet**: Ausschreibung erscheint in der Admin-Liste
+- [ ] Versuchen Sie, eine Nicht-PDF-Datei hochzuladen
+- [ ] **Erwartet**: Fehlermeldung, Upload wird abgelehnt
+
+### 20.2 Öffentliche Anzeige unter `/ausschreibungen`
+- [ ] Öffnen Sie `/ausschreibungen` ohne Login
+- [ ] **Erwartet**: Seite ist öffentlich zugänglich
+- [ ] **Erwartet**: Aktuelle Ausschreibungen werden angezeigt
+- [ ] **Erwartet**: PDF kann angesehen/heruntergeladen werden
+
+### 20.3 Aktuell vs. historisch nach Ablaufdatum
+- [ ] Erstellen Sie eine Ausschreibung mit zukünftigem Ablaufdatum und eine mit vergangenem Ablaufdatum
+- [ ] Öffnen Sie `/ausschreibungen`
+- [ ] **Erwartet**: Die Ausschreibung mit zukünftigem Ablaufdatum erscheint als aktuell (bis einschließlich Ablauftag)
+- [ ] **Erwartet**: Die abgelaufene Ausschreibung erscheint nur im aufklappbaren Bereich "Frühere Ausschreibungen"
+
+### 20.4 Ausschreibung bearbeiten
+- [ ] Melden Sie sich als Admin an
+- [ ] Bearbeiten Sie Titel, Beschreibung oder Ablaufdatum einer Ausschreibung
+- [ ] **Erwartet**: Erfolgsmeldung wird angezeigt
+- [ ] **Erwartet**: Änderungen sind in der Admin-Liste und auf `/ausschreibungen` sichtbar
+
+### 20.5 Ausschreibung löschen
+- [ ] Melden Sie sich als Admin an
+- [ ] Löschen Sie eine Test-Ausschreibung
+- [ ] Bestätigen Sie die Löschung
+- [ ] **Erwartet**: Ausschreibung ist nicht mehr in der Admin-Liste
+- [ ] **Erwartet**: Ausschreibung erscheint nicht mehr auf `/ausschreibungen`
+
+### 20.6 Berechtigungen
+- [ ] Melden Sie sich als AUDITOR an und öffnen Sie `/admin/ausschreibungen`
+- [ ] **Erwartet**: Liste ist sichtbar, keine Upload-/Lösch-/Bearbeiten-Funktionen
+- [ ] Melden Sie sich als MEMBER an und versuchen Sie `/admin/ausschreibungen`
+- [ ] **Erwartet**: Weiterleitung oder "Zugriff verweigert"
 
 ## Test-Ergebnisse dokumentieren
 

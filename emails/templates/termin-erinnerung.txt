@@ -4,7 +4,7 @@ Hallo,
 
 Für einen anstehenden Termin ist noch keine Teilnahme von Ihnen hinterlegt.
 
-Datum: {{eventDate}}
+{{eventHeadline}}Datum: {{eventDate}}
 Uhrzeit: {{eventTimeFrom}} - {{eventTimeTo}}
 Ort: {{eventLocation}}
 

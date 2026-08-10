@@ -47,10 +47,23 @@ describe("runMaintenanceCleanup", () => {
     expect(mockedPrisma.outgoingEmail.updateMany).toHaveBeenCalledWith({
       where: {
         status: { in: ["SENT", "FAILED"] },
-        attachmentsJson: { not: null },
+        attachmentsJson: { not: null, notIn: ["PRUNED"] },
         createdAt: { lt: new Date("2026-06-09T12:00:00.000Z") },
       },
-      data: { attachmentsJson: null },
+      data: { attachmentsJson: "PRUNED" },
+    });
+  });
+
+  it("clears retained one-time tokens of failed emails after 30 days", async () => {
+    await runMaintenanceCleanup(now);
+
+    expect(mockedPrisma.outgoingEmail.updateMany).toHaveBeenCalledWith({
+      where: {
+        status: "FAILED",
+        sensitiveTokensJson: { not: null },
+        createdAt: { lt: new Date("2026-06-09T12:00:00.000Z") },
+      },
+      data: { sensitiveTokensJson: null },
     });
   });
 
@@ -96,6 +109,7 @@ describe("runMaintenanceCleanup", () => {
 
     expect(result).toEqual({
       clearedAttachments: 2,
+      clearedSensitiveTokens: 2,
       deletedPasswordResets: 3,
       deletedInvitations: 1,
       deletedReminderDispatches: 4,

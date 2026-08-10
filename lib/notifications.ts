@@ -43,10 +43,24 @@ export { buildNotificationRsvpUrl, buildNotificationUnsubscribeUrl, normalizeApp
 
 interface SendEventReminderEmailOptions {
   email: string;
-  event: Pick<Event, "id" | "date" | "timeFrom" | "timeTo" | "location">;
+  event: Pick<Event, "id" | "date" | "timeFrom" | "timeTo" | "location" | "title" | "type">;
   daysBefore: number;
   rsvpUrl: string;
   unsubscribeUrl: string;
+}
+
+// Ohne Titel bleibt die Erinnerung wortgleich wie bisher; deshalb steht der
+// Kopfblock als eine Variable direkt vor der Datumszeile.
+function buildEventHeadline(event: Pick<Event, "title" | "type">): string {
+  if (!event.title) {
+    return "";
+  }
+
+  const lines = [`Titel: ${event.title}`];
+  if (event.type) {
+    lines.push(`Terminart: ${event.type}`);
+  }
+  return `${lines.join("\n")}\n`;
 }
 
 function parseTimeParts(time: string): { hours: number; minutes: number } {
@@ -109,6 +123,7 @@ export async function sendEventReminderEmail({
       variables: {
         appName,
         daysBefore: String(daysBefore),
+        eventHeadline: buildEventHeadline(event),
         eventDate: formatDate(event.date.toISOString()),
         eventTimeFrom: formatTime(event.timeFrom),
         eventTimeTo: formatTime(event.timeTo),

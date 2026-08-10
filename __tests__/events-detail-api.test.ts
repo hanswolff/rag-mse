@@ -83,8 +83,64 @@ describe("/api/events/[id]/route", () => {
 
       expect(response.status).toBe(200);
       expect(response.headers.get("Cache-Control")).toBe("public, max-age=60, s-maxage=300, stale-while-revalidate=300");
-      expect(response.headers.get("Vary")).toBeFalsy();
+      expect(response.headers.get("Vary")).toBe("Cookie");
       expect(json.locationDisplay).toBe("Test Location, Musterstraße 1, 12345 Musterstadt");
+    });
+
+    it("delivers the title to unauthenticated visitors", async () => {
+      (prisma.event.findUnique as jest.Mock).mockResolvedValue({
+        ...mockEvent,
+        title: "Dynamisches Pistolenschießen Level 1",
+      });
+      (prisma.shootingRange.findUnique as jest.Mock).mockResolvedValue(null);
+      (getServerSession as jest.Mock).mockResolvedValue(null);
+
+      const request = new NextRequest("http://localhost:3000/api/events/1");
+      const response = await GET(request, { params: Promise.resolve({ id: "1" }) });
+      const json = await response.json();
+
+      expect(json.title).toBe("Dynamisches Pistolenschießen Level 1");
+    });
+
+    it("delivers the cost note to unauthenticated visitors", async () => {
+      (prisma.event.findUnique as jest.Mock).mockResolvedValue({
+        ...mockEvent,
+        cost: "25 € für Mitglieder, 40 € für Gäste",
+      });
+      (prisma.shootingRange.findUnique as jest.Mock).mockResolvedValue(null);
+      (getServerSession as jest.Mock).mockResolvedValue(null);
+
+      const request = new NextRequest("http://localhost:3000/api/events/1");
+      const response = await GET(request, { params: Promise.resolve({ id: "1" }) });
+      const json = await response.json();
+
+      expect(json.cost).toBe("25 € für Mitglieder, 40 € für Gäste");
+    });
+
+    it("delivers the capacity to unauthenticated visitors", async () => {
+      (prisma.event.findUnique as jest.Mock).mockResolvedValue({ ...mockEvent, capacity: 12 });
+      (prisma.shootingRange.findUnique as jest.Mock).mockResolvedValue(null);
+      (getServerSession as jest.Mock).mockResolvedValue(null);
+
+      const request = new NextRequest("http://localhost:3000/api/events/1");
+      const response = await GET(request, { params: Promise.resolve({ id: "1" }) });
+      const json = await response.json();
+
+      expect(json.capacity).toBe(12);
+    });
+
+    it("does not deliver any Belegung to unauthenticated visitors", async () => {
+      (prisma.event.findUnique as jest.Mock).mockResolvedValue({ ...mockEvent, capacity: 12 });
+      (prisma.shootingRange.findUnique as jest.Mock).mockResolvedValue(null);
+      (getServerSession as jest.Mock).mockResolvedValue(null);
+
+      const request = new NextRequest("http://localhost:3000/api/events/1");
+      const response = await GET(request, { params: Promise.resolve({ id: "1" }) });
+      const json = await response.json();
+
+      expect(json.voteCounts).toBeUndefined();
+      expect(json.votes).toBeUndefined();
+      expect(json.guestRegistrations).toBeUndefined();
     });
 
     it("sets cache-control and vary headers on successful response for authenticated member", async () => {

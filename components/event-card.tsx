@@ -4,6 +4,7 @@ import { formatDate, formatTime } from "@/lib/date-utils";
 import { getEventDescriptionPreview } from "@/lib/event-description";
 import { getEventLocationDisplay } from "@/lib/event-location";
 import { getVoteLabel } from "@/lib/event-list-utils";
+import { EventTypeBadge } from "@/components/event-type-badge";
 
 export type EventCardData = {
   id: string;
@@ -11,8 +12,10 @@ export type EventCardData = {
   timeFrom: string;
   timeTo: string;
   location: string;
+  title: string | null;
   description: string;
   type: string | null;
+  capacity?: number | null;
   visible: boolean;
   votes?: { vote: VoteType }[];
   guestRegistrations?: { vote: VoteType }[];
@@ -25,6 +28,9 @@ type EventCardProps = {
 };
 
 export function EventCard({ event, rangeLookup, showVoteLabel }: EventCardProps) {
+  const eventDate = formatDate(event.date.toISOString());
+  const timeRange = `${formatTime(event.timeFrom)} - ${formatTime(event.timeTo)}`;
+
   return (
     <article className="card-compact overflow-hidden hover:shadow-md transition-shadow">
       <Link href={`/termine/${event.id}`} className="block">
@@ -32,17 +38,9 @@ export function EventCard({ event, rangeLookup, showVoteLabel }: EventCardProps)
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-3">
             <div className="flex items-center gap-2 flex-wrap min-w-0">
               <h2 className="text-base sm:text-xl font-semibold text-gray-900 hover:text-brand-red-600 transition-colors">
-                {formatDate(event.date.toISOString())}
+                {event.title || eventDate}
               </h2>
-              {event.type && (
-                <span className={`px-2 py-0.5 text-base font-medium rounded ${
-                  event.type === "Training"
-                    ? "bg-brand-blue-50 text-brand-blue-800"
-                    : "bg-orange-100 text-orange-800"
-                }`}>
-                  {event.type}
-                </span>
-              )}
+              <EventTypeBadge type={event.type} />
               {!event.visible && (
                 <span className="px-2 py-0.5 text-base font-medium rounded bg-amber-100 text-amber-800">
                   Dieser Termin ist noch nicht öffentlich
@@ -56,7 +54,7 @@ export function EventCard({ event, rangeLookup, showVoteLabel }: EventCardProps)
             )}
           </div>
           <p className="text-base sm:text-base text-gray-500 mb-2">
-            {formatTime(event.timeFrom)} - {formatTime(event.timeTo)}
+            {event.title ? `${eventDate}, ${timeRange}` : timeRange}
           </p>
           <p className="text-gray-600 mb-2 font-medium text-base sm:text-base">
             {getEventLocationDisplay(event.location, rangeLookup)}

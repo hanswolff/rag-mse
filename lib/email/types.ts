@@ -71,6 +71,10 @@ export const TRANSIENT_ERROR_PATTERNS = [
   "454",
 ] as const;
 
+// Marker statt null beim Leeren von Anhang-Blobs: erlaubt zu erkennen,
+// dass eine E-Mail Anhänge HATTE, die nicht mehr wiederherstellbar sind.
+export const PRUNED_ATTACHMENTS_MARKER = "PRUNED";
+
 export const FAST_RETRY_DELAY_MS = 2 * 60 * 1000;
 export const SLOW_RETRY_DELAY_MS = 10 * 60 * 1000;
 export const FAST_RETRY_COUNT = 3;

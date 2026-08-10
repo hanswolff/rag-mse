@@ -29,7 +29,7 @@ describe("NewsPage", () => {
     render(view);
 
     expect(screen.getByText("News")).toBeInTheDocument();
-    expect(screen.getByText("Aktuelle Neuigkeiten von der RAG Schießsport MSE")).toBeInTheDocument();
+    expect(screen.getByText("Aktuelle News von der RAG Schießsport MSE")).toBeInTheDocument();
   });
 
   it("renders empty state", async () => {

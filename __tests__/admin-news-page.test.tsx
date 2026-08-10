@@ -82,7 +82,7 @@ describe("NewsPage (Admin)", () => {
     it("should render page description", () => {
       render(<NewsPage />);
       expect(
-        screen.getByText("Veröffentlichen und verwalten Sie Neuigkeiten und Ankündigungen")
+        screen.getByText("Veröffentlichen und verwalten Sie News und Ankündigungen")
       ).toBeInTheDocument();
     });
 

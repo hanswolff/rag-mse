@@ -4,6 +4,7 @@ import { useAdminCrud } from "./use-admin-crud";
 import { useSuccessTimer } from "./use-success-timer";
 import { parseISODate, formatDateForStorage } from "@/lib/date-picker-utils";
 import { isAdmin } from "@/lib/role-utils";
+import { EMPTY_EVENT_FORM } from "@/lib/event-form-defaults";
 import type { Event, NewEvent } from "@/types";
 import type { FieldError } from "@/lib/server-error-mapper";
 
@@ -14,18 +15,6 @@ const PUBLISH_MESSAGES = {
     error: "Fehler beim Veröffentlichen",
   },
 } as const;
-
-const initialNewEvent: NewEvent = {
-  date: "",
-  timeFrom: "",
-  timeTo: "",
-  location: "",
-  description: "",
-  latitude: "",
-  longitude: "",
-  type: "",
-  visible: true,
-};
 
 const EVENTS_PER_PAGE = 10;
 
@@ -53,10 +42,13 @@ export function eventToFormData(event: Event): NewEvent {
     timeFrom: event.timeFrom,
     timeTo: event.timeTo,
     location: event.location,
+    title: event.title || "",
     description: event.description,
     latitude: event.latitude?.toString() || "",
     longitude: event.longitude?.toString() || "",
     type: event.type || "",
+    cost: event.cost || "",
+    capacity: event.capacity?.toString() || "",
     visible: event.visible ?? true,
   };
 }
@@ -85,7 +77,7 @@ export function useEventManagement(options: UseEventManagementOptions = {}) {
   const [success, setSuccess] = useState("");
   const [editingEvent, setEditingEvent] = useState<Event | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [modalEventData, setModalEventData] = useState<NewEvent>(initialNewEvent);
+  const [modalEventData, setModalEventData] = useState<NewEvent>(EMPTY_EVENT_FORM);
   const [initialEventData, setInitialEventData] = useState<NewEvent | undefined>(undefined);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(0);
@@ -181,7 +173,7 @@ export function useEventManagement(options: UseEventManagementOptions = {}) {
     if (result.success) {
       setSuccess("Termin wurde erfolgreich erstellt");
       setIsModalOpen(false);
-      setModalEventData(initialNewEvent);
+      setModalEventData(EMPTY_EVENT_FORM);
       setEditingEvent(null);
       if (currentPage === 1) {
         await fetchEvents(1);
@@ -202,7 +194,7 @@ export function useEventManagement(options: UseEventManagementOptions = {}) {
     if (result.success) {
       setSuccess("Termin wurde erfolgreich aktualisiert");
       setIsModalOpen(false);
-      setModalEventData(initialNewEvent);
+      setModalEventData(EMPTY_EVENT_FORM);
       setEditingEvent(null);
       await fetchEvents(currentPage);
     } else if (result.fieldErrors) {
@@ -229,7 +221,7 @@ export function useEventManagement(options: UseEventManagementOptions = {}) {
   }, []);
 
   const openCreateModal = useCallback(() => {
-    setModalEventData(initialNewEvent);
+    setModalEventData(EMPTY_EVENT_FORM);
     setEditingEvent(null);
     setInitialEventData(undefined);
     setError("");
@@ -239,7 +231,7 @@ export function useEventManagement(options: UseEventManagementOptions = {}) {
 
   const closeModal = useCallback(() => {
     setIsModalOpen(false);
-    setModalEventData(initialNewEvent);
+    setModalEventData(EMPTY_EVENT_FORM);
     setInitialEventData(undefined);
     setEditingEvent(null);
     setGeocodeSuccess(false);

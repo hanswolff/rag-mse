@@ -63,6 +63,8 @@ type CandidateEvent = {
   timeFrom: string;
   timeTo: string;
   location: string;
+  title: string | null;
+  type: string | null;
   votes: { userId: string }[];
 };
 
@@ -154,6 +156,8 @@ async function queueReminderForUserEvent(params: {
     timeFrom: string;
     timeTo: string;
     location: string;
+    title: string | null;
+    type: string | null;
   };
   daysBefore: number;
   appUrl: string;
@@ -399,6 +403,8 @@ export async function processEventReminders(now = new Date()): Promise<number> {
         timeFrom: true,
         timeTo: true,
         location: true,
+        title: true,
+        type: true,
         votes: {
           where: {
             userId: {
@@ -434,6 +440,8 @@ export async function processEventReminders(now = new Date()): Promise<number> {
               timeFrom: event.timeFrom,
               timeTo: event.timeTo,
               location: event.location,
+              title: event.title,
+              type: event.type,
             },
             daysBefore,
             appUrl,
@@ -477,6 +485,8 @@ export async function triggerImmediateEventReminders(
       timeFrom: true,
       timeTo: true,
       location: true,
+      title: true,
+      type: true,
       visible: true,
     },
   });
@@ -527,6 +537,8 @@ export async function triggerImmediateEventReminders(
           timeFrom: event.timeFrom,
           timeTo: event.timeTo,
           location: event.location,
+          title: event.title,
+          type: event.type,
         },
         daysBefore: user.eventReminderDaysBefore,
         appUrl,

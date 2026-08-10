@@ -29,6 +29,14 @@ if [[ ! -f "$DB_PATH" ]]; then
   exit 1
 fi
 
+# Obergrenze für Monats-Backups. MONTHLY_KEEP=0 würde über `head -n 0` sämtliche
+# Monatsstände löschen, ein nicht-numerischer Wert die Aufbewahrung abbrechen.
+MONTHLY_KEEP="${MONTHLY_KEEP:-12}"
+if [[ ! "$MONTHLY_KEEP" =~ ^[1-9][0-9]*$ ]]; then
+  log "Ungültiges MONTHLY_KEEP ('$MONTHLY_KEEP'); erwartet wird eine positive Ganzzahl."
+  exit 1
+fi
+
 umask 027
 mkdir -p "$BACKUP_DIR"
 
@@ -67,14 +75,37 @@ else
 fi
 
 shopt -s nullglob
+
+backup_date_part() {
+  local name
+  name="$(basename "$1")"
+  name="${name#prod.db.}"
+  name="${name#files.}"
+  name="${name%.sqlite3.gz}"
+  name="${name%.tar.gz}"
+  printf '%s' "$name"
+}
+
+monthly_dates=()
+for file in "$BACKUP_DIR"/prod.db.*.sqlite3.gz "$BACKUP_DIR"/files.*.tar.gz; do
+  date_part="$(backup_date_part "$file")"
+  if ! date -d "$date_part" +%F >/dev/null 2>&1; then
+    continue
+  fi
+  if [[ "${date_part:8:2}" == "01" ]]; then
+    monthly_dates+=("$date_part")
+  fi
+done
+
+retained_monthly=""
+if ((${#monthly_dates[@]} > 0)); then
+  retained_monthly="$(printf '%s\n' "${monthly_dates[@]}" | sort -ru | head -n "$MONTHLY_KEEP")"
+fi
+
 deleted=0
 kept=0
 for file in "$BACKUP_DIR"/prod.db.*.sqlite3.gz "$BACKUP_DIR"/files.*.tar.gz; do
-  name="$(basename "$file")"
-  date_part="${name#prod.db.}"
-  date_part="${date_part#files.}"
-  date_part="${date_part%.sqlite3.gz}"
-  date_part="${date_part%.tar.gz}"
+  date_part="$(backup_date_part "$file")"
 
   if ! date -d "$date_part" +%F >/dev/null 2>&1; then
     continue
@@ -87,7 +118,10 @@ for file in "$BACKUP_DIR"/prod.db.*.sqlite3.gz "$BACKUP_DIR"/files.*.tar.gz; do
     keep="true"
   fi
 
-  if [[ "${date_part:8:2}" == "01" ]]; then
+  # Herestring statt Pipe: `grep -q` beendet sich beim ersten Treffer, das
+  # schreibende printf bekäme SIGPIPE, und unter `set -o pipefail` gälte die
+  # Bedingung dann als nicht erfüllt — ein zu behaltendes Backup würde gelöscht.
+  if [[ "${date_part:8:2}" == "01" ]] && grep -qxF "$date_part" <<<"$retained_monthly"; then
     keep="true"
   fi
 
@@ -100,4 +134,4 @@ for file in "$BACKUP_DIR"/prod.db.*.sqlite3.gz "$BACKUP_DIR"/files.*.tar.gz; do
   deleted=$((deleted + 1))
 done
 
-log "Retention complete. kept=$kept deleted=$deleted"
+log "Retention complete. kept=$kept deleted=$deleted (monthly keep=$MONTHLY_KEEP)"

@@ -197,6 +197,9 @@ describe("/api/admin/outgoing-emails/[id]/retry", () => {
     (prisma.outgoingEmail.findUnique as jest.Mock).mockResolvedValue({
       id: "email-failed",
       status: OutgoingEmailStatus.FAILED,
+      textBody: "Hallo, bitte melden Sie sich.",
+      htmlBody: "<p>Hallo, bitte melden Sie sich.</p>",
+      sensitiveTokensJson: null,
     });
     (prisma.outgoingEmail.update as jest.Mock).mockResolvedValue({});
     (processDueEmailOutboxBatch as jest.Mock).mockResolvedValue(1);
@@ -218,6 +221,43 @@ describe("/api/admin/outgoing-emails/[id]/retry", () => {
       })
     );
     expect(processDueEmailOutboxBatch).toHaveBeenCalled();
+  });
+
+  it("retries a failed email whose one-time tokens are still stored", async () => {
+    (prisma.outgoingEmail.findUnique as jest.Mock).mockResolvedValue({
+      id: "email-failed",
+      status: OutgoingEmailStatus.FAILED,
+      textBody: "Link: https://example.com/passwort-zuruecksetzen/***TOKEN_0***",
+      htmlBody: "<p>Link: https://example.com/passwort-zuruecksetzen/***TOKEN_0***</p>",
+      sensitiveTokensJson: JSON.stringify(["real-token"]),
+    });
+    (prisma.outgoingEmail.update as jest.Mock).mockResolvedValue({});
+    (processDueEmailOutboxBatch as jest.Mock).mockResolvedValue(1);
+
+    const request = new NextRequest("http://localhost:3000/api/admin/outgoing-emails/email-failed/retry", { method: "POST" });
+    const response = await POST(request, { params: Promise.resolve({ id: "email-failed" }) });
+
+    expect(response.status).toBe(200);
+  });
+
+  it("rejects retry when one-time tokens were pruned and only placeholders remain", async () => {
+    // Ohne gespeicherte Token würde der Versand ***TOKEN_0*** statt eines
+    // funktionierenden Links ausliefern
+    (prisma.outgoingEmail.findUnique as jest.Mock).mockResolvedValue({
+      id: "email-failed",
+      status: OutgoingEmailStatus.FAILED,
+      textBody: "Link: https://example.com/passwort-zuruecksetzen/***TOKEN_0***",
+      htmlBody: "<p>Link: https://example.com/passwort-zuruecksetzen/***TOKEN_0***</p>",
+      sensitiveTokensJson: null,
+    });
+
+    const request = new NextRequest("http://localhost:3000/api/admin/outgoing-emails/email-failed/retry", { method: "POST" });
+    const response = await POST(request, { params: Promise.resolve({ id: "email-failed" }) });
+    const data = await response.json();
+
+    expect(response.status).toBe(400);
+    expect(data.error).toContain("Sicherheits-Links");
+    expect(prisma.outgoingEmail.update).not.toHaveBeenCalled();
   });
 
   it("rejects retry for non-failed email", async () => {

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { logError, logWarn, maskToken } from "@/lib/logger";
 import { getClientIdentifier } from "./proxy-trust";
 import { pluralize } from "./pluralization";
-import { checkTokenRateLimit, recordSuccessfulTokenUsage } from "./rate-limiter";
+import { checkTokenRateLimit, checkTokenReadRateLimit, recordSuccessfulTokenUsage } from "./rate-limiter";
 import { shouldFailOpenOnRateLimiterError } from "./rate-limit-policy";
 import { TokenRateLimitUnavailableError } from "./errors";
 
@@ -69,10 +69,15 @@ export async function checkTokenRateLimitWithPolicy(
   method: string,
   clientIp: string,
   tokenHash: string,
-  maskedToken: string
+  maskedToken: string,
+  // "read" für reine Status-Lookups (GET): eigenes, großzügigeres Budget,
+  // damit Seitenaufrufe nicht die wenigen Einlöseversuche verbrauchen
+  kind: "attempt" | "read" = "attempt"
 ): Promise<{ allowed: boolean; blockedUntil?: number; attemptCount: number }> {
   try {
-    return await checkTokenRateLimit(clientIp, tokenHash);
+    return kind === "read"
+      ? await checkTokenReadRateLimit(clientIp, tokenHash)
+      : await checkTokenRateLimit(clientIp, tokenHash);
   } catch (rateLimitError) {
     if (!shouldFailOpenOnRateLimiterError()) {
       logError("token_rate_limit_unavailable", "Rate limiter unavailable for token-based route, blocking request", {

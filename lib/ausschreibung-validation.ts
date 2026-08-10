@@ -219,7 +219,8 @@ type SerializedAusschreibung<T extends AusschreibungListRow> = Omit<T, "expiresA
 };
 
 // Gemeinsame Aufteilungs-/Sortierlogik für Seite und API — aktuelle Ausschreibungen
-// nach nächstem Meldeschluss zuerst, historische nach jüngstem Meldeschluss zuerst
+// nach frühestem Ablaufdatum zuerst, historische nach jüngstem Ablaufdatum zuerst.
+// Bewusst nicht "Meldeschluss": die Anmeldung läuft außerhalb dieser Webseite (CONTEXT.md).
 export function splitAndSortAusschreibungen<T extends AusschreibungListRow>(
   rows: T[],
   now: Date = new Date()

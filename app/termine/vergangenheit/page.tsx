@@ -39,9 +39,11 @@ export default async function VergangeneTerminePage({
         timeFrom: true,
         timeTo: true,
         location: true,
+        title: true,
         description: true,
         type: true,
         visible: true,
+        capacity: true,
         votes: { select: { vote: true } },
         guestRegistrations: { select: { vote: true } },
       }
@@ -51,6 +53,7 @@ export default async function VergangeneTerminePage({
         timeFrom: true,
         timeTo: true,
         location: true,
+        title: true,
         description: true,
         type: true,
         visible: true,
@@ -99,7 +102,7 @@ export default async function VergangeneTerminePage({
     <main className="flex-1 bg-gray-50">
       <PageHeader
         title="Termine in der Vergangenheit"
-        subtitle="Rückblick auf vergangene Veranstaltungen"
+        subtitle="Rückblick auf vergangene Termine"
       />
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
         <div className="mb-6 sm:mb-8 flex flex-wrap items-center gap-4">

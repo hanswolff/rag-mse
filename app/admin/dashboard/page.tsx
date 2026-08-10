@@ -77,7 +77,7 @@ export default function AdminDashboardPage() {
               <h2 className="text-lg sm:text-xl font-semibold text-gray-900">News</h2>
             </div>
             <p className="text-sm sm:text-base text-gray-600">
-              Veröffentlichen und verwalten Sie Neuigkeiten und Ankündigungen.
+              Veröffentlichen und verwalten Sie News und Ankündigungen.
             </p>
           </Link>
 
@@ -90,7 +90,7 @@ export default function AdminDashboardPage() {
               <h2 className="text-lg sm:text-xl font-semibold text-gray-900">Standorte</h2>
             </div>
             <p className="text-sm sm:text-base text-gray-600">
-              Verwalten Sie Schießstände und deren Adressdaten.
+              Verwalten Sie Standorte und deren Adressdaten.
             </p>
           </Link>
 

@@ -7,14 +7,21 @@ import {
   validateLatitude,
   validateLongitude,
   validateEventType,
+  validateEventTitle,
+  validateEventCost,
+  validateEventCapacity,
+  MAX_EVENT_TITLE_LENGTH,
+  MAX_EVENT_COST_LENGTH,
+  EVENT_CAPACITY_ERROR,
 } from "./validation-schema";
 import {
   MAX_EVENT_DESCRIPTION_BYTES,
   hasEventDescriptionContent,
   isEventDescriptionWithinLimit,
 } from "./event-description";
+import { describeAllowedEventTypes } from "./event-types";
 import { createValidationContext } from "./validation-context";
-import type { ValidationResult } from "./validation-context";
+import type { ValidationContext, ValidationResult } from "./validation-context";
 
 // Re-export validation functions for backward compatibility with tests
 export { validateLocation, validateDescription, validateLatitude, validateLongitude } from "./validation-schema";
@@ -33,6 +40,9 @@ export interface CreateEventRequest {
   latitude?: string | number;
   longitude?: string | number;
   type?: string;
+  title?: string | null;
+  cost?: string | null;
+  capacity?: number | string;
   visible?: boolean;
 }
 
@@ -45,10 +55,50 @@ export interface UpdateEventRequest {
   latitude?: number | string;
   longitude?: number | string;
   type?: string;
+  title?: string | null;
+  cost?: string | null;
+  capacity?: number | string;
   visible?: boolean;
 }
 
 export type { ValidationResult } from "./validation-context";
+
+// Titel und Kosten werden beim Anlegen und beim Ändern gleich geprüft.
+const OPTIONAL_TEXT_RULES = {
+  title: {
+    isWithinLimit: validateEventTitle,
+    typeError: "Titel muss ein Text sein",
+    lengthError: `Titel darf maximal ${MAX_EVENT_TITLE_LENGTH} Zeichen haben`,
+  },
+  cost: {
+    isWithinLimit: validateEventCost,
+    typeError: "Kosten müssen als Text angegeben werden",
+    lengthError: `Kosten dürfen maximal ${MAX_EVENT_COST_LENGTH} Zeichen haben`,
+  },
+} as const;
+
+/**
+ * Ein explizites `null` heißt „Feld leeren“ und ist zulässig. Alles andere muss
+ * ein Text sein: Ein früheres `String(value)` machte aus einem JSON-Objekt
+ * klaglos den Wert "[object Object]" und schrieb ihn in die Datenbank.
+ */
+function validateOptionalEventText(
+  ctx: ValidationContext,
+  field: keyof typeof OPTIONAL_TEXT_RULES,
+  value: unknown
+): void {
+  if (value === undefined || value === null) {
+    return;
+  }
+
+  const rule = OPTIONAL_TEXT_RULES[field];
+
+  if (typeof value !== "string") {
+    ctx.addError(field, rule.typeError);
+  } else if (!rule.isWithinLimit(value)) {
+    ctx.addError(field, rule.lengthError);
+  }
+}
 
 export function validateDateTime(date: string, time: string): boolean {
   if (!date || !time) {
@@ -127,7 +177,14 @@ export function validateCreateEventRequest(request: CreateEventRequest): Validat
   }
 
   if (request.type !== undefined && !validateEventType(request.type)) {
-    ctx.addError("type", "Ungültiger Typ (muss Training, Wettkampf oder leer sein)");
+    ctx.addError("type", `Ungültiger Typ (muss ${describeAllowedEventTypes()} sein)`);
+  }
+
+  validateOptionalEventText(ctx, "title", request.title);
+  validateOptionalEventText(ctx, "cost", request.cost);
+
+  if (request.capacity !== undefined && request.capacity !== "" && request.capacity !== null && !validateEventCapacity(request.capacity)) {
+    ctx.addError("capacity", EVENT_CAPACITY_ERROR);
   }
 
   if (request.visible !== undefined && typeof request.visible !== "boolean") {
@@ -184,7 +241,14 @@ export function validateUpdateEventRequest(request: UpdateEventRequest): Validat
   }
 
   if (request.type !== undefined && !validateEventType(request.type)) {
-    ctx.addError("type", "Ungültiger Typ (muss Training, Wettkampf oder leer sein)");
+    ctx.addError("type", `Ungültiger Typ (muss ${describeAllowedEventTypes()} sein)`);
+  }
+
+  validateOptionalEventText(ctx, "title", request.title);
+  validateOptionalEventText(ctx, "cost", request.cost);
+
+  if (request.capacity !== undefined && request.capacity !== "" && request.capacity !== null && !validateEventCapacity(request.capacity)) {
+    ctx.addError("capacity", EVENT_CAPACITY_ERROR);
   }
 
   if (request.visible !== undefined && typeof request.visible !== "boolean") {

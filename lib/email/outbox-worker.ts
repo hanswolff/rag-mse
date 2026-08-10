@@ -8,6 +8,7 @@ import { getWorkerConfig, getSmtpConfig, getSmtpTimeouts } from "./config";
 import { classifyEmailError } from "./error-classification";
 import { isDevModeEnabled, logEmailInDevMode } from "./dev-mode";
 import { parseRecipients, parseStoredAttachments, getNextRetryTimeForTransientFailure } from "./utils";
+import { parseSensitiveTokens, restoreSensitiveLinkTokens } from "./redact";
 
 const globalForEmailOutbox = globalThis as typeof globalThis & {
   emailOutboxWorkerStarted?: boolean;
@@ -100,8 +101,14 @@ async function claimNextEmail(lockMs: number): Promise<ClaimedOutgoingEmail | nu
     return null;
   }
 
+  // Platzhalter erst hier wieder durch die echten Einmal-Token ersetzen; gespeichert
+  // bleiben sie nur in sensitiveTokensJson bis zum Abschluss des Versands.
+  const sensitiveTokens = parseSensitiveTokens(email.sensitiveTokensJson);
+
   return {
     ...email,
+    textBody: restoreSensitiveLinkTokens(email.textBody, sensitiveTokens),
+    htmlBody: restoreSensitiveLinkTokens(email.htmlBody, sensitiveTokens),
     toList: parseRecipients(email.toRecipients),
     attachments: parseStoredAttachments(email.attachmentsJson),
   };
@@ -149,6 +156,8 @@ async function processSingleEmail(lockMs: number): Promise<boolean> {
         sentAt: new Date(),
         lockedUntil: null,
         lastError: null,
+        // Token nach erfolgreichem Versand endgültig entfernen
+        sensitiveTokensJson: null,
       },
     });
 
@@ -178,9 +187,12 @@ async function processSingleEmail(lockMs: number): Promise<boolean> {
     const emailError = error instanceof Error ? error : new Error(String(error));
     const classified = classifyEmailError(emailError);
 
-    const nextAttemptAt = classified.type === "transient"
-      ? getNextRetryTimeForTransientFailure(claimedEmail.attemptCount, claimedEmail.firstQueuedAt, now)
-      : null;
+    // Nur eindeutig permanente Fehler sofort endgültig fehlschlagen lassen;
+    // unbekannte Fehler (DNS, TLS, EPIPE, ...) werden wie transiente behandelt
+    // und innerhalb des Retry-Fensters erneut versucht.
+    const nextAttemptAt = classified.type === "permanent"
+      ? null
+      : getNextRetryTimeForTransientFailure(claimedEmail.attemptCount, claimedEmail.firstQueuedAt, now);
 
     if (nextAttemptAt) {
       await prisma.outgoingEmail.update({
@@ -204,6 +216,9 @@ async function processSingleEmail(lockMs: number): Promise<boolean> {
       return true;
     }
 
+    // sensitiveTokensJson bleibt bei FAILED erhalten, damit der manuelle
+    // Admin-Retry funktionierende Links wiederherstellen kann; die Wartung
+    // entfernt die Token nach Ablauf der Aufbewahrungsfrist endgültig.
     await prisma.outgoingEmail.update({
       where: { id: claimedEmail.id },
       data: {

@@ -1,6 +1,7 @@
 "use client";
 
 import { Modal } from "./modal";
+import { AlertBox } from "./alert-box";
 import { ConfirmCloseModal } from "./confirm-close-modal";
 import { LoadingButton } from "./loading-button";
 import { GermanDatePicker } from "./german-date-picker";
@@ -92,6 +93,7 @@ export function UserFormModal({
     handleConfirmClose,
     cancelClose,
     isValidAndTouched,
+    generalErrors,
   } = useFormModal({
     validationConfig: adminUserValidationConfig,
     formData: userData,
@@ -117,6 +119,9 @@ export function UserFormModal({
       closeOnEscape={false}
     >
       <form onSubmit={handleSubmit} className="space-y-4" noValidate>
+        {Object.keys(generalErrors).length === 0 && (
+          <AlertBox type="error" message={errors.general} />
+        )}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <ValidatedFieldGroup
             label="Name"

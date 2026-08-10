@@ -1,6 +1,6 @@
 # RAG Schießsport MSE - Website
 
-Website für die RAG Schießsport MSE mit Mitgliederverwaltung, Admin-gestellten Terminen, Abstimmungen, News und Kontaktformular.
+Website für die RAG Schießsport MSE mit Mitgliederverwaltung, Admin-gestellten Terminen mit Teilnahmeanmeldung, Umfragen, Ausschreibungen, News und Kontaktformular.
 
 ## Tech Stack
 
@@ -59,6 +59,32 @@ Die Anwendung läuft unter `http://localhost:3000`.
 - `pnpm test` - Führt alle Tests aus
 - `pnpm run test:watch` - Führt Tests im Watch-Modus aus
 - `pnpm run test:coverage` - Führt Tests mit Coverage aus
+- `pnpm test:e2e` - Führt die lokale Playwright-Kernsuite aus (siehe unten)
+
+### Browser-Tests (Playwright, lokal)
+
+Eine kleine Chromium-Kernsuite unter `e2e/` prüft die wichtigsten Klickpfade
+(öffentliche Seiten, Login, Teilnahmeanmeldung, Termin-Anlage durch Admin,
+Umfrage-Abstimmung) gegen den lokal gestarteten Production-Build mit einer
+frischen Wegwerf-SQLite in einem Temp-Verzeichnis. Sie läuft **manuell/lokal**
+und ist bewusst **kein** Deploy-Gate (`deploy.sh` bleibt unberührt).
+
+Voraussetzungen (je einmalig):
+
+```bash
+pnpm build                            # Production-Build erstellen
+pnpm exec playwright install chromium # Chromium-Browser installieren
+```
+
+Start:
+
+```bash
+pnpm test:e2e
+```
+
+Der Testlauf startet und stoppt die App selbst (`next start` auf Port 3900);
+`data/prod.db` und `dev.db` werden nie angefasst. Fehlt der Build, bricht die
+Suite mit dem Hinweis „erst pnpm build ausführen“ ab.
 
 ### Datenbank-Seed (initialer Site-Administrator)
 
@@ -89,10 +115,10 @@ SEED_ADMIN_NAME="Administrator"
 pnpm run db:seed
 ```
 
-**WICHERHEITSWARNUNG:**
-- Ändern Sie das Standardpasswort `AdminPass123` immer vor der ersten Verwendung!
+**SICHERHEITSWARNUNG:**
+- Es gibt keine Standard-Credentials; der Seed verwendet ausschließlich die `SEED_ADMIN_*`-Umgebungsvariablen
 - Verwenden Sie ein starkes Passwort (mindestens 8 Zeichen mit Groß-/Kleinschreibung und Ziffern)
-- Ändern Sie das Passwort nach dem ersten Login sofort!
+- Ändern Sie das Seed-Passwort nach dem ersten Login sofort!
 
 **Umgebungsvariablen-Loading in verschiedenen Kontexten:**
 
@@ -114,7 +140,7 @@ Als Alternative zum Seed-Script können Sie einen Admin-Benutzer auch manuell di
 
 1. Datenbank mit SQLite öffnen:
 ```bash
-sqlite3 ./data/dev.db
+sqlite3 ./data/prod.db
 ```
 
 2. Passwort-Hash generieren (Node.js):
@@ -246,9 +272,25 @@ Artefakte hinein. Der host-seitige bind mount `./data` bleibt dank
 `userns_mode: keep-id` für den Container-Benutzer schreibbar. Für den produktiven
 Rollout übernimmt `deploy.sh` Build, Backup, Health-Checks und Neustart automatisch.
 
-Damit der Stack nach einem Reboot automatisch startet, kann die rootless
-systemd-User-Unit `ops/systemd/rag-mse.service` installiert werden (siehe Kommentar
-im Unit-File; benötigt `loginctl enable-linger`).
+Damit der Stack nach einem Reboot automatisch startet, genügen
+`restart: unless-stopped` aus `compose.yaml`, `podman-restart.service` und
+Lingering:
+
+```bash
+systemctl --user enable --now podman-restart.service
+loginctl enable-linger "$USER"
+```
+
+**Keine zusätzliche systemd-Unit für den Container anlegen.** Es gab früher eine
+`rag-mse.service` mit `Type=simple` und `ExecStart=podman-compose up` (im
+Vordergrund). Sobald `deploy.sh` den App-Container per `stop` bzw.
+`up -d --force-recreate` neu startet, beendet sich dieser angehängte
+`up`-Prozess mit Status 0; systemd führt daraufhin
+`ExecStop=podman-compose down` aus und entfernt Container und Netzwerk mitten im
+Deployment — der Stack ist danach offline. Genau dieser Fehler hat am
+2026-07-30 die Schwesterseite dedimax.de lahmgelegt. Der Container darf nur
+einen Besitzer haben: `deploy.sh` / `podman-compose`. `deploy.sh` bricht ab,
+falls eine solche Unit gefunden wird.
 
 ### Volume persistenz
 
@@ -519,15 +561,20 @@ NEXTAUTH_URL="https://ihre-domain.de"
 ## Projektstruktur
 
 ```
-site-rag-mse/
+beta-rag-mse/
 ├── app/              # Next.js App Router Seiten und Layouts
 ├── components/       # React-Komponenten
-├── lib/             # Hilfsfunktionen und Utilities
-├── types/           # TypeScript-Type-Definitionen
-├── public/          # Statische Assets (Bilder, Logo, etc.)
-├── __tests__/       # Testdateien
-├── .env.example     # Vorlage für Umgebungsvariablen
-└── package.json     # Projektabhängigkeiten
+├── lib/              # Hilfsfunktionen und Utilities
+├── emails/           # E-Mail-Templates
+├── prisma/           # Prisma-Schema, Migrationen und Seed
+├── scripts/          # Betriebs- und Hilfsskripte (Backup, Migrationen)
+├── ops/              # Betriebsdokumentation und systemd-Units
+├── docs/             # Projekt-Dokumentation (Spezifikationen, ADRs)
+├── types/            # TypeScript-Type-Definitionen
+├── public/           # Statische Assets (Bilder, Logo, etc.)
+├── __tests__/        # Testdateien
+├── .env.example      # Vorlage für Umgebungsvariablen
+└── package.json      # Projektabhängigkeiten
 ```
 
 ## Testing
@@ -644,7 +691,7 @@ Alle Umgebungsvariablen werden in der `.env`-Datei konfiguriert. Kopieren Sie `.
 
 ```bash
 # Datenbank (lokal)
-DATABASE_URL="file:./data/dev.db"
+DATABASE_URL="file:./data/prod.db"
 
 # Authentifizierung
 NEXTAUTH_SECRET="CHANGE_ME_STRONG_SECRET_MIN_32_CHARS"
@@ -684,6 +731,32 @@ APP_GID="1000"
 # Dokumentenverwaltung
 DOCUMENTS_DIR="./data/documents"
 DOCUMENT_UPLOAD_MAX_MB="15"
+
+# Ausschreibungen
+AUSSCHREIBUNGEN_DIR="./data/ausschreibungen"   # Default: ./data/ausschreibungen
+AUSSCHREIBUNG_UPLOAD_MAX_MB="15"               # Default: 15
+
+# Deployment-Selbsttest (/api/selftest)
+SELFTEST_TOKEN="CHANGE_ME_SELFTEST_TOKEN"      # Ohne Token antwortet /api/selftest mit 503
+SELFTEST_CHECK_SMTP="true"                     # Default: true (SMTP-verify() im Selbsttest)
+
+# Request-Limits
+MAX_REQUEST_BODY_SIZE="1048576"                # Default: 1 MB (JSON-Bodies der API)
+
+# E-Mail-Entwicklungsmodus (nur Entwicklung)
+EMAIL_DEV_MODE="false"                         # Default: false (true = loggen statt SMTP-Versand)
+
+# E-Mail-Outbox-Worker
+EMAIL_OUTBOX_POLL_INTERVAL_MS="10000"          # Default: 10000 (10 Sekunden)
+EMAIL_OUTBOX_BATCH_SIZE="10"                   # Default: 10 E-Mails pro Durchlauf
+EMAIL_OUTBOX_LOCK_MS="300000"                  # Default: 300000 (5 Minuten Lock je E-Mail)
+
+# SMTP-Timeouts
+SMTP_TIMEOUT_MS="30000"                        # Default: 30000
+SMTP_CONNECTION_TIMEOUT_MS="10000"             # Default: 10000
+
+# Container-Zeitzone (Containerfile/compose.yaml setzen Europe/Berlin)
+TZ="Europe/Berlin"                             # Default: Europe/Berlin
 ```
 
 **WICHTIG:**
@@ -709,13 +782,13 @@ DOCUMENT_UPLOAD_MAX_MB="15"
 - Öffentliche Terminliste und öffentliche Termindetailseiten
 - Admins können Termine erstellen, bearbeiten und löschen
 - Rich-Text-Beschreibungen mit Tiptap-Editor
-- Event-Typen: Training und Wettkampf (optional)
+- Terminarten: Training, Wettkampf und Lehrgang (optional)
 - Standortunterstützung mit OpenStreetMap (Karte auf der Detailseite)
 - Schießstand-Auswahl und Geocoding-Unterstützung im Admin-Formular
 - Vergangene Termine auf separater Seite
-- Abstimmung (Ja/Nein/Vielleicht) nur für eingeloggte Nutzer
-- Eine Stimme pro Mitglied pro Termin, inklusive Rückzug der eigenen Stimme
-- Abstimmungsergebnisse nur für eingeloggte Nutzer sichtbar
+- Teilnahmeanmeldung (Ja/Nein/Vielleicht) nur für eingeloggte Benutzer
+- Eine Teilnahmeanmeldung pro Mitglied pro Termin, inklusive Rückzug der eigenen Teilnahmeanmeldung
+- Ergebnisse der Teilnahmeanmeldungen nur für eingeloggte Benutzer sichtbar
 
 ### Benutzerverwaltung (Admin)
 
@@ -730,6 +803,21 @@ DOCUMENT_UPLOAD_MAX_MB="15"
 - Öffentliche News-Liste und Detailseiten
 - Admins können News-Artikel erstellen, bearbeiten und löschen
 - Veröffentlichungsstatus und Veröffentlichungsdatum steuerbar
+
+### Umfragen
+
+- Admins erstellen Umfragen als Entwurf und können sie veröffentlichen, schließen und wieder öffnen (`/admin/umfragen`)
+- Beim Veröffentlichen werden Mitglieder genau einmal per E-Mail benachrichtigt (Dedupe pro Mitglied)
+- Eingeloggte Benutzer geben ihre Stimme unter `/umfragen` ab (optional Mehrfachauswahl); AUDITOR hat Lesezugriff im Adminbereich
+- Kurzlink `/u/<code>` leitet direkt zur jeweiligen Umfrage weiter
+- Klar getrennt von der Teilnahmeanmeldung zum Termin: „Stimme/abstimmen“ gilt nur für Umfragen
+
+### Ausschreibungen
+
+- Öffentliche Anzeige externer Wettkampf-Ausschreibungen als PDF unter `/ausschreibungen` (ohne Login)
+- Aufteilung in aktuelle und historische Ausschreibungen anhand des Ablaufdatums (aktuell bis einschließlich Ablauftag)
+- Admins laden PDFs hoch, bearbeiten und löschen sie unter `/admin/ausschreibungen`; AUDITOR hat Lesezugriff
+- Upload-Verzeichnis und Maximalgröße über `AUSSCHREIBUNGEN_DIR` und `AUSSCHREIBUNG_UPLOAD_MAX_MB` konfigurierbar
 
 ### Kontaktformular
 
@@ -769,7 +857,7 @@ Die Anwendung verwendet ein rollenbasiertes Zugriffskontrollsystem mit vier Roll
 | Admin-Dokumente (verwalten) | ✗ | ✗ | ✓ | ✓ |
 | Admin-Bereich (lesen) | ✗ | ✓ | ✓ | ✓ |
 | Admin-Bereich (verwalten) | ✗ | ✗ | ✓ | ✓ |
-| Termine abstimmen | ✓ | ✓ | ✓ | ✓ |
+| Teilnahmeanmeldung zum Termin | ✓ | ✓ | ✓ | ✓ |
 | Eigenes Profil verwalten | ✓ | ✓ | ✓ | ✓ |
 
 **Hinweis:** Die Rolle `SITE_ADMINISTRATOR` kann nicht über die Benutzeroberfläche vergeben werden. Sie wird ausschließlich über Datenbank-Migrationen oder direkte Datenbankänderungen gesetzt.

@@ -43,6 +43,8 @@ Copy `.env.example` to `.env` and update the following values:
   - Example: `APP_URL="https://www.rag-mse.de"`
 - [ ] `APP_TIMEZONE` - Zeitzone für datumsbasierte Reminder-Berechnung
   - Example: `APP_TIMEZONE="Europe/Berlin"`
+- [ ] `TZ` - Container-Zeitzone; `Containerfile` und `compose.yaml` setzen standardmäßig
+  `Europe/Berlin`, da die Termin-Datumslogik mit lokaler Zeit rechnet. Nicht entfernen.
 - [ ] `NEXT_PUBLIC_SITE_URL` - Öffentliche Basis-URL für Metadaten/OpenGraph
   - Example: `NEXT_PUBLIC_SITE_URL="https://www.rag-mse.de"`
 
@@ -127,6 +129,9 @@ Copy `.env.example` to `.env` and update the following values:
 - [ ] All tests pass: `pnpm test`
 - [ ] No linting errors: `pnpm run lint`
 - [ ] Static assets are optimized
+- [ ] Note: `deploy.sh` runs lint, typecheck (`tsc --noEmit`), and tests automatically as
+  quality gates before building — a deploy aborts if any gate fails. Do not bypass or
+  remove these gates.
 
 ### 9. Legal Pages
 
@@ -171,9 +176,9 @@ Before going live, test the following user flows:
 #### Member Features
 - [ ] View events list
 - [ ] View event details
-- [ ] Vote on event attendance (Ja/Nein/Vielleicht)
-- [ ] Change vote
-- [ ] View voting results
+- [ ] Submit Teilnahmeanmeldung for an event (Ja/Nein/Vielleicht)
+- [ ] Change Teilnahmeanmeldung
+- [ ] View Teilnahmeanmeldung results
 - [ ] Update notification settings (`/benachrichtigungen`)
 - [ ] View news list
 - [ ] View news detail
@@ -269,7 +274,7 @@ The geocoding endpoint uses in-memory rate limiting (Map-based) which works corr
 
 ### Development
 ```bash
-DATABASE_URL="file:./dev.db"
+DATABASE_URL="file:./data/prod.db"
 NEXTAUTH_URL="http://localhost:3000"
 NEXTAUTH_SECRET="dev-secret-key"
 COOKIE_SECURE="false"
@@ -323,12 +328,15 @@ SMTP_HOST="your-production-smtp.com"
 - **Fehlgeschlagener Image-Build oder Recreate:** Das Skript bricht ab; der zuvor laufende
   Container wird nicht angefasst. Die vorherigen `.next`-Build-Artefakte werden auf dem Host
   wiederhergestellt.
-- **Neuer Container wird nicht healthy** (z. B. fehlgeschlagene Migration in einer Crash-Loop)
-  **oder der CSP-Smoke-Check schlägt fehl:** Das Skript stoppt den neuen Container, spielt das
-  Pre-Deploy-Datenbank-Backup (`./data/backups/pre-deploy-*.db`) automatisch zurück, taggt das
-  vorherige Image wieder als aktuelles Compose-Image und startet den Container mit dem alten
-  Stand neu. Anschließend wird erneut auf `healthy` gewartet. Die vorherigen `.next`-Artefakte
-  werden ebenfalls wiederhergestellt.
+- **Neuer Container wird nie healthy** (z. B. fehlgeschlagene Migration in einer Crash-Loop):
+  Das Skript stoppt den neuen Container, spielt das Pre-Deploy-Datenbank-Backup
+  (`./data/backups/pre-deploy-*.db`) automatisch zurück (seit dem Backup gab es keine
+  Benutzer-Schreibzugriffe), taggt das vorherige Image wieder als aktuelles Compose-Image und
+  startet den Container mit dem alten Stand neu. Anschließend wird erneut auf `healthy`
+  gewartet. Die vorherigen `.next`-Artefakte werden ebenfalls wiederhergestellt.
+- **CSP-Smoke-Check schlägt fehl, nachdem der Container bereits healthy war:** Rollback nur
+  auf das vorherige Image (`image-only`); die Datenbank bleibt unangetastet, da die App
+  bereits Anfragen angenommen haben kann.
 - Beim **ersten Deployment** (kein vorheriges Image vorhanden) bleibt der Container nach einem
   Fehlschlag gestoppt; das DB-Backup wird, sofern vorhanden, trotzdem zurückgespielt.
 

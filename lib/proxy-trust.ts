@@ -20,6 +20,10 @@ let cachedTrustedIps: Set<string> | null = null;
 
 const DEFAULT_TRUSTED_PROXY_IPS = "127.0.0.1/32,::1";
 
+export function hasExplicitTrustedProxyConfig(): boolean {
+  return (process.env.TRUSTED_PROXY_IPS || "").trim().length > 0;
+}
+
 function toUnsigned32Bit(value: number): number {
   return value >>> 0;
 }
@@ -163,15 +167,16 @@ export function getClientIdentifierFromHeaders(headers: Headers, sourceIp: strin
 
   // Decide whether the forwarding headers (X-Forwarded-For / X-Real-IP) may be trusted.
   //
-  // When a socket-level peer IP is available, only trust those headers if the peer is a
-  // configured trusted proxy (anti-spoofing). However, Next.js 16 no longer exposes a peer
-  // IP to route handlers, the proxy/middleware, or the NextAuth request (`NextRequest.ip` was
-  // removed in Next 15), so `sourceIp` is `null` in production. In that case we rely on the
-  // deployment constraint instead: the app is bound to loopback and is only reachable through
-  // the trusted reverse proxy, which appends the real client to X-Forwarded-For. Without this,
-  // every request would collapse to the weak header fingerprint below, silently disabling all
-  // IP-based rate limiting.
-  const proxyHeadersTrusted = sourceIp === null ? true : isTrustedProxy(sourceIp);
+  // With a socket-level peer IP we only trust the headers if that peer is a configured
+  // trusted proxy (anti-spoofing). Next.js 15+ no longer exposes a peer IP to route
+  // handlers, the proxy or NextAuth, so `sourceIp` is `null` in production. Trusting the
+  // headers unconditionally in that case would let anyone who reaches the app port
+  // directly rotate X-Forwarded-For and reset every rate limit. We therefore require the
+  // deployment to *declare* that it sits behind a reverse proxy by setting
+  // TRUSTED_PROXY_IPS explicitly (compose.yaml does). Without that declaration the
+  // headers are ignored and all clients share the fingerprint bucket — restrictive, but
+  // it fails closed instead of silently disabling brute-force protection.
+  const proxyHeadersTrusted = sourceIp === null ? hasExplicitTrustedProxyConfig() : isTrustedProxy(sourceIp);
 
   if (proxyHeadersTrusted && xForwardedFor) {
     const forwardedIp = extractClientIpFromForwardedChain(xForwardedFor);

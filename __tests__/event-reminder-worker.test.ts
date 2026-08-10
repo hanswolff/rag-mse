@@ -81,6 +81,37 @@ describe("event-reminder-worker", () => {
     expect(prisma.eventReminderDispatch.delete).not.toHaveBeenCalled();
   });
 
+  it("passes title and Terminart to the reminder email", async () => {
+    (prisma.user.findMany as jest.Mock).mockResolvedValue([
+      { id: "user-1", email: "max@example.org", role: "MEMBER", eventReminderDaysBefore: 7 },
+    ]);
+    (prisma.event.findMany as jest.Mock).mockResolvedValue([
+      {
+        id: "event-1",
+        date: new Date("2026-02-08T17:00:00.000Z"),
+        timeFrom: "18:00",
+        timeTo: "20:00",
+        location: "Ulm",
+        title: "Dynamisches Pistolenschießen Level 1",
+        type: "Lehrgang",
+      },
+    ]);
+    (prisma.eventReminderDispatch.create as jest.Mock).mockResolvedValue({ id: "dispatch-1" });
+    (prisma.eventReminderDispatch.update as jest.Mock).mockResolvedValue({ id: "dispatch-1" });
+    (sendEventReminderEmail as jest.Mock).mockResolvedValue({ success: true });
+
+    await processEventReminders(new Date("2026-02-01T16:56:00.000Z"));
+
+    expect(sendEventReminderEmail).toHaveBeenCalledWith(
+      expect.objectContaining({
+        event: expect.objectContaining({
+          title: "Dynamisches Pistolenschießen Level 1",
+          type: "Lehrgang",
+        }),
+      })
+    );
+  });
+
   it("deletes dispatch and does not set sentAt when delivery fails", async () => {
     (prisma.user.findMany as jest.Mock).mockResolvedValue([
       { id: "user-1", email: "max@example.org", role: "MEMBER", eventReminderDaysBefore: 7 },

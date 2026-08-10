@@ -19,7 +19,6 @@ import {
   normalizeOptionalField,
   validateName,
 } from "@/lib/user-validation";
-import { formatDateInputValue } from "@/lib/date-picker-utils";
 import { validateOptionalProfileFields } from "@/lib/profile-fields";
 import {
   findValidInvitation,
@@ -76,12 +75,34 @@ function createInvitationSuccessResponse(result: RedemptionResult) {
 
 
 export const GET = withApiErrorHandling(async (
-  _request: NextRequest,
+  request: NextRequest,
   context: { params: Promise<{ token: string }> }
 ) => {
   const { token } = await context.params;
   if (!token) {
     return NextResponse.json({ error: INVITATION_ERROR_MESSAGES.invalidToken }, { status: 400, headers: getNoCacheHeaders() });
+  }
+
+  const clientIp = getClientIp(request);
+  const tokenHash = hashInvitationToken(token);
+  const rateLimitResult = await checkTokenRateLimitWithPolicy(
+    "/api/invitations/[token]",
+    "GET",
+    clientIp,
+    tokenHash,
+    maskToken(token),
+    "read"
+  );
+
+  if (!rateLimitResult.allowed) {
+    return handleRateLimitBlocked(
+      'invitation_rate_limited',
+      '/api/invitations/[token]',
+      token,
+      clientIp,
+      rateLimitResult.blockedUntil,
+      rateLimitResult.attemptCount
+    );
   }
 
   const { invitation, status } = await findValidInvitation(token);
@@ -90,20 +111,12 @@ export const GET = withApiErrorHandling(async (
     return NextResponse.json({ error: message }, { status, headers: getNoCacheHeaders() });
   }
 
+  // Bewusst nur die zum Ausfüllen des Formulars nötigen Felder: Der Link ist
+  // unauthentifiziert, gespeicherte Stammdaten (Adresse, Geburtsdatum, Telefon)
+  // gehören nicht in die Antwort.
   const existingUser = await prisma.user.findUnique({
     where: { email: invitation.email },
-    select: {
-      name: true,
-      address: true,
-      phone: true,
-      memberSince: true,
-      dateOfBirth: true,
-      rank: true,
-      pk: true,
-      reservistsAssociation: true,
-      associationMemberNumber: true,
-      hasPossessionCard: true,
-    },
+    select: { name: true },
   });
 
   return NextResponse.json(
@@ -112,15 +125,6 @@ export const GET = withApiErrorHandling(async (
       role: invitation.role,
       expiresAt: invitation.expiresAt,
       name: existingUser?.name ?? "",
-      address: existingUser?.address ?? "",
-      phone: existingUser?.phone ?? "",
-      memberSince: formatDateInputValue(existingUser?.memberSince) ?? "",
-      dateOfBirth: formatDateInputValue(existingUser?.dateOfBirth) ?? "",
-      rank: existingUser?.rank ?? "",
-      pk: existingUser?.pk ?? "",
-      reservistsAssociation: existingUser?.reservistsAssociation ?? "",
-      associationMemberNumber: existingUser?.associationMemberNumber ?? "",
-      hasPossessionCard: existingUser?.hasPossessionCard ?? false,
     },
     { headers: getNoCacheHeaders() }
   );

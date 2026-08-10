@@ -82,7 +82,7 @@ export default async function NewsDetailPage({
             </h1>
             <p className="text-base text-gray-500 mb-6">
               Veröffentlicht am {formatDate(newsItem.newsDate.toISOString())}
-              {newsItem.updatedAt !== newsItem.createdAt &&
+              {newsItem.updatedAt.getTime() !== newsItem.createdAt.getTime() &&
                 `, aktualisiert am ${formatDate(newsItem.updatedAt.toISOString())}`}
             </p>
             <div className="prose prose-slate max-w-none">

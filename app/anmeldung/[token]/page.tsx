@@ -63,6 +63,9 @@ export default function TokenRsvpPage({ params }: { params: Promise<{ token: str
   }, [token]);
 
   async function handleVote(vote: VoteType) {
+    if (isVoting) {
+      return;
+    }
     setIsVoting(true);
     setPendingVote(vote);
     setError("");
@@ -168,6 +171,7 @@ export default function TokenRsvpPage({ params }: { params: Promise<{ token: str
                     key={option.value}
                     onClick={() => handleVote(option.value)}
                     loading={isVoting && pendingVote === option.value}
+                    disabled={isVoting}
                     loadingText={option.label}
                     className={`px-4 py-3 rounded-lg font-medium border-2 transition-all ${
                       data.currentVote?.vote === option.value

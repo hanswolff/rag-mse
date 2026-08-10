@@ -427,7 +427,7 @@ export default function ProfilePage() {
 
           {profile && (
             <div className="mt-6 pt-6 border-t border-gray-200">
-              <h3 className="text-base font-medium text-gray-500">Account-Informationen</h3>
+              <h3 className="text-base font-medium text-gray-500">Konto-Informationen</h3>
               <dl className="mt-2 space-y-1">
                 <div className="flex">
                   <dt className="text-base text-gray-600">Rolle:</dt>

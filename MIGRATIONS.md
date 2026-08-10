@@ -36,7 +36,13 @@ pnpm run db:push
 
 ## Produktion
 
-- Beim Containerstart wird automatisch `pnpm run db:migrate` ausgeführt.
+- Beim Containerstart führt `entrypoint.sh` automatisch
+  `node scripts-dist/scripts/run-db-migrations.js` aus (das vorkompilierte
+  Pendant zu `pnpm run db:migrate`; im Runtime-Image gibt es kein pnpm).
+- Die Datenbankdatei heißt `data/prod.db`. Historisch hieß die Produktions-DB
+  `dev.db`; findet `entrypoint.sh` beim ersten Start nach der Umbenennung keine
+  `prod.db`, aber eine `dev.db` im selben Verzeichnis, wird sie automatisch
+  einmalig in `prod.db` umbenannt.
 - Bei einer leeren Datenbank wird dabei zuerst die Baseline geladen; bei
   bestehenden Datenbanken werden nur fehlende Migrationen angewendet.
 - Migrationen sind versionsgeführt und werden nur einmal angewendet.
@@ -44,6 +50,35 @@ pnpm run db:push
   brechen mit Fehler ab, um Dateninkonsistenzen zu verhindern.
 
 ## Migrationshistorie
+
+### 20260804_add_event_capacity
+
+Fügt das Feld `capacity Int?` zur Tabelle `Event` hinzu.
+
+**Zweck:** Optionale Platzzahl eines Termins. Sie ist ausdrücklich informativ und
+sperrt keine Teilnahmeanmeldung — siehe
+`docs/adr/0003-platzzahl-ist-informativ-und-sperrt-keine-anmeldung.md`.
+
+**Backfill:** Keiner.
+
+### 20260804_add_event_cost
+
+Fügt das Feld `cost String?` zur Tabelle `Event` hinzu.
+
+**Zweck:** Optionale Kostenangabe als kurzer Freitext („25 € für Mitglieder, 40 € für
+Gäste“, „kostenfrei“). Bewusst kein Betragsfeld: Staffelungen nach Mitglied/Gast wären
+sonst nicht abbildbar und der Wert „0“ mehrdeutig.
+
+**Backfill:** Keiner.
+
+### 20260804_add_event_title
+
+Fügt das Feld `title String?` zur Tabelle `Event` hinzu.
+
+**Zweck:** Optionaler Titel eines Termins („Dynamisches Pistolenschießen Level 1“).
+Wo kein Titel gesetzt ist, bleibt das Datum die Überschrift.
+
+**Backfill:** Keiner — Bestandstermine bleiben bewusst ohne Titel.
 
 ### 20260709_fix_schema_drift
 
@@ -71,6 +106,6 @@ Einladung gesetzt wird. Ersetzt `passwordUpdatedAt` als Aktivierungsindikator
 (dieses Feld wird weiterhin für Audit-Zwecke gepflegt, zeigt aber den Zeitpunkt
 der letzten Passwortänderung, nicht die Kontoaktivierung).
 
-**Backfill:** Für alle Nutzer mit vorhandenem `passwordUpdatedAt` wird
-`activatedAt = passwordUpdatedAt` gesetzt, da diese Nutzer ihre Einladung bereits
+**Backfill:** Für alle Benutzer mit vorhandenem `passwordUpdatedAt` wird
+`activatedAt = passwordUpdatedAt` gesetzt, da diese Benutzer ihre Einladung bereits
 eingelöst haben.

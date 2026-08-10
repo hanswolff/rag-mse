@@ -3,6 +3,7 @@
 import { ChangeEvent, DragEvent, FormEvent, KeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { BackLink } from "@/components/back-link";
 import { Modal } from "@/components/modal";
+import { ConfirmCloseModal } from "@/components/confirm-close-modal";
 import { useConfirmDialog } from "@/components/confirm-dialog";
 import { GermanDatePicker } from "@/components/german-date-picker";
 import { ValidatedFieldGroup } from "@/components/validated-field-group";
@@ -99,6 +100,7 @@ export function AdminDocumentManager({ area, title, listTitle, description, back
 
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingDocument, setEditingDocument] = useState<DocumentItem | null>(null);
+  const [showEditCloseConfirm, setShowEditCloseConfirm] = useState(false);
   const [editDisplayName, setEditDisplayName] = useState("");
   const [editDocumentDate, setEditDocumentDate] = useState("");
   const [editDirectoryId, setEditDirectoryId] = useState<DirectoryFilter>("root");
@@ -340,6 +342,7 @@ export function AdminDocumentManager({ area, title, listTitle, description, back
 
   const closeEditModal = () => {
     setIsEditModalOpen(false);
+    setShowEditCloseConfirm(false);
     setEditingDocument(null);
     setEditDisplayName("");
     setEditDocumentDate("");
@@ -347,6 +350,22 @@ export function AdminDocumentManager({ area, title, listTitle, description, back
     setEditErrors({});
     resetEditValidation();
     setIsSavingEdit(false);
+  };
+
+  const isEditDirty = editingDocument !== null && (
+    editDisplayName !== editingDocument.displayName
+    || editDocumentDate !== formatDateForInput(editingDocument.documentDate)
+    || editDirectoryId !== (editingDocument.directoryId || "root")
+  );
+
+  // Ungespeicherte Änderungen nicht durch versehentliches Schließen verwerfen
+  const requestCloseEditModal = () => {
+    if (isSavingEdit) return;
+    if (isEditDirty) {
+      setShowEditCloseConfirm(true);
+      return;
+    }
+    closeEditModal();
   };
 
   const handleEditFieldChange = (name: "displayName" | "documentDate" | "directoryId", value: string) => {
@@ -775,10 +794,12 @@ export function AdminDocumentManager({ area, title, listTitle, description, back
       {canManage && (
         <Modal
           isOpen={isEditModalOpen}
-          onClose={closeEditModal}
+          onClose={requestCloseEditModal}
           title="Dokument bearbeiten"
           size="lg"
           contentOverflow="visible"
+          closeOnOutsideClick={false}
+          closeOnEscape={false}
         >
           <form onSubmit={handleSaveEdit} className="space-y-4" noValidate>
             {Object.keys(inferredEditGeneralErrors).length === 0 && (
@@ -834,7 +855,7 @@ export function AdminDocumentManager({ area, title, listTitle, description, back
             </div>
 
             <div className="flex justify-end gap-2">
-              <button type="button" className="btn-outline px-4 py-2 text-base" onClick={closeEditModal} disabled={isSavingEdit}>
+              <button type="button" className="btn-outline px-4 py-2 text-base" onClick={requestCloseEditModal} disabled={isSavingEdit}>
                 Abbrechen
               </button>
               <button type="submit" className="btn-primary px-4 py-2 text-base" disabled={isSavingEdit}>
@@ -845,13 +866,18 @@ export function AdminDocumentManager({ area, title, listTitle, description, back
         </Modal>
       )}
 
+      <ConfirmCloseModal
+        isOpen={showEditCloseConfirm}
+        onConfirm={closeEditModal}
+        onCancel={() => setShowEditCloseConfirm(false)}
+      />
+
       <DocumentViewer
         isOpen={isViewerOpen}
         document={viewerDocument}
         onClose={closeViewer}
         viewUrlPrefix="/api/admin/documents"
         titlePrefix="Vorschau: "
-        size="4xl"
       />
     </main>
   );

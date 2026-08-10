@@ -19,6 +19,14 @@ const TOKEN_ATTEMPT_THRESHOLDS = [
   { attempts: 10, blockDuration: 60 * 60 * 1000 },
 ];
 
+// Status-Lookups (GET) laufen bei jedem Seitenaufruf — teilen sie sich das knappe
+// Einlöse-Budget, sperrt sich ein Eingeladener schon durch zweimaliges Öffnen des
+// Links plus einen Reload selbst aus. Enumeration bremst weiterhin das IP-Limit.
+const TOKEN_READ_ATTEMPT_THRESHOLDS = [
+  { attempts: 30, blockDuration: 15 * 60 * 1000 },
+  { attempts: 60, blockDuration: 60 * 60 * 1000 },
+];
+
 const FORGOT_PASSWORD_ATTEMPT_THRESHOLDS = [
   { attempts: 3, blockDuration: 15 * 60 * 1000 },
   { attempts: 6, blockDuration: 60 * 60 * 1000 },
@@ -29,6 +37,7 @@ const RATE_LIMIT_PREFIX = "ratelimit:";
 const IP_PREFIX = `${RATE_LIMIT_PREFIX}ip:`;
 const LOGIN_PREFIX = `${RATE_LIMIT_PREFIX}login:`;
 const TOKEN_PREFIX = `${RATE_LIMIT_PREFIX}token:`;
+const TOKEN_READ_PREFIX = `${RATE_LIMIT_PREFIX}token-read:`;
 const FORGOT_PASSWORD_PREFIX = `${RATE_LIMIT_PREFIX}forgot:`;
 const CONTACT_PREFIX = `${RATE_LIMIT_PREFIX}contact:`;
 const GEOCODE_PREFIX = `${RATE_LIMIT_PREFIX}geocode:`;
@@ -185,10 +194,18 @@ export async function checkTokenRateLimit(ip: string, tokenHash: string): Promis
   return checkRateLimit(TOKEN_PREFIX, tokenHash, now, TOKEN_WINDOW_MS, TOKEN_ATTEMPT_THRESHOLDS, ip);
 }
 
+export async function checkTokenReadRateLimit(ip: string, tokenHash: string): Promise<RateLimitResult> {
+  const now = Date.now();
+  return checkRateLimit(TOKEN_READ_PREFIX, tokenHash, now, TOKEN_WINDOW_MS, TOKEN_READ_ATTEMPT_THRESHOLDS, ip);
+}
+
 export async function recordSuccessfulTokenUsage(tokenHash: string, ip: string): Promise<void> {
   const tokenKey = `${TOKEN_PREFIX}${tokenHash}`;
+  const tokenReadKey = `${TOKEN_READ_PREFIX}${tokenHash}`;
   await deleteRateLimitEntry(tokenKey);
   await deleteRateLimitEntry(`${BLOCKED_UNTIL_PREFIX}${tokenKey}`);
+  await deleteRateLimitEntry(tokenReadKey);
+  await deleteRateLimitEntry(`${BLOCKED_UNTIL_PREFIX}${tokenReadKey}`);
   await decrementIpCounter(ip);
 }
 

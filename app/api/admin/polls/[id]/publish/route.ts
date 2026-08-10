@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/auth-utils";
 import { withApiErrorHandling, validateCsrfHeaders } from "@/lib/api-utils";
 import { sendTemplateEmail } from "@/lib/email-sender";
-import { logInfo, logError, logResourceNotFound } from "@/lib/logger";
+import { logInfo, logResourceNotFound } from "@/lib/logger";
 
 type RouteParams = { params: Promise<{ id: string }> };
 
@@ -40,77 +40,94 @@ export const POST = withApiErrorHandling(async (request: NextRequest, context: R
     );
   }
 
-  const updated = await prisma.poll.update({
-    where: { id },
-    data: {
-      status: "LIVE",
-      shortCode: poll.id,
+  const members = await prisma.user.findMany({
+    where: {
+      pollNotificationEnabled: true,
+      activatedAt: { not: null },
     },
-    include: {
-      options: { orderBy: { position: "asc" } },
-    },
+    select: { id: true, name: true, email: true },
   });
 
-  logInfo("poll_published", "Poll published", {
-    pollId: id,
-    userId: user.id,
-    shortCode: updated.shortCode,
-  });
+  const pollUrl = `${siteUrl}/u/${poll.id}`;
+  const descriptionText = poll.description ? poll.description : "";
 
-  const pollUrl = `${siteUrl}/u/${updated.shortCode}`;
-
-  try {
-    const members = await prisma.user.findMany({
-      where: {
-        pollNotificationEnabled: true,
-        activatedAt: { not: null },
-      },
-      select: { id: true, name: true, email: true },
+  // Statuswechsel und Benachrichtigungen in einer Transaktion:
+  // - updateMany mit DRAFT-Guard verhindert Doppelveröffentlichung (Race/Doppelklick)
+  // - Dispatch-Eintrag vor dem E-Mail-Insert dedupliziert je Mitglied
+  // - Schlägt der Batch fehl, rollt auch der Statuswechsel zurück und
+  //   die Veröffentlichung bleibt wiederholbar
+  let queuedCount = 0;
+  const flipped = await prisma.$transaction(async (tx: Omit<typeof prisma, "$connect" | "$disconnect" | "$on" | "$transaction" | "$extends">) => {
+    const updateResult = await tx.poll.updateMany({
+      where: { id, status: "DRAFT" },
+      data: { status: "LIVE", shortCode: poll.id },
     });
 
-    const descriptionText = poll.description
-      ? poll.description
-      : "";
+    if (updateResult.count === 0) {
+      return false;
+    }
 
     for (const member of members) {
       try {
-        await sendTemplateEmail({
-          template: "umfrage-benachrichtigung",
-          variables: {
-            pollTitle: poll.title,
-            pollDescription: descriptionText,
-            pollUrl,
-            userName: member.name || "Mitglied",
-          },
-          to: [member.email],
-        });
-
-        await prisma.pollNotificationDispatch.create({
+        await tx.pollNotificationDispatch.create({
           data: {
             pollId: id,
             userId: member.id,
             queuedAt: new Date(),
           },
         });
-      } catch (emailError) {
-        logError("poll_notification_failed", "Failed to queue poll notification", {
-          pollId: id,
-          userId: member.id,
-          error: emailError instanceof Error ? emailError.message : String(emailError),
-        });
+      } catch (dispatchError) {
+        if (isUniqueConstraintError(dispatchError)) {
+          continue;
+        }
+        throw dispatchError;
       }
+
+      await sendTemplateEmail({
+        template: "umfrage-benachrichtigung",
+        variables: {
+          pollTitle: poll.title,
+          pollDescription: descriptionText,
+          pollUrl,
+          userName: member.name || "Mitglied",
+        },
+        to: [member.email],
+      }, tx);
+      queuedCount++;
     }
 
-    logInfo("poll_notifications_queued", "Poll notifications queued", {
-      pollId: id,
-      memberCount: members.length,
-    });
-  } catch (notifyError) {
-    logError("poll_notification_batch_failed", "Failed to process poll notifications", {
-      pollId: id,
-      error: notifyError instanceof Error ? notifyError.message : String(notifyError),
-    });
+    return true;
+    // Standard-Timeout von 5 s reicht bei vielen Mitgliedern nicht: pro Mitglied
+    // werden Template gerendert und zwei Zeilen geschrieben
+  }, { timeout: 30_000 });
+
+  if (!flipped) {
+    return NextResponse.json(
+      { error: "Nur Umfragen im Entwurfsstatus können veröffentlicht werden" },
+      { status: 409 }
+    );
   }
 
-  return NextResponse.json({ ...updated, shortCode: updated.shortCode, pollUrl });
+  logInfo("poll_published", "Poll published", {
+    pollId: id,
+    userId: user.id,
+    shortCode: poll.id,
+  });
+  logInfo("poll_notifications_queued", "Poll notifications queued", {
+    pollId: id,
+    memberCount: queuedCount,
+  });
+
+  const updated = await prisma.poll.findUnique({
+    where: { id },
+    include: {
+      options: { orderBy: { position: "asc" } },
+    },
+  });
+
+  return NextResponse.json({ ...updated, pollUrl });
 }, { route: "/api/admin/polls/[id]/publish", method: "POST" });
+
+function isUniqueConstraintError(error: unknown): boolean {
+  return typeof error === "object" && error !== null && (error as { code?: string }).code === "P2002";
+}

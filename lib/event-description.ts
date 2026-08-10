@@ -49,7 +49,7 @@ export function stripEventDescriptionText(value: string): string {
     .trim();
 }
 
-function decodeHtmlEntities(value: string): string {
+export function decodeHtmlEntities(value: string): string {
   return value.replace(/&(#x?[0-9a-fA-F]+|[a-zA-Z]+);/g, (entity, content) => {
     const named: Record<string, string> = {
       amp: "&",

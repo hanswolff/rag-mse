@@ -1,6 +1,7 @@
 import {
   checkLoginRateLimit,
   checkTokenRateLimit,
+  checkTokenReadRateLimit,
   checkForgotPasswordRateLimit,
   recordSuccessfulLogin,
   recordSuccessfulTokenUsage,
@@ -15,6 +16,40 @@ describe("Rate Limiter", () => {
 
   afterEach(async () => {
     await resetRateLimitForTesting();
+  });
+
+  describe("checkTokenReadRateLimit", () => {
+    it("does not consume the redemption attempt budget", async () => {
+      // Regression: Seitenaufrufe (GET) teilten sich das 4-Versuche-Budget mit
+      // der Einlösung — Link zweimal öffnen + Reload sperrte den Eingeladenen aus
+      for (let i = 0; i < 10; i++) {
+        const readResult = await checkTokenReadRateLimit("192.168.9.1", "token-hash-read");
+        expect(readResult.allowed).toBe(true);
+      }
+
+      const attemptResult = await checkTokenRateLimit("192.168.9.1", "token-hash-read");
+      expect(attemptResult.allowed).toBe(true);
+      expect(attemptResult.attemptCount).toBe(1);
+    });
+
+    it("still blocks excessive reads of the same token", async () => {
+      let result = { allowed: true, attemptCount: 0 } as Awaited<ReturnType<typeof checkTokenReadRateLimit>>;
+      for (let i = 0; i < 31; i++) {
+        result = await checkTokenReadRateLimit(`192.168.9.${(i % 20) + 2}`, "token-hash-flood");
+      }
+      expect(result.allowed).toBe(false);
+    });
+
+    it("is cleared alongside the attempt bucket after successful usage", async () => {
+      for (let i = 0; i < 5; i++) {
+        await checkTokenReadRateLimit("192.168.9.30", "token-hash-clear");
+      }
+      await recordSuccessfulTokenUsage("token-hash-clear", "192.168.9.30");
+
+      const readResult = await checkTokenReadRateLimit("192.168.9.30", "token-hash-clear");
+      expect(readResult.allowed).toBe(true);
+      expect(readResult.attemptCount).toBe(1);
+    });
   });
 
   describe("checkLoginRateLimit", () => {

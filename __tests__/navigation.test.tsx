@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useSession, signOut } from "next-auth/react";
 import { Navigation } from "@/components/navigation";
@@ -307,5 +307,53 @@ describe("Navigation", () => {
 
     expect(screen.getByText(/Impersonierung aktiv/i)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Impersonierung beenden" })).toBeInTheDocument();
+  });
+
+  describe("Badge für offene Ausschreibungen", () => {
+    const originalFetch = global.fetch;
+
+    afterEach(() => {
+      global.fetch = originalFetch;
+    });
+
+    const mockAusschreibungenResponse = (current: unknown[]) => {
+      const fetchMock = jest.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ current, historical: [] }),
+      });
+      global.fetch = fetchMock as unknown as typeof fetch;
+      return fetchMock;
+    };
+
+    it("lädt die Anzahl auch ohne Login und zeigt sie im Infos-Menü", async () => {
+      const fetchMock = mockAusschreibungenResponse([{ id: "a" }, { id: "b" }]);
+
+      render(<Navigation />);
+
+      await waitFor(() => {
+        // Desktop- und Mobil-Menü rendern gemeinsam vier Badges: je Button und Eintrag.
+        expect(screen.getAllByLabelText("2 offene Ausschreibungen").length).toBeGreaterThan(0);
+      });
+      expect(fetchMock).toHaveBeenCalledWith("/api/ausschreibungen");
+    });
+
+    it("zeigt kein Badge, wenn keine Ausschreibung läuft", async () => {
+      const fetchMock = mockAusschreibungenResponse([]);
+
+      render(<Navigation />);
+
+      await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+      expect(screen.queryByLabelText(/offene Ausschreibungen/)).not.toBeInTheDocument();
+    });
+
+    it("bleibt ohne Badge, wenn die Route fehlschlägt", async () => {
+      const fetchMock = jest.fn().mockRejectedValue(new Error("offline"));
+      global.fetch = fetchMock as unknown as typeof fetch;
+
+      render(<Navigation />);
+
+      await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+      expect(screen.queryByLabelText(/offene Ausschreibungen/)).not.toBeInTheDocument();
+    });
   });
 });

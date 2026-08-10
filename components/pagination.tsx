@@ -59,14 +59,22 @@ export function Pagination(props: PaginationProps) {
 
     return (
       <nav className="mt-8 flex flex-col sm:flex-row justify-center items-center gap-2 sm:gap-2" aria-label="Seitennavigation">
-        <Link
-          href={buildHref(basePath, normalizedCurrentPage - 1)}
-          aria-disabled={prevDisabled}
-          aria-label="Zurück"
-          className={`px-3 sm:px-4 py-2 text-base rounded-md w-full sm:w-auto text-center ${prevDisabled ? disabledLinkClass : enabledLinkClass}`}
-        >
-          Zurück
-        </Link>
+        {prevDisabled ? (
+          <span
+            aria-disabled="true"
+            className={`px-3 sm:px-4 py-2 text-base rounded-md w-full sm:w-auto text-center ${disabledLinkClass}`}
+          >
+            Zurück
+          </span>
+        ) : (
+          <Link
+            href={buildHref(basePath, normalizedCurrentPage - 1)}
+            aria-label="Zurück"
+            className={`px-3 sm:px-4 py-2 text-base rounded-md w-full sm:w-auto text-center ${enabledLinkClass}`}
+          >
+            Zurück
+          </Link>
+        )}
 
         <div className="flex flex-wrap justify-center gap-1">
           {pageNumbers.map((pageNum, index) => {
@@ -88,14 +96,22 @@ export function Pagination(props: PaginationProps) {
           })}
         </div>
 
-        <Link
-          href={buildHref(basePath, normalizedCurrentPage + 1)}
-          aria-disabled={nextDisabled}
-          aria-label="Weiter"
-          className={`px-3 sm:px-4 py-2 text-base rounded-md w-full sm:w-auto text-center ${nextDisabled ? disabledLinkClass : enabledLinkClass}`}
-        >
-          Weiter
-        </Link>
+        {nextDisabled ? (
+          <span
+            aria-disabled="true"
+            className={`px-3 sm:px-4 py-2 text-base rounded-md w-full sm:w-auto text-center ${disabledLinkClass}`}
+          >
+            Weiter
+          </span>
+        ) : (
+          <Link
+            href={buildHref(basePath, normalizedCurrentPage + 1)}
+            aria-label="Weiter"
+            className={`px-3 sm:px-4 py-2 text-base rounded-md w-full sm:w-auto text-center ${enabledLinkClass}`}
+          >
+            Weiter
+          </Link>
+        )}
       </nav>
     );
   }

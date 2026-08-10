@@ -126,6 +126,39 @@ describe("/api/events/route", () => {
       expect(firstCall.where).toHaveProperty("visible", true);
       expect(firstCall.select).not.toHaveProperty("_count");
       expect(firstCall.select).not.toHaveProperty("votes");
+      expect(firstCall.select).not.toHaveProperty("guestRegistrations");
+    });
+
+    it("delivers no Belegung to unauthenticated visitors", async () => {
+      (prisma.event.findMany as jest.Mock).mockResolvedValue([
+        {
+          id: "1",
+          date: new Date("2026-02-10"),
+          timeFrom: "18:00",
+          timeTo: "20:00",
+          location: "Test Location",
+          title: null,
+          description: "Test Description",
+          latitude: null,
+          longitude: null,
+          type: "Lehrgang",
+          cost: null,
+          capacity: 12,
+          visible: true,
+          createdAt: new Date("2026-01-01"),
+          updatedAt: new Date("2026-01-01"),
+        },
+      ]);
+      (prisma.event.count as jest.Mock).mockResolvedValue(1);
+      (prisma.shootingRange.findMany as jest.Mock).mockResolvedValue([]);
+      (getServerSession as jest.Mock).mockResolvedValue(null);
+
+      const request = new NextRequest("http://localhost:3000/api/events");
+      const response = await GET(request);
+      const json = await response.json();
+
+      expect(json.events[0].capacity).toBe(12);
+      expect(json.events[0].voteCounts).toBeUndefined();
     });
 
     it("allows members to see their own events", async () => {
@@ -253,7 +286,7 @@ describe("/api/events/route", () => {
       const response = await GET(request);
 
       expect(response.headers.get("Cache-Control")).toBe("public, max-age=60, s-maxage=300, stale-while-revalidate=300");
-      expect(response.headers.get("Vary")).toBeFalsy();
+      expect(response.headers.get("Vary")).toBe("Cookie");
     });
   });
 

@@ -46,3 +46,10 @@ public/photos/
 *.eml
 
 *.eml
+
+# Generiert von build:scripts (deploy.sh baut es bei jedem Deploy neu)
+scripts-dist/
+
+# Playwright-Artefakte (lokale E2E-Kernsuite)
+test-results/
+playwright-report/

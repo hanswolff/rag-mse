@@ -13,6 +13,7 @@ import { logAdminAction } from "@/lib/audit-log";
 import { triggerImmediateEventReminders } from "@/lib/event-reminder-worker";
 import { formatDateForStorage, parseDateAndTime } from "@/lib/date-picker-utils";
 import { hasEventDescriptionContent, sanitizeEventDescriptionHtml } from "@/lib/event-description";
+import { normalizeCapacity, normalizeOptionalText } from "@/lib/event-fields";
 import { VoteType } from "@prisma/client";
 import { parsePageNumber, parsePageSize } from "@/lib/api-pagination";
 
@@ -95,7 +96,7 @@ export const POST = withApiErrorHandling(async (request: NextRequest) => {
     return NextResponse.json({ error: validation.errors.join(". "), fieldErrors: validation.fieldErrors }, { status: 400 });
   }
 
-  const { date, timeFrom, timeTo, location, description, latitude, longitude, type, visible } = body;
+  const { date, timeFrom, timeTo, location, description, latitude, longitude, type, title, cost, capacity, visible } = body;
   const sanitizedDescription = sanitizeEventDescriptionHtml(description);
 
   if (!hasEventDescriptionContent(sanitizedDescription)) {
@@ -114,10 +115,13 @@ export const POST = withApiErrorHandling(async (request: NextRequest) => {
       timeFrom,
       timeTo,
       location,
+      title: normalizeOptionalText(title),
       description: sanitizedDescription,
       latitude: parsedLatitude,
       longitude: parsedLongitude,
       type: type || null,
+      cost: normalizeOptionalText(cost),
+      capacity: normalizeCapacity(capacity),
       visible: visible ?? true,
       createdById: user.id,
     },

@@ -13,6 +13,9 @@ jest.mock("@/lib/prisma", () => ({
     event: {
       findFirst: jest.fn(),
     },
+    ausschreibung: {
+      findFirst: jest.fn(),
+    },
   },
 }));
 
@@ -32,6 +35,7 @@ describe("Home", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     (prisma.event.findFirst as jest.Mock).mockResolvedValue(null);
+    (prisma.ausschreibung.findFirst as jest.Mock).mockResolvedValue(null);
     (access as jest.Mock).mockRejectedValue(new Error("not found"));
     (getServerSession as jest.Mock).mockResolvedValue(null);
   });
@@ -76,7 +80,7 @@ describe("Home", () => {
 
     expect(
       screen.getByText(
-        /Informieren Sie sich über anstehende Veranstaltungen/
+        /Informieren Sie sich über anstehende Termine/
       )
     ).toBeInTheDocument();
     expect(
@@ -115,6 +119,7 @@ describe("Home - Member Documents Card Visibility", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     (prisma.event.findFirst as jest.Mock).mockResolvedValue(null);
+    (prisma.ausschreibung.findFirst as jest.Mock).mockResolvedValue(null);
     (access as jest.Mock).mockRejectedValue(new Error("not found"));
   });
 
@@ -160,5 +165,86 @@ describe("Home - Member Documents Card Visibility", () => {
 
     const link = screen.getByRole("link", { name: /Dokumente für Mitglieder/ });
     expect(link).toHaveAttribute("href", "/mitglieder-dokumente");
+  });
+});
+
+describe("Home - Ausschreibungen-Karte", () => {
+  const naechsteAusschreibung = {
+    id: "a1",
+    title: "Landesmeisterschaft Luftgewehr",
+    expiresAt: new Date("2026-09-12T00:00:00.000Z"),
+  };
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    (prisma.event.findFirst as jest.Mock).mockResolvedValue(null);
+    (prisma.ausschreibung.findFirst as jest.Mock).mockResolvedValue(naechsteAusschreibung);
+    (access as jest.Mock).mockRejectedValue(new Error("not found"));
+    (getServerSession as jest.Mock).mockResolvedValue(null);
+  });
+
+  it("ersetzt für Gäste die Formulare-Karte", async () => {
+    render(await Home());
+
+    expect(screen.getByRole("heading", { name: "Ausschreibungen" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Formulare" })).not.toBeInTheDocument();
+  });
+
+  it("ersetzt für Mitglieder die Dokumente-Karte", async () => {
+    (getServerSession as jest.Mock).mockResolvedValue({ user: { id: "1", role: "MEMBER" } });
+
+    render(await Home());
+
+    expect(screen.getByRole("heading", { name: "Ausschreibungen" })).toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", { name: "Dokumente für Mitglieder" })
+    ).not.toBeInTheDocument();
+  });
+
+  it("bleibt bei drei Karten und verlinkt auf die öffentliche Seite", async () => {
+    render(await Home());
+
+    const headings = [
+      screen.queryByRole("heading", { name: "Termine" }),
+      screen.queryByRole("heading", { name: "News" }),
+      screen.queryByRole("heading", { name: "Ausschreibungen" }),
+      screen.queryByRole("heading", { name: "Formulare" }),
+      screen.queryByRole("heading", { name: "Dokumente für Mitglieder" }),
+    ].filter(Boolean);
+    expect(headings).toHaveLength(3);
+
+    expect(screen.getByRole("link", { name: /Ausschreibungen/ })).toHaveAttribute(
+      "href",
+      "/ausschreibungen"
+    );
+  });
+
+  it("zeigt das Ablaufdatum der nächsten Ausschreibung als Unterkarte", async () => {
+    render(await Home());
+
+    expect(screen.getByText("Nächste Ausschreibung:")).toBeInTheDocument();
+    expect(screen.getByText("12.09.2026")).toBeInTheDocument();
+  });
+
+  it("zeigt ohne aktuelle Ausschreibung wieder die bisherige Karte", async () => {
+    (prisma.ausschreibung.findFirst as jest.Mock).mockResolvedValue(null);
+
+    render(await Home());
+
+    expect(screen.queryByRole("heading", { name: "Ausschreibungen" })).not.toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Formulare" })).toBeInTheDocument();
+    expect(screen.queryByText("Nächste Ausschreibung:")).not.toBeInTheDocument();
+  });
+
+  it("lässt die Termine-Unterkarte unberührt", async () => {
+    (prisma.event.findFirst as jest.Mock).mockResolvedValue({
+      date: new Date("2026-03-12T00:00:00.000Z"),
+    });
+
+    render(await Home());
+
+    expect(screen.getByText("Nächster Termin:")).toBeInTheDocument();
+    expect(screen.getByText("12.03.2026")).toBeInTheDocument();
+    expect(screen.getByText("Nächste Ausschreibung:")).toBeInTheDocument();
   });
 });

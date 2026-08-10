@@ -24,7 +24,7 @@ interface DocumentViewerProps {
   onClose: () => void;
   viewUrlPrefix: string;
   titlePrefix?: string;
-  size?: "sm" | "md" | "lg" | "xl" | "4xl";
+  size?: "sm" | "md" | "lg" | "xl" | "4xl" | "full";
 }
 
 export function DocumentViewer({
@@ -33,7 +33,9 @@ export function DocumentViewer({
   onClose,
   viewUrlPrefix,
   titlePrefix = "",
-  size = "lg",
+  // Vorschauen sind Lesefläche: PDF-Seiten und Bilder bekommen standardmäßig die
+  // volle Seitenbreite statt der schmalen Standard-Modalbreite.
+  size = "full",
 }: DocumentViewerProps) {
   const viewerContent = useMemo(() => {
     if (!document) {

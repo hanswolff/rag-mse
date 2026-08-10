@@ -5,6 +5,7 @@ import dynamic from "next/dynamic";
 import { useSession } from "next-auth/react";
 import { Permissions } from "@/lib/permissions";
 import { Modal } from "@/components/modal";
+import { ConfirmCloseModal } from "@/components/confirm-close-modal";
 import { useConfirmDialog } from "@/components/confirm-dialog";
 import { GermanDatePicker } from "@/components/german-date-picker";
 import { LoadingScreen } from "@/components/loading-screen";
@@ -63,6 +64,7 @@ export function AdminAusschreibungManager() {
 
   const [editing, setEditing] = useState<AusschreibungItem | null>(null);
   const [editForm, setEditForm] = useState<FormState>(EMPTY_FORM);
+  const [showEditCloseConfirm, setShowEditCloseConfirm] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [editError, setEditError] = useState("");
 
@@ -144,6 +146,28 @@ export function AdminAusschreibungManager() {
       file: null,
     });
     setEditError("");
+  }
+
+  const isEditDirty = editing !== null && (
+    editForm.title !== editing.title
+    || editForm.description !== (editing.description || "")
+    || editForm.expiresAt !== editing.expiresAt.slice(0, 10)
+    || editForm.file !== null
+  );
+
+  // Ungespeicherte Änderungen nur nach Rückfrage verwerfen
+  function requestCloseEdit() {
+    if (isSaving) return;
+    if (isEditDirty) {
+      setShowEditCloseConfirm(true);
+      return;
+    }
+    closeEdit();
+  }
+
+  function closeEdit() {
+    setShowEditCloseConfirm(false);
+    setEditing(null);
   }
 
   async function handleSaveEdit(event: React.FormEvent<HTMLFormElement>) {
@@ -324,14 +348,14 @@ export function AdminAusschreibungManager() {
         isOpen={viewing !== null}
         onClose={() => setViewing(null)}
         title={viewing ? viewing.title : "Ausschreibung ansehen"}
-        size="4xl"
+        size="full"
       >
         {viewing && <PdfViewer source={`${API_ROUTES.AUSSCHREIBUNGEN}/${viewing.id}/file`} />}
       </Modal>
 
       <Modal
         isOpen={editing !== null}
-        onClose={() => setEditing(null)}
+        onClose={requestCloseEdit}
         title="Ausschreibung bearbeiten"
         size="lg"
         closeOnOutsideClick={false}
@@ -392,7 +416,7 @@ export function AdminAusschreibungManager() {
             {editError && <p className="text-red-600 text-sm">{editError}</p>}
 
             <div className="flex justify-end gap-3">
-              <button type="button" className="btn-outline" onClick={() => setEditing(null)} disabled={isSaving}>
+              <button type="button" className="btn-outline" onClick={requestCloseEdit} disabled={isSaving}>
                 Abbrechen
               </button>
               <button type="submit" className="btn-primary" disabled={isSaving}>
@@ -402,6 +426,12 @@ export function AdminAusschreibungManager() {
           </form>
         )}
       </Modal>
+
+      <ConfirmCloseModal
+        isOpen={showEditCloseConfirm}
+        onConfirm={closeEdit}
+        onCancel={() => setShowEditCloseConfirm(false)}
+      />
     </main>
   );
 }

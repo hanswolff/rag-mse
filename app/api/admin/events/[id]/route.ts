@@ -12,6 +12,7 @@ import { logInfo, logResourceNotFound, logValidationFailure } from "@/lib/logger
 import { logAdminAction } from "@/lib/audit-log";
 import { formatDateForStorage, parseDateAndTime } from "@/lib/date-picker-utils";
 import { hasEventDescriptionContent, sanitizeEventDescriptionHtml } from "@/lib/event-description";
+import { normalizeCapacity, normalizeOptionalText } from "@/lib/event-fields";
 
 const EVENT_REQUEST_BODY_SIZE = MAX_REQUEST_BODY_SIZE + 128 * 1024;
 
@@ -97,10 +98,13 @@ export const PUT = withApiErrorHandling(async (request: NextRequest, ctx: RouteC
     timeFrom?: string;
     timeTo?: string;
     location?: string;
+    title?: string | null;
     description?: string;
     latitude?: number | null;
     longitude?: number | null;
     type?: string | null;
+    cost?: string | null;
+    capacity?: number | null;
     visible?: boolean;
   } = {};
 
@@ -144,6 +148,10 @@ export const PUT = withApiErrorHandling(async (request: NextRequest, ctx: RouteC
     updateData.location = String(body.location).trim();
   }
 
+  if (body.title !== undefined) {
+    updateData.title = normalizeOptionalText(body.title);
+  }
+
   if (body.description !== undefined) {
     const sanitizedDescription = sanitizeEventDescriptionHtml(String(body.description));
 
@@ -166,6 +174,14 @@ export const PUT = withApiErrorHandling(async (request: NextRequest, ctx: RouteC
 
   if (body.type !== undefined) {
     updateData.type = body.type || null;
+  }
+
+  if (body.cost !== undefined) {
+    updateData.cost = normalizeOptionalText(body.cost);
+  }
+
+  if (body.capacity !== undefined) {
+    updateData.capacity = normalizeCapacity(body.capacity);
   }
 
   if (body.visible !== undefined) {

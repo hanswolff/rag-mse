@@ -1,0 +1,16 @@
+[Unit]
+Description=Run the podman healthcheck for beta-rag-mse and restart on failure
+After=podman.socket
+
+[Service]
+Type=oneshot
+# Bewusst eine --user-Unit: Rootless Podman braucht XDG_RUNTIME_DIR und die
+# Session des Benutzers, dem die Container gehören. Als System-Unit mit User=
+# fände podman den rootless Storage nicht und schlüge bei jedem Lauf fehl —
+# was hier einen Dauer-Neustart eines gesunden Containers ausgelöst hätte.
+ExecStart=/usr/bin/podman healthcheck run rag-mse-app
+
+# SERVICE_RESULT ist die einzige Variable, die systemd hier immer setzt.
+# $EXIT_STATUS ist bei manchen Beendigungsarten leer, und ein leerer Wert
+# hätte den Container auch nach einem erfolgreichen Lauf neu gestartet.
+ExecStopPost=/bin/sh -c 'if [ "$SERVICE_RESULT" != "success" ]; then /usr/bin/podman restart rag-mse-app; fi'

@@ -33,7 +33,7 @@ describe("VergangeneTerminePage", () => {
     render(view);
 
     expect(screen.getByText("Termine in der Vergangenheit")).toBeInTheDocument();
-    expect(screen.getByText("Rückblick auf vergangene Veranstaltungen")).toBeInTheDocument();
+    expect(screen.getByText("Rückblick auf vergangene Termine")).toBeInTheDocument();
   });
 
   it("renders empty state", async () => {

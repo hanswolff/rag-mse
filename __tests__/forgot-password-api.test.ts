@@ -42,9 +42,6 @@ describe("/api/auth/forgot-password/route", () => {
   const SUCCESS_MESSAGE =
     "Wenn diese E-Mail registriert ist, erhalten Sie in Kürze einen Link zum Zurücksetzen Ihres Passworts.";
 
-  const ACTIVATION_PENDING_MESSAGE =
-    "Ihr Konto wurde noch nicht aktiviert. Bitte prüfen Sie Ihre E-Mails nach der Einladung oder wenden Sie sich an einen Administrator.";
-
   beforeEach(() => {
     jest.clearAllMocks();
     process.env.APP_URL = "http://localhost:3000";
@@ -68,24 +65,22 @@ describe("/api/auth/forgot-password/route", () => {
       expect(sendTemplateEmail).not.toHaveBeenCalled();
     });
 
-    it("returns same success message for existing user when email fails to send", async () => {
+    it("returns 500 when the reset email cannot be queued", async () => {
       const mockUser = { id: "1", email: "existing@example.com", activatedAt: new Date() };
       (prisma.user.findUnique as jest.Mock).mockResolvedValue(mockUser);
+      (prisma.$transaction as jest.Mock).mockResolvedValue(undefined);
       (sendTemplateEmail as jest.Mock).mockRejectedValue(new Error("SMTP error"));
 
       const request = createMockRequest({ email: "existing@example.com" });
       const response = await POST(request);
       const data = await response.json();
 
-      expect(response.status).toBe(200);
-      expect(data.message).toBe(SUCCESS_MESSAGE);
+      expect(response.status).toBe(500);
+      expect(data.error).toBe("Ein Fehler ist aufgetreten. Bitte versuchen Sie es später erneut.");
       expect(logError).toHaveBeenCalledWith(
-        'email_queue_failed',
-        'Failed to queue password reset email',
-        expect.objectContaining({
-          template: "passwort-zuruecksetzen",
-          to: "existing@example.com",
-        })
+        'api_error',
+        expect.stringContaining('/api/auth/forgot-password'),
+        expect.objectContaining({ message: "SMTP error" })
       );
     });
 
@@ -124,11 +119,10 @@ describe("/api/auth/forgot-password/route", () => {
       );
     });
 
-    it("ensures response is always 200 for all scenarios", async () => {
+    it("returns 200 with the identical message whether or not the email is registered", async () => {
       const scenarios = [
         { email: "nonexistent@example.com", userExists: false },
         { email: "existing@example.com", userExists: true, emailError: null },
-        { email: "existing@example.com", userExists: true, emailError: new Error("SMTP error") },
       ];
 
       for (const scenario of scenarios) {
@@ -156,11 +150,7 @@ describe("/api/auth/forgot-password/route", () => {
             return "mock-token";
           });
 
-          if (scenario.emailError) {
-            (sendTemplateEmail as jest.Mock).mockRejectedValue(scenario.emailError);
-          } else {
-            (sendTemplateEmail as jest.Mock).mockResolvedValue({ messageId: "test-id" });
-          }
+          (sendTemplateEmail as jest.Mock).mockResolvedValue({ messageId: "test-id" });
         } else {
           (prisma.user.findUnique as jest.Mock).mockResolvedValue(null);
         }
@@ -266,7 +256,7 @@ describe("/api/auth/forgot-password/route", () => {
   });
 
   describe("Password Reset Flow", () => {
-    it("returns activation pending message for non-activated user", async () => {
+    it("returns the generic success message for a non-activated user without sending anything", async () => {
       const mockUser = {
         id: "1",
         email: "test@example.com",
@@ -280,7 +270,7 @@ describe("/api/auth/forgot-password/route", () => {
       const data = await response.json();
 
       expect(response.status).toBe(200);
-      expect(data.message).toBe(ACTIVATION_PENDING_MESSAGE);
+      expect(data.message).toBe(SUCCESS_MESSAGE);
       expect(prisma.$transaction).not.toHaveBeenCalled();
       expect(sendTemplateEmail).not.toHaveBeenCalled();
     });
@@ -475,25 +465,25 @@ describe("/api/auth/forgot-password/route", () => {
   });
 
   describe("Error Handling", () => {
-    it("returns generic success for internal database errors to prevent enumeration side-channels", async () => {
+    it("returns 500 for internal database errors instead of a fake success", async () => {
       (prisma.user.findUnique as jest.Mock).mockRejectedValue(new Error("Database connection failed"));
 
       const request = createMockRequest({ email: "test@example.com" });
       const response = await POST(request);
       const data = await response.json();
 
-      expect(response.status).toBe(200);
-      expect(data.message).toBe(SUCCESS_MESSAGE);
+      expect(response.status).toBe(500);
+      expect(data.error).toBe("Ein Fehler ist aufgetreten. Bitte versuchen Sie es später erneut.");
       expect(logError).toHaveBeenCalledWith(
-        'forgot_password_error',
-        'Error processing forgot password request',
+        'api_error',
+        expect.stringContaining('/api/auth/forgot-password'),
         expect.objectContaining({
-          error: "Database connection failed",
+          message: "Database connection failed",
         })
       );
     });
 
-    it("returns generic success for unexpected runtime errors", async () => {
+    it("returns 500 for unexpected runtime errors", async () => {
       (prisma.user.findUnique as jest.Mock).mockImplementation(() => {
         throw new Error("Unexpected token");
       });
@@ -502,12 +492,12 @@ describe("/api/auth/forgot-password/route", () => {
       const response = await POST(request);
       const data = await response.json();
 
-      expect(response.status).toBe(200);
-      expect(data.message).toBe(SUCCESS_MESSAGE);
+      expect(response.status).toBe(500);
+      expect(data.error).toBeTruthy();
       expect(logError).toHaveBeenCalled();
     });
 
-    it("returns generic success for transaction errors", async () => {
+    it("returns 500 for transaction errors without queueing an email", async () => {
       const mockUser = { id: "1", email: "test@example.com", role: "MEMBER", activatedAt: new Date() };
       (prisma.user.findUnique as jest.Mock).mockResolvedValue(mockUser);
       (prisma.$transaction as jest.Mock).mockRejectedValue(new Error("Transaction failed"));
@@ -516,8 +506,8 @@ describe("/api/auth/forgot-password/route", () => {
       const response = await POST(request);
       const data = await response.json();
 
-      expect(response.status).toBe(200);
-      expect(data.message).toBe(SUCCESS_MESSAGE);
+      expect(response.status).toBe(500);
+      expect(data.error).toBeTruthy();
       expect(logError).toHaveBeenCalled();
       expect(sendTemplateEmail).not.toHaveBeenCalled();
     });
@@ -563,7 +553,7 @@ describe("/api/auth/forgot-password/route", () => {
       );
     });
 
-    it("logs error when email fails to send", async () => {
+    it("logs the underlying error when email queueing fails", async () => {
       const mockUser = { id: "1", email: "test@example.com", role: "MEMBER", activatedAt: new Date() };
       (prisma.user.findUnique as jest.Mock).mockResolvedValue(mockUser);
       (prisma.$transaction as jest.Mock).mockImplementation(async (callback) => {
@@ -582,27 +572,25 @@ describe("/api/auth/forgot-password/route", () => {
       await POST(request);
 
       expect(logError).toHaveBeenCalledWith(
-        'email_queue_failed',
-        'Failed to queue password reset email',
+        'api_error',
+        expect.stringContaining('/api/auth/forgot-password'),
         expect.objectContaining({
-          template: "passwort-zuruecksetzen",
-          to: "test@example.com",
-          error: "SMTP connection failed",
+          message: "SMTP connection failed",
         })
       );
     });
 
-    it("logs error for general request processing errors", async () => {
+    it("logs the underlying error for general request processing errors", async () => {
       (prisma.user.findUnique as jest.Mock).mockRejectedValue(new Error("Database error"));
 
       const request = createMockRequest({ email: "test@example.com" });
       await POST(request);
 
       expect(logError).toHaveBeenCalledWith(
-        'forgot_password_error',
-        'Error processing forgot password request',
+        'api_error',
+        expect.stringContaining('/api/auth/forgot-password'),
         expect.objectContaining({
-          error: "Database error",
+          message: "Database error",
         })
       );
     });

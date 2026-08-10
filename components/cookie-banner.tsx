@@ -1,14 +1,19 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 const COOKIE_CONSENT_KEY = "cookie-consent";
 
 export function CookieBanner() {
-  const [showBanner, setShowBanner] = useState(() => {
-    if (typeof window === "undefined") return false;
-    return !localStorage.getItem(COOKIE_CONSENT_KEY);
-  });
+  // localStorage erst nach dem Mount lesen: Der Server rendert das Banner
+  // nie, ein Lesen im useState-Initializer erzeugt einen Hydration-Mismatch.
+  const [showBanner, setShowBanner] = useState(false);
+
+  useEffect(() => {
+    if (!localStorage.getItem(COOKIE_CONSENT_KEY)) {
+      setShowBanner(true);
+    }
+  }, []);
 
   const handleAccept = () => {
     localStorage.setItem(COOKIE_CONSENT_KEY, "accepted");
@@ -23,7 +28,7 @@ export function CookieBanner() {
     <div
       className="fixed bottom-0 left-0 right-0 bg-gray-900 text-white p-3 sm:p-4 z-overlay shadow-lg"
       role="dialog"
-      aria-labelledby="cookie-banner-title"
+      aria-label="Cookie-Hinweis"
       aria-describedby="cookie-banner-description"
     >
       <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-4">

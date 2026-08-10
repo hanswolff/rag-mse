@@ -96,7 +96,7 @@ export default function NewsPage() {
             Zurück zum Dashboard
           </BackLink>
           <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mt-4">News verwalten</h1>
-          <p className="text-base sm:text-base text-gray-600 mt-2">Veröffentlichen und verwalten Sie Neuigkeiten und Ankündigungen</p>
+          <p className="text-base sm:text-base text-gray-600 mt-2">Veröffentlichen und verwalten Sie News und Ankündigungen</p>
           {canManage && (
             <button
               onClick={newsManagement.openCreateModal}

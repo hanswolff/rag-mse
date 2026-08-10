@@ -31,7 +31,7 @@ function InviteForm({
     <div className="card-compact">
       <h2 className="text-lg sm:text-xl font-semibold mb-2">Einladung versenden</h2>
       <p className="text-base text-gray-600 mb-4">
-        Mitglieder können sich über einen Einladungslink selbst registrieren.
+        Mitglieder legen ihr Benutzerkonto über einen Einladungslink selbst an.
       </p>
       <form onSubmit={onSubmit} className="space-y-4">
         <div>

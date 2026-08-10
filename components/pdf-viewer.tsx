@@ -10,6 +10,14 @@ pdfjs.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
 
 const VIEWPORT_MARGIN = "600px";
 
+// Seitenrand innerhalb des Scroll-Containers, damit die Seite nicht am Rahmen klebt.
+const PAGE_HORIZONTAL_PADDING = 32;
+
+// Obergrenze rein als Schutz vor riesigen Canvas-Flächen: react-pdf rendert mit
+// Breite × devicePixelRatio, auf 4K-Displays wären das sonst mehrere tausend
+// Pixel pro Seite. Bis dahin füllt die Seite den Container vollständig aus.
+const MAX_PAGE_WIDTH = 2000;
+
 function PageLoadingPlaceholder({ height }: { height: number }) {
   return (
     <div
@@ -102,7 +110,7 @@ export function PdfViewer({ source }: { source: string }) {
   );
 
   const pageWidth = containerWidth
-    ? Math.min(containerWidth - 32, 1200)
+    ? Math.min(containerWidth - PAGE_HORIZONTAL_PADDING, MAX_PAGE_WIDTH)
     : undefined;
 
   return (

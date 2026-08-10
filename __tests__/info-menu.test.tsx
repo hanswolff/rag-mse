@@ -84,6 +84,87 @@ describe("Infos-Menü Gruppierung", () => {
   });
 });
 
+describe("Badge für offene Ausschreibungen", () => {
+  const renderDesktop = (openAusschreibungenCount?: number) => {
+    const menuRef = createRef<HTMLDivElement>();
+    return render(
+      <DesktopInfoMenu
+        isOpen
+        onToggle={() => {}}
+        onItemClick={() => {}}
+        menuRef={menuRef}
+        buttonClassName=""
+        showMemberDocuments={false}
+        openAusschreibungenCount={openAusschreibungenCount}
+      />
+    );
+  };
+
+  const renderMobile = (openAusschreibungenCount?: number) =>
+    render(
+      <MobileInfoMenu
+        isOpen
+        onToggle={() => {}}
+        onItemClick={() => {}}
+        showMemberDocuments={false}
+        getLinkClasses={() => ""}
+        openAusschreibungenCount={openAusschreibungenCount}
+      />
+    );
+
+  it("Desktop: zeigt die Anzahl am Infos-Button und am Eintrag Ausschreibungen", () => {
+    renderDesktop(3);
+
+    const badges = screen.getAllByLabelText("3 offene Ausschreibungen");
+    expect(badges).toHaveLength(2);
+    expect(badges.every((badge) => badge.textContent === "3")).toBe(true);
+
+    // Das zweite Badge muss im Ausschreibungen-Link stecken, nicht in einem anderen Eintrag.
+    const ausschreibungenLink = screen.getByRole("link", { name: /Ausschreibungen/ });
+    expect(within(ausschreibungenLink).getByLabelText("3 offene Ausschreibungen")).toBeInTheDocument();
+  });
+
+  it("Mobile: zeigt die Anzahl am Infos-Button und am Eintrag Ausschreibungen", () => {
+    renderMobile(2);
+
+    expect(screen.getAllByLabelText("2 offene Ausschreibungen")).toHaveLength(2);
+
+    const ausschreibungenLink = screen.getByRole("link", { name: /Ausschreibungen/ });
+    expect(within(ausschreibungenLink).getByLabelText("2 offene Ausschreibungen")).toBeInTheDocument();
+  });
+
+  it("zeigt ohne offene Ausschreibungen kein Badge", () => {
+    const { unmount } = renderDesktop(0);
+    expect(screen.queryByText("0")).not.toBeInTheDocument();
+    unmount();
+
+    renderMobile(0);
+    expect(screen.queryByText("0")).not.toBeInTheDocument();
+  });
+
+  it("bleibt ohne übergebene Anzahl badgefrei", () => {
+    renderDesktop();
+
+    const links = screen.getAllByRole("link").map((link) => link.textContent);
+    expect(links).toEqual([
+      "Ausschreibungen",
+      "Formulare",
+      "Schießsportordnung",
+      "Leitfaden Waffenteile",
+      "Waffentechnische Begriffe",
+      "Sachkundeprüfung",
+      "Sicherheitsbelehrung",
+    ]);
+  });
+
+  it("hängt das Badge nur an Ausschreibungen, nicht an Formulare", () => {
+    renderDesktop(5);
+
+    const formulareLink = screen.getByRole("link", { name: "Formulare" });
+    expect(within(formulareLink).queryByLabelText(/offene Ausschreibungen/)).not.toBeInTheDocument();
+  });
+});
+
 describe("MEMBER_DOCUMENTS_ITEM", () => {
   it("bleibt unverändert an /mitglieder-dokumente", () => {
     expect(MEMBER_DOCUMENTS_ITEM.href).toBe("/mitglieder-dokumente");

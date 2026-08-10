@@ -3,8 +3,17 @@
 ## Retention Policy Implemented
 
 - Keep rolling last 7 daily backups (today plus previous 6 days).
-- Keep every backup from day `01` of each month.
-- Delete all older backups that are neither in the last 7 days nor monthly-first.
+- Keep the `MONTHLY_KEEP` most recent monthly backups (day `01`), default 12.
+- Delete all older backups that are neither in the last 7 days nor among the retained months.
+
+Die Monatsobergrenze ist über die Umgebungsvariable `MONTHLY_KEEP` einstellbar
+(`MONTHLY_KEEP=24` für zwei Jahre). Ohne Obergrenze wuchs der Backup-Pfad
+unbegrenzt — bei zwölf Monatsständen bleibt er berechenbar.
+
+**Offen:** Die Backups liegen weiterhin auf demselben ZFS-Pool wie die Live-Daten.
+Eine Off-Host-Kopie (rclone/restic) ist bewusst noch nicht umgesetzt, weil das Ziel
+und die Zugangsdaten noch nicht feststehen — siehe
+`.scratch/review-2026-07-gesamt/issues/05-infrastruktur-folgearbeiten.md`.
 
 Backup filename format:
 

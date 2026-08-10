@@ -159,6 +159,72 @@ describe("Email Sender", () => {
       );
     });
 
+    it("restores one-time tokens for sending and clears them once sent", async () => {
+      const firstQueuedAt = new Date("2026-02-08T10:00:00.000Z");
+
+      (mockPrisma.outgoingEmail.findFirst as jest.Mock)
+        .mockResolvedValueOnce({ id: "mail-token" })
+        .mockResolvedValueOnce(null);
+      (mockPrisma.outgoingEmail.updateMany as jest.Mock).mockResolvedValue({ count: 1 });
+      (mockPrisma.outgoingEmail.findUnique as jest.Mock).mockResolvedValue({
+        id: "mail-token",
+        template: "passwort-zuruecksetzen",
+        toRecipients: "a@example.com",
+        subject: "Subject",
+        textBody: "Link: https://example.com/passwort-zuruecksetzen/***TOKEN_0***",
+        htmlBody: "<p>Link: https://example.com/passwort-zuruecksetzen/***TOKEN_0***</p>",
+        attachmentsJson: null,
+        sensitiveTokensJson: JSON.stringify(["geheimes-token"]),
+        attemptCount: 1,
+        firstQueuedAt,
+      });
+      mockSendMail.mockResolvedValue({ messageId: "m-token" });
+      (mockPrisma.outgoingEmail.update as jest.Mock).mockResolvedValue({});
+
+      await processDueEmailOutboxBatch();
+
+      expect(mockSendMail).toHaveBeenCalledWith(
+        expect.objectContaining({
+          text: "Link: https://example.com/passwort-zuruecksetzen/geheimes-token",
+          html: "<p>Link: https://example.com/passwort-zuruecksetzen/geheimes-token</p>",
+        })
+      );
+      expect(mockPrisma.outgoingEmail.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ status: "SENT", sensitiveTokensJson: null }),
+        })
+      );
+    });
+
+    it("keeps one-time tokens on permanent failure so an admin retry still works", async () => {
+      const firstQueuedAt = new Date("2026-02-08T10:00:00.000Z");
+
+      (mockPrisma.outgoingEmail.findFirst as jest.Mock)
+        .mockResolvedValueOnce({ id: "mail-token-fail" })
+        .mockResolvedValueOnce(null);
+      (mockPrisma.outgoingEmail.updateMany as jest.Mock).mockResolvedValue({ count: 1 });
+      (mockPrisma.outgoingEmail.findUnique as jest.Mock).mockResolvedValue({
+        id: "mail-token-fail",
+        template: "passwort-zuruecksetzen",
+        toRecipients: "a@example.com",
+        subject: "Subject",
+        textBody: "Link: https://example.com/passwort-zuruecksetzen/***TOKEN_0***",
+        htmlBody: "<p>Link</p>",
+        attachmentsJson: null,
+        sensitiveTokensJson: JSON.stringify(["geheimes-token"]),
+        attemptCount: 1,
+        firstQueuedAt,
+      });
+      mockSendMail.mockRejectedValue(new Error("Invalid credentials"));
+      (mockPrisma.outgoingEmail.update as jest.Mock).mockResolvedValue({});
+
+      await processDueEmailOutboxBatch();
+
+      const failedUpdate = (mockPrisma.outgoingEmail.update as jest.Mock).mock.calls[0][0];
+      expect(failedUpdate.data.status).toBe("FAILED");
+      expect(failedUpdate.data).not.toHaveProperty("sensitiveTokensJson");
+    });
+
     it("reclaims a PROCESSING email whose lock expired (crashed worker)", async () => {
       const firstQueuedAt = new Date("2026-02-08T10:00:00.000Z");
 

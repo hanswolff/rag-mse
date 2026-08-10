@@ -19,6 +19,9 @@ import { AlertBox } from "@/components/alert-box";
 import { useEventDetail } from "@/lib/use-event-detail";
 import { useEventVoting } from "@/lib/use-event-voting";
 import { serializeJsonLd } from "@/lib/json-ld";
+import { EventTypeBadge } from "@/components/event-type-badge";
+import { pluralize } from "@/lib/pluralization";
+import { formatOccupancy } from "@/lib/registration-count";
 
 function getOpenStreetMapUrl(latitude: number, longitude: number): string {
   return `https://www.openstreetmap.org/?mlat=${latitude}&mlon=${longitude}#map=15/${latitude}/${longitude}`;
@@ -104,19 +107,12 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
                 <div className="mb-4">
                   <div className="flex items-center gap-3 mb-2">
                     <h1 className="text-3xl font-bold text-gray-900">
-                      {formatDate(event.date)}
+                      {event.title || formatDate(event.date)}
                     </h1>
-                    {event.type && (
-                      <span className={`px-3 py-1 text-base font-medium rounded ${
-                        event.type === "Training" 
-                          ? "bg-brand-blue-50 text-brand-blue-800" 
-                          : "bg-orange-100 text-orange-800"
-                      }`}>
-                        {event.type}
-                      </span>
-                    )}
+                    <EventTypeBadge type={event.type} size="large" />
                   </div>
                   <p className="text-lg text-gray-600">
+                    {event.title && `${formatDate(event.date)}, `}
                     {formatTime(event.timeFrom)} - {formatTime(event.timeTo)}
                   </p>
                 </div>
@@ -146,6 +142,27 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
                     />
                   )}
                 </div>
+
+                {event.cost && (
+                  <div className="mb-6">
+                    <h2 className="text-lg font-semibold text-gray-900 mb-2">Kosten</h2>
+                    <p className="text-gray-700">{event.cost}</p>
+                  </div>
+                )}
+
+                {event.capacity !== null && event.capacity !== undefined && (
+                  <div className="mb-6">
+                    <h2 className="text-lg font-semibold text-gray-900 mb-2">Plätze</h2>
+                    <p className="text-gray-700">
+                      {event.capacity} {pluralize(event.capacity, "Platz", "Plätze")}
+                    </p>
+                    {session && event.voteCounts && (
+                      <p className="text-gray-700 mt-1">
+                        {formatOccupancy(event.voteCounts, event.capacity)}
+                      </p>
+                    )}
+                  </div>
+                )}
 
                 <div className="mb-6">
                   <h2 className="text-lg font-semibold text-gray-900 mb-2">Beschreibung</h2>
@@ -289,7 +306,9 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
         )}
       </div>
 
-      {isAdminUser && (
+      {/* Bei offenem Modal zeigt die AlertBox im Modal den Fehler — der Toast läge
+          unsichtbar hinter dem Overlay und würde doppelt per Screenreader angesagt */}
+      {isAdminUser && !voting.isAddRegistrationModalOpen && (
         <AlertBox type="error" message={voting.adminRegistrationError} className="fixed bottom-4 right-4 shadow-lg z-40" />
       )}
       {isAdminUser && (
@@ -303,6 +322,7 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
         size="lg"
       >
         <form onSubmit={voting.handleSubmitAddRegistration} className="space-y-5">
+          <AlertBox type="error" message={voting.adminRegistrationError} />
           <div className="flex flex-wrap gap-5">
             <label className="inline-flex items-center gap-2.5 text-base text-gray-800">
               <input

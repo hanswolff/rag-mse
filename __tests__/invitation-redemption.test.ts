@@ -1,5 +1,5 @@
 import { POST, GET } from "@/app/api/invitations/[token]/route";
-import { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getInvitationExpiryDate } from "@/lib/invitations";
 import { logInfo, logValidationFailure, logResourceNotFound, logError } from "@/lib/logger";
@@ -81,12 +81,10 @@ describe("/api/invitations/[token] route", () => {
   });
 
   describe("GET /api/invitations/[token]", () => {
-    it("returns invitation details for valid token", async () => {
+    it("returns invitation details for valid token without exposing stored profile data", async () => {
       (prisma.invitation.findUnique as jest.Mock).mockResolvedValue(mockInvitation);
       (prisma.user.findUnique as jest.Mock).mockResolvedValue({
         name: "Max Mustermann",
-        address: "Musterstraße 1, 12345 Musterstadt",
-        phone: "+49 123 456789",
       });
 
       const request = {} as NextRequest;
@@ -97,8 +95,26 @@ describe("/api/invitations/[token] route", () => {
       expect(data.email).toBe("test@example.com");
       expect(data.expiresAt).toBeTruthy();
       expect(data.name).toBe("Max Mustermann");
-      expect(data.address).toBe("Musterstraße 1, 12345 Musterstadt");
-      expect(data.phone).toBe("+49 123 456789");
+      expect(data).not.toHaveProperty("address");
+      expect(data).not.toHaveProperty("phone");
+      expect(data).not.toHaveProperty("dateOfBirth");
+      expect(prisma.user.findUnique).toHaveBeenCalledWith(
+        expect.objectContaining({ select: { name: true } })
+      );
+    });
+
+    it("rate-limits token probing on GET", async () => {
+      const { checkTokenRateLimitWithPolicy, handleRateLimitBlocked } = jest.requireMock("@/lib/api-utils");
+      checkTokenRateLimitWithPolicy.mockResolvedValue({ allowed: false, attemptCount: 5, blockedUntil: Date.now() + 60000 });
+      handleRateLimitBlocked.mockReturnValue(
+        NextResponse.json({ error: "Zu viele Versuche" }, { status: 429 })
+      );
+
+      const request = {} as NextRequest;
+      const response = await GET(request, { params: createMockParams("probed-token") });
+
+      expect(response.status).toBe(429);
+      expect(prisma.invitation.findUnique).not.toHaveBeenCalled();
     });
 
     it("returns 400 for missing token", async () => {
@@ -284,9 +300,50 @@ describe("/api/invitations/[token] route", () => {
           data: expect.objectContaining({
             passwordUpdatedAt: expect.any(Date),
             activatedAt: expect.any(Date),
+            address: "456 New St",
+            phone: "987654321",
           }),
         })
       );
+    });
+
+    it("keeps stored master data when optional fields are submitted empty", async () => {
+      (prisma.invitation.findUnique as jest.Mock)
+        .mockResolvedValueOnce(mockInvitation)
+        .mockResolvedValueOnce({ usedAt: null, expiresAt: getInvitationExpiryDate() });
+      (prisma.user.findUnique as jest.Mock).mockResolvedValue(existingUser);
+      (prisma.user.update as jest.Mock).mockResolvedValue(existingUser);
+      (prisma.invitation.update as jest.Mock).mockResolvedValue({});
+
+      // Das Einladungs-GET liefert keine Stammdaten mehr, das Formular startet
+      // also leer — leere Felder dürfen gespeicherte Werte nicht überschreiben
+      const request = createMockRequest({
+        name: "John Doe",
+        address: "",
+        phone: "",
+        password: "NewSecurePassword123!",
+        confirmPassword: "NewSecurePassword123!",
+        dateOfBirth: "",
+        rank: "",
+        pk: "",
+        reservistsAssociation: "",
+        associationMemberNumber: "",
+        hasPossessionCard: false,
+      });
+      const response = await POST(request, { params: createMockParams("valid-token") });
+
+      expect(response.status).toBe(200);
+      const updateData = (prisma.user.update as jest.Mock).mock.calls[0][0].data;
+      expect(updateData).not.toHaveProperty("address");
+      expect(updateData).not.toHaveProperty("phone");
+      expect(updateData).not.toHaveProperty("dateOfBirth");
+      expect(updateData).not.toHaveProperty("rank");
+      expect(updateData).not.toHaveProperty("pk");
+      expect(updateData).not.toHaveProperty("reservistsAssociation");
+      expect(updateData).not.toHaveProperty("associationMemberNumber");
+      expect(updateData).not.toHaveProperty("hasPossessionCard");
+      expect(updateData.name).toBe("John Doe");
+      expect(updateData.password).toEqual(expect.any(String));
     });
   });
 

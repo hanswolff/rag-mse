@@ -1,5 +1,5 @@
 import { VoteType } from "@prisma/client";
-import { formatRegistrationCount } from "@/lib/registration-count";
+import { formatOccupancy, formatRegistrationCount } from "@/lib/registration-count";
 
 type VoteBucket = {
   JA: number;
@@ -10,6 +10,7 @@ type VoteBucket = {
 type EventVotesLike = {
   votes?: { vote: VoteType }[];
   guestRegistrations?: { vote: VoteType }[];
+  capacity?: number | null;
 };
 
 export function parsePageParam(value: string | undefined): number {
@@ -37,6 +38,9 @@ export function getVoteLabel(event: EventVotesLike): string {
   }
   for (const guest of event.guestRegistrations || []) {
     base[guest.vote] += 1;
+  }
+  if (typeof event.capacity === "number") {
+    return formatOccupancy(base, event.capacity);
   }
   return formatRegistrationCount(base);
 }

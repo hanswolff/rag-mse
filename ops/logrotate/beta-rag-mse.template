@@ -1,0 +1,22 @@
+# Log rotation for RAG Schießsport MSE — Vorlage, nicht direkt installierbar.
+#
+# Installieren über ops/logrotate/install.sh; das Skript ersetzt __APP_DIR__,
+# __APP_UID__ und __APP_GID__ durch die tatsächlichen Werte. logrotate kennt
+# keine Variablen, deshalb der Umweg über die Vorlage — hartkodierte 1000:1000
+# rotieren sonst auf Hosts mit abweichendem APP_UID in die falsche Eigentümerschaft.
+#
+# Hinweis: Der E-Mail-Dev-Modus (EMAIL_DEV_LOG_METHOD="file"/"both") schreibt
+# einzelne .eml-Dateien (eine Datei pro E-Mail), keine fortlaufenden Logdateien.
+# Logrotate-Rotation passt dafür nicht — alte .eml-Dateien stattdessen
+# altersbasiert per Cron löschen:
+#   0 3 * * * find __APP_DIR__/data/logs/emails -name '*.eml' -mtime +14 -delete
+
+__APP_DIR__/data/logs/emails/*.log {
+    daily
+    rotate 14
+    compress
+    delaycompress
+    missingok
+    notifempty
+    create 0640 __APP_UID__ __APP_GID__
+}

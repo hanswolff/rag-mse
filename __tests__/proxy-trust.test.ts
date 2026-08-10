@@ -132,6 +132,44 @@ describe("proxy-trust", () => {
     });
   });
 
+  describe("spoofing protection when no socket peer IP is available", () => {
+    // Next 15+ liefert route handlers keine Peer-IP: sourceIp ist in Produktion immer null.
+    it("ignores forwarding headers when TRUSTED_PROXY_IPS is not configured", () => {
+      delete process.env.TRUSTED_PROXY_IPS;
+      clearTrustedProxyCache();
+
+      const spoofed = new Headers({ "x-forwarded-for": "203.0.113.99", "user-agent": "attacker" });
+      const identifier = getClientIdentifierFromHeaders(spoofed, null);
+
+      expect(identifier).not.toBe("203.0.113.99");
+    });
+
+    it("does not let a rotating X-Forwarded-For create fresh rate-limit identities", () => {
+      delete process.env.TRUSTED_PROXY_IPS;
+      clearTrustedProxyCache();
+
+      const first = getClientIdentifierFromHeaders(
+        new Headers({ "x-forwarded-for": "203.0.113.1", "user-agent": "attacker" }),
+        null
+      );
+      const second = getClientIdentifierFromHeaders(
+        new Headers({ "x-forwarded-for": "203.0.113.2", "user-agent": "attacker" }),
+        null
+      );
+
+      expect(first).toBe(second);
+    });
+
+    it("honours forwarding headers once the deployment declares TRUSTED_PROXY_IPS", () => {
+      process.env.TRUSTED_PROXY_IPS = "127.0.0.1/32,::1";
+      clearTrustedProxyCache();
+
+      const headers = new Headers({ "x-forwarded-for": "203.0.113.7" });
+
+      expect(getClientIdentifierFromHeaders(headers, null)).toBe("203.0.113.7");
+    });
+  });
+
   describe("getDirectIp", () => {
     it("returns real IP from x-real-ip header", () => {
       const request = new NextRequest("http://example.com", {

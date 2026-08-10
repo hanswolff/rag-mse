@@ -159,22 +159,30 @@ podman run --rm --userns=keep-id -v "$PROJECT_DIR/data:/data:rw" \
 
 ---
 
-## 6. Boot-Persistenz (rootless systemd-User-Unit)
+## 6. Boot-Persistenz (podman-restart.service + Lingering)
 
 Rootless-Container laufen unter einer User-Session und überleben standardmäßig
-keinen Logout/Reboot. Eine `systemctl --user`-Unit (`ops/systemd/rag-mse.service`)
-übernimmt das:
+keinen Logout/Reboot. `podman-restart.service` startet zusammen mit
+`restart: unless-stopped` aus `compose.yaml` alle Container wieder, Lingering
+sorgt dafür, dass das auch ohne aktive Login-Session passiert:
 
 ```bash
-mkdir -p ~/.config/systemd/user
-cp ops/systemd/rag-mse.service ~/.config/systemd/user/rag-mse.service
-systemctl --user daemon-reload
-systemctl --user enable --now rag-mse
+systemctl --user enable --now podman-restart.service
 loginctl enable-linger "$USER"   # entscheidend: Stack überlebt Logout/Reboot
 ```
 
-`deploy.sh` steuert `podman-compose` während Deployments weiterhin direkt; die
-Unit dient nur dem Wiederanlauf nach einem Neustart.
+**Dafür ausdrücklich keine eigene Container-Unit anlegen.** Die früher hier
+empfohlene `ops/systemd/rag-mse.service` (`Type=simple`,
+`ExecStart=podman-compose up` im Vordergrund, `ExecStop=podman-compose down`)
+ist mit `deploy.sh` unvereinbar: Sobald das Skript den App-Container stoppt oder
+per `--force-recreate` neu erzeugt, endet der angehängte `up`-Prozess mit Status
+0, systemd führt `ExecStop` aus und löscht Container samt Netzwerk mitten im
+Deployment. Auf der Schwesterseite dedimax.de hat genau das am 2026-07-30 einen
+Ausfall verursacht. Die Unit wurde deshalb entfernt; `deploy.sh` bricht ab,
+falls sie wieder auftaucht.
+
+`deploy.sh` steuert `podman-compose` während Deployments direkt und ist der
+einzige Besitzer des Containers.
 
 ---
 
@@ -272,7 +280,7 @@ in Schritt 9.1 angelegte `data.backup-*` zurückspielen.
 - [ ] Dateien per `git mv` umbenannt (Dockerfile → Containerfile usw.)
 - [ ] `compose.yaml`: `userns_mode: keep-id:uid=…,gid=…`, Port an `127.0.0.1`, `TRUSTED_PROXY_IPS` gesetzt
 - [ ] `deploy.sh`: alle docker-Aufrufe auf podman übersetzt, `bash -n` sauber
-- [ ] `ops/systemd/rag-mse.service` installiert, `loginctl enable-linger` gesetzt
+- [ ] `podman-restart.service` aktiviert, `loginctl enable-linger` gesetzt, **keine** eigene Container-Unit installiert
 - [ ] Tests + Doku auf Podman umgestellt, `pnpm test` / `pnpm lint` grün
 - [ ] Cutover: Datensicherung → alten Stack down → `./deploy.sh`
 - [ ] Health 200, `exec app id` korrekt, Client-IP in Logs plausibel

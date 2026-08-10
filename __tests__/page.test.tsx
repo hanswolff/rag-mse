@@ -12,6 +12,9 @@ jest.mock("@/lib/prisma", () => ({
     event: {
       findFirst: jest.fn(),
     },
+    ausschreibung: {
+      findFirst: jest.fn(),
+    },
   },
 }));
 
@@ -23,6 +26,7 @@ describe("Home", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     (prisma.event.findFirst as jest.Mock).mockResolvedValue(null);
+    (prisma.ausschreibung.findFirst as jest.Mock).mockResolvedValue(null);
     (access as jest.Mock).mockRejectedValue(new Error("not found"));
   });
 

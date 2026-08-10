@@ -23,8 +23,12 @@ const LOGIN_PROOF_VERSION = "v1";
 const IMPERSONATION_PROOF_TTL_MS = 60_000;
 const IMPERSONATION_PROOF_VERSION = "v1i";
 
-function hashLoginPassword(password: string): string {
-  return crypto.createHash("sha256").update(password).digest("hex");
+// Mit NEXTAUTH_SECRET geschlüsselt statt blankem SHA-256: Der Proof geht an den
+// Browser, ein ungesalzener Passwort-Hash darin wäre offline knackbar. Die Bindung
+// an genau dieses Passwort bleibt erhalten — sie erlaubt dem Proof, die erneute
+// Passwortprüfung zu ersetzen.
+function hashLoginPassword(password: string, secret: string): string {
+  return crypto.createHmac("sha256", `${secret}:login-proof`).update(password).digest("hex");
 }
 
 function getLoginProofSecret(): string {
@@ -53,7 +57,7 @@ export function createLoginProof(email: string, clientIp: string, password: stri
     version: 1,
     email: email.toLowerCase(),
     clientIp,
-    passwordDigest: hashLoginPassword(password),
+    passwordDigest: hashLoginPassword(password, secret),
     expiresAt: Date.now() + LOGIN_PROOF_TTL_MS,
   };
 
@@ -186,10 +190,16 @@ export function validateLoginProof(token: string, email: string, clientIp: strin
     return false;
   }
 
+  const expectedDigest = hashLoginPassword(password, secret);
+  const digestMatches =
+    typeof payload.passwordDigest === "string"
+    && payload.passwordDigest.length === expectedDigest.length
+    && crypto.timingSafeEqual(Buffer.from(payload.passwordDigest), Buffer.from(expectedDigest));
+
   return (
     payload.email === email.toLowerCase()
     && payload.clientIp === clientIp
-    && payload.passwordDigest === hashLoginPassword(password)
+    && digestMatches
     && payload.expiresAt > Date.now()
   );
 }

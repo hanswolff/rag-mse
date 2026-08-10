@@ -13,10 +13,13 @@ export interface Event {
   timeTo: string;
   location: string;
   locationDisplay?: string;
+  title: string | null;
   description: string;
   latitude: number | null;
   longitude: number | null;
   type: string | null;
+  cost: string | null;
+  capacity: number | null;
   visible: boolean;
   createdById?: string | null;
   createdAt: string;
@@ -40,10 +43,13 @@ export interface NewEvent {
   timeFrom: string;
   timeTo: string;
   location: string;
+  title: string;
   description: string;
   latitude: string;
   longitude: string;
   type: string;
+  cost: string;
+  capacity: string;
   visible: boolean;
 }
 

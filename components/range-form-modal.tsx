@@ -104,7 +104,7 @@ export function RangeFormModal({
             required
             maxLength={100}
             className={`form-input ${getFieldError("name") ? "border-red-500 focus:border-red-500" : ""}`}
-            placeholder="z.B. Schießstand Neubrandenburg"
+            placeholder="z.B. Standort Neubrandenburg"
             disabled={isSubmitting}
             autoFocus={!isEditing}
             aria-invalid={!!getFieldError("name")}

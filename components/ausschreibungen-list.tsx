@@ -123,7 +123,7 @@ export function AusschreibungenList({
         isOpen={viewing !== null}
         onClose={() => setViewing(null)}
         title={viewing ? viewing.title : "Ausschreibung ansehen"}
-        size="4xl"
+        size="full"
       >
         {viewerSource && <PdfViewer source={viewerSource} />}
       </Modal>

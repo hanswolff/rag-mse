@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useMemo } from "react";
 import { useAdminAuth } from "./use-admin-auth";
 import { useAdminCrud } from "./use-admin-crud";
 import { useSuccessTimer } from "./use-success-timer";
@@ -45,13 +45,17 @@ export function useNewsManagement() {
 
   useSuccessTimer(success, setSuccess);
 
-  const fetchNews = createFetchDataHandler<News[]>(
-    "/api/admin/news",
-    setNews,
-    setError,
-    setIsLoading,
-    undefined,
-    "news"
+  const fetchNews = useMemo(
+    () =>
+      createFetchDataHandler<News[]>(
+        "/api/admin/news",
+        setNews,
+        setError,
+        setIsLoading,
+        undefined,
+        "news"
+      ),
+    [createFetchDataHandler]
   );
 
   useEffect(() => {

@@ -51,12 +51,34 @@ async function findValidResetToken(token: string) {
 }
 
 export const GET = withApiErrorHandling(async (
-  _request: NextRequest,
+  request: NextRequest,
   context: { params: Promise<{ token: string }> }
 ) => {
   const { token } = await context.params;
   if (!token) {
     return NextResponse.json({ error: "Ungültiger Link" }, { status: 400, headers: getNoCacheHeaders() });
+  }
+
+  const clientIp = getClientIp(request);
+  const tokenHash = hashResetToken(token);
+  const rateLimitResult = await checkTokenRateLimitWithPolicy(
+    "/api/auth/reset-password/[token]",
+    "GET",
+    clientIp,
+    tokenHash,
+    maskToken(token),
+    "read"
+  );
+
+  if (!rateLimitResult.allowed) {
+    return handleRateLimitBlocked(
+      'password_reset_rate_limited',
+      '/api/auth/reset-password/[token]',
+      token,
+      clientIp,
+      rateLimitResult.blockedUntil,
+      rateLimitResult.attemptCount
+    );
   }
 
   const { reset, status } = await findValidResetToken(token);

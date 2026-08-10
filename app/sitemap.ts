@@ -10,6 +10,7 @@ const staticPaths = [
   "/termine",
   "/termine/vergangenheit",
   "/news",
+  "/ausschreibungen",
   "/ueber-uns",
   "/kontakt",
   "/info/schiesssportordnung",

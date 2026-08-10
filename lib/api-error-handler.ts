@@ -56,6 +56,10 @@ export function getNoCacheHeaders() {
 export function getPublicCacheHeaders(maxAgeSeconds = 60, sMaxAgeSeconds = 300) {
   return {
     "Cache-Control": `public, max-age=${maxAgeSeconds}, s-maxage=${sMaxAgeSeconds}, stale-while-revalidate=${sMaxAgeSeconds}`,
+    // Dieselbe URL liefert eingeloggt eine andere Antwort (z.B. eigene
+    // Teilnahmeanmeldung): Caches müssen nach Cookie unterscheiden, sonst
+    // wird Mitgliedern nach dem Login die anonyme Variante serviert.
+    "Vary": "Cookie",
   };
 }
 

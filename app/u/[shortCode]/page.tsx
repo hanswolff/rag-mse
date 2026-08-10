@@ -13,7 +13,9 @@ export default async function ShortLinkPage({
 }) {
   const { shortCode } = await params;
 
-  if (!shortCode || !/^[a-z0-9]{1,20}$/.test(shortCode)) {
+  // Obergrenze 30 deckt neben den 8-stelligen Kurzcodes auch Altbestände ab,
+  // deren shortCode noch eine 25-stellige cuid ist.
+  if (!shortCode || !/^[a-z0-9]{1,30}$/.test(shortCode)) {
     notFound();
   }
 

@@ -129,11 +129,6 @@ export default function AdminOutgoingEmailsPage() {
     "desc",
     OUTGOING_EMAIL_DEFAULT_SORT_DIRECTIONS,
   );
-  const showMobileCards =
-    typeof window !== "undefined" &&
-    typeof window.matchMedia === "function" &&
-    window.matchMedia("(max-width: 767px)").matches;
-
   useEffect(() => {
     if (status === "authenticated" && !Permissions.canReadOutgoingEmails(session?.user)) {
       router.push("/");
@@ -327,7 +322,6 @@ export default function AdminOutgoingEmailsPage() {
             </form>
           </div>
 
-          {showMobileCards && (
           <div className="space-y-3 md:hidden">
             {items.length === 0 ? (
               <div className="border border-gray-200 rounded-md bg-white px-4 py-6 text-base text-gray-500 text-center">
@@ -394,7 +388,6 @@ export default function AdminOutgoingEmailsPage() {
               })
             )}
           </div>
-          )}
 
           <div className="hidden md:block overflow-x-auto border border-gray-200 rounded-md bg-white">
             <table className="min-w-full">
@@ -541,6 +534,7 @@ export default function AdminOutgoingEmailsPage() {
                     <div className="bg-gray-50 border border-gray-200 rounded-lg overflow-hidden">
                       <iframe
                         srcDoc={viewingEmail.htmlBody}
+                        sandbox=""
                         className="w-full h-64 border-0"
                         title="HTML-Vorschau"
                       />

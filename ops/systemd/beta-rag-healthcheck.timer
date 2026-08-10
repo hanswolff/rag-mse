@@ -1,0 +1,12 @@
+[Unit]
+Description=Periodic podman healthcheck for beta-rag-mse
+
+[Timer]
+OnBootSec=5m
+OnUnitActiveSec=2m
+# Kein Persistent=true: Ein nachgeholter Healthcheck nach Standby sagt nichts
+# über den aktuellen Zustand aus und würde nur einen Restart auslösen.
+Unit=beta-rag-healthcheck.service
+
+[Install]
+WantedBy=timers.target

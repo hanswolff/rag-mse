@@ -50,7 +50,7 @@ export default async function NewsPage({
     <main className="flex-1 bg-gray-50">
       <PageHeader
         title="News"
-        subtitle={`Aktuelle Neuigkeiten von der ${appName}`}
+        subtitle={`Aktuelle News von der ${appName}`}
       />
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
         {session && isAdmin(session.user) && (

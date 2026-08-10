@@ -130,6 +130,246 @@ describe("EventDetailPage", () => {
     expect(screen.getByText("Test Description")).toBeInTheDocument();
   });
 
+  it("shows the title as heading and keeps date and time visible", async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        id: "1",
+        date: "2026-02-15T18:00:00.000Z",
+        timeFrom: "18:00",
+        timeTo: "20:00",
+        location: "Test Location",
+        title: "Dynamisches Pistolenschießen Level 1",
+        description: "Test Description",
+        type: "Lehrgang",
+        latitude: null,
+        longitude: null,
+        createdAt: "2026-01-31T10:00:00.000Z",
+        updatedAt: "2026-01-31T10:00:00.000Z",
+        votes: [],
+        voteCounts: { JA: 0, NEIN: 0, VIELLEICHT: 0 },
+      }),
+    });
+
+    await act(async () => {
+      render(<EventDetailPage params={Promise.resolve({ id: "1" })} />);
+    });
+
+    await waitFor(() => {
+      expect(screen.queryByText("Laden...")).not.toBeInTheDocument();
+    });
+
+    expect(
+      screen.getByRole("heading", { name: "Dynamisches Pistolenschießen Level 1" })
+    ).toBeInTheDocument();
+    expect(screen.getByText("15.02.2026, 18:00 - 20:00")).toBeInTheDocument();
+  });
+
+  it("shows the cost note when one is set", async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        id: "1",
+        date: "2026-02-15T18:00:00.000Z",
+        timeFrom: "18:00",
+        timeTo: "20:00",
+        location: "Test Location",
+        title: null,
+        cost: "25 € für Mitglieder, 40 € für Gäste",
+        description: "Test Description",
+        type: "Lehrgang",
+        latitude: null,
+        longitude: null,
+        createdAt: "2026-01-31T10:00:00.000Z",
+        updatedAt: "2026-01-31T10:00:00.000Z",
+        votes: [],
+        voteCounts: { JA: 0, NEIN: 0, VIELLEICHT: 0 },
+      }),
+    });
+
+    await act(async () => {
+      render(<EventDetailPage params={Promise.resolve({ id: "1" })} />);
+    });
+
+    await waitFor(() => {
+      expect(screen.queryByText("Laden...")).not.toBeInTheDocument();
+    });
+
+    expect(screen.getByRole("heading", { name: "Kosten" })).toBeInTheDocument();
+    expect(screen.getByText("25 € für Mitglieder, 40 € für Gäste")).toBeInTheDocument();
+  });
+
+  it("shows no cost section when no cost is set", async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        id: "1",
+        date: "2026-02-15T18:00:00.000Z",
+        timeFrom: "18:00",
+        timeTo: "20:00",
+        location: "Test Location",
+        title: null,
+        cost: null,
+        description: "Test Description",
+        type: null,
+        latitude: null,
+        longitude: null,
+        createdAt: "2026-01-31T10:00:00.000Z",
+        updatedAt: "2026-01-31T10:00:00.000Z",
+        votes: [],
+        voteCounts: { JA: 0, NEIN: 0, VIELLEICHT: 0 },
+      }),
+    });
+
+    await act(async () => {
+      render(<EventDetailPage params={Promise.resolve({ id: "1" })} />);
+    });
+
+    await waitFor(() => {
+      expect(screen.queryByText("Laden...")).not.toBeInTheDocument();
+    });
+
+    expect(screen.queryByRole("heading", { name: "Kosten" })).not.toBeInTheDocument();
+  });
+
+  it("shows the capacity when one is set", async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        id: "1",
+        date: "2026-02-15T18:00:00.000Z",
+        timeFrom: "18:00",
+        timeTo: "20:00",
+        location: "Test Location",
+        title: null,
+        cost: null,
+        capacity: 12,
+        description: "Test Description",
+        type: "Lehrgang",
+        latitude: null,
+        longitude: null,
+        createdAt: "2026-01-31T10:00:00.000Z",
+        updatedAt: "2026-01-31T10:00:00.000Z",
+        votes: [],
+        voteCounts: { JA: 0, NEIN: 0, VIELLEICHT: 0 },
+      }),
+    });
+
+    await act(async () => {
+      render(<EventDetailPage params={Promise.resolve({ id: "1" })} />);
+    });
+
+    await waitFor(() => {
+      expect(screen.queryByText("Laden...")).not.toBeInTheDocument();
+    });
+
+    expect(screen.getByRole("heading", { name: "Plätze" })).toBeInTheDocument();
+    expect(screen.getByText("12 Plätze")).toBeInTheDocument();
+  });
+
+  it("shows no capacity section when none is set", async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        id: "1",
+        date: "2026-02-15T18:00:00.000Z",
+        timeFrom: "18:00",
+        timeTo: "20:00",
+        location: "Test Location",
+        title: null,
+        cost: null,
+        capacity: null,
+        description: "Test Description",
+        type: null,
+        latitude: null,
+        longitude: null,
+        createdAt: "2026-01-31T10:00:00.000Z",
+        updatedAt: "2026-01-31T10:00:00.000Z",
+        votes: [],
+        voteCounts: { JA: 0, NEIN: 0, VIELLEICHT: 0 },
+      }),
+    });
+
+    await act(async () => {
+      render(<EventDetailPage params={Promise.resolve({ id: "1" })} />);
+    });
+
+    await waitFor(() => {
+      expect(screen.queryByText("Laden...")).not.toBeInTheDocument();
+    });
+
+    expect(screen.queryByRole("heading", { name: "Plätze" })).not.toBeInTheDocument();
+  });
+
+  it("shows the occupancy to logged-in users", async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        id: "1",
+        date: "2026-02-15T18:00:00.000Z",
+        timeFrom: "18:00",
+        timeTo: "20:00",
+        location: "Test Location",
+        title: null,
+        cost: null,
+        capacity: 12,
+        description: "Test Description",
+        type: "Lehrgang",
+        latitude: null,
+        longitude: null,
+        createdAt: "2026-01-31T10:00:00.000Z",
+        updatedAt: "2026-01-31T10:00:00.000Z",
+        votes: [],
+        voteCounts: { JA: 7, NEIN: 2, VIELLEICHT: 3 },
+      }),
+    });
+
+    await act(async () => {
+      render(<EventDetailPage params={Promise.resolve({ id: "1" })} />);
+    });
+
+    await waitFor(() => {
+      expect(screen.queryByText("Laden...")).not.toBeInTheDocument();
+    });
+
+    expect(screen.getByText("7 von 12 Plätzen belegt (+3 vielleicht)")).toBeInTheDocument();
+  });
+
+  it("hides the occupancy from visitors without login", async () => {
+    mockSessionState.data = null as never;
+    mockSessionState.status = "unauthenticated";
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        id: "1",
+        date: "2026-02-15T18:00:00.000Z",
+        timeFrom: "18:00",
+        timeTo: "20:00",
+        location: "Test Location",
+        title: null,
+        cost: null,
+        capacity: 12,
+        description: "Test Description",
+        type: "Lehrgang",
+        latitude: null,
+        longitude: null,
+        createdAt: "2026-01-31T10:00:00.000Z",
+        updatedAt: "2026-01-31T10:00:00.000Z",
+      }),
+    });
+
+    await act(async () => {
+      render(<EventDetailPage params={Promise.resolve({ id: "1" })} />);
+    });
+
+    await waitFor(() => {
+      expect(screen.queryByText("Laden...")).not.toBeInTheDocument();
+    });
+
+    expect(screen.getByText("12 Plätze")).toBeInTheDocument();
+    expect(screen.queryByText(/belegt/)).not.toBeInTheDocument();
+  });
+
   it("displays back link to events list", async () => {
     mockFetch.mockResolvedValueOnce({
       ok: true,

@@ -32,11 +32,12 @@ export async function loadEmailTemplate(templateName: string): Promise<EmailTemp
 }
 
 function applyPlaceholders(template: string, variables: Record<string, string>): string {
-  let result = template;
-  for (const [key, value] of Object.entries(variables)) {
-    result = result.replaceAll(`{{${key}}}`, value);
-  }
-  return result;
+  // Ein Durchlauf über das Template statt sequenzieller replaceAll-Aufrufe:
+  // Sonst würde ein "{{andereVariable}}" in einem Benutzerwert (z.B. Name im
+  // Kontaktformular) nachträglich mit ersetzt (Content-Spoofing).
+  return template.replace(/\{\{(\w+)\}\}/g, (match, key: string) =>
+    Object.prototype.hasOwnProperty.call(variables, key) ? variables[key] : match
+  );
 }
 
 export async function renderEmailTemplate(

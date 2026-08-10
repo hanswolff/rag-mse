@@ -109,7 +109,7 @@ export const POST = withApiErrorHandling(async (request: NextRequest, ctx: Route
   }
 
   if (!body.type || !isRegistrationType(body.type)) {
-    return NextResponse.json({ error: "Ungültiger Registrierungstyp" }, { status: 400 });
+    return NextResponse.json({ error: "Ungültiger Anmeldungstyp" }, { status: 400 });
   }
 
   if (!(await ensureEventExists(eventId))) {
@@ -242,7 +242,7 @@ export const DELETE = withApiErrorHandling(async (request: NextRequest, ctx: Rou
   }
 
   if (!body.type || !isRegistrationType(body.type)) {
-    return NextResponse.json({ error: "Ungültiger Registrierungstyp" }, { status: 400 });
+    return NextResponse.json({ error: "Ungültiger Anmeldungstyp" }, { status: 400 });
   }
 
   if (!(await ensureEventExists(eventId))) {

@@ -286,11 +286,33 @@ function applyBaselineSchema(db: SqliteDatabase): void {
   db.exec(baselineSql);
 }
 
-function run(): void {
-  const databaseUrl = process.env.DATABASE_URL || "file:./data/dev.db";
+export interface RunMigrationsOptions {
+  quiet?: boolean;
+}
+
+export function runMigrations(
+  databaseUrl: string = process.env.DATABASE_URL || "file:./data/prod.db",
+  options: RunMigrationsOptions = {}
+): void {
+  const log = options.quiet ? () => {} : console.log;
+  const warn = options.quiet ? () => {} : console.warn;
   const dbPath = resolveSqlitePath(databaseUrl);
   const db = new Database(dbPath);
 
+  try {
+    applyPendingMigrations(db, log, warn);
+  } finally {
+    db.close();
+  }
+}
+
+type MigrationLogger = (message: string) => void;
+
+function applyPendingMigrations(
+  db: InstanceType<typeof Database>,
+  log: MigrationLogger,
+  warn: MigrationLogger
+): void {
   db.pragma("journal_mode = WAL");
   db.pragma("busy_timeout = 5000");
 
@@ -304,7 +326,7 @@ function run(): void {
 
   if (needsBaselineInitialization(db)) {
     applyBaselineSchema(db);
-    console.log("Baseline-Schema aus create_admin.sql initialisiert.");
+    log("Baseline-Schema aus create_admin.sql initialisiert.");
   }
 
   const appliedStmt = db.prepare('SELECT "name", "checksum" FROM "_AppMigration" WHERE "name" = ?');
@@ -343,7 +365,7 @@ function run(): void {
 
     try {
       tx();
-      console.log(`Migration angewendet: ${migration.name}`);
+      log(`Migration angewendet: ${migration.name}`);
     } catch (error) {
       if (!canTreatMigrationAsAlreadyApplied(db, migration, error)) {
         throw error;
@@ -358,7 +380,7 @@ function run(): void {
       });
       const executedCount = backfillTx();
 
-      console.warn(
+      warn(
         `Migration als bereits angewendet markiert (Schema bereits vorhanden), ` +
           `${executedCount} Daten-Statement(s) ausgeführt: ${migration.name}`
       );
@@ -366,10 +388,8 @@ function run(): void {
       db.pragma("foreign_keys = ON");
     }
   }
-
-  db.close();
 }
 
 if (typeof require !== "undefined" && require.main === module) {
-  run();
+  runMigrations();
 }

@@ -23,6 +23,7 @@ services:
     ports:
       - "127.0.0.1:3000:3000"
     environment:
+      - TZ=${TZ:-Europe/Berlin}
       - NODE_ENV=${NODE_ENV:-production}
       - DEVELOPMENT_DEPLOYMENT=${DEVELOPMENT_DEPLOYMENT:-false}
       - DATABASE_URL=${DATABASE_URL}
@@ -61,6 +62,11 @@ services:
       - SEED_ADMIN_NAME=${SEED_ADMIN_NAME}
     volumes:
       - ./data:/app/data:rw
+    # Container-Logs begrenzen: ohne Limit wächst die k8s-file-Logdatei unbegrenzt
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
     healthcheck:
       test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://127.0.0.1:3000/api/health"]
       interval: 30s

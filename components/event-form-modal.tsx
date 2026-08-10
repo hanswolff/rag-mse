@@ -12,22 +12,17 @@ import { useFormModal } from "@/lib/use-form-modal";
 import { useCrossFieldValidation } from "@/lib/useCrossFieldValidation";
 import { EVENT_FIELD_KEYWORDS } from "@/lib/server-error-mapper";
 import type { FieldError } from "@/lib/server-error-mapper";
-import { eventValidationConfig, eventFormSchema } from "@/lib/validation-schema";
+import {
+  eventValidationConfig,
+  eventFormSchema,
+  MAX_EVENT_TITLE_LENGTH,
+  MAX_EVENT_COST_LENGTH,
+} from "@/lib/validation-schema";
 import { MAX_EVENT_DESCRIPTION_BYTES } from "@/lib/event-description";
+import { EVENT_TYPE_OPTIONS } from "@/lib/event-types";
+import { EMPTY_EVENT_FORM } from "@/lib/event-form-defaults";
 import type { NewEvent } from "@/types";
 import { AlertBox } from "./alert-box";
-
-const initialNewEvent: NewEvent = {
-  date: "",
-  timeFrom: "",
-  timeTo: "",
-  location: "",
-  description: "",
-  latitude: "",
-  longitude: "",
-  type: "",
-  visible: true,
-};
 
 interface EventFormModalProps {
   isOpen: boolean;
@@ -95,7 +90,7 @@ export function EventFormModal({
     validationConfig: eventValidationConfig,
     formData: eventData,
     setFormData: setEventData,
-    defaultData: initialNewEvent,
+    defaultData: EMPTY_EVENT_FORM,
     initialData: initialEventData,
     isOpen,
     isSubmitting,
@@ -163,9 +158,11 @@ export function EventFormModal({
               className="form-input"
               disabled={isSubmitting}
             >
-              <option value="">Kein Typ</option>
-              <option value="Training">Training</option>
-              <option value="Wettkampf">Wettkampf</option>
+              {EVENT_TYPE_OPTIONS.map(({ value, label }) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
             </select>
           </div>
 
@@ -204,6 +201,32 @@ export function EventFormModal({
             error={timeRangeError || getFieldError("timeTo")}
             showSuccess={isValidAndTouched("timeTo", eventData.timeTo) && !timeRangeError}
           />
+        </div>
+
+        <div>
+          <label htmlFor="modal-title" className="form-label">
+            Titel
+          </label>
+          <input
+            id="modal-title"
+            type="text"
+            value={eventData.title}
+            onChange={(e) => handleChange("title", e.target.value)}
+            onBlur={(e) => handleBlur("title", e.target.value)}
+            maxLength={MAX_EVENT_TITLE_LENGTH}
+            className={`form-input ${
+              getFieldError("title") ? "border-red-500 focus:border-red-500" : ""
+            }`}
+            placeholder="z.B. Dynamisches Pistolenschießen Level 1"
+            disabled={isSubmitting}
+            aria-invalid={!!getFieldError("title")}
+            aria-describedby={getFieldError("title") ? "title-error" : undefined}
+          />
+          {getFieldError("title") && (
+            <p id="title-error" className="form-help text-red-600">
+              {combinedErrors.title}
+            </p>
+          )}
         </div>
 
         <div>
@@ -246,6 +269,59 @@ export function EventFormModal({
               {combinedErrors.location}
             </p>
           )}
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label htmlFor="modal-cost" className="form-label">
+              Kosten
+            </label>
+            <input
+              id="modal-cost"
+              type="text"
+              value={eventData.cost}
+              onChange={(e) => handleChange("cost", e.target.value)}
+              onBlur={(e) => handleBlur("cost", e.target.value)}
+              maxLength={MAX_EVENT_COST_LENGTH}
+              className={`form-input ${
+                getFieldError("cost") ? "border-red-500 focus:border-red-500" : ""
+              }`}
+              placeholder="z.B. 25 € für Mitglieder, 40 € für Gäste"
+              disabled={isSubmitting}
+              aria-invalid={!!getFieldError("cost")}
+              aria-describedby={getFieldError("cost") ? "cost-error" : undefined}
+            />
+            {getFieldError("cost") && (
+              <p id="cost-error" className="form-help text-red-600">
+                {combinedErrors.cost}
+              </p>
+            )}
+          </div>
+          <div>
+            <label htmlFor="modal-capacity" className="form-label">
+              Plätze
+            </label>
+            <input
+              id="modal-capacity"
+              type="text"
+              inputMode="numeric"
+              value={eventData.capacity}
+              onChange={(e) => handleChange("capacity", e.target.value)}
+              onBlur={(e) => handleBlur("capacity", e.target.value)}
+              className={`form-input ${
+                getFieldError("capacity") ? "border-red-500 focus:border-red-500" : ""
+              }`}
+              placeholder="z.B. 12"
+              disabled={isSubmitting}
+              aria-invalid={!!getFieldError("capacity")}
+              aria-describedby={getFieldError("capacity") ? "capacity-error" : undefined}
+            />
+            {getFieldError("capacity") && (
+              <p id="capacity-error" className="form-help text-red-600">
+                {combinedErrors.capacity}
+              </p>
+            )}
+          </div>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

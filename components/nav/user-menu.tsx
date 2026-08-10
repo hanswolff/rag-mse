@@ -3,6 +3,7 @@
 import type { RefObject } from "react";
 import Link from "next/link";
 import { UserIcon } from "../icons";
+import { MenuBadge } from "./menu-badge";
 
 interface DesktopUserMenuProps {
   status: "loading" | "authenticated" | "unauthenticated";
@@ -89,11 +90,7 @@ export function DesktopUserMenu({
                 className="flex items-center justify-between px-4 py-2 text-base text-gray-700 hover:bg-gray-100 transition-colors"
               >
                 Umfragen
-                {openPollsCount > 0 && (
-                  <span className="ml-2 px-2 py-0.5 text-xs font-semibold rounded-full bg-brand-red-600 text-white">
-                    {openPollsCount}
-                  </span>
-                )}
+                <MenuBadge count={openPollsCount} label="offene Umfragen" />
               </Link>
               <Link
                 href="/benachrichtigungen"
@@ -192,11 +189,7 @@ export function MobileUserMenu({
             onClick={onItemClick}
           >
             Umfragen
-            {openPollsCount > 0 && (
-              <span className="ml-2 px-2 py-0.5 text-xs font-semibold rounded-full bg-brand-red-600 text-white">
-                {openPollsCount}
-              </span>
-            )}
+            <MenuBadge count={openPollsCount} label="offene Umfragen" />
           </Link>
           <Link
             href="/benachrichtigungen"

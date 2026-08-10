@@ -389,6 +389,128 @@ describe("event-validation", () => {
       expect(result.errors).toHaveLength(0);
     });
 
+    it("accepts an event without a title", () => {
+      const result = validateCreateEventRequest(validRequest);
+      expect(result.isValid).toBe(true);
+    });
+
+    it("accepts an empty title as not set", () => {
+      const result = validateCreateEventRequest({ ...validRequest, title: "" });
+      expect(result.isValid).toBe(true);
+    });
+
+    it("accepts a title within the length limit", () => {
+      const result = validateCreateEventRequest({
+        ...validRequest,
+        title: "Dynamisches Pistolenschießen Level 1",
+      });
+      expect(result.isValid).toBe(true);
+    });
+
+    it("rejects a title longer than 200 characters", () => {
+      const result = validateCreateEventRequest({ ...validRequest, title: "a".repeat(201) });
+      expect(result.isValid).toBe(false);
+      expect(result.errors).toContain("Titel darf maximal 200 Zeichen haben");
+    });
+
+    it("accepts a cost note", () => {
+      const result = validateCreateEventRequest({
+        ...validRequest,
+        cost: "25 € für Mitglieder, 40 € für Gäste",
+      });
+      expect(result.isValid).toBe(true);
+    });
+
+    it("accepts an empty cost note as not set", () => {
+      const result = validateCreateEventRequest({ ...validRequest, cost: "" });
+      expect(result.isValid).toBe(true);
+    });
+
+    it("rejects a cost note longer than 100 characters", () => {
+      const result = validateCreateEventRequest({ ...validRequest, cost: "a".repeat(101) });
+      expect(result.isValid).toBe(false);
+      expect(result.errors).toContain("Kosten dürfen maximal 100 Zeichen haben");
+    });
+
+    it("accepts cost and Plätze for every Terminart", () => {
+      for (const type of ["Training", "Wettkampf", "Lehrgang", ""]) {
+        const result = validateCreateEventRequest({
+          ...validRequest,
+          type,
+          cost: "kostenfrei",
+        });
+        expect(result.isValid).toBe(true);
+      }
+    });
+
+    it("accepts a positive integer as capacity", () => {
+      const result = validateCreateEventRequest({ ...validRequest, capacity: 12 });
+      expect(result.isValid).toBe(true);
+    });
+
+    it("accepts a numeric string as capacity", () => {
+      const result = validateCreateEventRequest({ ...validRequest, capacity: "12" });
+      expect(result.isValid).toBe(true);
+    });
+
+    it("accepts an empty capacity as not set", () => {
+      const result = validateCreateEventRequest({ ...validRequest, capacity: "" });
+      expect(result.isValid).toBe(true);
+    });
+
+    it.each([0, -1, 1.5, "0", "-3", "2,5", "zwölf"])(
+      "rejects %p as capacity",
+      (capacity) => {
+        const result = validateCreateEventRequest({ ...validRequest, capacity });
+        expect(result.isValid).toBe(false);
+        expect(result.errors).toContain("Plätze müssen eine positive ganze Zahl sein");
+      }
+    );
+
+    // Der JSON-Body ist ungeprüfte Fremdeingabe: Vor dieser Prüfung machte ein
+    // String(...) aus einem Objekt klaglos den Wert "[object Object]" und
+    // schrieb ihn in die Datenbank, und ein Objekt als Terminart ließ
+    // validateEventType über .trim() abstürzen — also 500 statt 400.
+    it.each([
+      ["title", { boese: true }, "Titel muss ein Text sein"],
+      ["title", [1, 2], "Titel muss ein Text sein"],
+      ["title", 42, "Titel muss ein Text sein"],
+      ["cost", { boese: true }, "Kosten müssen als Text angegeben werden"],
+      ["cost", 25, "Kosten müssen als Text angegeben werden"],
+    ])("rejects %s given as %p instead of text", (field, value, message) => {
+      const result = validateCreateEventRequest({
+        ...validRequest,
+        [field as string]: value,
+      } as unknown as CreateEventRequest);
+      expect(result.isValid).toBe(false);
+      expect(result.errors).toContain(message);
+      expect(result.fieldErrors).toContainEqual({ field, message });
+    });
+
+    it.each([{ boese: true }, [1, 2], 42, true])(
+      "rejects %p as type instead of crashing",
+      (type) => {
+        const result = validateCreateEventRequest({
+          ...validRequest,
+          type,
+        } as unknown as CreateEventRequest);
+        expect(result.isValid).toBe(false);
+        expect(result.errors).toContain(
+          "Ungültiger Typ (muss Training, Wettkampf, Lehrgang oder leer sein)"
+        );
+      }
+    );
+
+    it("returns valid for Lehrgang type", () => {
+      const request: CreateEventRequest = {
+        ...validRequest,
+        type: "Lehrgang",
+      };
+      const result = validateCreateEventRequest(request);
+      expect(result.isValid).toBe(true);
+      expect(result.errors).toHaveLength(0);
+    });
+
     it("returns valid for empty type", () => {
       const request: CreateEventRequest = {
         ...validRequest,
@@ -406,7 +528,7 @@ describe("event-validation", () => {
       };
       const result = validateCreateEventRequest(request);
       expect(result.isValid).toBe(false);
-      expect(result.errors).toContain("Ungültiger Typ (muss Training, Wettkampf oder leer sein)");
+      expect(result.errors).toContain("Ungültiger Typ (muss Training, Wettkampf, Lehrgang oder leer sein)");
     });
   });
 
@@ -546,6 +668,62 @@ describe("event-validation", () => {
       expect(result.errors).toHaveLength(0);
     });
 
+    it("accepts clearing the title", () => {
+      const result = validateUpdateEventRequest({ title: "" });
+      expect(result.isValid).toBe(true);
+    });
+
+    it("rejects a title longer than 200 characters", () => {
+      const result = validateUpdateEventRequest({ title: "a".repeat(201) });
+      expect(result.isValid).toBe(false);
+      expect(result.errors).toContain("Titel darf maximal 200 Zeichen haben");
+    });
+
+    it("accepts clearing the cost note", () => {
+      const result = validateUpdateEventRequest({ cost: "" });
+      expect(result.isValid).toBe(true);
+    });
+
+    it("rejects a cost note longer than 100 characters", () => {
+      const result = validateUpdateEventRequest({ cost: "a".repeat(101) });
+      expect(result.isValid).toBe(false);
+      expect(result.errors).toContain("Kosten dürfen maximal 100 Zeichen haben");
+    });
+
+    it("accepts clearing the capacity", () => {
+      const result = validateUpdateEventRequest({ capacity: "" });
+      expect(result.isValid).toBe(true);
+    });
+
+    // Ein explizites null heißt "Feld leeren" und bleibt erlaubt; alles andere,
+    // was kein Text ist, wird abgelehnt statt stillschweigend umgewandelt.
+    it.each([
+      ["title", null, true],
+      ["cost", null, true],
+      ["title", { boese: true }, false],
+      ["cost", { boese: true }, false],
+    ])("update: %s as %p is accepted=%s", (field, value, expected) => {
+      const result = validateUpdateEventRequest({
+        [field as string]: value,
+      } as unknown as UpdateEventRequest);
+      expect(result.isValid).toBe(expected);
+    });
+
+    it("rejects a non-positive capacity", () => {
+      const result = validateUpdateEventRequest({ capacity: 0 });
+      expect(result.isValid).toBe(false);
+      expect(result.errors).toContain("Plätze müssen eine positive ganze Zahl sein");
+    });
+
+    it("returns valid for Lehrgang type", () => {
+      const request: UpdateEventRequest = {
+        type: "Lehrgang",
+      };
+      const result = validateUpdateEventRequest(request);
+      expect(result.isValid).toBe(true);
+      expect(result.errors).toHaveLength(0);
+    });
+
     it("returns valid for empty type", () => {
       const request: UpdateEventRequest = {
         type: "",
@@ -561,7 +739,7 @@ describe("event-validation", () => {
       };
       const result = validateUpdateEventRequest(request);
       expect(result.isValid).toBe(false);
-      expect(result.errors).toContain("Ungültiger Typ (muss Training, Wettkampf oder leer sein)");
+      expect(result.errors).toContain("Ungültiger Typ (muss Training, Wettkampf, Lehrgang oder leer sein)");
     });
   });
 
