@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { prisma } from "../lib/prisma";
 import { requireAdmin } from "../lib/auth-utils";
-import { sendInvitationEmail } from "../lib/invitations";
+import { sendTemplateEmail } from "../lib/email-sender";
 
 jest.mock("../lib/prisma", () => ({
   prisma: {
@@ -19,12 +19,9 @@ jest.mock("../lib/auth-utils", () => ({
   requireAdmin: jest.fn(),
 }));
 
-jest.mock("../lib/invitations", () => ({
-  generateInvitationToken: jest.fn(() => "new-token-123"),
-  hashInvitationToken: jest.fn((token: string) => `hashed-${token}`),
-  getInvitationExpiryDate: jest.fn(() => new Date("2024-12-31T23:59:59Z")),
-  buildInviteUrl: jest.fn((appUrl: string, token: string) => `${appUrl}/einladung/${token}`),
-  sendInvitationEmail: jest.fn(),
+// E-Mail-Versand an der Systemgrenze mocken (SMTP), nicht den Einladungs-Service
+jest.mock("../lib/email-sender", () => ({
+  sendTemplateEmail: jest.fn(),
 }));
 
 // Import the route handlers after mocking dependencies
@@ -54,7 +51,7 @@ const mockedPrisma = prisma as unknown as {
 };
 
 const mockedRequireAdmin = requireAdmin as jest.Mock;
-const mockedSendInvitationEmail = sendInvitationEmail as jest.Mock;
+const mockedSendTemplateEmail = sendTemplateEmail as jest.Mock;
 const FUTURE_DATE = new Date("2099-12-31T23:59:59Z");
 
 describe("POST /api/admin/invitations/[id]/resend", () => {
@@ -65,7 +62,7 @@ describe("POST /api/admin/invitations/[id]/resend", () => {
       id: "admin-1",
       email: "admin@example.com",
     });
-    mockedSendInvitationEmail.mockResolvedValue({ success: true });
+    mockedSendTemplateEmail.mockResolvedValue(true);
     mockedPrisma.$transaction.mockImplementation(async (callback: (tx: typeof mockedPrisma) => unknown) => callback(mockedPrisma));
     mockedPrisma.invitation.updateMany.mockResolvedValue({ count: 0 });
   });
@@ -115,16 +112,15 @@ describe("POST /api/admin/invitations/[id]/resend", () => {
         where: { id: "inv-123" },
       })
     );
-    expect(mockedSendInvitationEmail).toHaveBeenCalledWith({
-      email: "user@example.com",
-      inviteUrl: "https://example.com/einladung/new-token-123",
-      logContext: {
-        route: "/api/admin/invitations/[id]/resend",
-        method: "POST",
-        invitationId: "inv-123",
-        userEmail: "admin@example.com",
-      },
-    });
+    expect(mockedSendTemplateEmail).toHaveBeenCalledWith(
+      expect.objectContaining({
+        template: "einladung-zur-rag-mse",
+        to: "user@example.com",
+        variables: expect.objectContaining({
+          inviteUrl: expect.stringMatching(/^https:\/\/example\.com\/einladung\/.+$/),
+        }),
+      })
+    );
   });
 
   it("should resend invitation email successfully for expired invitation", async () => {
@@ -155,7 +151,7 @@ describe("POST /api/admin/invitations/[id]/resend", () => {
 
     expect(response.status).toBe(200);
     expect(data.message).toBe("Einladung wurde erneut versendet.");
-    expect(mockedSendInvitationEmail).toHaveBeenCalled();
+    expect(mockedSendTemplateEmail).toHaveBeenCalled();
   });
 
   it("should return 404 if invitation not found", async () => {
@@ -200,7 +196,7 @@ describe("POST /api/admin/invitations/[id]/resend", () => {
     expect(data.error).toBe("Einladung wurde bereits verwendet");
   });
 
-  it("should return 400 if APP_URL is not configured", async () => {
+  it("should return 500 if APP_URL is not configured", async () => {
     delete process.env.APP_URL;
 
     const mockInvitation: MockInvitation = {
@@ -225,7 +221,7 @@ describe("POST /api/admin/invitations/[id]/resend", () => {
     });
     const data = await response.json();
 
-    expect(response.status).toBe(400);
+    expect(response.status).toBe(500);
     expect(data.error).toBe("APP_URL ist nicht konfiguriert");
   });
 
@@ -247,7 +243,7 @@ describe("POST /api/admin/invitations/[id]/resend", () => {
       ...mockInvitation,
       tokenHash: "hashed-new-token-123",
     });
-    mockedSendInvitationEmail.mockResolvedValue({ success: false, error: new Error("SMTP failed") });
+    mockedSendTemplateEmail.mockRejectedValue(new Error("SMTP failed"));
 
     const request = new NextRequest("https://example.com/api/admin/invitations/inv-123/resend", {
       method: "POST",
@@ -277,7 +273,7 @@ describe("POST /api/admin/invitations/resend-by-email", () => {
       id: "admin-1",
       email: "admin@example.com",
     });
-    mockedSendInvitationEmail.mockResolvedValue({ success: true });
+    mockedSendTemplateEmail.mockResolvedValue(true);
     mockedPrisma.$transaction.mockImplementation(async (callback: (tx: typeof mockedPrisma) => unknown) => callback(mockedPrisma));
     mockedPrisma.invitation.updateMany.mockResolvedValue({ count: 0 });
   });
@@ -321,7 +317,7 @@ describe("POST /api/admin/invitations/resend-by-email", () => {
       },
       include: { invitedBy: true },
     });
-    expect(sendInvitationEmail).toHaveBeenCalled();
+    expect(mockedSendTemplateEmail).toHaveBeenCalled();
   });
 
   it("should resend by email successfully for expired invitation", async () => {
@@ -350,7 +346,7 @@ describe("POST /api/admin/invitations/resend-by-email", () => {
 
     expect(response.status).toBe(200);
     expect(data.message).toBe("Einladung wurde erneut versendet.");
-    expect(mockedSendInvitationEmail).toHaveBeenCalled();
+    expect(mockedSendTemplateEmail).toHaveBeenCalled();
   });
 
   it("should normalize email to lowercase and trim", async () => {
@@ -414,7 +410,7 @@ describe("POST /api/admin/invitations/resend-by-email", () => {
     expect(data.error).toBe("Keine Einladung für diese E-Mail gefunden");
   });
 
-  it("should return 400 if APP_URL is not configured", async () => {
+  it("should return 500 if APP_URL is not configured", async () => {
     delete process.env.APP_URL;
 
     const mockInvitation: MockInvitation = {
@@ -438,7 +434,7 @@ describe("POST /api/admin/invitations/resend-by-email", () => {
     const response = await resendByEmail(request);
     const data = await response.json();
 
-    expect(response.status).toBe(400);
+    expect(response.status).toBe(500);
     expect(data.error).toBe("APP_URL ist nicht konfiguriert");
   });
 
@@ -460,7 +456,7 @@ describe("POST /api/admin/invitations/resend-by-email", () => {
       ...mockInvitation,
       tokenHash: "hashed-new-token-123",
     });
-    mockedSendInvitationEmail.mockResolvedValue({ success: false, error: new Error("SMTP failed") });
+    mockedSendTemplateEmail.mockRejectedValue(new Error("SMTP failed"));
 
     const request = new NextRequest("https://example.com/api/admin/invitations/resend-by-email", {
       method: "POST",

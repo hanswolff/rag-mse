@@ -1,5 +1,5 @@
 import path from "node:path";
-import { ALLOWED_DOCUMENT_EXTENSIONS } from "@/lib/document-validation";
+import { ALLOWED_DOCUMENT_EXTENSIONS, getExtensionForMimeType } from "@/lib/document-mime-detection";
 import { createFileStorage } from "@/lib/file-storage";
 
 const DEFAULT_DOCUMENTS_SUBDIR = path.join("data", "documents");
@@ -20,26 +20,11 @@ function detectExtension(originalFileName: string, mimeType: string): string {
     return fromName;
   }
 
-  switch (mimeType.toLowerCase()) {
-    case "application/pdf":
-      return "pdf";
-    case "image/jpeg":
-      return "jpg";
-    case "image/png":
-      return "png";
-    case "image/webp":
-      return "webp";
-    case "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
-      return "docx";
-    case "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet":
-      return "xlsx";
-    case "application/vnd.oasis.opendocument.text":
-      return "odt";
-    case "application/vnd.oasis.opendocument.spreadsheet":
-      return "ods";
-    default:
-      throw new Error("Dateityp wird nicht unterstützt");
+  const fromMimeType = getExtensionForMimeType(mimeType);
+  if (!fromMimeType) {
+    throw new Error("Dateityp wird nicht unterstützt");
   }
+  return fromMimeType;
 }
 
 const storage = createFileStorage({

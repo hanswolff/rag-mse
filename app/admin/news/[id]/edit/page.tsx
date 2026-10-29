@@ -9,23 +9,14 @@ import { GermanDatePicker } from "@/components/german-date-picker";
 import { LoadingButton } from "@/components/loading-button";
 import { LoadingScreen } from "@/components/loading-screen";
 import { ValidatedFieldGroup } from "@/components/validated-field-group";
-import { getLocalDateString, normalizeDateInputValue } from "@/lib/date-picker-utils";
-import { useFormFieldValidation } from "@/lib/useFormFieldValidation";
+import { normalizeDateInputValue } from "@/lib/date-picker-utils";
+import { useFormFieldValidation } from "@/lib/use-form-field-validation";
 import { mapServerErrorToField, NEWS_FIELD_KEYWORDS } from "@/lib/server-error-mapper";
 import { newsValidationConfig } from "@/lib/validation-schema";
+import { EMPTY_NEWS_FORM } from "@/lib/news-form-defaults";
+import { apiFetch, ApiError } from "@/lib/api-fetch";
 import type { News, NewNews } from "@/types";
 import { AlertBox } from "@/components/alert-box";
-
-function getTodayDateString() {
-  return getLocalDateString();
-}
-
-const initialNewNews: NewNews = {
-  newsDate: getTodayDateString(),
-  title: "",
-  content: "",
-  published: true,
-};
 
 export default function NewsEditPage({ params }: { params: Promise<{ id: string }> }) {
   const router = useRouter();
@@ -37,7 +28,7 @@ export default function NewsEditPage({ params }: { params: Promise<{ id: string 
   const [error, setError] = useState("");
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [success, setSuccess] = useState("");
-  const [newNews, setNewNews] = useState<NewNews>(initialNewNews);
+  const [newNews, setNewNews] = useState<NewNews>(EMPTY_NEWS_FORM);
   const { errors: validationErrors, validateField, validateAllFields, markFieldAsTouched, shouldShowError, isValidAndTouched } = useFormFieldValidation(newsValidationConfig);
 
   function getFieldError(fieldName: string, value: string) {
@@ -63,17 +54,7 @@ export default function NewsEditPage({ params }: { params: Promise<{ id: string 
     setError("");
 
     try {
-      const response = await fetch(`/api/admin/news/${newsId}`, { signal });
-      if (!response.ok) {
-        if (response.status === 404) {
-          setError("News nicht gefunden");
-        } else {
-          throw new Error("Fehler beim Laden der News");
-        }
-        return;
-      }
-
-      const data: News = await response.json();
+      const data = await apiFetch<News>(`/api/admin/news/${newsId}`, { signal });
       setNewsItem(data);
       setNewNews({
         newsDate: normalizeDateInputValue(data.newsDate),
@@ -83,6 +64,10 @@ export default function NewsEditPage({ params }: { params: Promise<{ id: string 
       });
     } catch (err: unknown) {
       if (err instanceof DOMException && err.name === "AbortError") return;
+      if (err instanceof ApiError) {
+        setError(err.status === 404 ? "News nicht gefunden" : "Fehler beim Laden der News");
+        return;
+      }
       setError(err instanceof Error ? err.message : "Ein Fehler ist aufgetreten");
     } finally {
       setIsLoading(false);
@@ -116,33 +101,27 @@ export default function NewsEditPage({ params }: { params: Promise<{ id: string 
     setIsSubmitting(true);
 
     try {
-      const response = await fetch(`/api/admin/news/${id}`, {
+      await apiFetch(`/api/admin/news/${id}`, {
         method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(newNews),
+        body: newNews,
+        fallbackError: "Fehler beim Aktualisieren der News",
       });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        const message = data.error || "Fehler beim Aktualisieren der News";
-        const nextFieldErrors = mapServerErrorToField(message, NEWS_FIELD_KEYWORDS, data.fieldErrors);
-
-        if (Object.keys(nextFieldErrors).length > 0) {
-          setFieldErrors(nextFieldErrors);
-        } else {
-          setError(message);
-        }
-        return;
-      }
 
       setSuccess("News wurde erfolgreich aktualisiert");
       setTimeout(() => {
         router.push(`/news/${id}`);
       }, 1500);
     } catch (err: unknown) {
+      if (err instanceof ApiError) {
+        const nextFieldErrors = mapServerErrorToField(err.message, NEWS_FIELD_KEYWORDS, err.fieldErrors);
+
+        if (Object.keys(nextFieldErrors).length > 0) {
+          setFieldErrors(nextFieldErrors);
+        } else {
+          setError(err.message);
+        }
+        return;
+      }
       setError(err instanceof Error ? err.message : "Ein Fehler ist aufgetreten");
     } finally {
       setIsSubmitting(false);
@@ -209,7 +188,7 @@ export default function NewsEditPage({ params }: { params: Promise<{ id: string 
                 required
                 maxLength={10000}
                 rows={10}
-                placeholder="Inhalt der News..."
+                placeholder="Inhalt der News…"
                 disabled={isSubmitting}
               />
 
@@ -230,7 +209,7 @@ export default function NewsEditPage({ params }: { params: Promise<{ id: string 
                 <LoadingButton
                   type="submit"
                   loading={isSubmitting}
-                  loadingText="Wird gespeichert..."
+                  loadingText="Wird gespeichert…"
                   className="flex-1 btn-primary py-2.5 sm:py-2 text-base sm:text-base touch-manipulation"
                 >
                   Aktualisieren

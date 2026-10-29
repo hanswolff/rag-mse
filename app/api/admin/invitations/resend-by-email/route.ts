@@ -1,16 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/auth-utils";
-import { parseJsonBody, BadRequestError, withApiErrorHandling, validateRequestBody, validateCsrfHeaders } from "@/lib/api-utils";
+import { parseAndValidateBody } from "@/lib/request-body-parser";
+import { withApiErrorHandling } from "@/lib/api-error-handler";
+import { validateCsrfHeaders } from "@/lib/csrf-validator";
 import { validateEmail } from "@/lib/user-validation";
-import {
-  generateInvitationToken,
-  hashInvitationToken,
-  getInvitationExpiryDate,
-  buildInviteUrl,
-  sendInvitationEmail,
-} from "@/lib/invitations";
-import { logWarn } from "@/lib/logger";
+import { reissueInvitation } from "@/lib/invitations";
+import { getAppUrl } from "@/lib/site-config";
+
+const ROUTE = "/api/admin/invitations/resend-by-email";
 
 interface ResendByEmailRequest {
   email: string;
@@ -19,36 +17,11 @@ interface ResendByEmailRequest {
 const resendByEmailSchema = {
   email: { type: 'string' as const },
 } as const;
-async function rollbackInvitationToken(invitationId: string, previousTokenHash: string, previousExpiresAt: Date): Promise<void> {
-  try {
-    await prisma.invitation.update({
-      where: { id: invitationId },
-      data: {
-        tokenHash: previousTokenHash,
-        expiresAt: previousExpiresAt,
-      },
-    });
-  } catch (rollbackError) {
-    logWarn("invitation_resend_rollback_failed", "Failed to rollback invitation token after email failure", {
-      invitationId,
-      error: rollbackError instanceof Error ? rollbackError.message : String(rollbackError),
-    });
-  }
-}
 
 export const POST = withApiErrorHandling(async (request: NextRequest) => {
   validateCsrfHeaders(request);
   await requireAdmin("write");
-  const body = await parseJsonBody<ResendByEmailRequest>(request);
-  const bodyValidation = validateRequestBody(
-    body,
-    resendByEmailSchema,
-    { route: '/api/admin/invitations/resend-by-email', method: 'POST' }
-  );
-
-  if (!bodyValidation.isValid) {
-    return NextResponse.json({ error: bodyValidation.errors.join(". ") }, { status: 400 });
-  }
+  const body = await parseAndValidateBody<ResendByEmailRequest>(request, resendByEmailSchema, { route: ROUTE, method: 'POST' });
   const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
 
   if (!email || !validateEmail(email).isValid) {
@@ -73,50 +46,19 @@ export const POST = withApiErrorHandling(async (request: NextRequest) => {
     );
   }
 
-  const appUrl = process.env.APP_URL;
-  if (!appUrl) {
-    throw new BadRequestError("APP_URL ist nicht konfiguriert");
-  }
+  const appUrl = getAppUrl();
 
-  const newToken = generateInvitationToken();
-  const newTokenHash = hashInvitationToken(newToken);
-
-  await prisma.$transaction(async (tx: Omit<typeof prisma, "\$connect" | "\$disconnect" | "\$on" | "\$transaction" | "\$extends">) => {
-    await tx.invitation.updateMany({
-      where: {
-        email,
-        usedAt: null,
-        NOT: { id: invitation.id },
-      },
-      data: {
-        usedAt: new Date(),
-      },
-    });
-
-    await tx.invitation.update({
-      where: { id: invitation.id },
-      data: {
-        tokenHash: newTokenHash,
-        expiresAt: getInvitationExpiryDate(),
-      },
-    });
-  });
-
-  const inviteUrl = buildInviteUrl(appUrl, newToken);
-
-  const result = await sendInvitationEmail({
-    email,
-    inviteUrl,
+  const result = await reissueInvitation({
+    invitation,
+    appUrl,
     logContext: {
-      route: "/api/admin/invitations/resend-by-email",
+      route: ROUTE,
       method: "POST",
-      invitationId: invitation.id,
       userEmail: invitation.invitedBy?.email,
     },
   });
 
-  if (!result.success) {
-    await rollbackInvitationToken(invitation.id, invitation.tokenHash, invitation.expiresAt);
+  if (!result.emailSent) {
     return NextResponse.json(
       { error: "E-Mail konnte nicht gesendet werden. Bitte versuchen Sie es erneut." },
       { status: 500 }
@@ -127,4 +69,4 @@ export const POST = withApiErrorHandling(async (request: NextRequest) => {
     { message: "Einladung wurde erneut versendet." },
     { status: 200 }
   );
-}, { route: "/api/admin/invitations/resend-by-email", method: "POST" });
+}, { route: ROUTE, method: "POST" });

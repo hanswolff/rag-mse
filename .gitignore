@@ -26,6 +26,9 @@ yarn-error.log*
 /db/
 # Pre-cutover data snapshots created during Docker->Podman migration
 /data.backup-*/
+# Manuell verschobene DB-Altlasten (deploy.sh empfiehlt dieses Verzeichnis);
+# enthält Produktionsdaten und darf nie ins Repo
+/backups/
 
 # OS / editor
 .DS_Store
@@ -43,8 +46,6 @@ Thumbs.db
 /lib/version-info.ts
 
 public/photos/
-*.eml
-
 *.eml
 
 # Generiert von build:scripts (deploy.sh baut es bei jedem Deploy neu)

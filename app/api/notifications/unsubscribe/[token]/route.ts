@@ -1,50 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import {
-  getClientIp,
-  getNoCacheHeaders,
-  handleRateLimitBlocked,
-  validateCsrfHeaders,
-  withApiErrorHandling,
-  checkTokenRateLimitWithPolicy,
-  recordSuccessfulTokenUsageWithPolicy,
-} from "@/lib/api-utils";
-import { hashNotificationToken } from "@/lib/notifications";
+import { getNoCacheHeaders } from "@/lib/api-error-handler";
+import { recordSuccessfulTokenUsageWithPolicy, withTokenRateLimit } from "@/lib/api-utils";
+import { hashNotificationToken } from "@/lib/reminders/notifications";
 import { Permissions } from "@/lib/permissions";
 import { maskToken } from "@/lib/logger";
 
-export const POST = withApiErrorHandling(async (
-  request: NextRequest,
-  ctx: RouteContext<"/api/notifications/unsubscribe/[token]">
-) => {
-  validateCsrfHeaders(request);
+const ROUTE = "/api/notifications/unsubscribe/[token]";
 
-  const { token } = await ctx.params;
-  if (!token) {
-    return NextResponse.json({ error: "Ungültiger Link" }, { status: 400 });
-  }
-
-  const clientIp = getClientIp(request);
-  const tokenHash = hashNotificationToken(token);
-  const rateLimitResult = await checkTokenRateLimitWithPolicy(
-    "/api/notifications/unsubscribe/[token]",
-    "POST",
-    clientIp,
-    tokenHash,
-    maskToken(token)
-  );
-
-  if (!rateLimitResult.allowed) {
-    return handleRateLimitBlocked(
-      "notification_unsubscribe_rate_limited",
-      "/api/notifications/unsubscribe/[token]",
-      tokenHash,
-      clientIp,
-      rateLimitResult.blockedUntil,
-      rateLimitResult.attemptCount
-    );
-  }
-
+export const POST = withTokenRateLimit({
+  route: ROUTE,
+  method: "POST",
+  action: "notification_unsubscribe_rate_limited",
+  hashToken: hashNotificationToken,
+  requireCsrf: true,
+  invalidTokenMessage: "Ungültiger Link",
+}, async (_request: NextRequest, { token, tokenHash, clientIp }) => {
   const dispatch = await prisma.eventReminderDispatch.findUnique({
     where: {
       unsubscribeTokenHash: tokenHash,
@@ -84,7 +55,7 @@ export const POST = withApiErrorHandling(async (
   });
 
   await recordSuccessfulTokenUsageWithPolicy(
-    "/api/notifications/unsubscribe/[token]",
+    ROUTE,
     "POST",
     tokenHash,
     clientIp,
@@ -92,4 +63,4 @@ export const POST = withApiErrorHandling(async (
   );
 
   return NextResponse.json({ success: true }, { headers: getNoCacheHeaders() });
-}, { route: "/api/notifications/unsubscribe/[token]", method: "POST" });
+});

@@ -7,16 +7,9 @@ jest.mock("next/cache", () => ({
   unstable_noStore: jest.fn(),
 }));
 
-jest.mock("@/lib/prisma", () => ({
-  prisma: {
-    event: {
-      findFirst: jest.fn(),
-    },
-    ausschreibung: {
-      findFirst: jest.fn(),
-    },
-  },
-}));
+jest.mock("@/lib/prisma", () =>
+  jest.requireActual<typeof import("./helpers/prisma-mock")>("./helpers/prisma-mock").prismaModuleMock,
+);
 
 jest.mock("node:fs/promises", () => ({
   access: jest.fn(),

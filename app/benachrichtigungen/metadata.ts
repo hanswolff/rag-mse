@@ -1,8 +1,7 @@
 import { Metadata } from "next";
-import { appName } from "@/lib/site-config";
 
 export const metadata: Metadata = {
-  title: `Benachrichtigungen | ${appName}`,
-  description: "Persönliche Benachrichtigungseinstellungen für Termine verwalten.",
+  title: "Benachrichtigungen",
+  description: "Persönliche Benachrichtigungseinstellungen für Termine und Umfragen verwalten.",
   robots: "noindex, nofollow",
 };

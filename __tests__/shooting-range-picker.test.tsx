@@ -131,7 +131,7 @@ describe("ShootingRangePicker", () => {
       const triggerButton = screen.getByRole("button", { name: "Standort auswählen" });
       await user.click(triggerButton);
 
-      expect(screen.getByText("Standorte werden geladen...")).toBeInTheDocument();
+      expect(screen.getByText("Standorte werden geladen…")).toBeInTheDocument();
     });
   });
 
@@ -151,7 +151,7 @@ describe("ShootingRangePicker", () => {
       await user.click(triggerButton);
 
       await waitFor(() => {
-        expect(screen.queryByText("Standorte werden geladen...")).not.toBeInTheDocument();
+        expect(screen.queryByText("Standorte werden geladen…")).not.toBeInTheDocument();
       });
 
       const rangeButtons = screen.getAllByRole("button").filter(
@@ -275,7 +275,7 @@ describe("ShootingRangePicker", () => {
       await user.click(triggerButton);
 
       await waitFor(() => {
-        expect(screen.queryByText("Standorte werden geladen...")).not.toBeInTheDocument();
+        expect(screen.queryByText("Standorte werden geladen…")).not.toBeInTheDocument();
       });
 
       const rangeButton = screen.getByRole("button", { name: /Schießstand Berlin/i });
@@ -303,7 +303,7 @@ describe("ShootingRangePicker", () => {
       await user.click(triggerButton);
 
       await waitFor(() => {
-        expect(screen.queryByText("Standorte werden geladen...")).not.toBeInTheDocument();
+        expect(screen.queryByText("Standorte werden geladen…")).not.toBeInTheDocument();
       });
 
       const rangeButton = screen.getByRole("button", { name: /Schießstand Berlin/i });
@@ -331,7 +331,7 @@ describe("ShootingRangePicker", () => {
       await user.click(triggerButton);
 
       await waitFor(() => {
-        expect(screen.queryByText("Standorte werden geladen...")).not.toBeInTheDocument();
+        expect(screen.queryByText("Standorte werden geladen…")).not.toBeInTheDocument();
       });
 
       const closeButton = screen.getByLabelText("Schließen");
@@ -355,7 +355,7 @@ describe("ShootingRangePicker", () => {
       await user.click(triggerButton);
 
       await waitFor(() => {
-        expect(screen.queryByText("Standorte werden geladen...")).not.toBeInTheDocument();
+        expect(screen.queryByText("Standorte werden geladen…")).not.toBeInTheDocument();
       });
 
       const backdrop = screen.getByRole("dialog").querySelector(".fixed.inset-0");
@@ -381,7 +381,7 @@ describe("ShootingRangePicker", () => {
       await user.click(triggerButton);
 
       await waitFor(() => {
-        expect(screen.queryByText("Standorte werden geladen...")).not.toBeInTheDocument();
+        expect(screen.queryByText("Standorte werden geladen…")).not.toBeInTheDocument();
       });
 
       await user.keyboard("{Escape}");
@@ -436,7 +436,7 @@ describe("ShootingRangePicker", () => {
       await user.click(triggerButton);
 
       await waitFor(() => {
-        expect(screen.queryByText("Standorte werden geladen...")).not.toBeInTheDocument();
+        expect(screen.queryByText("Standorte werden geladen…")).not.toBeInTheDocument();
       });
 
       const rangeButtons = screen.getAllByRole("button").filter(
@@ -465,7 +465,7 @@ describe("ShootingRangePicker", () => {
       await user.click(triggerButton);
 
       await waitFor(() => {
-        expect(screen.queryByText("Standorte werden geladen...")).not.toBeInTheDocument();
+        expect(screen.queryByText("Standorte werden geladen…")).not.toBeInTheDocument();
       });
 
       const dialog = screen.getByRole("dialog");

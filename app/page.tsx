@@ -13,10 +13,12 @@ import {
 } from "@/components/icons";
 import { prisma } from "@/lib/prisma";
 import { getStartOfToday } from "@/lib/date-picker-utils";
+import { formatDate } from "@/lib/date-utils";
 import { authOptions } from "@/lib/auth";
 import { canReadMemberDocuments } from "@/lib/role-utils";
 import { getNaechsteAktuelleAusschreibung } from "@/lib/ausschreibung-query";
-import { appName, appTagline, appDescription } from "@/lib/site-config";
+import { getVisibilityFilter } from "@/lib/visibility";
+import { appName, appTagline, appDescription, siteUrl } from "@/lib/site-config";
 import { serializeJsonLd } from "@/lib/json-ld";
 
 const CORE_FEATURE_CARDS = [
@@ -52,8 +54,9 @@ const MEMBER_DOCUMENTS_CARD = {
     "Interne Dokumente und Veröffentlichungen für Mitglieder der RAG MSE.",
 } as const;
 
-// Solange eine aktuelle Ausschreibung läuft, belegt sie den dritten Kartenplatz —
-// für alle Besucher, denn Ausschreibungen sind auch ohne Login öffentlich (CONTEXT.md).
+// Solange eine aktuelle, für den Betrachter sichtbare Ausschreibung läuft, belegt
+// sie den dritten Kartenplatz. Öffentliche Ausschreibungen zählen für alle Besucher,
+// nur für Mitglieder freigegebene erst nach dem Login (CONTEXT.md, ADR-0011).
 const AUSSCHREIBUNGEN_CARD = {
   href: "/ausschreibungen",
   icon: <TargetIcon />,
@@ -62,12 +65,11 @@ const AUSSCHREIBUNGEN_CARD = {
     "Aktuelle Ausschreibungen zu Wettkämpfen und Veranstaltungen – mit allen Unterlagen zum Herunterladen.",
 } as const;
 
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://rag-mse.de";
 
-async function getNextEvent() {
+async function getNextEvent(isLoggedIn: boolean) {
   return prisma.event.findFirst({
     where: {
-      visible: true,
+      ...getVisibilityFilter(isLoggedIn),
       date: { gte: getStartOfToday() },
     },
     orderBy: [{ date: "asc" }, { timeFrom: "asc" }],
@@ -94,10 +96,7 @@ async function getAnnualPlanningForCurrentYear() {
 }
 
 function formatCardDate(date: Date) {
-  const day = String(date.getUTCDate()).padStart(2, "0");
-  const month = String(date.getUTCMonth() + 1).padStart(2, "0");
-  const year = date.getUTCFullYear();
-  return `${day}.${month}.${year}`;
+  return formatDate(date.toISOString());
 }
 
 type CardCornerNote = {
@@ -137,9 +136,9 @@ export default async function Home() {
     : false;
 
   const [nextEvent, annualPlanning, naechsteAusschreibung] = await Promise.all([
-    getNextEvent(),
+    getNextEvent(Boolean(session?.user)),
     getAnnualPlanningForCurrentYear(),
-    getNaechsteAktuelleAusschreibung(),
+    getNaechsteAktuelleAusschreibung(Boolean(session?.user)),
   ]);
 
   const visibleCards = [
@@ -153,14 +152,14 @@ export default async function Home() {
 
   const cardCornerNotes: Record<string, CardCornerNote | undefined> = {
     "/termine": {
-      label: "Nächster Termin:",
+      label: "Nächster Termin",
       value: nextEvent ? formatCardDate(nextEvent.date) : undefined,
     },
     ...(naechsteAusschreibung
       ? {
           "/ausschreibungen": {
-            label: "Nächste Ausschreibung:",
-            value: formatCardDate(naechsteAusschreibung.expiresAt),
+            label: "Nächste Ausschreibung",
+            value: `Anzeigen bis ${formatCardDate(naechsteAusschreibung.expiresAt)}`,
           },
         }
       : {}),
@@ -210,7 +209,7 @@ export default async function Home() {
               href="/ueber-uns"
               className="btn-outline-inverse w-full sm:w-auto px-6 sm:px-8 py-3 text-base sm:text-base touch-manipulation"
             >
-              Über Uns
+              Über uns
             </Link>
           </div>
         </div>

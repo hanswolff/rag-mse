@@ -1,6 +1,6 @@
 import {
-  isAdmin,
-  isMember,
+  canManageAdminArea,
+  canAccessMemberArea,
 } from "../lib/role-utils";
 import {
   UnauthorizedError,
@@ -13,68 +13,68 @@ import {
 import { Role } from "@prisma/client";
 
 describe("auth-utils", () => {
-  describe("isAdmin", () => {
+  describe("canManageAdminArea", () => {
     it("should return true for admin user", () => {
       const user = { role: "ADMIN" as Role };
-      expect(isAdmin(user)).toBe(true);
+      expect(canManageAdminArea(user)).toBe(true);
     });
 
     it("should return true for site administrator user", () => {
       const user = { role: "SITE_ADMINISTRATOR" as Role };
-      expect(isAdmin(user)).toBe(true);
+      expect(canManageAdminArea(user)).toBe(true);
     });
 
     it("should return false for member user", () => {
       const user = { role: "MEMBER" as Role };
-      expect(isAdmin(user)).toBe(false);
+      expect(canManageAdminArea(user)).toBe(false);
     });
 
     it("should return false for null user", () => {
-      expect(isAdmin(null)).toBe(false);
+      expect(canManageAdminArea(null)).toBe(false);
     });
 
     it("should return false for undefined user", () => {
-      expect(isAdmin(undefined)).toBe(false);
+      expect(canManageAdminArea(undefined)).toBe(false);
     });
 
     it("should return false for user without role", () => {
       const user = {};
-      expect(isAdmin(user)).toBe(false);
+      expect(canManageAdminArea(user)).toBe(false);
     });
   });
 
-  describe("isMember", () => {
+  describe("canAccessMemberArea", () => {
     it("should return true for admin user", () => {
       const user = { role: "ADMIN" as Role };
-      expect(isMember(user)).toBe(true);
+      expect(canAccessMemberArea(user)).toBe(true);
     });
 
     it("should return true for site administrator user", () => {
       const user = { role: "SITE_ADMINISTRATOR" as Role };
-      expect(isMember(user)).toBe(true);
+      expect(canAccessMemberArea(user)).toBe(true);
     });
 
     it("should return true for auditor user", () => {
       const user = { role: "AUDITOR" as Role };
-      expect(isMember(user)).toBe(true);
+      expect(canAccessMemberArea(user)).toBe(true);
     });
 
     it("should return true for member user", () => {
       const user = { role: "MEMBER" as Role };
-      expect(isMember(user)).toBe(true);
+      expect(canAccessMemberArea(user)).toBe(true);
     });
 
     it("should return false for null user", () => {
-      expect(isMember(null)).toBe(false);
+      expect(canAccessMemberArea(null)).toBe(false);
     });
 
     it("should return false for undefined user", () => {
-      expect(isMember(undefined)).toBe(false);
+      expect(canAccessMemberArea(undefined)).toBe(false);
     });
 
     it("should return false for user without role", () => {
       const user = {};
-      expect(isMember(user)).toBe(false);
+      expect(canAccessMemberArea(user)).toBe(false);
     });
   });
 

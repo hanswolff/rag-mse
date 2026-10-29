@@ -5,7 +5,7 @@ import { LoadingButton } from "@/components/loading-button";
 import { ValidatedFieldGroup } from "@/components/validated-field-group";
 import { PageHeader } from "@/components/page-header";
 import type { ContactFormData } from "@/lib/contact-validation";
-import { useFormFieldValidation } from "@/lib/useFormFieldValidation";
+import { useFormFieldValidation } from "@/lib/use-form-field-validation";
 import { mapServerErrorToFields, CONTACT_FIELD_KEYWORDS } from "@/lib/server-error-mapper";
 import { contactValidationConfig } from "@/lib/validation-schema";
 import { API_ROUTES } from "@/lib/api-routes";
@@ -182,7 +182,7 @@ export default function ContactPage() {
               required
               rows={6}
               maxLength={2000}
-              placeholder="Ihre Nachricht..."
+              placeholder="Ihre Nachricht…"
               disabled={isLoading || success}
               helpText={!getFieldError("message") ? `${formData.message.length} / 2000 Zeichen` : undefined}
             />
@@ -192,7 +192,7 @@ export default function ContactPage() {
                 type="submit"
                 loading={isLoading}
                 disabled={success}
-                loadingText="Wird gesendet..."
+                loadingText="Wird gesendet…"
                 className="btn-primary w-full sm:w-auto py-2.5 sm:py-2 text-base sm:text-base touch-manipulation"
               >
                 Nachricht senden

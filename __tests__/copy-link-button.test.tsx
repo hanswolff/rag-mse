@@ -18,5 +18,6 @@ describe("CopyLinkButton", () => {
     await user.click(screen.getByRole("button", { name: `Kurzlink kopieren: ${url}` }));
 
     await waitFor(() => expect(screen.getByRole("button", { name: "Kurzlink kopiert" })).toBeInTheDocument());
+    expect(screen.getByText("Kurzlink kopiert", { selector: "[aria-live='polite']" })).toBeInTheDocument();
   });
 });

@@ -1,29 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/auth-utils";
-import { validateUpdateEventRequest, validateTimeString, type UpdateEventRequest } from "@/lib/event-validation";
-import {
-  parseJsonBody,
-  withApiErrorHandling,
-  validateCsrfHeaders,
-  MAX_REQUEST_BODY_SIZE,
-} from "@/lib/api-utils";
-import { logInfo, logResourceNotFound, logValidationFailure } from "@/lib/logger";
+import { normalizeCoordinate, validateUpdateEventRequest, validateTimeString, type UpdateEventRequest } from "@/lib/event-validation";
+import { parseJsonBody, ValidationError, MAX_REQUEST_BODY_SIZE } from "@/lib/request-body-parser";
+import { withApiErrorHandling } from "@/lib/api-error-handler";
+import { validateCsrfHeaders } from "@/lib/csrf-validator";
+import { logError, logInfo, logResourceNotFound, logValidationFailure } from "@/lib/logger";
+import { canView, parseVisibility, type Visibility } from "@/lib/visibility";
 import { logAdminAction } from "@/lib/audit-log";
 import { formatDateForStorage, parseDateAndTime } from "@/lib/date-picker-utils";
+import { isTimeRangeValid } from "@/lib/dates";
 import { hasEventDescriptionContent, sanitizeEventDescriptionHtml } from "@/lib/event-description";
 import { normalizeCapacity, normalizeOptionalText } from "@/lib/event-fields";
+import { triggerImmediateEventReminders } from "@/lib/reminders/event-reminder-worker";
+
+const ROUTE = "/api/admin/events/[id]";
 
 const EVENT_REQUEST_BODY_SIZE = MAX_REQUEST_BODY_SIZE + 128 * 1024;
-
-function normalizeCoordinate(value?: string | number | null): number | null | undefined {
-  if (value === undefined) return undefined;
-  if (value === null) return null;
-  if (typeof value === "number") return value;
-  const trimmed = value.trim();
-  if (trimmed === "") return null;
-  return parseFloat(trimmed);
-}
 
 export const GET = withApiErrorHandling(async (request: NextRequest, ctx: RouteContext<'/api/admin/events/[id]'>) => {
   await requireAdmin("read");
@@ -57,7 +50,7 @@ export const GET = withApiErrorHandling(async (request: NextRequest, ctx: RouteC
   });
 
   if (!event) {
-    logResourceNotFound('event', id, '/api/admin/events/[id]', 'GET');
+    logResourceNotFound('event', id, ROUTE, 'GET');
     return NextResponse.json({ error: "Termin nicht gefunden" }, { status: 404 });
   }
 
@@ -67,7 +60,7 @@ export const GET = withApiErrorHandling(async (request: NextRequest, ctx: RouteC
   };
 
   return NextResponse.json(formattedEvent);
-}, { route: "/api/admin/events/[id]", method: "GET" });
+}, { route: ROUTE, method: "GET" });
 
 export const PUT = withApiErrorHandling(async (request: NextRequest, ctx: RouteContext<'/api/admin/events/[id]'>) => {
   validateCsrfHeaders(request);
@@ -80,8 +73,8 @@ export const PUT = withApiErrorHandling(async (request: NextRequest, ctx: RouteC
   const validation = validateUpdateEventRequest(body);
 
   if (!validation.isValid) {
-    logValidationFailure('/api/admin/events/[id]', 'PUT', validation.errors, { eventId: id });
-    return NextResponse.json({ error: validation.errors.join(". "), fieldErrors: validation.fieldErrors }, { status: 400 });
+    logValidationFailure(ROUTE, 'PUT', validation.errors, { eventId: id });
+    throw new ValidationError(validation.errors, { fieldErrors: validation.fieldErrors });
   }
 
   const existingEvent = await prisma.event.findUnique({
@@ -89,7 +82,7 @@ export const PUT = withApiErrorHandling(async (request: NextRequest, ctx: RouteC
   });
 
   if (!existingEvent) {
-    logResourceNotFound('event', id, '/api/admin/events/[id]', 'PUT');
+    logResourceNotFound('event', id, ROUTE, 'PUT');
     return NextResponse.json({ error: "Termin nicht gefunden" }, { status: 404 });
   }
 
@@ -105,7 +98,7 @@ export const PUT = withApiErrorHandling(async (request: NextRequest, ctx: RouteC
     type?: string | null;
     cost?: string | null;
     capacity?: number | null;
-    visible?: boolean;
+    visibility?: Visibility;
   } = {};
 
   const nextTimeFrom =
@@ -117,15 +110,8 @@ export const PUT = withApiErrorHandling(async (request: NextRequest, ctx: RouteC
       ? body.timeTo
       : existingEvent.timeTo;
 
-  if (validateTimeString(nextTimeFrom) && validateTimeString(nextTimeTo)) {
-    const [hoursFrom, minutesFrom] = nextTimeFrom.split(":").map(Number);
-    const [hoursTo, minutesTo] = nextTimeTo.split(":").map(Number);
-    const fromMinutes = hoursFrom * 60 + minutesFrom;
-    const toMinutes = hoursTo * 60 + minutesTo;
-
-    if (fromMinutes >= toMinutes) {
-      return NextResponse.json({ error: "Uhrzeit bis muss nach Uhrzeit von liegen", fieldErrors: [{ field: "timeTo", message: "Uhrzeit bis muss nach Uhrzeit von liegen" }] }, { status: 400 });
-    }
+  if (validateTimeString(nextTimeFrom) && validateTimeString(nextTimeTo) && !isTimeRangeValid(nextTimeFrom, nextTimeTo)) {
+    throw new ValidationError(["Uhrzeit bis muss nach Uhrzeit von liegen"], { fieldErrors: [{ field: "timeTo", message: "Uhrzeit bis muss nach Uhrzeit von liegen" }] });
   }
 
   if (body.date !== undefined || body.timeFrom !== undefined) {
@@ -156,18 +142,18 @@ export const PUT = withApiErrorHandling(async (request: NextRequest, ctx: RouteC
     const sanitizedDescription = sanitizeEventDescriptionHtml(String(body.description));
 
     if (!hasEventDescriptionContent(sanitizedDescription)) {
-      return NextResponse.json({ error: "Beschreibung darf nicht leer sein", fieldErrors: [{ field: "description", message: "Beschreibung darf nicht leer sein" }] }, { status: 400 });
+      throw new ValidationError(["Beschreibung darf nicht leer sein"], { fieldErrors: [{ field: "description", message: "Beschreibung darf nicht leer sein" }] });
     }
 
     updateData.description = sanitizedDescription;
   }
 
-  const normalizedLatitude = normalizeCoordinate(body.latitude);
+  const normalizedLatitude = normalizeCoordinate(body.latitude, "update");
   if (normalizedLatitude !== undefined) {
     updateData.latitude = normalizedLatitude;
   }
 
-  const normalizedLongitude = normalizeCoordinate(body.longitude);
+  const normalizedLongitude = normalizeCoordinate(body.longitude, "update");
   if (normalizedLongitude !== undefined) {
     updateData.longitude = normalizedLongitude;
   }
@@ -184,8 +170,8 @@ export const PUT = withApiErrorHandling(async (request: NextRequest, ctx: RouteC
     updateData.capacity = normalizeCapacity(body.capacity);
   }
 
-  if (body.visible !== undefined) {
-    updateData.visible = body.visible;
+  if (body.visibility !== undefined) {
+    updateData.visibility = parseVisibility(body.visibility);
   }
 
   const updatedEvent = await prisma.event.update({
@@ -205,11 +191,26 @@ export const PUT = withApiErrorHandling(async (request: NextRequest, ctx: RouteC
     changedFields: Object.keys(updateData),
   });
 
+  const isMemberVisible = canView(updatedEvent.visibility, true);
+  const becameVisible = !canView(existingEvent.visibility, true) && isMemberVisible;
+  const wasRescheduled =
+    updatedEvent.date.getTime() !== existingEvent.date.getTime() ||
+    updatedEvent.timeFrom !== existingEvent.timeFrom;
+
+  if (isMemberVisible && (becameVisible || wasRescheduled)) {
+    void triggerImmediateEventReminders(updatedEvent.id).catch((err: unknown) =>
+      logError("event_updated_reminder_failed", "Failed to trigger immediate reminders", {
+        eventId: updatedEvent.id,
+        error: err instanceof Error ? err.message : String(err),
+      })
+    );
+  }
+
   return NextResponse.json({
     ...updatedEvent,
     date: formatDateForStorage(updatedEvent.date),
   });
-}, { route: "/api/admin/events/[id]", method: "PUT" });
+}, { route: ROUTE, method: "PUT" });
 
 export const DELETE = withApiErrorHandling(async (request: NextRequest, ctx: RouteContext<'/api/admin/events/[id]'>) => {
   validateCsrfHeaders(request);
@@ -223,7 +224,7 @@ export const DELETE = withApiErrorHandling(async (request: NextRequest, ctx: Rou
   });
 
   if (!existingEvent) {
-    logResourceNotFound('event', id, '/api/admin/events/[id]', 'DELETE');
+    logResourceNotFound('event', id, ROUTE, 'DELETE');
     return NextResponse.json({ error: "Termin nicht gefunden" }, { status: 404 });
   }
 
@@ -244,4 +245,4 @@ export const DELETE = withApiErrorHandling(async (request: NextRequest, ctx: Rou
   });
 
   return NextResponse.json({ success: true });
-}, { route: "/api/admin/events/[id]", method: "DELETE" });
+}, { route: ROUTE, method: "DELETE" });

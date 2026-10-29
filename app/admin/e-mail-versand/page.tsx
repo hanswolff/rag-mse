@@ -1,19 +1,15 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
-import { useSession } from "next-auth/react";
-import { isAdmin } from "@/lib/role-utils";
-import { BackLink } from "@/components/back-link";
+import { useCallback, useMemo, useState } from "react";
+import { canManageAdminArea } from "@/lib/role-utils";
 import { Modal } from "@/components/modal";
-import { Pagination } from "@/components/pagination";
 import { SearchHighlight } from "@/components/search-highlight";
-import { SortableTableHeader } from "@/components/sortable-table-header";
 import { EyeIcon } from "@/components/icons";
 import { LoadingScreen } from "@/components/loading-screen";
-import { useTableSorting } from "@/lib/use-table-sorting";
-import { Permissions } from "@/lib/permissions";
-import { AlertBox } from "@/components/alert-box";
+import { Permissions, UserWithRole } from "@/lib/permissions";
+import { formatDateTime } from "@/lib/dates";
+import { usePaginatedAdminList } from "@/lib/use-paginated-admin-list";
+import { AdminListColumn, AdminListShell } from "@/components/admin-list-shell";
 
 type OutgoingEmailStatus = "QUEUED" | "PROCESSING" | "RETRYING" | "SENT" | "FAILED";
 
@@ -44,7 +40,6 @@ type OutgoingEmailsResponse = {
   };
 };
 
-const PAGE_SIZE = 20;
 type OutgoingEmailSortField =
   "createdAt"
   | "template"
@@ -60,19 +55,21 @@ const OUTGOING_EMAIL_DEFAULT_SORT_DIRECTIONS: Partial<Record<OutgoingEmailSortFi
   attemptCount: "desc",
 };
 
-function formatDateTime(value: string): string {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return value;
-  }
-  return new Intl.DateTimeFormat("de-DE", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(date);
-}
+const OUTGOING_EMAIL_COLUMNS: AdminListColumn<OutgoingEmailSortField>[] = [
+  { label: "Anzeigen", srOnly: true },
+  { label: "Erstellt am", field: "createdAt" },
+  { label: "Typ", field: "template" },
+  { label: "Betreff", field: "subject" },
+  { label: "Empfänger", field: "toRecipients" },
+  { label: "Status", field: "status" },
+  { label: "Versuche", field: "attemptCount" },
+  { label: "Letzter Fehler", field: "lastError" },
+  { label: "Letzter Versuch", field: "lastAttemptAt" },
+  { label: "Aktion" },
+];
+
+const extractEmails = (data: OutgoingEmailsResponse) => data.emails;
+const canAccessOutgoingEmails = (user: UserWithRole) => Permissions.canReadOutgoingEmails(user);
 
 function getStatusLabel(status: OutgoingEmailStatus): string {
   switch (status) {
@@ -108,87 +105,41 @@ function getStatusClassName(status: OutgoingEmailStatus): string {
 }
 
 export default function AdminOutgoingEmailsPage() {
-  const router = useRouter();
-  const { data: session, status } = useSession();
-  const canManage = session ? isAdmin(session.user) : false;
-
-  const [items, setItems] = useState<EmailItem[]>([]);
-  const [page, setPage] = useState(1);
-  const [total, setTotal] = useState(0);
-  const [totalPages, setTotalPages] = useState(0);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [searchInput, setSearchInput] = useState("");
-  const [searchQuery, setSearchQuery] = useState("");
   const [retryingEmailId, setRetryingEmailId] = useState<string | null>(null);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [viewingEmail, setViewingEmail] = useState<EmailItem | null>(null);
   const [emailContentTab, setEmailContentTab] = useState<"text" | "html">("text");
-  const { sortBy, sortDir, handleSortChange } = useTableSorting<OutgoingEmailSortField>(
-    "createdAt",
-    "desc",
-    OUTGOING_EMAIL_DEFAULT_SORT_DIRECTIONS,
-  );
-  useEffect(() => {
-    if (status === "authenticated" && !Permissions.canReadOutgoingEmails(session?.user)) {
-      router.push("/");
-    }
-  }, [status, session, router]);
 
-  const loadEmails = useCallback(async (
-    targetPage: number,
-    query: string,
-    nextSortBy: OutgoingEmailSortField,
-    nextSortDir: "asc" | "desc",
-  ) => {
-    setIsLoading(true);
-    setError(null);
+  const {
+    session,
+    status,
+    items,
+    page,
+    setPage,
+    total,
+    totalPages,
+    isLoading,
+    error,
+    setError,
+    searchInput,
+    setSearchInput,
+    searchQuery,
+    sortBy,
+    sortDir,
+    handleSubmitSearch,
+    handleTableSort,
+    reload,
+  } = usePaginatedAdminList<EmailItem, OutgoingEmailSortField, OutgoingEmailsResponse>({
+    endpoint: "/api/admin/outgoing-emails",
+    extractItems: extractEmails,
+    loadErrorMessage: "E-Mail-Versanddaten konnten nicht geladen werden",
+    canAccess: canAccessOutgoingEmails,
+    initialSortField: "createdAt",
+    initialSortDirection: "desc",
+    defaultSortDirections: OUTGOING_EMAIL_DEFAULT_SORT_DIRECTIONS,
+  });
 
-    try {
-      const params = new URLSearchParams({
-        page: String(targetPage),
-        limit: String(PAGE_SIZE),
-        sortBy: nextSortBy,
-        sortDir: nextSortDir,
-      });
-
-      if (query.trim().length > 0) {
-        params.set("q", query.trim());
-      }
-
-      const response = await fetch(`/api/admin/outgoing-emails?${params.toString()}`);
-      if (!response.ok) {
-        const data = await response.json().catch(() => ({}));
-        throw new Error(typeof data.error === "string" ? data.error : "E-Mail-Versanddaten konnten nicht geladen werden");
-      }
-
-      const data = (await response.json()) as OutgoingEmailsResponse;
-      setItems(data.emails);
-      setPage(data.pagination.page);
-      setTotal(data.pagination.total);
-      setTotalPages(data.pagination.pages);
-    } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : "E-Mail-Versanddaten konnten nicht geladen werden");
-      setItems([]);
-      setTotal(0);
-      setTotalPages(0);
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (status !== "authenticated" || !session || !Permissions.canReadOutgoingEmails(session.user)) {
-      return;
-    }
-    void loadEmails(page, searchQuery, sortBy, sortDir);
-  }, [status, session, page, searchQuery, sortBy, sortDir, loadEmails]);
-
-  const handleSubmitSearch = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    setPage(1);
-    setSearchQuery(searchInput.trim());
-  };
+  const canManage = session ? canManageAdminArea(session.user) : false;
 
   const handleRetry = useCallback(async (emailId: string) => {
     setActionMessage(null);
@@ -205,18 +156,13 @@ export default function AdminOutgoingEmailsPage() {
       }
 
       setActionMessage("Fehlgeschlagene E-Mail wurde erneut eingeplant.");
-      await loadEmails(page, searchQuery, sortBy, sortDir);
+      await reload();
     } catch (retryError) {
       setError(retryError instanceof Error ? retryError.message : "E-Mail konnte nicht erneut eingeplant werden");
     } finally {
       setRetryingEmailId(null);
     }
-  }, [loadEmails, page, searchQuery, sortBy, sortDir]);
-
-  const handleTableSort = useCallback((field: OutgoingEmailSortField) => {
-    setPage(1);
-    handleSortChange(field);
-  }, [handleSortChange]);
+  }, [reload, setError]);
 
   const tableContent = useMemo(() => {
     if (items.length === 0) {
@@ -272,7 +218,7 @@ export default function AdminOutgoingEmailsPage() {
                 className="btn-primary px-3 py-2 text-sm"
                 disabled={retryingEmailId === item.id}
               >
-                {retryingEmailId === item.id ? "Wird eingeplant..." : "Erneut senden"}
+                {retryingEmailId === item.id ? "Wird eingeplant…" : "Erneut senden"}
               </button>
             ) : (
               <span className="text-gray-500">-</span>
@@ -287,269 +233,173 @@ export default function AdminOutgoingEmailsPage() {
     return <LoadingScreen />;
   }
 
-  return (
-    <main className="flex-1 bg-gray-50">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
-        <div className="mb-8">
-          <BackLink href="/admin/dashboard" className="text-base">
-            Zurück zum Dashboard
-          </BackLink>
-          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mt-4">E-Mail-Versand</h1>
-          <p className="text-base text-gray-600 mt-2">Outbox-Metadaten der letzten 30 Tage</p>
-        </div>
-
-        <AlertBox type="error" message={error} className="mb-4" />
-
-        <AlertBox type="success" message={actionMessage} className="mb-4" />
-
-        <section className="card-compact">
-          <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between mb-4">
+  const mobileList = items.length === 0 ? (
+    <div className="border border-gray-200 rounded-md bg-white px-4 py-6 text-base text-gray-500 text-center">
+      Keine E-Mails in den letzten 30 Tagen gefunden.
+    </div>
+  ) : (
+    items.map((item) => {
+      const canRetry = item.status === "FAILED";
+      return (
+        <article key={item.id} className="border border-gray-200 rounded-md bg-white p-4 space-y-2">
+          <div className="flex items-start justify-between gap-2">
             <div>
-              <h2 className="text-lg sm:text-xl font-semibold text-gray-900">Versandverlauf</h2>
-              <p className="text-base text-gray-600 mt-1">{total} Einträge</p>
+              <p className="text-sm text-gray-500">{formatDateTime(item.createdAt)}</p>
+              <p className={getStatusClassName(item.status)}>{getStatusLabel(item.status)}</p>
             </div>
-            <form onSubmit={handleSubmitSearch} className="flex flex-col sm:flex-row w-full md:w-auto gap-2">
-              <input
-                type="text"
-                value={searchInput}
-                onChange={(event) => setSearchInput(event.target.value)}
-                placeholder="Suche nach Betreff, Empfänger oder Typ"
-                className="form-input w-full md:w-80"
-              />
-              <button type="submit" className="btn-primary px-4 py-2 text-base whitespace-nowrap w-full sm:w-auto">
-                Suchen
-              </button>
-            </form>
+            <button
+              type="button"
+              onClick={() => setViewingEmail(item)}
+              className="p-1.5 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded transition-colors"
+              title="Inhalt anzeigen"
+              aria-label="E-Mail-Inhalt anzeigen"
+            >
+              <EyeIcon className="h-5 w-5" />
+            </button>
           </div>
+          <p className="text-base text-gray-700">
+            <span className="font-semibold text-gray-900">Typ:</span>{" "}
+            <SearchHighlight text={item.template} query={searchQuery} />
+          </p>
+          <p className="text-base text-gray-900">
+            <span className="font-semibold">Betreff:</span>{" "}
+            <SearchHighlight text={item.subject} query={searchQuery} />
+          </p>
+          <p className="text-base text-gray-700 break-all">
+            <span className="font-semibold text-gray-900">Empfänger:</span>{" "}
+            <SearchHighlight text={item.toRecipients} query={searchQuery} />
+          </p>
+          <p className="text-base">
+            <span className="font-semibold text-gray-900">Status:</span>{" "}
+            <span className={getStatusClassName(item.status)}>{getStatusLabel(item.status)}</span>
+          </p>
+          <p className="text-base text-gray-700">
+            <span className="font-semibold text-gray-900">Versuche:</span> {item.attemptCount}
+          </p>
+          <p className="text-base text-gray-700 break-words">
+            <span className="font-semibold text-gray-900">Letzter Fehler:</span> {item.lastError ? item.lastError : "-"}
+          </p>
+          <p className="text-base text-gray-700">
+            <span className="font-semibold text-gray-900">Letzter Versuch:</span>{" "}
+            {item.lastAttemptAt ? formatDateTime(item.lastAttemptAt) : "-"}
+          </p>
+          {canManage && canRetry && (
+            <button
+              type="button"
+              onClick={() => handleRetry(item.id)}
+              className="btn-primary px-3 py-2 text-sm w-full"
+              disabled={retryingEmailId === item.id}
+            >
+              {retryingEmailId === item.id ? "Wird eingeplant…" : "Erneut senden"}
+            </button>
+          )}
+        </article>
+      );
+    })
+  );
 
-          <div className="space-y-3 md:hidden">
-            {items.length === 0 ? (
-              <div className="border border-gray-200 rounded-md bg-white px-4 py-6 text-base text-gray-500 text-center">
-                Keine E-Mails in den letzten 30 Tagen gefunden.
-              </div>
-            ) : (
-              items.map((item) => {
-                const canRetry = item.status === "FAILED";
-                return (
-                  <article key={item.id} className="border border-gray-200 rounded-md bg-white p-4 space-y-2">
-                    <div className="flex items-start justify-between gap-2">
-                      <div>
-                        <p className="text-sm text-gray-500">{formatDateTime(item.createdAt)}</p>
-                        <p className={getStatusClassName(item.status)}>{getStatusLabel(item.status)}</p>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setViewingEmail(item)}
-                        className="p-1.5 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded transition-colors"
-                        title="Inhalt anzeigen"
-                        aria-label="E-Mail-Inhalt anzeigen"
-                      >
-                        <EyeIcon className="h-5 w-5" />
-                      </button>
-                    </div>
-                    <p className="text-base text-gray-700">
-                      <span className="font-semibold text-gray-900">Typ:</span>{" "}
-                      <SearchHighlight text={item.template} query={searchQuery} />
-                    </p>
-                    <p className="text-base text-gray-900">
-                      <span className="font-semibold">Betreff:</span>{" "}
-                      <SearchHighlight text={item.subject} query={searchQuery} />
-                    </p>
-                    <p className="text-base text-gray-700 break-all">
-                      <span className="font-semibold text-gray-900">Empfänger:</span>{" "}
-                      <SearchHighlight text={item.toRecipients} query={searchQuery} />
-                    </p>
-                    <p className="text-base">
-                      <span className="font-semibold text-gray-900">Status:</span>{" "}
-                      <span className={getStatusClassName(item.status)}>{getStatusLabel(item.status)}</span>
-                    </p>
-                    <p className="text-base text-gray-700">
-                      <span className="font-semibold text-gray-900">Versuche:</span> {item.attemptCount}
-                    </p>
-                    <p className="text-base text-gray-700 break-words">
-                      <span className="font-semibold text-gray-900">Letzter Fehler:</span> {item.lastError ? item.lastError : "-"}
-                    </p>
-                    <p className="text-base text-gray-700">
-                      <span className="font-semibold text-gray-900">Letzter Versuch:</span>{" "}
-                      {item.lastAttemptAt ? formatDateTime(item.lastAttemptAt) : "-"}
-                    </p>
-                    {canManage && canRetry && (
-                      <button
-                        type="button"
-                        onClick={() => handleRetry(item.id)}
-                        className="btn-primary px-3 py-2 text-sm w-full"
-                        disabled={retryingEmailId === item.id}
-                      >
-                        {retryingEmailId === item.id ? "Wird eingeplant..." : "Erneut senden"}
-                      </button>
-                    )}
-                  </article>
-                );
-              })
-            )}
-          </div>
-
-          <div className="hidden md:block overflow-x-auto border border-gray-200 rounded-md bg-white">
-            <table className="min-w-full">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th scope="col" className="px-2 py-3 text-left text-base font-semibold text-gray-700 w-10">
-                    <span className="sr-only">Anzeigen</span>
-                  </th>
-                  <SortableTableHeader
-                    label="Erstellt am"
-                    field="createdAt"
-                    activeField={sortBy}
-                    sortDir={sortDir}
-                    onSortChange={handleTableSort}
-                    className="px-4 py-3 text-left text-base font-semibold text-gray-700"
-                  />
-                  <SortableTableHeader
-                    label="Typ"
-                    field="template"
-                    activeField={sortBy}
-                    sortDir={sortDir}
-                    onSortChange={handleTableSort}
-                    className="px-4 py-3 text-left text-base font-semibold text-gray-700"
-                  />
-                  <SortableTableHeader
-                    label="Betreff"
-                    field="subject"
-                    activeField={sortBy}
-                    sortDir={sortDir}
-                    onSortChange={handleTableSort}
-                    className="px-4 py-3 text-left text-base font-semibold text-gray-700"
-                  />
-                  <SortableTableHeader
-                    label="Empfänger"
-                    field="toRecipients"
-                    activeField={sortBy}
-                    sortDir={sortDir}
-                    onSortChange={handleTableSort}
-                    className="px-4 py-3 text-left text-base font-semibold text-gray-700"
-                  />
-                  <SortableTableHeader
-                    label="Status"
-                    field="status"
-                    activeField={sortBy}
-                    sortDir={sortDir}
-                    onSortChange={handleTableSort}
-                    className="px-4 py-3 text-left text-base font-semibold text-gray-700"
-                  />
-                  <SortableTableHeader
-                    label="Versuche"
-                    field="attemptCount"
-                    activeField={sortBy}
-                    sortDir={sortDir}
-                    onSortChange={handleTableSort}
-                    className="px-4 py-3 text-left text-base font-semibold text-gray-700"
-                  />
-                  <SortableTableHeader
-                    label="Letzter Fehler"
-                    field="lastError"
-                    activeField={sortBy}
-                    sortDir={sortDir}
-                    onSortChange={handleTableSort}
-                    className="px-4 py-3 text-left text-base font-semibold text-gray-700"
-                  />
-                  <SortableTableHeader
-                    label="Letzter Versuch"
-                    field="lastAttemptAt"
-                    activeField={sortBy}
-                    sortDir={sortDir}
-                    onSortChange={handleTableSort}
-                    className="px-4 py-3 text-left text-base font-semibold text-gray-700"
-                  />
-                  <th scope="col" className="px-4 py-3 text-left text-base font-semibold text-gray-700">Aktion</th>
-                </tr>
-              </thead>
-              <tbody>{tableContent}</tbody>
-            </table>
-          </div>
-
-          <Pagination currentPage={page} totalPages={totalPages} onPageChange={setPage} disabled={isLoading} />
-        </section>
-
-        <Modal
-          isOpen={viewingEmail !== null}
-          onClose={() => {
-            setViewingEmail(null);
-            setEmailContentTab("text");
-          }}
-          title="E-Mail-Inhalt"
-          size="3xl"
-        >
-          {viewingEmail && (
-            <div className="space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pb-4 border-b border-gray-200">
-                <div>
-                  <p className="text-sm text-gray-500">Empfänger</p>
-                  <p className="text-base font-medium text-gray-900 break-all">{viewingEmail.toRecipients}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-500">Status</p>
-                  <p className={`text-base font-semibold ${getStatusClassName(viewingEmail.status)}`}>
-                    {getStatusLabel(viewingEmail.status)}
-                  </p>
-                </div>
-              </div>
-
+  return (
+    <AdminListShell
+      title="E-Mail-Versand"
+      subtitle="Postausgang der letzten 30 Tage"
+      listTitle="Versandverlauf"
+      error={error}
+      successMessage={actionMessage}
+      total={total}
+      searchPlaceholder="Suche nach Betreff, Empfänger oder Typ"
+      searchInput={searchInput}
+      onSearchInputChange={setSearchInput}
+      onSubmitSearch={handleSubmitSearch}
+      columns={OUTGOING_EMAIL_COLUMNS}
+      sortBy={sortBy}
+      sortDir={sortDir}
+      onSortChange={handleTableSort}
+      mobileList={mobileList}
+      tableBody={tableContent}
+      page={page}
+      totalPages={totalPages}
+      onPageChange={setPage}
+      isLoading={isLoading}
+    >
+      <Modal
+        isOpen={viewingEmail !== null}
+        onClose={() => {
+          setViewingEmail(null);
+          setEmailContentTab("text");
+        }}
+        title="E-Mail-Inhalt"
+        size="3xl"
+      >
+        {viewingEmail && (
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pb-4 border-b border-gray-200">
               <div>
-                <p className="text-sm text-gray-500 mb-1">Betreff</p>
-                <p className="text-base font-medium text-gray-900">{viewingEmail.subject}</p>
+                <p className="text-sm text-gray-500">Empfänger</p>
+                <p className="text-base font-medium text-gray-900 break-all">{viewingEmail.toRecipients}</p>
               </div>
-
               <div>
-                <p className="text-sm text-gray-500 mb-2">Inhalt</p>
-                <div className="flex gap-1 mb-2">
-                  <button
-                    type="button"
-                    onClick={() => setEmailContentTab("text")}
-                    className={`px-3 py-1.5 text-sm font-medium rounded-t transition-colors ${
-                      emailContentTab === "text"
-                        ? "bg-brand-red-600 text-white"
-                        : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                    }`}
-                  >
-                    Text
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setEmailContentTab("html")}
-                    className={`px-3 py-1.5 text-sm font-medium rounded-t transition-colors ${
-                      emailContentTab === "html"
-                        ? "bg-brand-red-600 text-white"
-                        : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                    }`}
-                  >
-                    HTML
-                  </button>
+                <p className="text-sm text-gray-500">Status</p>
+                <p className={`text-base font-semibold ${getStatusClassName(viewingEmail.status)}`}>
+                  {getStatusLabel(viewingEmail.status)}
+                </p>
+              </div>
+            </div>
+
+            <div>
+              <p className="text-sm text-gray-500 mb-1">Betreff</p>
+              <p className="text-base font-medium text-gray-900">{viewingEmail.subject}</p>
+            </div>
+
+            <div>
+              <p className="text-sm text-gray-500 mb-2">Inhalt</p>
+              <div className="flex gap-1 mb-2">
+                <button
+                  type="button"
+                  onClick={() => setEmailContentTab("text")}
+                  className={`px-3 py-1.5 text-sm font-medium rounded-t transition-colors ${
+                    emailContentTab === "text"
+                      ? "bg-brand-red-600 text-white"
+                      : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                  }`}
+                >
+                  Text
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setEmailContentTab("html")}
+                  className={`px-3 py-1.5 text-sm font-medium rounded-t transition-colors ${
+                    emailContentTab === "html"
+                      ? "bg-brand-red-600 text-white"
+                      : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                  }`}
+                >
+                  HTML
+                </button>
+              </div>
+              {emailContentTab === "text" ? (
+                <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 text-sm text-gray-800 whitespace-pre-wrap max-h-64 overflow-y-auto">
+                  {viewingEmail.textBody || <span className="text-gray-500 italic">Kein Text-Inhalt vorhanden</span>}
                 </div>
-                {emailContentTab === "text" ? (
-                  <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 text-sm text-gray-800 whitespace-pre-wrap max-h-64 overflow-y-auto">
-                    {viewingEmail.textBody || <span className="text-gray-500 italic">Kein Text-Inhalt vorhanden</span>}
+              ) : (
+                viewingEmail.htmlBody ? (
+                  <div className="bg-gray-50 border border-gray-200 rounded-lg overflow-hidden">
+                    <iframe
+                      srcDoc={viewingEmail.htmlBody}
+                      sandbox=""
+                      className="w-full h-64 border-0"
+                      title="HTML-Vorschau"
+                    />
                   </div>
                 ) : (
-                  viewingEmail.htmlBody ? (
-                    <div className="bg-gray-50 border border-gray-200 rounded-lg overflow-hidden">
-                      <iframe
-                        srcDoc={viewingEmail.htmlBody}
-                        sandbox=""
-                        className="w-full h-64 border-0"
-                        title="HTML-Vorschau"
-                      />
-                    </div>
-                  ) : (
-                    <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 text-sm text-gray-800">
-                      <span className="text-gray-500 italic">Kein HTML-Inhalt vorhanden</span>
-                    </div>
-                  )
-                )}
-              </div>
+                  <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 text-sm text-gray-800">
+                    <span className="text-gray-500 italic">Kein HTML-Inhalt vorhanden</span>
+                  </div>
+                )
+              )}
             </div>
-          )}
-        </Modal>
-      </div>
-    </main>
+          </div>
+        )}
+      </Modal>
+    </AdminListShell>
   );
 }

@@ -3,6 +3,7 @@ interface AlertBoxProps {
   message: string | string[] | null | undefined;
   onDismiss?: () => void;
   className?: string;
+  persistent?: boolean;
 }
 
 const variantStyles = {
@@ -17,8 +18,10 @@ const ariaConfig = {
   warning: { role: "status" as const, "aria-live": "polite" as const },
 };
 
-export function AlertBox({ type, message, onDismiss, className }: AlertBoxProps) {
-  if (!message || (Array.isArray(message) && message.length === 0)) return null;
+export function AlertBox({ type, message, onDismiss, className, persistent = false }: AlertBoxProps) {
+  if (!message || (Array.isArray(message) && message.length === 0)) {
+    return persistent ? <div className={className} {...ariaConfig[type]} /> : null;
+  }
 
   return (
     <div
@@ -35,7 +38,7 @@ export function AlertBox({ type, message, onDismiss, className }: AlertBoxProps)
         message
       )}
       {onDismiss && (
-        <button type="button" onClick={onDismiss} className="ml-2 font-bold">
+        <button type="button" onClick={onDismiss} className="ml-2 font-bold" aria-label="Meldung schließen">
           ×
         </button>
       )}

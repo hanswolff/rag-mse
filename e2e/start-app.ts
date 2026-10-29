@@ -26,6 +26,10 @@ const databaseUrl = `file:${path.join(tempDir, "e2e.db")}`;
 const env: NodeJS.ProcessEnv = {
   ...process.env,
   DATABASE_URL: databaseUrl,
+  AUSSCHREIBUNGEN_DIR: path.join(tempDir, "ausschreibungen"),
+  DOCUMENTS_DIR: path.join(tempDir, "documents"),
+  EMAIL_DEV_LOG_DIR: path.join(tempDir, "logs"),
+  EMAIL_DEV_LOG_METHOD: "logger",
   NEXTAUTH_SECRET: "e2e-nextauth-secret-mit-mindestens-32-zeichen-laenge",
   NEXTAUTH_URL: BASE_URL,
   APP_URL: BASE_URL,

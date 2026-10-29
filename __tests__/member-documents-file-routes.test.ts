@@ -9,13 +9,9 @@ jest.mock("@/lib/auth-utils", () => ({
   requireMember: jest.fn(),
 }));
 
-jest.mock("@/lib/prisma", () => ({
-  prisma: {
-    document: {
-      findUnique: jest.fn(),
-    },
-  },
-}));
+jest.mock("@/lib/prisma", () =>
+  jest.requireActual<typeof import("./helpers/prisma-mock")>("./helpers/prisma-mock").prismaModuleMock,
+);
 
 jest.mock("@/lib/document-storage", () => ({
   readDocumentFile: jest.fn(),

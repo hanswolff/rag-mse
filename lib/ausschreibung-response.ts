@@ -1,9 +1,35 @@
 import { NextResponse } from "next/server";
 import { readAusschreibungFile } from "./ausschreibung-storage";
-import { logResourceNotFound } from "./logger";
-import { getPublicCacheHeaders } from "./api-error-handler";
+import { serveStoredFile, type DispositionType } from "./file-storage";
+import { getAuthNoCacheHeaders } from "./api-error-handler";
+import { Visibility } from "./visibility";
 
-export type DispositionType = "inline" | "attachment";
+export type { DispositionType };
+
+// Ersetzt die Date-Felder in-place (Spread erhält die Schlüsselreihenfolge),
+// damit die Response-Bodies byte-identisch zum bisherigen Inline-Mapping bleiben.
+export function serializeAusschreibung<T extends { expiresAt: Date; createdAt: Date; updatedAt: Date }>(ausschreibung: T) {
+  return {
+    ...ausschreibung,
+    expiresAt: ausschreibung.expiresAt.toISOString(),
+    createdAt: ausschreibung.createdAt.toISOString(),
+    updatedAt: ausschreibung.updatedAt.toISOString(),
+  };
+}
+
+// Ein zurückgezogenes PDF darf nicht minutenlang weiter aus einem Cache fallen:
+// die Datei-Route cacht darum deutlich kürzer als die Listen-Antwort, und alles
+// Nicht-Öffentliche gar nicht (ADR-0011). `must-revalidate` verbietet zusätzlich
+// das Ausliefern abgelaufener Kopien.
+function getAusschreibungFileCacheHeaders(visibility: Visibility) {
+  if (visibility !== Visibility.PUBLIC) {
+    return getAuthNoCacheHeaders();
+  }
+  return {
+    "Cache-Control": "public, max-age=0, s-maxage=30, must-revalidate",
+    "Vary": "Cookie",
+  };
+}
 
 export async function serveAusschreibungFile(options: {
   ausschreibung: {
@@ -11,36 +37,21 @@ export async function serveAusschreibungFile(options: {
     storedFileName: string;
     mimeType: string;
     originalFileName: string;
+    visibility: Visibility;
   };
   disposition: DispositionType;
   route: string;
   method: string;
 }): Promise<NextResponse> {
-  const { ausschreibung, disposition, route, method } = options;
-
-  let content: Buffer;
-  try {
-    content = await readAusschreibungFile(ausschreibung.storedFileName);
-  } catch (error: unknown) {
-    if (error && typeof error === "object" && "code" in error && error.code === "ENOENT") {
-      logResourceNotFound("ausschreibungFile", ausschreibung.storedFileName, route, method, {
-        ausschreibungId: ausschreibung.id,
-      });
-      return NextResponse.json({ error: "Ausschreibung nicht gefunden" }, { status: 404 });
-    }
-    throw error;
-  }
-
-  const body = new Uint8Array(content);
-
-  return new NextResponse(body, {
-    status: 200,
-    headers: {
-      "Content-Type": ausschreibung.mimeType,
-      "Content-Length": `${body.byteLength}`,
-      "X-Content-Type-Options": "nosniff",
-      "Content-Disposition": `${disposition}; filename*=UTF-8''${encodeURIComponent(ausschreibung.originalFileName)}`,
-      ...getPublicCacheHeaders(60, 300),
-    },
+  return serveStoredFile({
+    file: options.ausschreibung,
+    disposition: options.disposition,
+    route: options.route,
+    method: options.method,
+    readFile: readAusschreibungFile,
+    resourceName: "ausschreibungFile",
+    notFoundMessage: "Ausschreibung nicht gefunden",
+    logIdKey: "ausschreibungId",
+    cacheHeaders: getAusschreibungFileCacheHeaders(options.ausschreibung.visibility),
   });
 }

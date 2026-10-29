@@ -4,45 +4,43 @@ import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/auth-utils";
 import { sendInvitationEmail } from "@/lib/invitations";
 import { hash } from "bcryptjs";
-import { validateCsrfHeaders } from "@/lib/api-utils";
+import { validateCsrfHeaders } from "@/lib/csrf-validator";
 import { validateDateString } from "@/lib/validation-schema";
 import { Prisma } from "@prisma/client";
 
-jest.mock("@/lib/prisma", () => ({
-  prisma: {
-    $transaction: jest.fn(),
-  },
-}));
+jest.mock("@/lib/prisma", () =>
+  jest.requireActual<typeof import("./helpers/prisma-mock")>("./helpers/prisma-mock").prismaModuleMock,
+);
 
 jest.mock("@/lib/auth-utils", () => ({
   requireAdmin: jest.fn(),
 }));
 
-jest.mock("@/lib/invitations", () => ({
-  generateInvitationToken: jest.fn(() => "invite-token-123"),
-  hashInvitationToken: jest.fn((token: string) => `hashed-${token}`),
-  getInvitationExpiryDate: jest.fn(() => new Date("2024-12-31T23:59:59Z")),
-  buildInviteUrl: jest.fn((appUrl: string, token: string) => `${appUrl}/einladung/${token}`),
-  sendInvitationEmail: jest.fn(),
-}));
+jest.mock("@/lib/invitations", () => {
+  const actual = jest.requireActual("@/lib/invitations");
+  return {
+    ...actual,
+    createInvitationTokenSet: jest.fn(() => ({
+      token: "invite-token-123",
+      tokenHash: "hashed-invite-token-123",
+      expiresAt: new Date("2024-12-31T23:59:59Z"),
+    })),
+    buildInviteUrl: jest.fn((appUrl: string, token: string) => `${appUrl}/einladung/${token}`),
+    sendInvitationEmail: jest.fn(),
+  };
+});
 
 jest.mock("@/lib/crypto-utils", () => ({
   generateRandomPassword: jest.fn(() => "random-password-123"),
 }));
 
-jest.mock("@/lib/api-utils", () => ({
-  parseJsonBody: jest.fn(async (req) => req.json()),
-  BadRequestError: class extends Error {
-    constructor(message: string) {
-      super(message);
-      this.name = "BadRequestError";
-    }
-  },
-  logApiError: jest.fn(),
-  validateRequestBody: jest.fn().mockReturnValue({ isValid: true, errors: [] }),
-  validateCsrfHeaders: jest.fn(),
-  withApiErrorHandling: jest.fn((handler: unknown) => handler),
-}));
+jest.mock("@/lib/csrf-validator", () => {
+  const actual = jest.requireActual("@/lib/csrf-validator");
+  return {
+    ...actual,
+    validateCsrfHeaders: jest.fn(actual.validateCsrfHeaders),
+  };
+});
 
 jest.mock("@/lib/user-validation", () => ({
   validateEmail: jest.fn(() => ({ isValid: true })),
@@ -62,11 +60,9 @@ jest.mock("@/lib/validation-schema", () => ({
   validateDateString: jest.fn(() => true),
 }));
 
-jest.mock("@/lib/logger", () => ({
-  logValidationFailure: jest.fn(),
-  logInfo: jest.fn(),
-  maskEmail: jest.fn((e: string) => e),
-}));
+jest.mock("@/lib/logger", () =>
+  jest.requireActual<typeof import("./helpers/logger-mock")>("./helpers/logger-mock").mockLogger,
+);
 
 jest.mock("bcryptjs", () => ({
   hash: jest.fn(),
@@ -80,6 +76,13 @@ const mockedRequireAdmin = requireAdmin as jest.Mock;
 const mockedSendInvitationEmail = sendInvitationEmail as jest.Mock;
 const mockedHash = hash as jest.Mock;
 const mockedValidateDateString = validateDateString as jest.Mock;
+
+// Browser-typische Header, damit die echte CSRF-Prüfung durchlaufen wird
+const browserHeaders = {
+  "Content-Type": "application/json",
+  Origin: "https://example.com",
+  "User-Agent": "Mozilla/5.0 (jest)",
+};
 
 describe("POST /api/admin/users - User creation with transaction", () => {
   const mockAdmin = {
@@ -135,6 +138,7 @@ describe("POST /api/admin/users - User creation with transaction", () => {
 
     const request = new NextRequest("https://example.com/api/admin/users", {
       method: "POST",
+      headers: browserHeaders,
       body: JSON.stringify({
         email: "user@example.com",
         name: "Test User",
@@ -177,6 +181,7 @@ describe("POST /api/admin/users - User creation with transaction", () => {
 
     const request = new NextRequest("https://example.com/api/admin/users", {
       method: "POST",
+      headers: browserHeaders,
       body: JSON.stringify({
         email: "user@example.com",
         name: "Test User",
@@ -242,13 +247,21 @@ describe("POST /api/admin/users - User creation with transaction", () => {
 
     const request = new NextRequest("https://example.com/api/admin/users", {
       method: "POST",
+      headers: browserHeaders,
       body: JSON.stringify({
         email: "user@example.com",
         name: "Test User",
       }),
     });
 
-    await expect(POST(request)).rejects.toThrow("Database constraint violation");
+    // Der Fehler propagiert aus dem Transaktions-Callback (→ Rollback in Prisma);
+    // withApiErrorHandling mappt ihn auf eine generische 500-Antwort.
+    const response = await POST(request);
+    const data = await response.json();
+
+    expect(response.status).toBe(500);
+    expect(data.error).toBe("Ein Fehler ist aufgetreten. Bitte versuchen Sie es später erneut.");
+    expect(mockedSendInvitationEmail).not.toHaveBeenCalled();
   });
 
   it("should normalize email to lowercase and trim", async () => {
@@ -269,6 +282,7 @@ describe("POST /api/admin/users - User creation with transaction", () => {
 
     const request = new NextRequest("https://example.com/api/admin/users", {
       method: "POST",
+      headers: browserHeaders,
       body: JSON.stringify({
         email: "  USER@EXAMPLE.COM  ",
         name: "Test User",
@@ -305,6 +319,7 @@ describe("POST /api/admin/users - User creation with transaction", () => {
 
     const request = new NextRequest("https://example.com/api/admin/users", {
       method: "POST",
+      headers: browserHeaders,
       body: JSON.stringify({
         email: "admin@example.com",
         name: "Admin User",
@@ -343,6 +358,7 @@ describe("POST /api/admin/users - User creation with transaction", () => {
 
     const request = new NextRequest("https://example.com/api/admin/users", {
       method: "POST",
+      headers: browserHeaders,
       body: JSON.stringify({
         email: "user@example.com",
         name: "Test User",
@@ -374,6 +390,7 @@ describe("POST /api/admin/users - User creation with transaction", () => {
 
     const request = new NextRequest("https://example.com/api/admin/users", {
       method: "POST",
+      headers: browserHeaders,
       body: JSON.stringify({
         email: "user@example.com",
         name: "Test User",
@@ -404,6 +421,7 @@ describe("POST /api/admin/users - User creation with transaction", () => {
 
     const request = new NextRequest("https://example.com/api/admin/users", {
       method: "POST",
+      headers: browserHeaders,
       body: JSON.stringify({
         email: "user@example.com",
         name: "Test User",
@@ -435,6 +453,7 @@ describe("POST /api/admin/users - User creation with transaction", () => {
 
     const request = new NextRequest("https://example.com/api/admin/users", {
       method: "POST",
+      headers: browserHeaders,
       body: JSON.stringify({
         email: "user@example.com",
         name: "Test User",
@@ -478,6 +497,7 @@ describe("POST /api/admin/users - User creation with transaction", () => {
 
     const request = new NextRequest("https://example.com/api/admin/users", {
       method: "POST",
+      headers: browserHeaders,
       body: JSON.stringify({
         email: "user@example.com",
         name: "Test User",
@@ -495,32 +515,43 @@ describe("POST /api/admin/users - User creation with transaction", () => {
   it("should return 500 if APP_URL is not configured", async () => {
     delete process.env.APP_URL;
 
-
     const request = new NextRequest("https://example.com/api/admin/users", {
       method: "POST",
+      // Ohne APP_URL läuft die CSRF-Prüfung im Testmodus leer durch
       body: JSON.stringify({
         email: "user@example.com",
         name: "Test User",
       }),
     });
 
-    await expect(POST(request)).rejects.toThrow("APP_URL ist nicht konfiguriert");
+    // Die Route wirft BadRequestError; withApiErrorHandling mappt auf 400.
+    const response = await POST(request);
+    const data = await response.json();
+
+    expect(response.status).toBe(500);
+    expect(data.error).toBe("APP_URL ist nicht konfiguriert");
   });
 
-  it("should validate CSRF headers", async () => {
-    (validateCsrfHeaders as jest.Mock).mockImplementationOnce(() => {
-      throw new Error("Invalid CSRF token");
-    });
-
+  it("should reject browser requests with foreign origin (CSRF)", async () => {
     const request = new NextRequest("https://example.com/api/admin/users", {
       method: "POST",
+      headers: {
+        ...browserHeaders,
+        Origin: "https://evil.example",
+      },
       body: JSON.stringify({
         email: "user@example.com",
         name: "Test User",
       }),
     });
 
-    await expect(POST(request)).rejects.toThrow("Invalid CSRF token");
+    // Echte CSRF-Prüfung: fremder Origin → CsrfError → 403 über withApiErrorHandling.
+    const response = await POST(request);
+    const data = await response.json();
+
+    expect(response.status).toBe(403);
+    expect(data.error).toContain("Ungültiger Origin- oder Referer-Header");
     expect(validateCsrfHeaders).toHaveBeenCalledWith(request);
+    expect(mockedPrisma.$transaction).not.toHaveBeenCalled();
   });
 });

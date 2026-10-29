@@ -46,6 +46,22 @@ enum DocumentArea {
   MEMBER
 }
 
+// Sichtbarkeitsstufe von Ausschreibung und Termin (CONTEXT.md, ADR-0011). Bewusst ein
+// Enum statt eines Booleans: „nur für Mitglieder“ und „verborgen“ sind zwei verschiedene
+// Absichten (Vorabinformation vs. Rückzug), die ein Flag nicht auseinanderhält.
+enum Visibility {
+  PUBLIC
+  MEMBER
+  HIDDEN
+}
+
+enum ExternalEventKind {
+  RDL
+  RK_EVENT
+  COMPETITION
+  OTHER
+}
+
 enum PollType {
   TERMIN
   SONSTIGES
@@ -90,6 +106,8 @@ model User {
   pollsCreated Poll[] @relation("PollsCreated")
   pollVotes    PollVote[]
   pollNotificationDispatches PollNotificationDispatch[]
+  externalEventsCreated ExternalEvent[]
+  absences Absence[]
 }
 
 model Event {
@@ -105,7 +123,9 @@ model Event {
   type        String?
   cost        String?
   capacity    Int?
-  visible     Boolean  @default(true)
+  visibility  Visibility @default(PUBLIC)
+  /// Nur für Image-Rollbacks auf den Stand vor 1.8.0 (ADR 0008); per Trigger synchron, entfällt im Folgerelease.
+  visible     Boolean    @default(true)
   createdById String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -278,10 +298,38 @@ model Ausschreibung {
   storedFileName   String   @unique
   mimeType         String
   sizeBytes        Int
+  visibility       Visibility @default(PUBLIC)
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
+  externalEvents ExternalEvent[]
+
   @@index([expiresAt])
+}
+
+model ExternalEvent {
+  id              String             @id @default(cuid())
+  title           String
+  startDate       DateTime
+  endDate         DateTime
+  allDay          Boolean            @default(true)
+  timeFrom        String?
+  timeTo          String?
+  location        String?
+  description     String?
+  url             String?
+  kind            ExternalEventKind?
+  visibility      Visibility         @default(MEMBER)
+  ausschreibungId String?
+  createdById     String?
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+
+  ausschreibung Ausschreibung? @relation(fields: [ausschreibungId], references: [id], onDelete: SetNull)
+  createdBy     User?          @relation(fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([startDate])
+  @@index([endDate])
 }
 
 model DocumentDirectory {
@@ -370,4 +418,23 @@ model PollNotificationDispatch {
   @@unique([pollId, userId])
   @@index([pollId])
   @@index([userId])
+}
+
+model Absence {
+  id        String   @id @default(cuid())
+  userId    String
+  startDate DateTime
+  endDate   DateTime
+  allDay    Boolean  @default(true)
+  timeFrom  String?
+  timeTo    String?
+  reason    String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([startDate])
+  @@index([endDate])
 }

@@ -24,7 +24,7 @@ export default function SachkundepruefungPage() {
           </h1>
           <div className="space-y-4 text-base sm:text-lg text-gray-700 leading-relaxed">
             <p>
-              Hier finden Sie die Fragekataloge zur Sachkundeprüfung gemäß § 7 Waffengesetz.
+              Hier finden Sie die Fragenkataloge zur Sachkundeprüfung gemäß § 7 Waffengesetz.
               Für die Vorbereitung steht eine Version ohne Antworten sowie eine Version mit
               Antworten als Lern- und Kontrollhilfe bereit.
             </p>

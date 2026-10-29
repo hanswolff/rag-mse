@@ -1,3 +1,5 @@
+import { parsePositiveInt } from "./env";
+
 interface ValidationResult {
   isValid: boolean;
   errors: string[];
@@ -65,12 +67,14 @@ export function validateProductionConfig(): ValidationResult {
     }
   };
 
+  // Derselbe Parser wie zur Laufzeit (lib/env.ts): Was hier durchgeht, wird
+  // von envInt auch tatsächlich so verwendet.
   const validatePositiveIntegerEnvVar = (name: string): void => {
     const rawValue = process.env[name];
     if (!rawValue) {
       return;
     }
-    if (!/^[1-9]\d*$/.test(rawValue)) {
+    if (parsePositiveInt(rawValue) === null) {
       result.isValid = false;
       result.errors.push(`${name} muss eine positive Ganzzahl sein (aktuell: ${rawValue})`);
     }
@@ -103,8 +107,34 @@ export function validateProductionConfig(): ValidationResult {
     }
   };
 
+  const validateAppTimeZone = (): void => {
+    const timeZone = process.env.APP_TIMEZONE?.trim();
+    if (!timeZone) {
+      return;
+    }
+    try {
+      new Intl.DateTimeFormat("de-DE", { timeZone });
+    } catch {
+      result.isValid = false;
+      result.errors.push(`APP_TIMEZONE ist keine gültige IANA-Zeitzone (aktuell: ${timeZone})`);
+    }
+  };
+
+  const validateDatabaseUrl = (): void => {
+    const value = process.env.DATABASE_URL?.trim();
+    if (!value) {
+      requireEnv("DATABASE_URL", "SQLite-Datenbank");
+      return;
+    }
+    if (!value.startsWith("file:") || value === "file:") {
+      result.isValid = false;
+      result.errors.push(`DATABASE_URL muss eine SQLite-file:-URL mit Dateipfad sein (aktuell: ${value})`);
+    }
+  };
+
   validateNextAuthSecret();
   validateSelftestToken();
+  validateAppTimeZone();
   validatePositiveIntegerEnvVar("APP_UID");
   validatePositiveIntegerEnvVar("APP_GID");
   validatePositiveIntegerEnvVar("NOTIFICATION_TOKEN_VALIDITY_DAYS");
@@ -123,6 +153,7 @@ export function validateProductionConfig(): ValidationResult {
       result.isValid = false;
     }
 
+    validateDatabaseUrl();
     requireValidUrl("NEXTAUTH_URL", "NextAuth URL", true);
     requireValidUrl("APP_URL", "Anwendungs-URL", true);
 
@@ -184,7 +215,6 @@ export function validateProductionConfig(): ValidationResult {
     rejectLocalhost("NEXTAUTH_URL", process.env.NEXTAUTH_URL);
     rejectLocalhost("APP_URL", process.env.APP_URL);
 
-    validateBooleanEnvVar("ALLOW_DB_PUSH");
     validateBooleanEnvVar("ALLOW_DB_SEED");
 
   } else {
@@ -205,7 +235,7 @@ export function printValidationResults(result: ValidationResult): void {
   if (result.errors.length > 0) {
     console.error("\n❌ Konfigurations-Validierung fehlgeschlagen:");
     result.errors.forEach((error) => console.error(`   - ${error}`));
-    console.error("\nBitte korrigieren Sie diese Fehler bevor Sie die Anwendung in Produktion starten.");
+    console.error("\nBitte korrigieren Sie diese Fehler, bevor Sie die Anwendung in Produktion starten.");
   }
 
   if (result.warnings.length > 0) {

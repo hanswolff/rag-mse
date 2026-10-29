@@ -1,6 +1,7 @@
 import { render, screen, waitFor, act } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import EventDetailPage from "@/app/termine/[id]/page";
+import { buildEventResponse } from "./helpers/factories";
 
 jest.mock("@/components/confirm-dialog", () => ({
   useConfirmDialog: () => jest.fn().mockResolvedValue(true),
@@ -8,6 +9,7 @@ jest.mock("@/components/confirm-dialog", () => ({
 
 const mockFetch = jest.fn();
 const mockPush = jest.fn();
+const mockReplace = jest.fn();
 const mockSessionState = {
   data: {
     user: {
@@ -28,6 +30,7 @@ jest.mock("next-auth/react", () => ({
 jest.mock("next/navigation", () => ({
   useRouter: () => ({
     push: mockPush,
+    replace: mockReplace,
     refresh: jest.fn(),
   }),
 }));
@@ -52,7 +55,7 @@ jest.mock("@/lib/use-event-management", () => ({
       latitude: "",
       longitude: "",
       type: "",
-      visible: true,
+      visibility: "PUBLIC",
     },
     setModalEventData: jest.fn(),
     initialEventData: undefined,
@@ -74,6 +77,11 @@ jest.mock("@/lib/use-event-management", () => ({
 describe("EventDetailPage", () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    // Nicht explizit gemockte Requests (z. B. /api/polls aus useEventPolls) bleiben
+    // hängen, statt `undefined` zu liefern. Vorher sickerte diese Implementierung
+    // aus dem ersten Test in alle folgenden durch — reihenfolgeabhängig.
+    mockFetch.mockReset();
+    mockFetch.mockImplementation(() => new Promise(() => {}));
     mockSessionState.data = {
       user: {
         id: "user-1",
@@ -91,25 +99,32 @@ describe("EventDetailPage", () => {
       render(<EventDetailPage params={Promise.resolve({ id: "1" })} />);
     });
 
-    expect(screen.getByText("Laden...")).toBeInTheDocument();
+    expect(screen.getByText("Laden…")).toBeInTheDocument();
+  });
+
+  it("sends anonymous visitors of a members-only event to the login with a return URL", async () => {
+    window.history.pushState({}, "", "/termine/1");
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      status: 401,
+      json: async () => ({ error: "Anmeldung erforderlich" }),
+    });
+
+    await act(async () => {
+      render(<EventDetailPage params={Promise.resolve({ id: "1" })} />);
+    });
+
+    await waitFor(() => {
+      expect(mockReplace).toHaveBeenCalledWith("/login?returnUrl=%2Ftermine%2F1");
+    });
+    expect(screen.queryByText("Termin nicht gefunden")).not.toBeInTheDocument();
+    window.history.pushState({}, "", "/");
   });
 
   it("displays event details when data is loaded", async () => {
-    const mockEvent = {
-      id: "1",
-      date: "2026-02-15T18:00:00.000Z",
-      timeFrom: "18:00",
-      timeTo: "20:00",
-      location: "Test Location",
+    const mockEvent = buildEventResponse({
       locationDisplay: "Test Location, Musterstraße 1, 12345 Musterstadt",
-      description: "Test Description",
-      latitude: null,
-      longitude: null,
-      createdAt: "2026-01-31T10:00:00.000Z",
-      updatedAt: "2026-01-31T10:00:00.000Z",
-      votes: [],
-      voteCounts: { JA: 0, NEIN: 0, VIELLEICHT: 0 },
-    };
+    });
 
     mockFetch.mockResolvedValueOnce({
       ok: true,
@@ -121,7 +136,7 @@ describe("EventDetailPage", () => {
     });
 
     await waitFor(() => {
-      expect(screen.queryByText("Laden...")).not.toBeInTheDocument();
+      expect(screen.queryByText("Laden…")).not.toBeInTheDocument();
     });
 
     expect(screen.getByText("15.02.2026")).toBeInTheDocument();
@@ -133,21 +148,9 @@ describe("EventDetailPage", () => {
   it("shows the title as heading and keeps date and time visible", async () => {
     mockFetch.mockResolvedValueOnce({
       ok: true,
-      json: async () => ({
-        id: "1",
-        date: "2026-02-15T18:00:00.000Z",
-        timeFrom: "18:00",
-        timeTo: "20:00",
-        location: "Test Location",
+      json: async () => buildEventResponse({
         title: "Dynamisches Pistolenschießen Level 1",
-        description: "Test Description",
         type: "Lehrgang",
-        latitude: null,
-        longitude: null,
-        createdAt: "2026-01-31T10:00:00.000Z",
-        updatedAt: "2026-01-31T10:00:00.000Z",
-        votes: [],
-        voteCounts: { JA: 0, NEIN: 0, VIELLEICHT: 0 },
       }),
     });
 
@@ -156,7 +159,7 @@ describe("EventDetailPage", () => {
     });
 
     await waitFor(() => {
-      expect(screen.queryByText("Laden...")).not.toBeInTheDocument();
+      expect(screen.queryByText("Laden…")).not.toBeInTheDocument();
     });
 
     expect(
@@ -168,22 +171,9 @@ describe("EventDetailPage", () => {
   it("shows the cost note when one is set", async () => {
     mockFetch.mockResolvedValueOnce({
       ok: true,
-      json: async () => ({
-        id: "1",
-        date: "2026-02-15T18:00:00.000Z",
-        timeFrom: "18:00",
-        timeTo: "20:00",
-        location: "Test Location",
-        title: null,
+      json: async () => buildEventResponse({
         cost: "25 € für Mitglieder, 40 € für Gäste",
-        description: "Test Description",
         type: "Lehrgang",
-        latitude: null,
-        longitude: null,
-        createdAt: "2026-01-31T10:00:00.000Z",
-        updatedAt: "2026-01-31T10:00:00.000Z",
-        votes: [],
-        voteCounts: { JA: 0, NEIN: 0, VIELLEICHT: 0 },
       }),
     });
 
@@ -192,7 +182,7 @@ describe("EventDetailPage", () => {
     });
 
     await waitFor(() => {
-      expect(screen.queryByText("Laden...")).not.toBeInTheDocument();
+      expect(screen.queryByText("Laden…")).not.toBeInTheDocument();
     });
 
     expect(screen.getByRole("heading", { name: "Kosten" })).toBeInTheDocument();
@@ -202,23 +192,7 @@ describe("EventDetailPage", () => {
   it("shows no cost section when no cost is set", async () => {
     mockFetch.mockResolvedValueOnce({
       ok: true,
-      json: async () => ({
-        id: "1",
-        date: "2026-02-15T18:00:00.000Z",
-        timeFrom: "18:00",
-        timeTo: "20:00",
-        location: "Test Location",
-        title: null,
-        cost: null,
-        description: "Test Description",
-        type: null,
-        latitude: null,
-        longitude: null,
-        createdAt: "2026-01-31T10:00:00.000Z",
-        updatedAt: "2026-01-31T10:00:00.000Z",
-        votes: [],
-        voteCounts: { JA: 0, NEIN: 0, VIELLEICHT: 0 },
-      }),
+      json: async () => buildEventResponse(),
     });
 
     await act(async () => {
@@ -226,7 +200,7 @@ describe("EventDetailPage", () => {
     });
 
     await waitFor(() => {
-      expect(screen.queryByText("Laden...")).not.toBeInTheDocument();
+      expect(screen.queryByText("Laden…")).not.toBeInTheDocument();
     });
 
     expect(screen.queryByRole("heading", { name: "Kosten" })).not.toBeInTheDocument();
@@ -235,23 +209,9 @@ describe("EventDetailPage", () => {
   it("shows the capacity when one is set", async () => {
     mockFetch.mockResolvedValueOnce({
       ok: true,
-      json: async () => ({
-        id: "1",
-        date: "2026-02-15T18:00:00.000Z",
-        timeFrom: "18:00",
-        timeTo: "20:00",
-        location: "Test Location",
-        title: null,
-        cost: null,
+      json: async () => buildEventResponse({
         capacity: 12,
-        description: "Test Description",
         type: "Lehrgang",
-        latitude: null,
-        longitude: null,
-        createdAt: "2026-01-31T10:00:00.000Z",
-        updatedAt: "2026-01-31T10:00:00.000Z",
-        votes: [],
-        voteCounts: { JA: 0, NEIN: 0, VIELLEICHT: 0 },
       }),
     });
 
@@ -260,7 +220,7 @@ describe("EventDetailPage", () => {
     });
 
     await waitFor(() => {
-      expect(screen.queryByText("Laden...")).not.toBeInTheDocument();
+      expect(screen.queryByText("Laden…")).not.toBeInTheDocument();
     });
 
     expect(screen.getByRole("heading", { name: "Plätze" })).toBeInTheDocument();
@@ -270,24 +230,7 @@ describe("EventDetailPage", () => {
   it("shows no capacity section when none is set", async () => {
     mockFetch.mockResolvedValueOnce({
       ok: true,
-      json: async () => ({
-        id: "1",
-        date: "2026-02-15T18:00:00.000Z",
-        timeFrom: "18:00",
-        timeTo: "20:00",
-        location: "Test Location",
-        title: null,
-        cost: null,
-        capacity: null,
-        description: "Test Description",
-        type: null,
-        latitude: null,
-        longitude: null,
-        createdAt: "2026-01-31T10:00:00.000Z",
-        updatedAt: "2026-01-31T10:00:00.000Z",
-        votes: [],
-        voteCounts: { JA: 0, NEIN: 0, VIELLEICHT: 0 },
-      }),
+      json: async () => buildEventResponse(),
     });
 
     await act(async () => {
@@ -295,7 +238,7 @@ describe("EventDetailPage", () => {
     });
 
     await waitFor(() => {
-      expect(screen.queryByText("Laden...")).not.toBeInTheDocument();
+      expect(screen.queryByText("Laden…")).not.toBeInTheDocument();
     });
 
     expect(screen.queryByRole("heading", { name: "Plätze" })).not.toBeInTheDocument();
@@ -304,22 +247,9 @@ describe("EventDetailPage", () => {
   it("shows the occupancy to logged-in users", async () => {
     mockFetch.mockResolvedValueOnce({
       ok: true,
-      json: async () => ({
-        id: "1",
-        date: "2026-02-15T18:00:00.000Z",
-        timeFrom: "18:00",
-        timeTo: "20:00",
-        location: "Test Location",
-        title: null,
-        cost: null,
+      json: async () => buildEventResponse({
         capacity: 12,
-        description: "Test Description",
         type: "Lehrgang",
-        latitude: null,
-        longitude: null,
-        createdAt: "2026-01-31T10:00:00.000Z",
-        updatedAt: "2026-01-31T10:00:00.000Z",
-        votes: [],
         voteCounts: { JA: 7, NEIN: 2, VIELLEICHT: 3 },
       }),
     });
@@ -329,7 +259,7 @@ describe("EventDetailPage", () => {
     });
 
     await waitFor(() => {
-      expect(screen.queryByText("Laden...")).not.toBeInTheDocument();
+      expect(screen.queryByText("Laden…")).not.toBeInTheDocument();
     });
 
     expect(screen.getByText("7 von 12 Plätzen belegt (+3 vielleicht)")).toBeInTheDocument();
@@ -340,21 +270,11 @@ describe("EventDetailPage", () => {
     mockSessionState.status = "unauthenticated";
     mockFetch.mockResolvedValueOnce({
       ok: true,
-      json: async () => ({
-        id: "1",
-        date: "2026-02-15T18:00:00.000Z",
-        timeFrom: "18:00",
-        timeTo: "20:00",
-        location: "Test Location",
-        title: null,
-        cost: null,
+      json: async () => buildEventResponse({
         capacity: 12,
-        description: "Test Description",
         type: "Lehrgang",
-        latitude: null,
-        longitude: null,
-        createdAt: "2026-01-31T10:00:00.000Z",
-        updatedAt: "2026-01-31T10:00:00.000Z",
+        votes: undefined,
+        voteCounts: undefined,
       }),
     });
 
@@ -363,7 +283,7 @@ describe("EventDetailPage", () => {
     });
 
     await waitFor(() => {
-      expect(screen.queryByText("Laden...")).not.toBeInTheDocument();
+      expect(screen.queryByText("Laden…")).not.toBeInTheDocument();
     });
 
     expect(screen.getByText("12 Plätze")).toBeInTheDocument();
@@ -373,20 +293,7 @@ describe("EventDetailPage", () => {
   it("displays back link to events list", async () => {
     mockFetch.mockResolvedValueOnce({
       ok: true,
-      json: async () => ({
-        id: "1",
-        date: "2026-02-15T18:00:00.000Z",
-        timeFrom: "18:00",
-        timeTo: "20:00",
-        location: "Test Location",
-        description: "Test Description",
-        latitude: null,
-        longitude: null,
-        createdAt: "2026-01-31T10:00:00.000Z",
-        updatedAt: "2026-01-31T10:00:00.000Z",
-        votes: [],
-        voteCounts: { JA: 0, NEIN: 0, VIELLEICHT: 0 },
-      }),
+      json: async () => buildEventResponse(),
     });
 
     await act(async () => {
@@ -394,7 +301,7 @@ describe("EventDetailPage", () => {
     });
 
     await waitFor(() => {
-      expect(screen.queryByText("Laden...")).not.toBeInTheDocument();
+      expect(screen.queryByText("Laden…")).not.toBeInTheDocument();
     });
 
     expect(
@@ -405,20 +312,7 @@ describe("EventDetailPage", () => {
   it("displays voting section", async () => {
     mockFetch.mockResolvedValueOnce({
       ok: true,
-      json: async () => ({
-        id: "1",
-        date: "2026-02-15T18:00:00.000Z",
-        timeFrom: "18:00",
-        timeTo: "20:00",
-        location: "Test Location",
-        description: "Test Description",
-        latitude: null,
-        longitude: null,
-        createdAt: "2026-01-31T10:00:00.000Z",
-        updatedAt: "2026-01-31T10:00:00.000Z",
-        votes: [],
-        voteCounts: { JA: 0, NEIN: 0, VIELLEICHT: 0 },
-      }),
+      json: async () => buildEventResponse(),
     });
 
     await act(async () => {
@@ -426,7 +320,7 @@ describe("EventDetailPage", () => {
     });
 
     await waitFor(() => {
-      expect(screen.queryByText("Laden...")).not.toBeInTheDocument();
+      expect(screen.queryByText("Laden…")).not.toBeInTheDocument();
     });
 
     expect(screen.getByText("Teilnahmeanmeldung")).toBeInTheDocument();
@@ -435,20 +329,7 @@ describe("EventDetailPage", () => {
   it("displays vote buttons", async () => {
     mockFetch.mockResolvedValueOnce({
       ok: true,
-      json: async () => ({
-        id: "1",
-        date: "2026-02-15T18:00:00.000Z",
-        timeFrom: "18:00",
-        timeTo: "20:00",
-        location: "Test Location",
-        description: "Test Description",
-        latitude: null,
-        longitude: null,
-        createdAt: "2026-01-31T10:00:00.000Z",
-        updatedAt: "2026-01-31T10:00:00.000Z",
-        votes: [],
-        voteCounts: { JA: 0, NEIN: 0, VIELLEICHT: 0 },
-      }),
+      json: async () => buildEventResponse(),
     });
 
     await act(async () => {
@@ -456,7 +337,7 @@ describe("EventDetailPage", () => {
     });
 
     await waitFor(() => {
-      expect(screen.queryByText("Laden...")).not.toBeInTheDocument();
+      expect(screen.queryByText("Laden…")).not.toBeInTheDocument();
     });
 
     expect(screen.getAllByText("Ja")).toHaveLength(1);
@@ -467,18 +348,7 @@ describe("EventDetailPage", () => {
   it("displays vote counts in pie chart", async () => {
     mockFetch.mockResolvedValueOnce({
       ok: true,
-      json: async () => ({
-        id: "1",
-        date: "2026-02-15T18:00:00.000Z",
-        timeFrom: "18:00",
-        timeTo: "20:00",
-        location: "Test Location",
-        description: "Test Description",
-        latitude: null,
-        longitude: null,
-        createdAt: "2026-01-31T10:00:00.000Z",
-        updatedAt: "2026-01-31T10:00:00.000Z",
-        votes: [],
+      json: async () => buildEventResponse({
         voteCounts: { JA: 5, NEIN: 2, VIELLEICHT: 3 },
       }),
     });
@@ -488,26 +358,16 @@ describe("EventDetailPage", () => {
     });
 
     await waitFor(() => {
-      expect(screen.queryByText("Laden...")).not.toBeInTheDocument();
+      expect(screen.queryByText("Laden…")).not.toBeInTheDocument();
     });
 
-    expect(screen.getByText("Anmeldestand (5-8 Anmeldungen)")).toBeInTheDocument();
+    expect(screen.getByText("Anmeldestand (5–8 Anmeldungen)")).toBeInTheDocument();
   });
 
   it("does not display list of voters for non-admin users", async () => {
     mockFetch.mockResolvedValueOnce({
       ok: true,
-      json: async () => ({
-        id: "1",
-        date: "2026-02-15T18:00:00.000Z",
-        timeFrom: "18:00",
-        timeTo: "20:00",
-        location: "Test Location",
-        description: "Test Description",
-        latitude: null,
-        longitude: null,
-        createdAt: "2026-01-31T10:00:00.000Z",
-        updatedAt: "2026-01-31T10:00:00.000Z",
+      json: async () => buildEventResponse({
         votes: [
           { id: "v1", vote: "JA", user: { id: "u1", name: "User 1" } },
           { id: "v2", vote: "NEIN", user: { id: "u2", name: "User 2" } },
@@ -521,7 +381,7 @@ describe("EventDetailPage", () => {
     });
 
     await waitFor(() => {
-      expect(screen.queryByText("Laden...")).not.toBeInTheDocument();
+      expect(screen.queryByText("Laden…")).not.toBeInTheDocument();
     });
 
     expect(screen.queryByText("Angemeldet sind:")).not.toBeInTheDocument();
@@ -540,7 +400,7 @@ describe("EventDetailPage", () => {
     });
 
     await waitFor(() => {
-      expect(screen.queryByText("Laden...")).not.toBeInTheDocument();
+      expect(screen.queryByText("Laden…")).not.toBeInTheDocument();
     });
 
     expect(screen.getByText("Termin nicht gefunden")).toBeInTheDocument();
@@ -573,7 +433,7 @@ describe("EventDetailPage", () => {
     });
 
     await waitFor(() => {
-      expect(screen.queryByText("Laden...")).not.toBeInTheDocument();
+      expect(screen.queryByText("Laden…")).not.toBeInTheDocument();
     });
 
     expect(
@@ -608,7 +468,7 @@ describe("EventDetailPage", () => {
     });
 
     await waitFor(() => {
-      expect(screen.queryByText("Laden...")).not.toBeInTheDocument();
+      expect(screen.queryByText("Laden…")).not.toBeInTheDocument();
     });
 
     expect(
@@ -643,7 +503,7 @@ describe("EventDetailPage", () => {
     });
 
     await waitFor(() => {
-      expect(screen.queryByText("Laden...")).not.toBeInTheDocument();
+      expect(screen.queryByText("Laden…")).not.toBeInTheDocument();
     });
 
     const buttons = screen.getAllByRole("button");
@@ -683,7 +543,7 @@ describe("EventDetailPage", () => {
     });
 
     await waitFor(() => {
-      expect(screen.queryByText("Laden...")).not.toBeInTheDocument();
+      expect(screen.queryByText("Laden…")).not.toBeInTheDocument();
     });
 
     const buttons = screen.getAllByRole("button");
@@ -729,7 +589,7 @@ describe("EventDetailPage", () => {
     });
 
     await waitFor(() => {
-      expect(screen.queryByText("Laden...")).not.toBeInTheDocument();
+      expect(screen.queryByText("Laden…")).not.toBeInTheDocument();
     });
 
     expect(screen.queryByText("Anmeldung zurückziehen")).not.toBeInTheDocument();
@@ -768,7 +628,7 @@ describe("EventDetailPage", () => {
     });
 
     await waitFor(() => {
-      expect(screen.queryByText("Laden...")).not.toBeInTheDocument();
+      expect(screen.queryByText("Laden…")).not.toBeInTheDocument();
     });
 
     expect(screen.getByText("Anmeldung zurückziehen")).toBeInTheDocument();
@@ -830,7 +690,7 @@ describe("EventDetailPage", () => {
     });
 
     await waitFor(() => {
-      expect(screen.queryByText("Laden...")).not.toBeInTheDocument();
+      expect(screen.queryByText("Laden…")).not.toBeInTheDocument();
     });
 
     expect(screen.getByText("Anmeldestand (1 Anmeldung)")).toBeInTheDocument();
@@ -869,7 +729,7 @@ describe("EventDetailPage", () => {
     });
 
     await waitFor(() => {
-      expect(screen.queryByText("Laden...")).not.toBeInTheDocument();
+      expect(screen.queryByText("Laden…")).not.toBeInTheDocument();
     });
 
     expect(screen.getByText("Keine Anmeldung vorhanden")).toBeInTheDocument();
@@ -908,7 +768,7 @@ describe("EventDetailPage", () => {
     });
 
     await waitFor(() => {
-      expect(screen.queryByText("Laden...")).not.toBeInTheDocument();
+      expect(screen.queryByText("Laden…")).not.toBeInTheDocument();
     });
 
     expect(screen.getByText("Sie haben sich für diesen Termin angemeldet:")).toBeInTheDocument();
@@ -941,7 +801,7 @@ describe("EventDetailPage", () => {
     });
 
     await waitFor(() => {
-      expect(screen.queryByText("Laden...")).not.toBeInTheDocument();
+      expect(screen.queryByText("Laden…")).not.toBeInTheDocument();
     });
 
     const mapLink = screen.getByText("Karte in neuem Tab öffnen");
@@ -981,7 +841,7 @@ describe("EventDetailPage", () => {
     });
 
     await waitFor(() => {
-      expect(screen.queryByText("Laden...")).not.toBeInTheDocument();
+      expect(screen.queryByText("Laden…")).not.toBeInTheDocument();
     });
 
     expect(screen.queryByText("Karte in neuem Tab öffnen")).not.toBeInTheDocument();
@@ -990,20 +850,7 @@ describe("EventDetailPage", () => {
   it("does not display edit button for non-admin users", async () => {
     mockFetch.mockResolvedValueOnce({
       ok: true,
-      json: async () => ({
-        id: "1",
-        date: "2026-02-15T18:00:00.000Z",
-        timeFrom: "18:00",
-        timeTo: "20:00",
-        location: "Test Location",
-        description: "Test Description",
-        latitude: null,
-        longitude: null,
-        createdAt: "2026-01-31T10:00:00.000Z",
-        updatedAt: "2026-01-31T10:00:00.000Z",
-        votes: [],
-        voteCounts: { JA: 0, NEIN: 0, VIELLEICHT: 0 },
-      }),
+      json: async () => buildEventResponse(),
     });
 
     await act(async () => {
@@ -1011,7 +858,7 @@ describe("EventDetailPage", () => {
     });
 
     await waitFor(() => {
-      expect(screen.queryByText("Laden...")).not.toBeInTheDocument();
+      expect(screen.queryByText("Laden…")).not.toBeInTheDocument();
     });
 
     expect(screen.queryByText("Bearbeiten")).not.toBeInTheDocument();

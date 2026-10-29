@@ -17,7 +17,8 @@ und die Zugangsdaten noch nicht feststehen — siehe
 
 Backup filename format:
 
-- `prod.db.YYYY-MM-DD.sqlite3.gz`
+- `prod.db.YYYY-MM-DD.sqlite3.gz` (Datenbank)
+- `files.YYYY-MM-DD.tar.gz` (Upload-Verzeichnisse `documents/` und `ausschreibungen/`)
 
 Script:
 
@@ -71,22 +72,24 @@ Tradeoff:
 
 - No native missed-run catch-up like `systemd` `Persistent=true`.
 
-Install (root crontab):
+Install (crontab des App-Benutzers, UID 1000 — **nicht** root: ein Root-Backup kann
+root-eigene WAL/SHM-Dateien hinterlassen, die die rootless laufende App aussperren;
+siehe `ops/systemd/beta-rag-db-backup.service`):
 
 ```bash
-sudo crontab -e
+crontab -e
 ```
 
 Add:
 
 ```cron
-10 2 * * * /zfs/git/beta-rag-mse/scripts/backup-sqlite.sh >> /var/log/beta-rag-db-backup.log 2>&1
+10 2 * * * /zfs/git/beta-rag-mse/scripts/backup-sqlite.sh >> "$HOME/beta-rag-db-backup.log" 2>&1
 ```
 
 Verify:
 
 ```bash
-sudo tail -n 50 /var/log/beta-rag-db-backup.log
+tail -n 50 "$HOME/beta-rag-db-backup.log"
 ```
 
 ---
@@ -109,8 +112,15 @@ Use this if you want filesystem-level disaster recovery. Keep Option 1 or 2 for 
 
 ## Restore Example
 
-```bash
-gunzip -c /zfs/backups/beta-rag-mse/prod.db.2026-02-01.sqlite3.gz > /zfs/git/beta-rag-mse/data/prod.db
-```
+App zuerst stoppen und die WAL-/SHM-Dateien der alten Datenbank entfernen — sonst
+spielt SQLite beim nächsten Öffnen das alte WAL auf das zurückgespielte Backup:
 
-If the app is running, stop writes first before replacing the live DB file.
+```bash
+cd /zfs/git/beta-rag-mse
+podman-compose stop app
+rm -f data/prod.db-wal data/prod.db-shm
+gunzip -c /zfs/backups/beta-rag-mse/prod.db.2026-02-01.sqlite3.gz > data/prod.db
+# optional Upload-Dateien desselben Tages
+# tar -xzf /zfs/backups/beta-rag-mse/files.2026-02-01.tar.gz -C data
+podman-compose start app
+```

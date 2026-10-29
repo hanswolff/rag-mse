@@ -8,6 +8,22 @@ describe("Permissions", () => {
     expect(Permissions.canAccessAdminArea("MEMBER")).toBe(false);
   });
 
+  it("lets ADMIN, SITE_ADMINISTRATOR and AUDITOR view all absences", () => {
+    expect(Permissions.canViewAllAbsences("ADMIN")).toBe(true);
+    expect(Permissions.canViewAllAbsences("SITE_ADMINISTRATOR")).toBe(true);
+    expect(Permissions.canViewAllAbsences("AUDITOR")).toBe(true);
+    expect(Permissions.canViewAllAbsences("MEMBER")).toBe(false);
+    expect(Permissions.canViewAllAbsences(undefined)).toBe(false);
+  });
+
+  it("shows collisions only to ADMIN, SITE_ADMINISTRATOR and AUDITOR", () => {
+    expect(Permissions.canViewCollisions("ADMIN")).toBe(true);
+    expect(Permissions.canViewCollisions("SITE_ADMINISTRATOR")).toBe(true);
+    expect(Permissions.canViewCollisions("AUDITOR")).toBe(true);
+    expect(Permissions.canViewCollisions("MEMBER")).toBe(false);
+    expect(Permissions.canViewCollisions(undefined)).toBe(false);
+  });
+
   it("allows admin area write only for ADMIN and SITE_ADMINISTRATOR", () => {
     expect(Permissions.canManageAdminArea("ADMIN")).toBe(true);
     expect(Permissions.canManageAdminArea("SITE_ADMINISTRATOR")).toBe(true);

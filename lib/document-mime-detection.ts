@@ -5,35 +5,82 @@ const XLSX_MIME_TYPE = "application/vnd.openxmlformats-officedocument.spreadshee
 const ODT_MIME_TYPE = "application/vnd.oasis.opendocument.text";
 const ODS_MIME_TYPE = "application/vnd.oasis.opendocument.spreadsheet";
 
+type MagicPattern = { offset: number; bytes: readonly number[] };
+
+export type DocumentFormat = {
+  mimeType: string;
+  extensions: readonly string[];
+  magic?: readonly MagicPattern[];
+};
+
+// Einzige Quelle für erlaubte Dokumentformate: MIME-Typ, Dateiendungen und
+// Magic Bytes. Office-Formate (ohne `magic`) werden über den ZIP-Inhalt erkannt.
+export const DOCUMENT_FORMATS: readonly DocumentFormat[] = [
+  {
+    mimeType: "application/pdf",
+    extensions: ["pdf"],
+    magic: [{ offset: 0, bytes: [0x25, 0x50, 0x44, 0x46, 0x2d] }],
+  },
+  {
+    mimeType: "image/jpeg",
+    extensions: ["jpg", "jpeg"],
+    magic: [{ offset: 0, bytes: [0xff, 0xd8, 0xff] }],
+  },
+  {
+    mimeType: "image/png",
+    extensions: ["png"],
+    magic: [{ offset: 0, bytes: [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a] }],
+  },
+  {
+    mimeType: "image/webp",
+    extensions: ["webp"],
+    magic: [
+      { offset: 0, bytes: [0x52, 0x49, 0x46, 0x46] },
+      { offset: 8, bytes: [0x57, 0x45, 0x42, 0x50] },
+    ],
+  },
+  { mimeType: DOCX_MIME_TYPE, extensions: ["docx"] },
+  { mimeType: XLSX_MIME_TYPE, extensions: ["xlsx"] },
+  { mimeType: ODT_MIME_TYPE, extensions: ["odt"] },
+  { mimeType: ODS_MIME_TYPE, extensions: ["ods"] },
+];
+
+export const ALLOWED_DOCUMENT_MIME_TYPES: readonly string[] = DOCUMENT_FORMATS.map(
+  (format) => format.mimeType,
+);
+
+export const ALLOWED_DOCUMENT_EXTENSIONS: readonly string[] = DOCUMENT_FORMATS.flatMap(
+  (format) => [...format.extensions],
+);
+
+export const DOCUMENT_UPLOAD_FORMATS_LABEL = ALLOWED_DOCUMENT_EXTENSIONS.map((extension) =>
+  extension.toUpperCase(),
+).join(", ");
+
+// Office-Formate zusätzlich als Dateiendung: manche Browser/Betriebssysteme
+// melden für sie keinen (oder einen generischen) MIME-Typ im File-Dialog.
+export const DOCUMENT_UPLOAD_ACCEPT = [
+  ...ALLOWED_DOCUMENT_MIME_TYPES,
+  ...DOCUMENT_FORMATS.filter((format) => !format.magic).flatMap((format) =>
+    format.extensions.map((extension) => `.${extension}`),
+  ),
+].join(",");
+
+export function getExtensionForMimeType(mimeType: string): string | null {
+  const format = DOCUMENT_FORMATS.find((entry) => entry.mimeType === mimeType.toLowerCase());
+  return format ? format.extensions[0] : null;
+}
+
+function matchesMagic(content: Uint8Array, magic: readonly MagicPattern[]): boolean {
+  return magic.every((pattern) =>
+    pattern.bytes.every((byte, index) => content[pattern.offset + index] === byte),
+  );
+}
+
 export function detectAllowedMimeTypeFromContent(content: Uint8Array): string | null {
-  if (content.length >= 5) {
-    const pdfHeader = [0x25, 0x50, 0x44, 0x46, 0x2d];
-    if (pdfHeader.every((byte, index) => content[index] === byte)) {
-      return "application/pdf";
-    }
-  }
-
-  if (content.length >= 3) {
-    const jpgHeader = [0xff, 0xd8, 0xff];
-    if (jpgHeader.every((byte, index) => content[index] === byte)) {
-      return "image/jpeg";
-    }
-  }
-
-  if (content.length >= 8) {
-    const pngHeader = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
-    if (pngHeader.every((byte, index) => content[index] === byte)) {
-      return "image/png";
-    }
-  }
-
-  if (content.length >= 12) {
-    const riffHeader = [0x52, 0x49, 0x46, 0x46];
-    const webpHeader = [0x57, 0x45, 0x42, 0x50];
-    const hasRiff = riffHeader.every((byte, index) => content[index] === byte);
-    const hasWebp = webpHeader.every((byte, index) => content[index + 8] === byte);
-    if (hasRiff && hasWebp) {
-      return "image/webp";
+  for (const format of DOCUMENT_FORMATS) {
+    if (format.magic && matchesMagic(content, format.magic)) {
+      return format.mimeType;
     }
   }
 

@@ -6,9 +6,9 @@
 
 const baseUrl = (process.argv[2] || "http://127.0.0.1:3000").replace(/\/$/, "");
 
-const REQUEST_TIMEOUT_MS = 15000;
+const REQUEST_TIMEOUT_MS = Number(process.env.SMOKE_REQUEST_TIMEOUT_MS) || 15000;
 
-const PUBLIC_PAGES = ["/", "/termine", "/login", "/ausschreibungen", "/news"];
+const PUBLIC_PAGES = ["/", "/termine", "/kalender", "/login", "/ausschreibungen", "/news"];
 const ERROR_MARKERS = [
   "Application error: a client-side exception",
   "Internal Server Error",

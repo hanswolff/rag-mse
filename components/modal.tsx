@@ -143,7 +143,7 @@ export function Modal({
         document.removeEventListener("keydown", handleTab);
         document.removeEventListener("mousedown", handleClickOutside);
         openModalCount = Math.max(0, openModalCount - 1);
-        // Bei gestapelten Modals (z.B. Standort-Picker im Termin-Modal) darf
+        // Bei gestapelten Modals (z. B. Standort-Picker im Termin-Modal) darf
         // erst das letzte geschlossene Modal das Scrollen wieder freigeben.
         if (openModalCount === 0) {
           document.body.style.overflow = "";

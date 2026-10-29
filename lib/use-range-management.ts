@@ -1,30 +1,46 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { useAdminAuth } from "./use-admin-auth";
-import { useAdminCrud } from "./use-admin-crud";
-import { useSuccessTimer } from "./use-success-timer";
-import { isAdmin } from "@/lib/role-utils";
+import { useAdminEntityManagement } from "./use-admin-entity-management";
+import { canAccessAdminArea } from "@/lib/role-utils";
 import { EMPTY_SHOOTING_RANGE } from "@/types";
 import type { ShootingRangeItem, NewShootingRange } from "@/types";
-import type { FieldError } from "@/lib/server-error-mapper";
 
 export function useRangeManagement() {
   const { session, status } = useAdminAuth();
-  const { createFetchHandler, createDeleteHandler } = useAdminCrud();
 
   const [ranges, setRanges] = useState<ShootingRangeItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [isGeocoding, setIsGeocoding] = useState(false);
   const [geocodeSuccess, setGeocodeSuccess] = useState(false);
-  const [error, setError] = useState("");
-  const [fieldErrors, setFieldErrors] = useState<FieldError[]>([]);
-  const [success, setSuccess] = useState("");
-  const [editingRange, setEditingRange] = useState<ShootingRangeItem | null>(null);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [modalRangeData, setModalRangeData] = useState<NewShootingRange>(EMPTY_SHOOTING_RANGE);
-  const [initialRangeData, setInitialRangeData] = useState<NewShootingRange | undefined>(undefined);
 
-  useSuccessTimer(success, setSuccess);
+  const fetchRangesRef = useRef<() => Promise<void> | void>(() => {});
+
+  const management = useAdminEntityManagement<ShootingRangeItem, NewShootingRange>({
+    endpoint: "/api/admin/ranges",
+    emptyForm: EMPTY_SHOOTING_RANGE,
+    itemToForm: (range) => ({
+      name: range.name,
+      street: range.street || "",
+      postalCode: range.postalCode || "",
+      city: range.city || "",
+      latitude: range.latitude.toString(),
+      longitude: range.longitude.toString(),
+    }),
+    messages: {
+      created: "Standort wurde erfolgreich erstellt",
+      updated: "Standort wurde erfolgreich aktualisiert",
+      deleted: "Standort wurde erfolgreich gelöscht",
+    },
+    refetch: () => fetchRangesRef.current(),
+  });
+
+  const {
+    setError,
+    setModalData,
+    modalData,
+    openCreateModal: baseOpenCreateModal,
+    closeModal: baseCloseModal,
+  } = management;
 
   const fetchRanges = useCallback(async () => {
     setError("");
@@ -39,118 +55,34 @@ export function useRangeManagement() {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [setError]);
 
   useEffect(() => {
-    if (status === "authenticated" && isAdmin(session?.user)) {
+    fetchRangesRef.current = fetchRanges;
+  }, [fetchRanges]);
+
+  useEffect(() => {
+    if (status === "authenticated" && canAccessAdminArea(session?.user)) {
       void fetchRanges();
     }
   }, [status, session, fetchRanges]);
 
-  const createRange = createFetchHandler<NewShootingRange>(
-    "/api/admin/ranges",
-    "POST",
-    setError,
-    setIsSubmitting,
-    modalRangeData
-  );
-
-  const updateRange = createFetchHandler<NewShootingRange>(
-    "/api/admin/ranges",
-    "PUT",
-    setError,
-    setIsSubmitting,
-    modalRangeData
-  );
-
-  const deleteRange = createFetchHandler(
-    "/api/admin/ranges",
-    "DELETE",
-    setError,
-    setIsSubmitting
-  );
-
-  const handleCreateRange = useCallback(async (e: React.FormEvent) => {
-    if (e) e.preventDefault();
-    setFieldErrors([]);
-    const result = await createRange();
-    if (result.success) {
-      setSuccess("Standort wurde erfolgreich erstellt");
-      setIsModalOpen(false);
-      setModalRangeData(EMPTY_SHOOTING_RANGE);
-      setEditingRange(null);
-      await fetchRanges();
-    } else if (result.fieldErrors) {
-      setFieldErrors(result.fieldErrors);
-    }
-  }, [createRange, fetchRanges]);
-
-  const handleUpdateRange = useCallback(async (e: React.FormEvent) => {
-    if (!editingRange) return;
-    if (e) e.preventDefault();
-    setFieldErrors([]);
-    const result = await updateRange(editingRange.id);
-    if (result.success) {
-      setSuccess("Standort wurde erfolgreich aktualisiert");
-      setIsModalOpen(false);
-      setModalRangeData(EMPTY_SHOOTING_RANGE);
-      setEditingRange(null);
-      await fetchRanges();
-    } else if (result.fieldErrors) {
-      setFieldErrors(result.fieldErrors);
-    }
-  }, [editingRange, updateRange, fetchRanges]);
-
-  const handleDeleteRange = createDeleteHandler(
-    deleteRange,
-    setSuccess,
-    "Standort wurde erfolgreich gelöscht",
-    () => fetchRanges()
-  );
-
-  const startEditingRange = useCallback((range: ShootingRangeItem) => {
-    setEditingRange(range);
-    const rangeData: NewShootingRange = {
-      name: range.name,
-      street: range.street || "",
-      postalCode: range.postalCode || "",
-      city: range.city || "",
-      latitude: range.latitude.toString(),
-      longitude: range.longitude.toString(),
-    };
-    setModalRangeData(rangeData);
-    setInitialRangeData(rangeData);
-    setError("");
-    setFieldErrors([]);
-    setIsModalOpen(true);
-  }, []);
-
   const openCreateModal = useCallback(() => {
-    setModalRangeData(EMPTY_SHOOTING_RANGE);
-    setEditingRange(null);
-    setInitialRangeData(undefined);
-    setError("");
-    setFieldErrors([]);
     setGeocodeSuccess(false);
-    setIsModalOpen(true);
-  }, []);
+    baseOpenCreateModal();
+  }, [baseOpenCreateModal]);
 
   const closeModal = useCallback(() => {
-    setIsModalOpen(false);
-    setModalRangeData(EMPTY_SHOOTING_RANGE);
-    setInitialRangeData(undefined);
-    setEditingRange(null);
     setGeocodeSuccess(false);
-    setError("");
-    setFieldErrors([]);
-  }, []);
+    baseCloseModal();
+  }, [baseCloseModal]);
 
   const handleGeocode = useCallback(async () => {
     const addressParts = [
-      modalRangeData.street,
-      modalRangeData.postalCode,
-      modalRangeData.city,
-      modalRangeData.name,
+      modalData.street,
+      modalData.postalCode,
+      modalData.city,
+      modalData.name,
     ].filter(Boolean);
 
     const query = addressParts.join(", ");
@@ -168,7 +100,7 @@ export function useRangeManagement() {
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Fehler beim Geocoding");
 
-      setModalRangeData((prev) => ({
+      setModalData((prev) => ({
         ...prev,
         latitude: data.latitude.toString(),
         longitude: data.longitude.toString(),
@@ -179,26 +111,26 @@ export function useRangeManagement() {
     } finally {
       setIsGeocoding(false);
     }
-  }, [modalRangeData]);
+  }, [modalData, setError, setModalData]);
 
   return {
     ranges,
     isLoading,
-    isSubmitting,
+    isSubmitting: management.isCreating || management.isUpdating || management.isDeleting,
     isGeocoding,
     geocodeSuccess,
-    error,
-    fieldErrors,
-    success,
-    editingRange,
-    modalRangeData,
-    setModalRangeData,
-    initialRangeData,
-    isModalOpen,
-    handleCreateRange,
-    handleUpdateRange,
-    handleDeleteRange,
-    startEditingRange,
+    error: management.error,
+    fieldErrors: management.fieldErrors,
+    success: management.success,
+    editingRange: management.editingItem,
+    modalRangeData: management.modalData,
+    setModalRangeData: management.setModalData,
+    initialRangeData: management.initialData,
+    isModalOpen: management.isModalOpen,
+    handleCreateRange: management.handleCreate,
+    handleUpdateRange: management.handleUpdate,
+    handleDeleteRange: management.handleDelete,
+    startEditingRange: management.startEditing,
     openCreateModal,
     closeModal,
     handleGeocode,

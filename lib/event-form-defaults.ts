@@ -1,4 +1,5 @@
 import type { NewEvent } from "@/types";
+import { Visibility } from "@/lib/visibility";
 
 // Einzige Quelle für das leere Termin-Formular. Sie stand zuvor wortgleich in
 // components/event-form-modal.tsx und lib/use-event-management.ts — ein neues
@@ -16,5 +17,5 @@ export const EMPTY_EVENT_FORM: NewEvent = {
   type: "",
   cost: "",
   capacity: "",
-  visible: true,
+  visibility: Visibility.PUBLIC,
 };

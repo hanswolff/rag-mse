@@ -1,4 +1,4 @@
-import { NextRequest } from "next/server";
+import { apiRequest, routeContext } from "./helpers/request";
 import { GET, POST } from "@/app/api/admin/documents/route";
 import { PATCH, DELETE } from "@/app/api/admin/documents/[id]/route";
 import { requireAdmin } from "@/lib/auth-utils";
@@ -9,21 +9,9 @@ jest.mock("@/lib/auth-utils", () => ({
   requireAdmin: jest.fn(),
 }));
 
-jest.mock("@/lib/prisma", () => ({
-  prisma: {
-    document: {
-      findMany: jest.fn(),
-      count: jest.fn(),
-      findUnique: jest.fn(),
-      create: jest.fn(),
-      update: jest.fn(),
-      delete: jest.fn(),
-    },
-    documentDirectory: {
-      findUnique: jest.fn(),
-    },
-  },
-}));
+jest.mock("@/lib/prisma", () =>
+  jest.requireActual<typeof import("./helpers/prisma-mock")>("./helpers/prisma-mock").prismaModuleMock,
+);
 
 jest.mock("@/lib/document-storage", () => ({
   writeDocumentFile: jest.fn(),
@@ -64,7 +52,7 @@ describe("/api/admin/documents", () => {
     ]);
     (prisma.document.count as jest.Mock).mockResolvedValue(1);
 
-    const request = new NextRequest("http://localhost:3000/api/admin/documents?page=1&limit=20");
+    const request = apiRequest("GET", "/api/admin/documents?page=1&limit=20");
     const response = await GET(request);
     const data = await response.json();
 
@@ -78,7 +66,7 @@ describe("/api/admin/documents", () => {
     (prisma.document.findMany as jest.Mock).mockResolvedValue([]);
     (prisma.document.count as jest.Mock).mockResolvedValue(21);
 
-    const request = new NextRequest("http://localhost:3000/api/admin/documents?page=5&limit=20");
+    const request = apiRequest("GET", "/api/admin/documents?page=5&limit=20");
     const response = await GET(request);
     const data = await response.json();
 
@@ -94,7 +82,7 @@ describe("/api/admin/documents", () => {
     (prisma.document.findMany as jest.Mock).mockResolvedValue([]);
     (prisma.document.count as jest.Mock).mockResolvedValue(0);
 
-    const request = new NextRequest("http://localhost:3000/api/admin/documents?page=1&limit=20");
+    const request = apiRequest("GET", "/api/admin/documents?page=1&limit=20");
     await GET(request);
 
     const findManyCall = (prisma.document.findMany as jest.Mock).mock.calls[0][0];
@@ -108,7 +96,7 @@ describe("/api/admin/documents", () => {
     (prisma.document.findMany as jest.Mock).mockResolvedValue([]);
     (prisma.document.count as jest.Mock).mockResolvedValue(0);
 
-    const request = new NextRequest("http://localhost:3000/api/admin/documents?sortBy=sizeBytes&sortDir=asc");
+    const request = apiRequest("GET", "/api/admin/documents?sortBy=sizeBytes&sortDir=asc");
     await GET(request);
 
     const findManyCall = (prisma.document.findMany as jest.Mock).mock.calls[0][0];
@@ -122,7 +110,7 @@ describe("/api/admin/documents", () => {
     (prisma.document.findMany as jest.Mock).mockResolvedValue([]);
     (prisma.document.count as jest.Mock).mockResolvedValue(0);
 
-    const request = new NextRequest("http://localhost:3000/api/admin/documents?sortBy=createdAt&sortDir=asc");
+    const request = apiRequest("GET", "/api/admin/documents?sortBy=createdAt&sortDir=asc");
     await GET(request);
 
     const findManyCall = (prisma.document.findMany as jest.Mock).mock.calls[0][0];
@@ -136,7 +124,7 @@ describe("/api/admin/documents", () => {
     (prisma.document.findMany as jest.Mock).mockResolvedValue([]);
     (prisma.document.count as jest.Mock).mockResolvedValue(0);
 
-    const request = new NextRequest("http://localhost:3000/api/admin/documents?q=mitglied");
+    const request = apiRequest("GET", "/api/admin/documents?q=mitglied");
     await GET(request);
 
     const firstCall = (prisma.document.findMany as jest.Mock).mock.calls[0][0];
@@ -147,7 +135,7 @@ describe("/api/admin/documents", () => {
     (prisma.document.findMany as jest.Mock).mockResolvedValue([]);
     (prisma.document.count as jest.Mock).mockResolvedValue(0);
 
-    const request = new NextRequest("http://localhost:3000/api/admin/documents?directory=root");
+    const request = apiRequest("GET", "/api/admin/documents?directory=root");
     await GET(request);
 
     const firstCall = (prisma.document.findMany as jest.Mock).mock.calls[0][0];
@@ -158,7 +146,7 @@ describe("/api/admin/documents", () => {
     (prisma.document.findMany as jest.Mock).mockResolvedValue([]);
     (prisma.document.count as jest.Mock).mockResolvedValue(0);
 
-    const request = new NextRequest("http://localhost:3000/api/admin/documents?directory=root&q=antrag");
+    const request = apiRequest("GET", "/api/admin/documents?directory=root&q=antrag");
     await GET(request);
 
     const firstCall = (prisma.document.findMany as jest.Mock).mock.calls[0][0];
@@ -169,7 +157,7 @@ describe("/api/admin/documents", () => {
     (prisma.document.findMany as jest.Mock).mockResolvedValue([]);
     (prisma.document.count as jest.Mock).mockResolvedValue(0);
 
-    const request = new NextRequest("http://localhost:3000/api/admin/documents?directory=dir-1&q=antrag");
+    const request = apiRequest("GET", "/api/admin/documents?directory=dir-1&q=antrag");
     await GET(request);
 
     const firstCall = (prisma.document.findMany as jest.Mock).mock.calls[0][0];
@@ -180,7 +168,7 @@ describe("/api/admin/documents", () => {
   });
 
   it("returns validation error when upload has no file", async () => {
-    const request = new NextRequest("http://localhost:3000/api/admin/documents", { method: "POST" });
+    const request = apiRequest("POST", "/api/admin/documents");
     Object.defineProperty(request, "formData", {
       value: async () => new FormData(),
     });
@@ -193,11 +181,8 @@ describe("/api/admin/documents", () => {
   });
 
   it("rejects upload when content length exceeds threshold early", async () => {
-    const request = new NextRequest("http://localhost:3000/api/admin/documents", {
-      method: "POST",
-      headers: {
-        "content-length": `${40 * 1024 * 1024}`,
-      },
+    const request = apiRequest("POST", "/api/admin/documents", {
+      headers: { "content-length": `${40 * 1024 * 1024}` },
     });
 
     const response = await POST(request);
@@ -216,7 +201,7 @@ describe("/api/admin/documents", () => {
     const formData = new FormData();
     formData.append("file", file);
 
-    const request = new NextRequest("http://localhost:3000/api/admin/documents", { method: "POST" });
+    const request = apiRequest("POST", "/api/admin/documents");
     Object.defineProperty(request, "formData", {
       value: async () => formData,
     });
@@ -265,7 +250,7 @@ describe("/api/admin/documents", () => {
     formData.append("displayName", "Testdokument");
     formData.append("documentDate", "");
 
-    const request = new NextRequest("http://localhost:3000/api/admin/documents", { method: "POST" });
+    const request = apiRequest("POST", "/api/admin/documents");
     Object.defineProperty(request, "formData", {
       value: async () => formData,
     });
@@ -299,7 +284,7 @@ describe("/api/admin/documents", () => {
     formData.append("file", file);
     formData.append("displayName", "Testdokument");
 
-    const request = new NextRequest("http://localhost:3000/api/admin/documents", { method: "POST" });
+    const request = apiRequest("POST", "/api/admin/documents");
     Object.defineProperty(request, "formData", {
       value: async () => formData,
     });
@@ -313,7 +298,7 @@ describe("/api/admin/documents", () => {
     (prisma.document.findMany as jest.Mock).mockResolvedValue([]);
     (prisma.document.count as jest.Mock).mockResolvedValue(0);
 
-    const request = new NextRequest("http://localhost:3000/api/admin/documents?area=MEMBER");
+    const request = apiRequest("GET", "/api/admin/documents?area=MEMBER");
     await GET(request);
 
     const firstCall = (prisma.document.findMany as jest.Mock).mock.calls[0][0];
@@ -321,7 +306,7 @@ describe("/api/admin/documents", () => {
   });
 
   it("rejects invalid area filter", async () => {
-    const request = new NextRequest("http://localhost:3000/api/admin/documents?area=INVALID");
+    const request = apiRequest("GET", "/api/admin/documents?area=INVALID");
     const response = await GET(request);
     const data = await response.json();
 
@@ -332,7 +317,7 @@ describe("/api/admin/documents", () => {
   });
 
   it("rejects empty area filter", async () => {
-    const request = new NextRequest("http://localhost:3000/api/admin/documents?area=");
+    const request = apiRequest("GET", "/api/admin/documents?area=");
     const response = await GET(request);
     const data = await response.json();
 
@@ -379,7 +364,7 @@ describe("/api/admin/documents", () => {
     formData.append("displayName", "Mitglieder-Dok");
     formData.append("area", "MEMBER");
 
-    const request = new NextRequest("http://localhost:3000/api/admin/documents", { method: "POST" });
+    const request = apiRequest("POST", "/api/admin/documents");
     Object.defineProperty(request, "formData", {
       value: async () => formData,
     });
@@ -409,7 +394,7 @@ describe("/api/admin/documents", () => {
     formData.append("area", "MEMBER");
     formData.append("directoryId", "dir-1");
 
-    const request = new NextRequest("http://localhost:3000/api/admin/documents", { method: "POST" });
+    const request = apiRequest("POST", "/api/admin/documents");
     Object.defineProperty(request, "formData", {
       value: async () => formData,
     });
@@ -434,7 +419,7 @@ describe("/api/admin/documents", () => {
     formData.append("displayName", "Mitglieder-Dok");
     formData.append("area", "INVALID");
 
-    const request = new NextRequest("http://localhost:3000/api/admin/documents", { method: "POST" });
+    const request = apiRequest("POST", "/api/admin/documents");
     Object.defineProperty(request, "formData", {
       value: async () => formData,
     });
@@ -459,7 +444,7 @@ describe("/api/admin/documents", () => {
     formData.append("displayName", "Mitglieder-Dok");
     formData.append("area", new File([new Uint8Array([1])], "area.txt", { type: "text/plain" }));
 
-    const request = new NextRequest("http://localhost:3000/api/admin/documents", { method: "POST" });
+    const request = apiRequest("POST", "/api/admin/documents");
     Object.defineProperty(request, "formData", {
       value: async () => formData,
     });
@@ -507,13 +492,9 @@ describe("/api/admin/documents/[id]", () => {
       },
     });
 
-    const request = new NextRequest("http://localhost:3000/api/admin/documents/doc-1", {
-      method: "PATCH",
-      body: JSON.stringify({ displayName: "Neu", documentDate: "2026-02-12" }),
-      headers: { "content-type": "application/json" },
-    });
+    const request = apiRequest("PATCH", "/api/admin/documents/doc-1", { body: { displayName: "Neu", documentDate: "2026-02-12" } });
 
-    const response = await PATCH(request, { params: Promise.resolve({ id: "doc-1" }) });
+    const response = await PATCH(request, routeContext({ id: "doc-1" }));
     const data = await response.json();
 
     expect(response.status).toBe(200);
@@ -547,13 +528,9 @@ describe("/api/admin/documents/[id]", () => {
       directory: null,
     });
 
-    const request = new NextRequest("http://localhost:3000/api/admin/documents/doc-1", {
-      method: "PATCH",
-      body: JSON.stringify({ directoryId: null }),
-      headers: { "content-type": "application/json" },
-    });
+    const request = apiRequest("PATCH", "/api/admin/documents/doc-1", { body: { directoryId: null } });
 
-    const response = await PATCH(request, { params: Promise.resolve({ id: "doc-1" }) });
+    const response = await PATCH(request, routeContext({ id: "doc-1" }));
     expect(response.status).toBe(200);
     expect(prisma.document.update).toHaveBeenCalledWith(expect.objectContaining({
       data: expect.objectContaining({ directoryId: null }),
@@ -591,13 +568,9 @@ describe("/api/admin/documents/[id]", () => {
       },
     });
 
-    const request = new NextRequest("http://localhost:3000/api/admin/documents/doc-1", {
-      method: "PATCH",
-      body: JSON.stringify({ directoryId: "dir-1" }),
-      headers: { "content-type": "application/json" },
-    });
+    const request = apiRequest("PATCH", "/api/admin/documents/doc-1", { body: { directoryId: "dir-1" } });
 
-    const response = await PATCH(request, { params: Promise.resolve({ id: "doc-1" }) });
+    const response = await PATCH(request, routeContext({ id: "doc-1" }));
     expect(response.status).toBe(200);
     expect(prisma.document.update).toHaveBeenCalledWith(expect.objectContaining({
       data: expect.objectContaining({ directoryId: "dir-1" }),
@@ -613,13 +586,9 @@ describe("/api/admin/documents/[id]", () => {
     });
     (prisma.documentDirectory.findUnique as jest.Mock).mockResolvedValue({ id: "dir-1", area: "ADMIN" });
 
-    const request = new NextRequest("http://localhost:3000/api/admin/documents/doc-1", {
-      method: "PATCH",
-      body: JSON.stringify({ directoryId: "dir-1" }),
-      headers: { "content-type": "application/json" },
-    });
+    const request = apiRequest("PATCH", "/api/admin/documents/doc-1", { body: { directoryId: "dir-1" } });
 
-    const response = await PATCH(request, { params: Promise.resolve({ id: "doc-1" }) });
+    const response = await PATCH(request, routeContext({ id: "doc-1" }));
     const data = await response.json();
 
     expect(response.status).toBe(409);
@@ -635,13 +604,9 @@ describe("/api/admin/documents/[id]", () => {
     });
     (prisma.documentDirectory.findUnique as jest.Mock).mockResolvedValue(null);
 
-    const request = new NextRequest("http://localhost:3000/api/admin/documents/doc-1", {
-      method: "PATCH",
-      body: JSON.stringify({ directoryId: "dir-missing" }),
-      headers: { "content-type": "application/json" },
-    });
+    const request = apiRequest("PATCH", "/api/admin/documents/doc-1", { body: { directoryId: "dir-missing" } });
 
-    const response = await PATCH(request, { params: Promise.resolve({ id: "doc-1" }) });
+    const response = await PATCH(request, routeContext({ id: "doc-1" }));
     const data = await response.json();
 
     expect(response.status).toBe(404);
@@ -649,13 +614,9 @@ describe("/api/admin/documents/[id]", () => {
   });
 
   it("returns validation error when patch payload types are invalid", async () => {
-    const request = new NextRequest("http://localhost:3000/api/admin/documents/doc-1", {
-      method: "PATCH",
-      body: JSON.stringify({ displayName: 123, documentDate: true }),
-      headers: { "content-type": "application/json" },
-    });
+    const request = apiRequest("PATCH", "/api/admin/documents/doc-1", { body: { displayName: 123, documentDate: true } });
 
-    const response = await PATCH(request, { params: Promise.resolve({ id: "doc-1" }) });
+    const response = await PATCH(request, routeContext({ id: "doc-1" }));
     const data = await response.json();
 
     expect(response.status).toBe(400);
@@ -687,13 +648,9 @@ describe("/api/admin/documents/[id]", () => {
       },
     });
 
-    const request = new NextRequest("http://localhost:3000/api/admin/documents/doc-1", {
-      method: "PATCH",
-      body: JSON.stringify({ displayName: "Neu", documentDate: "" }),
-      headers: { "content-type": "application/json" },
-    });
+    const request = apiRequest("PATCH", "/api/admin/documents/doc-1", { body: { displayName: "Neu", documentDate: "" } });
 
-    const response = await PATCH(request, { params: Promise.resolve({ id: "doc-1" }) });
+    const response = await PATCH(request, routeContext({ id: "doc-1" }));
     expect(response.status).toBe(200);
 
     expect(prisma.document.update).toHaveBeenCalledWith(
@@ -712,11 +669,9 @@ describe("/api/admin/documents/[id]", () => {
     });
     (prisma.document.delete as jest.Mock).mockResolvedValue({ id: "doc-1" });
 
-    const request = new NextRequest("http://localhost:3000/api/admin/documents/doc-1", {
-      method: "DELETE",
-    });
+    const request = apiRequest("DELETE", "/api/admin/documents/doc-1");
 
-    const response = await DELETE(request, { params: Promise.resolve({ id: "doc-1" }) });
+    const response = await DELETE(request, routeContext({ id: "doc-1" }));
     const data = await response.json();
 
     expect(response.status).toBe(200);
@@ -732,11 +687,9 @@ describe("/api/admin/documents/[id]", () => {
     (readDocumentFile as jest.Mock).mockResolvedValue(Buffer.from([1, 2, 3]));
     (prisma.document.delete as jest.Mock).mockRejectedValue(new Error("DB delete failed"));
 
-    const request = new NextRequest("http://localhost:3000/api/admin/documents/doc-1", {
-      method: "DELETE",
-    });
+    const request = apiRequest("DELETE", "/api/admin/documents/doc-1");
 
-    const response = await DELETE(request, { params: Promise.resolve({ id: "doc-1" }) });
+    const response = await DELETE(request, routeContext({ id: "doc-1" }));
     const data = await response.json();
 
     expect(response.status).toBe(500);

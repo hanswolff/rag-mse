@@ -2,31 +2,13 @@
 
 import { use, useEffect, useState } from "react";
 import { VoteType } from "@prisma/client";
-import { LoadingButton } from "@/components/loading-button";
 import { LoadingScreen } from "@/components/loading-screen";
 import { VOTE_OPTIONS } from "@/lib/vote-utils";
+import { VoteButtonGroup } from "@/components/vote-button-group";
 import { formatDate, formatTime, isEventInPast } from "@/lib/date-utils";
 import { AlertBox } from "@/components/alert-box";
-
-interface RsvpEvent {
-  id: string;
-  date: string;
-  timeFrom: string;
-  timeTo: string;
-  location: string;
-  description: string;
-}
-
-interface RsvpData {
-  event: RsvpEvent;
-  user: {
-    name: string | null;
-  };
-  currentVote: {
-    id: string;
-    vote: VoteType;
-  } | null;
-}
+import { apiFetch } from "@/lib/api-fetch";
+import type { RsvpData } from "@/types";
 
 export default function TokenRsvpPage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = use(params);
@@ -44,12 +26,9 @@ export default function TokenRsvpPage({ params }: { params: Promise<{ token: str
       setSuccess("");
 
       try {
-        const response = await fetch(`/api/notifications/rsvp/${token}`);
-        const json = await response.json();
-
-        if (!response.ok) {
-          throw new Error(json.error || "Link ist ungültig oder abgelaufen");
-        }
+        const json = await apiFetch<RsvpData>(`/api/notifications/rsvp/${token}`, {
+          fallbackError: "Link ist ungültig oder abgelaufen",
+        });
 
         setData(json);
       } catch (loadError) {
@@ -72,17 +51,11 @@ export default function TokenRsvpPage({ params }: { params: Promise<{ token: str
     setSuccess("");
 
     try {
-      const response = await fetch(`/api/notifications/rsvp/${token}`, {
+      const json = await apiFetch<{ id: string; vote: VoteType }>(`/api/notifications/rsvp/${token}`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ vote }),
+        body: { vote },
+        fallbackError: "Fehler bei der Teilnahmeanmeldung",
       });
-      const json = await response.json();
-      if (!response.ok) {
-        throw new Error(json.error || "Fehler bei der Teilnahmeanmeldung");
-      }
 
       setData((prev) => {
         if (!prev) {
@@ -138,6 +111,11 @@ export default function TokenRsvpPage({ params }: { params: Promise<{ token: str
           </p>
 
           <div className="space-y-2 text-gray-800">
+            {data.event.title && (
+              <p>
+                <span className="font-semibold">Termin:</span> {data.event.title}
+              </p>
+            )}
             <p>
               <span className="font-semibold">Datum:</span> {formatDate(data.event.date)}
             </p>
@@ -165,24 +143,13 @@ export default function TokenRsvpPage({ params }: { params: Promise<{ token: str
                 {data.currentVote ? `Ihre aktuelle Auswahl: ${VOTE_OPTIONS.find((o) => o.value === data.currentVote?.vote)?.label}` : "Bitte wählen:"}
               </p>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                {VOTE_OPTIONS.map((option) => (
-                  <LoadingButton
-                    key={option.value}
-                    onClick={() => handleVote(option.value)}
-                    loading={isVoting && pendingVote === option.value}
-                    disabled={isVoting}
-                    loadingText={option.label}
-                    className={`px-4 py-3 rounded-lg font-medium border-2 transition-all ${
-                      data.currentVote?.vote === option.value
-                        ? `${option.color} border-current`
-                        : "bg-white border-gray-300 text-gray-700 hover:border-gray-400"
-                    }`}
-                  >
-                    {option.label}
-                  </LoadingButton>
-                ))}
-              </div>
+              <VoteButtonGroup
+                currentVote={data.currentVote?.vote}
+                onVote={handleVote}
+                isVoting={isVoting}
+                pendingVote={pendingVote}
+                disabled={isVoting}
+              />
             </>
           )}
         </section>

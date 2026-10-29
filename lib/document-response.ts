@@ -1,8 +1,20 @@
 import { NextResponse } from "next/server";
 import { readDocumentFile } from "./document-storage";
-import { logResourceNotFound } from "./logger";
+import { serveStoredFile, type DispositionType } from "./file-storage";
+import { getNoCacheHeaders } from "./api-error-handler";
 
-export type DispositionType = "inline" | "attachment";
+export type { DispositionType };
+
+// Ersetzt die Date-Felder in-place (Spread erhält die Schlüsselreihenfolge),
+// damit die Response-Bodies byte-identisch zum bisherigen Inline-Mapping bleiben.
+export function serializeDocument<T extends { documentDate: Date; createdAt: Date; updatedAt: Date }>(document: T) {
+  return {
+    ...document,
+    documentDate: document.documentDate.toISOString(),
+    createdAt: document.createdAt.toISOString(),
+    updatedAt: document.updatedAt.toISOString(),
+  };
+}
 
 export async function serveDocumentFile(options: {
   document: {
@@ -15,31 +27,15 @@ export async function serveDocumentFile(options: {
   route: string;
   method: string;
 }): Promise<NextResponse> {
-  const { document, disposition, route, method } = options;
-
-  let content: Buffer;
-  try {
-    content = await readDocumentFile(document.storedFileName);
-  } catch (error: unknown) {
-    if (error && typeof error === "object" && "code" in error && error.code === "ENOENT") {
-      logResourceNotFound("documentFile", document.storedFileName, route, method, {
-        documentId: document.id,
-      });
-      return NextResponse.json({ error: "Dokument nicht gefunden" }, { status: 404 });
-    }
-    throw error;
-  }
-
-  const body = new Uint8Array(content);
-
-  return new NextResponse(body, {
-    status: 200,
-    headers: {
-      "Content-Type": document.mimeType,
-      "Content-Length": `${body.byteLength}`,
-      "Cache-Control": "no-store, no-cache, must-revalidate",
-      "X-Content-Type-Options": "nosniff",
-      "Content-Disposition": `${disposition}; filename*=UTF-8''${encodeURIComponent(document.originalFileName)}`,
-    },
+  return serveStoredFile({
+    file: options.document,
+    disposition: options.disposition,
+    route: options.route,
+    method: options.method,
+    readFile: readDocumentFile,
+    resourceName: "documentFile",
+    notFoundMessage: "Dokument nicht gefunden",
+    logIdKey: "documentId",
+    cacheHeaders: getNoCacheHeaders(),
   });
 }

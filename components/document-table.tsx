@@ -1,20 +1,16 @@
 "use client";
 
-import { DragEvent, MouseEvent, ReactNode, memo } from "react";
+import { DragEvent, ReactNode, memo } from "react";
 import { SearchHighlight } from "@/components/search-highlight";
+import { IconButton } from "@/components/icon-button";
+import { SortableTableHeader } from "@/components/sortable-table-header";
 import { DownloadIcon, EyeIcon, EyeOffIcon, FolderIcon, FileIcon } from "@/components/icons";
-import { formatFileSize, formatDateTime, formatDateUtc, isViewableDocument, getMimeTypeLabel, type DocumentSortField, type DocumentSortDirection } from "@/lib/document-utils";
+import { formatFileSize, isViewableDocument, getMimeTypeLabel, type DocumentSortField, type DocumentSortDirection } from "@/lib/document-utils";
+import { formatDateTime, formatDateUtc } from "@/lib/dates";
 import { pluralize } from "@/lib/pluralization";
 import type { DocumentItem, DocumentDirectoryItem } from "@/types";
 
 export type { DocumentSortField, DocumentSortDirection };
-
-function getSortIndicator(currentField: DocumentSortField, sortBy: DocumentSortField, sortDir: DocumentSortDirection) {
-  if (sortBy !== currentField) {
-    return "↕";
-  }
-  return sortDir === "asc" ? "↑" : "↓";
-}
 
 interface DocumentTableHeaderProps {
   sortBy: DocumentSortField;
@@ -23,40 +19,29 @@ interface DocumentTableHeaderProps {
   showActions?: boolean;
 }
 
+const SORTABLE_COLUMNS: { label: string; field: DocumentSortField; align?: "right" }[] = [
+  { label: "Name", field: "displayName" },
+  { label: "Dokumentdatum", field: "documentDate" },
+  { label: "Geändert am", field: "updatedAt" },
+  { label: "Typ", field: "mimeType" },
+  { label: "Größe", field: "sizeBytes", align: "right" },
+];
+
 export function DocumentTableHeader({ sortBy, sortDir, onSortChange, showActions = true }: DocumentTableHeaderProps) {
   return (
     <thead className="bg-gray-50">
       <tr>
-        <th className="px-3 py-2 text-left text-sm font-semibold text-gray-700">
-          <button type="button" className="inline-flex items-center gap-1 hover:text-gray-900" onClick={() => onSortChange("displayName")}>
-            Name
-            <span className="text-xs text-gray-500" aria-hidden="true">{getSortIndicator("displayName", sortBy, sortDir)}</span>
-          </button>
-        </th>
-        <th className="px-3 py-2 text-left text-sm font-semibold text-gray-700">
-          <button type="button" className="inline-flex items-center gap-1 hover:text-gray-900" onClick={() => onSortChange("documentDate")}>
-            Dokumentdatum
-            <span className="text-xs text-gray-500" aria-hidden="true">{getSortIndicator("documentDate", sortBy, sortDir)}</span>
-          </button>
-        </th>
-        <th className="px-3 py-2 text-left text-sm font-semibold text-gray-700">
-          <button type="button" className="inline-flex items-center gap-1 hover:text-gray-900" onClick={() => onSortChange("updatedAt")}>
-            Geändert am
-            <span className="text-xs text-gray-500" aria-hidden="true">{getSortIndicator("updatedAt", sortBy, sortDir)}</span>
-          </button>
-        </th>
-        <th className="px-3 py-2 text-left text-sm font-semibold text-gray-700">
-          <button type="button" className="inline-flex items-center gap-1 hover:text-gray-900" onClick={() => onSortChange("mimeType")}>
-            Typ
-            <span className="text-xs text-gray-500" aria-hidden="true">{getSortIndicator("mimeType", sortBy, sortDir)}</span>
-          </button>
-        </th>
-        <th className="px-3 py-2 text-right text-sm font-semibold text-gray-700">
-          <button type="button" className="inline-flex items-center gap-1 hover:text-gray-900" onClick={() => onSortChange("sizeBytes")}>
-            Größe
-            <span className="text-xs text-gray-500" aria-hidden="true">{getSortIndicator("sizeBytes", sortBy, sortDir)}</span>
-          </button>
-        </th>
+        {SORTABLE_COLUMNS.map(({ label, field, align }) => (
+          <SortableTableHeader
+            key={field}
+            label={label}
+            field={field}
+            activeField={sortBy}
+            sortDir={sortDir}
+            onSortChange={onSortChange}
+            className={`px-3 py-2 ${align === "right" ? "text-right" : "text-left"} text-sm font-semibold text-gray-700`}
+          />
+        ))}
         {showActions && <th className="px-3 py-2 text-right text-sm font-semibold text-gray-700">Aktionen</th>}
       </tr>
     </thead>
@@ -107,7 +92,7 @@ export const DirectoryRow = memo(function DirectoryRow({
       </td>
       <td className="px-3 py-2 text-sm text-gray-600">-</td>
       <td className="px-3 py-2 text-sm text-gray-600">-</td>
-      <td className="px-3 py-2 text-sm text-gray-600">Dateiordner</td>
+      <td className="px-3 py-2 text-sm text-gray-600">Verzeichnis</td>
       <td className="px-3 py-2 text-sm text-right text-gray-600">{directory.documentCount} {pluralize(directory.documentCount, "Datei", "Dateien")}</td>
       <td className="px-3 py-2 text-right">
         {actions || <span className="text-gray-400">-</span>}
@@ -221,29 +206,6 @@ export const DocumentRow = memo(function DocumentRow({
         </div>
       </td>
     </tr>
-  );
-});
-
-interface IconButtonProps {
-  label: string;
-  onClick: (event: MouseEvent<HTMLButtonElement>) => void;
-  className?: string;
-  children: ReactNode;
-  disabled?: boolean;
-}
-
-export const IconButton = memo(function IconButton({ label, onClick, className, children, disabled }: IconButtonProps) {
-  return (
-    <button
-      type="button"
-      aria-label={label}
-      title={label}
-      className={`inline-flex items-center justify-center w-8 h-8 rounded border border-gray-300 bg-white hover:bg-gray-50 ${className || ""}`}
-      onClick={onClick}
-      disabled={disabled}
-    >
-      {children}
-    </button>
   );
 });
 

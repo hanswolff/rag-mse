@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
+import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { parseJsonBody, validateRequestBody, getClientIp, handleRateLimitBlocked, validateCsrfHeaders, withApiErrorHandling } from "@/lib/api-utils";
+import { checkRateLimitWithPolicy, getClientIp, handleRateLimitBlocked } from "@/lib/api-utils";
+import { parseAndValidateBody } from "@/lib/request-body-parser";
+import { validateCsrfHeaders } from "@/lib/csrf-validator";
+import { withApiErrorHandling } from "@/lib/api-error-handler";
 import {
   generateResetToken,
   hashResetToken,
@@ -8,11 +12,12 @@ import {
   buildResetUrl,
 } from "@/lib/password-reset";
 import { sendTemplateEmail } from "@/lib/email-sender";
-import { logInfo, logValidationFailure, logError, logWarn, maskEmail } from "@/lib/logger";
+import { logInfo, logValidationFailure, maskEmail } from "@/lib/logger";
 import { checkForgotPasswordRateLimit } from "@/lib/rate-limiter";
 import { validateEmail } from "@/lib/validation-schema";
-import { shouldFailOpenOnRateLimiterError } from "@/lib/rate-limit-policy";
-import { appName } from "@/lib/site-config";
+import { appName, getAppUrl } from "@/lib/site-config";
+
+const ROUTE = "/api/auth/forgot-password";
 
 const SUCCESS_MESSAGE =
   "Wenn diese E-Mail registriert ist, erhalten Sie in Kürze einen Link zum Zurücksetzen Ihres Passworts.";
@@ -41,7 +46,7 @@ async function createPasswordReset(email: string) {
   const tokenHash = hashResetToken(token);
   const expiresAt = getResetExpiryDate();
 
-  await prisma.$transaction(async (tx: Omit<typeof prisma, "\$connect" | "\$disconnect" | "\$on" | "\$transaction" | "\$extends">) => {
+  await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     await tx.passwordReset.deleteMany({
       where: { email },
     });
@@ -61,21 +66,13 @@ async function createPasswordReset(email: string) {
 export const POST = withApiErrorHandling(async (request: NextRequest) => {
   validateCsrfHeaders(request);
 
-  const body = await parseJsonBody<ForgotPasswordRequest>(request);
-
-  const bodyValidation = validateRequestBody(body, forgotPasswordSchema, { route: '/api/auth/forgot-password', method: 'POST' });
-  if (!bodyValidation.isValid) {
-    return NextResponse.json(
-      { error: bodyValidation.errors.join(". ") },
-      { status: 400 }
-    );
-  }
+  const body = await parseAndValidateBody<ForgotPasswordRequest>(request, forgotPasswordSchema, { route: ROUTE, method: 'POST' });
 
   const rawEmail = typeof body.email === "string" ? body.email.trim() : "";
   const email = rawEmail.toLowerCase();
 
   if (!email || !validateEmail(email)) {
-    logValidationFailure('/api/auth/forgot-password', 'POST', 'Gültige E-Mail-Adresse erforderlich', { email: maskEmail(email) });
+    logValidationFailure(ROUTE, 'POST', 'Gültige E-Mail-Adresse erforderlich', { email: maskEmail(email) });
     return NextResponse.json(
       { error: "Gültige E-Mail-Adresse erforderlich" },
       { status: 400 }
@@ -83,41 +80,22 @@ export const POST = withApiErrorHandling(async (request: NextRequest) => {
   }
 
   const clientIp = getClientIp(request);
-  let rateLimitResult = { allowed: true, attemptCount: 0 } as {
-    allowed: boolean;
-    blockedUntil?: number;
-    attemptCount: number;
-  };
-  try {
-    rateLimitResult = await checkForgotPasswordRateLimit(clientIp, email);
-  } catch (rateLimitError) {
-    if (!shouldFailOpenOnRateLimiterError()) {
-      logError("forgot_password_rate_limit_unavailable", "Rate limiter unavailable for forgot-password route, blocking request", {
-        route: "/api/auth/forgot-password",
-        method: "POST",
-        clientIp,
-        email: maskEmail(email),
-        error: rateLimitError instanceof Error ? rateLimitError.message : String(rateLimitError),
-      });
-      return NextResponse.json(
-        { error: "Dienst aktuell nicht verfügbar. Bitte später erneut versuchen." },
-        { status: 503 }
-      );
+  const rateLimitResult = await checkRateLimitWithPolicy(
+    () => checkForgotPasswordRateLimit(clientIp, email),
+    {
+      unavailableAction: "forgot_password_rate_limit_unavailable",
+      routeLabel: "forgot-password",
+      logContext: { route: ROUTE, method: "POST", clientIp, email: maskEmail(email) },
     }
-
-    logWarn('forgot_password_rate_limit_unavailable', 'Rate limiter unavailable for forgot-password route, continuing due fail-open policy', {
-      route: "/api/auth/forgot-password",
-      method: "POST",
-      clientIp,
-      email: maskEmail(email),
-      error: rateLimitError instanceof Error ? rateLimitError.message : String(rateLimitError),
-    });
+  );
+  if (rateLimitResult instanceof NextResponse) {
+    return rateLimitResult;
   }
 
   if (!rateLimitResult.allowed) {
     return handleRateLimitBlocked(
       'forgot_password_rate_limited',
-      '/api/auth/forgot-password',
+      ROUTE,
       email,
       clientIp,
       rateLimitResult.blockedUntil,
@@ -141,8 +119,8 @@ export const POST = withApiErrorHandling(async (request: NextRequest) => {
       });
     }
 
+    const appUrl = getAppUrl();
     const token = await createPasswordReset(user.email);
-    const appUrl = process.env.APP_URL || "http://localhost:3000";
     const resetUrl = buildResetUrl(appUrl, token);
 
     await sendTemplateEmail({
@@ -161,4 +139,4 @@ export const POST = withApiErrorHandling(async (request: NextRequest) => {
   return NextResponse.json({
     message: SUCCESS_MESSAGE,
   });
-}, { route: "/api/auth/forgot-password", method: "POST" });
+}, { route: ROUTE, method: "POST" });

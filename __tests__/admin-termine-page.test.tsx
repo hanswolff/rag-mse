@@ -34,7 +34,7 @@ describe("TerminePage (Admin)", () => {
         latitude: null,
         longitude: null,
         type: "Training",
-        visible: true,
+        visibility: "PUBLIC",
         createdAt: "2026-01-01T10:00:00.000Z",
         updatedAt: "2026-01-01T10:00:00.000Z",
         _count: { votes: 3 },
@@ -62,7 +62,7 @@ describe("TerminePage (Admin)", () => {
       latitude: "",
       longitude: "",
       type: "",
-      visible: true,
+      visibility: "PUBLIC",
     },
     setModalEventData: jest.fn(),
     initialEventData: undefined,
@@ -99,7 +99,7 @@ describe("TerminePage (Admin)", () => {
     render(<TerminePage />);
 
     expect(screen.getByText("12 Termine gesamt")).toBeInTheDocument();
-    expect(screen.getByText("Anmeldungen: 3-4 Anmeldungen")).toBeInTheDocument();
+    expect(screen.getByText("Anmeldungen: 3–4 Anmeldungen")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Weiter" })).toBeInTheDocument();
   });
 
@@ -156,7 +156,7 @@ describe("TerminePage (Admin)", () => {
   it("keeps the registration count unchanged without a capacity", () => {
     render(<TerminePage />);
 
-    expect(screen.getByText("Anmeldungen: 3-4 Anmeldungen")).toBeInTheDocument();
+    expect(screen.getByText("Anmeldungen: 3–4 Anmeldungen")).toBeInTheDocument();
     expect(screen.queryByText(/belegt/)).not.toBeInTheDocument();
   });
 
@@ -167,5 +167,39 @@ describe("TerminePage (Admin)", () => {
     await user.click(screen.getByRole("button", { name: "Weiter" }));
 
     expect(mockHandlePageChange).toHaveBeenCalledWith(2);
+  });
+
+  it("marks a HIDDEN event and offers to publish it", async () => {
+    const user = userEvent.setup();
+    (useEventManagement as jest.Mock).mockReturnValue({
+      ...defaultHook,
+      events: [{ ...defaultHook.events[0], id: "7", visibility: "HIDDEN" }],
+    });
+
+    render(<TerminePage />);
+
+    expect(screen.getByText("Verborgen")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Veröffentlichen" }));
+    expect(defaultHook.handlePublishEvent).toHaveBeenCalledWith("7");
+  });
+
+  it("marks a MEMBER event without a one-click publish button", () => {
+    (useEventManagement as jest.Mock).mockReturnValue({
+      ...defaultHook,
+      events: [{ ...defaultHook.events[0], id: "7", visibility: "MEMBER" }],
+    });
+
+    render(<TerminePage />);
+
+    expect(screen.getByText("Nur für Mitglieder")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Veröffentlichen" })).not.toBeInTheDocument();
+  });
+
+  it("shows neither badge nor publish button for a public event", () => {
+    render(<TerminePage />);
+
+    expect(screen.queryByText("Nur für Mitglieder")).not.toBeInTheDocument();
+    expect(screen.queryByText("Verborgen")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Veröffentlichen" })).not.toBeInTheDocument();
   });
 });

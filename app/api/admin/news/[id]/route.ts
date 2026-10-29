@@ -2,9 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/auth-utils";
 import { validateUpdateNewsRequest, type UpdateNewsRequest } from "@/lib/news-validation";
-import { parseJsonBody, validateRequestBody, validateCsrfHeaders, withApiErrorHandling } from "@/lib/api-utils";
+import { parseAndValidateBody, ValidationError } from "@/lib/request-body-parser";
+import { validateCsrfHeaders } from "@/lib/csrf-validator";
+import { withApiErrorHandling } from "@/lib/api-error-handler";
 import { logInfo, logResourceNotFound, logValidationFailure } from "@/lib/logger";
 import { parseIsoDateOnlyToUtcDate } from "@/lib/date-picker-utils";
+
+const ROUTE = "/api/admin/news/[id]";
 
 const updateNewsSchema = {
   title: { type: "string" as const, optional: true },
@@ -29,12 +33,12 @@ export const GET = withApiErrorHandling(async (
   });
 
   if (!news) {
-    logResourceNotFound("news", id, "/api/admin/news/[id]", "GET");
+    logResourceNotFound("news", id, ROUTE, "GET");
     return NextResponse.json({ error: "News nicht gefunden" }, { status: 404 });
   }
 
   return NextResponse.json(news);
-}, { route: "/api/admin/news/[id]", method: "GET" });
+}, { route: ROUTE, method: "GET" });
 
 export const PUT = withApiErrorHandling(async (
   request: NextRequest,
@@ -44,24 +48,19 @@ export const PUT = withApiErrorHandling(async (
   await requireAdmin("write");
 
   const { id } = await ctx.params;
-  const body = await parseJsonBody<UpdateNewsRequest>(request);
-
-  const bodyValidation = validateRequestBody(body, updateNewsSchema, { route: "/api/admin/news/[id]", method: "PUT" });
-  if (!bodyValidation.isValid) {
-    return NextResponse.json({ error: bodyValidation.errors.join(". ") }, { status: 400 });
-  }
+  const body = await parseAndValidateBody<UpdateNewsRequest>(request, updateNewsSchema, { route: ROUTE, method: "PUT" });
 
   const validation = validateUpdateNewsRequest(body);
   if (!validation.isValid) {
-    logValidationFailure("/api/admin/news/[id]", "PUT", validation.errors, { newsId: id });
-    return NextResponse.json({ error: validation.errors.join(". "), fieldErrors: validation.fieldErrors }, { status: 400 });
+    logValidationFailure(ROUTE, "PUT", validation.errors, { newsId: id });
+    throw new ValidationError(validation.errors, { fieldErrors: validation.fieldErrors });
   }
 
   const existingNews = await prisma.news.findUnique({
     where: { id },
   });
   if (!existingNews) {
-    logResourceNotFound("news", id, "/api/admin/news/[id]", "PUT");
+    logResourceNotFound("news", id, ROUTE, "PUT");
     return NextResponse.json({ error: "News nicht gefunden" }, { status: 404 });
   }
 
@@ -82,7 +81,7 @@ export const PUT = withApiErrorHandling(async (
   });
 
   return NextResponse.json(updatedNews);
-}, { route: "/api/admin/news/[id]", method: "PUT" });
+}, { route: ROUTE, method: "PUT" });
 
 export const DELETE = withApiErrorHandling(async (
   request: NextRequest,
@@ -97,7 +96,7 @@ export const DELETE = withApiErrorHandling(async (
   });
 
   if (!existingNews) {
-    logResourceNotFound("news", id, "/api/admin/news/[id]", "DELETE");
+    logResourceNotFound("news", id, ROUTE, "DELETE");
     return NextResponse.json({ error: "News nicht gefunden" }, { status: 404 });
   }
 
@@ -110,5 +109,5 @@ export const DELETE = withApiErrorHandling(async (
     title: existingNews.title,
   });
 
-  return NextResponse.json({ message: "News erfolgreich gelöscht" });
-}, { route: "/api/admin/news/[id]", method: "DELETE" });
+  return NextResponse.json({ success: true });
+}, { route: ROUTE, method: "DELETE" });

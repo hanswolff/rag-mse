@@ -1,6 +1,6 @@
 FROM node:22-slim AS runner
 
-LABEL org.opencontainers.image.source="https://github.com/your-org/beta-rag-mse"
+LABEL org.opencontainers.image.source="https://github.com/hanswolff/beta-rag-mse"
 LABEL org.opencontainers.image.description="RAG Schießsport MSE Website"
 
 WORKDIR /app
@@ -23,9 +23,9 @@ COPY --chown=${APP_UID}:${APP_GID} .next/standalone ./
 COPY --chown=${APP_UID}:${APP_GID} .next/static ./.next/static
 COPY --chown=${APP_UID}:${APP_GID} public ./public
 COPY --chown=${APP_UID}:${APP_GID} emails ./emails
+# prisma/ enthält auch die Bootstrap-Baseline (prisma/baseline.sql),
+# ohne die der Erststart mit leerer Datenbank crasht (ENOENT im Migrations-Runner)
 COPY --chown=${APP_UID}:${APP_GID} prisma ./prisma
-COPY --chown=${APP_UID}:${APP_GID} prisma.config.ts ./prisma.config.ts
-COPY --chown=${APP_UID}:${APP_GID} create_admin.sql ./create_admin.sql
 COPY --chown=${APP_UID}:${APP_GID} scripts-dist ./scripts-dist
 COPY --chown=${APP_UID}:${APP_GID} entrypoint.sh ./entrypoint.sh
 
@@ -35,7 +35,7 @@ USER ${APP_UID}:${APP_GID}
 
 EXPOSE 3000
 
-ENV PORT 3000
-ENV HOSTNAME "0.0.0.0"
+ENV PORT=3000
+ENV HOSTNAME="0.0.0.0"
 
 CMD ["/app/entrypoint.sh"]

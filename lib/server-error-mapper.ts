@@ -13,36 +13,11 @@ export interface FieldErrorResponse {
   fieldErrors?: FieldError[];
 }
 
-export function mapServerErrorToField(
-  message: string,
-  fieldKeywords: Record<string, string[]>,
-  fieldErrors?: FieldError[]
-): Record<string, string> {
-  if (fieldErrors && fieldErrors.length > 0) {
-    const result: Record<string, string> = {};
-    for (const fe of fieldErrors) {
-      if (fe.field in fieldKeywords) {
-        result[fe.field] = fe.message;
-      }
-    }
-    if (Object.keys(result).length > 0) return result;
-  }
-
-  if (!message) return {};
-
-  for (const [field, keywords] of Object.entries(fieldKeywords)) {
-    if (keywords.some((keyword) => message.includes(keyword))) {
-      return { [field]: message };
-    }
-  }
-
-  return {};
-}
-
 export function mapServerErrorToFields(
   message: string,
   fieldKeywords: Record<string, string[]>,
-  fieldErrors?: FieldError[]
+  fieldErrors?: FieldError[],
+  options: { firstMatchOnly?: boolean } = {}
 ): Record<string, string> {
   if (fieldErrors && fieldErrors.length > 0) {
     const result: Record<string, string> = {};
@@ -61,10 +36,19 @@ export function mapServerErrorToFields(
   for (const [field, keywords] of Object.entries(fieldKeywords)) {
     if (keywords.some((keyword) => message.includes(keyword))) {
       errors[field] = message;
+      if (options.firstMatchOnly) return errors;
     }
   }
 
   return errors;
+}
+
+export function mapServerErrorToField(
+  message: string,
+  fieldKeywords: Record<string, string[]>,
+  fieldErrors?: FieldError[]
+): Record<string, string> {
+  return mapServerErrorToFields(message, fieldKeywords, fieldErrors, { firstMatchOnly: true });
 }
 
 // Pre-defined keyword mappings for common forms
@@ -96,6 +80,31 @@ export const EVENT_FIELD_KEYWORDS: Record<string, string[]> = {
   capacity: ["Plätze"],
 };
 
+// Reihenfolge ist relevant (firstMatchOnly): Meldungen zur Reihenfolge nennen
+// beide Felder („Bis“ darf nicht vor „Von“ liegen), gemeint ist das Ende.
+// Groß geschrieben, damit „Uhrzeit von/bis“ nicht auf die Datumsfelder fällt.
+export const EXTERNAL_EVENT_FIELD_KEYWORDS: Record<string, string[]> = {
+  title: ["Titel"],
+  endDate: ["Bis"],
+  startDate: ["Von"],
+  timeTo: ["Uhrzeit bis"],
+  timeFrom: ["Uhrzeit von"],
+  location: ["Ort"],
+  description: ["Beschreibung"],
+  url: ["Link"],
+  kind: ["Art"],
+  visibility: ["Sichtbarkeitsstufe"],
+  ausschreibungId: ["Ausschreibung"],
+};
+
+export const ABSENCE_FIELD_KEYWORDS: Record<string, string[]> = {
+  endDate: ["Bis"],
+  startDate: ["Von"],
+  timeTo: ["Uhrzeit bis"],
+  timeFrom: ["Uhrzeit von"],
+  reason: ["Grund"],
+};
+
 export const NEWS_FIELD_KEYWORDS: Record<string, string[]> = {
   newsDate: ["Datum"],
   title: ["Titel"],
@@ -112,6 +121,14 @@ export const DOCUMENT_FIELD_KEYWORDS: Record<string, string[]> = {
   displayName: ["Dokumentenname"],
   documentDate: ["Dokumentdatum"],
   directoryId: ["Verzeichnis", "directoryId"],
+};
+
+// Reihenfolge ist relevant (firstMatchOnly): "Passwörter"/"bestätigung" vor dem
+// allgemeineren "Passwort", da "Passwörter" das Schlüsselwort "Passwort" enthält.
+export const AUTH_FIELD_KEYWORDS: Record<string, string[]> = {
+  email: ["E-Mail"],
+  confirmPassword: ["Passwörter", "bestätigung"],
+  password: ["Passwort"],
 };
 
 export const SHOOTING_RANGE_FIELD_KEYWORDS: Record<string, string[]> = {

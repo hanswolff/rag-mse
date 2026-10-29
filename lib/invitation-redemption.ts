@@ -1,7 +1,7 @@
 import { hash } from "bcryptjs";
 import { Role, type Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { hashInvitationToken } from "@/lib/invitations";
+import { findUserIdByEmailIgnoringCase, hashInvitationToken } from "@/lib/invitations";
 import { logResourceNotFound, maskToken } from "@/lib/logger";
 import { InvitationNotFoundError, InvitationAlreadyUsedError, InvitationExpiredError } from "@/lib/errors";
 
@@ -168,14 +168,11 @@ export async function redeemInvitationInTransaction(
 ): Promise<RedemptionResult> {
   const passwordHash = profile.passwordHash;
 
-  const existingUser = await tx.user.findUnique({
-    where: { email: invitation.email },
-    select: { id: true },
-  });
+  const existingUserId = await findUserIdByEmailIgnoringCase(tx, invitation.email);
 
-  if (existingUser) {
+  if (existingUserId) {
     const user = await tx.user.update({
-      where: { id: existingUser.id },
+      where: { id: existingUserId },
       data: {
         ...buildExistingUserUpdateData(profile),
         password: passwordHash,

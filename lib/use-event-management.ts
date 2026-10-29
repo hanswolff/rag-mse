@@ -1,17 +1,16 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { useAdminAuth } from "./use-admin-auth";
 import { useAdminCrud } from "./use-admin-crud";
-import { useSuccessTimer } from "./use-success-timer";
-import { parseISODate, formatDateForStorage } from "@/lib/date-picker-utils";
-import { isAdmin } from "@/lib/role-utils";
+import { useAdminEntityManagement } from "./use-admin-entity-management";
+import { formatLocalDateForInput } from "@/lib/dates";
+import { canAccessAdminArea } from "@/lib/role-utils";
 import { EMPTY_EVENT_FORM } from "@/lib/event-form-defaults";
-import type { Event, NewEvent } from "@/types";
-import type { FieldError } from "@/lib/server-error-mapper";
+import { Visibility } from "@/lib/visibility";
+import type { Event, NewEvent, Pagination } from "@/types";
 
 const PUBLISH_MESSAGES = {
   event: {
     published: "Termin wurde veröffentlicht",
-    unpublished: "Termin wurde versteckt",
     error: "Fehler beim Veröffentlichen",
   },
 } as const;
@@ -20,25 +19,12 @@ const EVENTS_PER_PAGE = 10;
 
 interface EventsResponse {
   events: Event[];
-  pagination?: {
-    total: number;
-    page: number;
-    limit: number;
-    pages: number;
-  };
-}
-
-function formatDateForInput(value: string): string {
-  const date = parseISODate(value);
-  if (!date) {
-    return value;
-  }
-  return formatDateForStorage(date);
+  pagination?: Pagination;
 }
 
 export function eventToFormData(event: Event): NewEvent {
   return {
-    date: formatDateForInput(event.date),
+    date: formatLocalDateForInput(event.date),
     timeFrom: event.timeFrom,
     timeTo: event.timeTo,
     location: event.location,
@@ -49,7 +35,7 @@ export function eventToFormData(event: Event): NewEvent {
     type: event.type || "",
     cost: event.cost || "",
     capacity: event.capacity?.toString() || "",
-    visible: event.visible ?? true,
+    visibility: event.visibility,
   };
 }
 
@@ -61,29 +47,53 @@ interface UseEventManagementOptions {
 export function useEventManagement(options: UseEventManagementOptions = {}) {
   const { enforceAdminRedirect = true, enabled = true } = options;
   const { session, status } = useAdminAuth({ redirectOnFailure: enforceAdminRedirect });
-  const { createFetchHandler, createDeleteHandler, createPublishHandler } = useAdminCrud();
+  const { createPublishHandler } = useAdminCrud();
 
   const [events, setEvents] = useState<Event[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [isCreatingEvent, setIsCreatingEvent] = useState(false);
-  const [isEditingEvent, setIsEditingEvent] = useState(false);
-  const [isDeletingEvent, setIsDeletingEvent] = useState(false);
   const [isGeocoding, setIsGeocoding] = useState(false);
   const [isLoadingLatestDescription, setIsLoadingLatestDescription] = useState(false);
   const [publishingEventId, setPublishingEventId] = useState<string | null>(null);
   const [geocodeSuccess, setGeocodeSuccess] = useState(false);
-  const [error, setError] = useState("");
-  const [fieldErrors, setFieldErrors] = useState<FieldError[]>([]);
-  const [success, setSuccess] = useState("");
-  const [editingEvent, setEditingEvent] = useState<Event | null>(null);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [modalEventData, setModalEventData] = useState<NewEvent>(EMPTY_EVENT_FORM);
-  const [initialEventData, setInitialEventData] = useState<NewEvent | undefined>(undefined);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(0);
   const [totalEvents, setTotalEvents] = useState(0);
 
-  useSuccessTimer(success, setSuccess);
+  // refetch wird an den generischen Hook übergeben, bevor fetchEvents existiert
+  // (fetchEvents braucht dessen setError) — daher spät gebunden über eine Ref.
+  const fetchEventsRef = useRef<(page: number) => Promise<void> | void>(() => {});
+  const currentPageRef = useRef(currentPage);
+
+  useEffect(() => {
+    currentPageRef.current = currentPage;
+  }, [currentPage]);
+
+  const management = useAdminEntityManagement<Event, NewEvent>({
+    endpoint: "/api/admin/events",
+    emptyForm: EMPTY_EVENT_FORM,
+    itemToForm: eventToFormData,
+    messages: {
+      created: "Termin wurde erfolgreich erstellt",
+      updated: "Termin wurde erfolgreich aktualisiert",
+      deleted: "Termin wurde erfolgreich gelöscht",
+    },
+    refetch: () => fetchEventsRef.current(currentPageRef.current),
+    refetchAfterCreate: async () => {
+      if (currentPageRef.current === 1) {
+        await fetchEventsRef.current(1);
+      } else {
+        setCurrentPage(1);
+      }
+    },
+  });
+
+  const {
+    setError,
+    setSuccess,
+    setModalData,
+    modalData,
+    closeModal: baseCloseModal,
+  } = management;
 
   // Stale-Response-Guard: Bei schneller Paginierung darf nur die zuletzt
   // angeforderte Seite den State setzen
@@ -134,117 +144,25 @@ export function useEventManagement(options: UseEventManagementOptions = {}) {
         setIsLoading(false);
       }
     }
-  }, []);
+  }, [setError]);
 
   useEffect(() => {
-    if (enabled && status === "authenticated" && isAdmin(session?.user)) {
+    fetchEventsRef.current = fetchEvents;
+  }, [fetchEvents]);
+
+  useEffect(() => {
+    if (enabled && status === "authenticated" && canAccessAdminArea(session?.user)) {
       void fetchEvents(currentPage);
     }
   }, [enabled, status, session, currentPage, fetchEvents]);
 
-  const createEvent = createFetchHandler<NewEvent>(
-    "/api/admin/events",
-    "POST",
-    setError,
-    setIsCreatingEvent,
-    modalEventData
-  );
-
-  const updateEvent = createFetchHandler<NewEvent>(
-    "/api/admin/events",
-    "PUT",
-    setError,
-    setIsEditingEvent,
-    modalEventData
-  );
-
-  const deleteEvent = createFetchHandler(
-    "/api/admin/events",
-    "DELETE",
-    setError,
-    setIsDeletingEvent
-  );
-
-  const handleCreateEvent = useCallback(async (e: React.FormEvent) => {
-    if (e) e.preventDefault();
-
-    setFieldErrors([]);
-    const result = await createEvent();
-    if (result.success) {
-      setSuccess("Termin wurde erfolgreich erstellt");
-      setIsModalOpen(false);
-      setModalEventData(EMPTY_EVENT_FORM);
-      setEditingEvent(null);
-      if (currentPage === 1) {
-        await fetchEvents(1);
-      } else {
-        setCurrentPage(1);
-      }
-    } else if (result.fieldErrors) {
-      setFieldErrors(result.fieldErrors);
-    }
-  }, [createEvent, currentPage, fetchEvents]);
-
-  const handleUpdateEvent = useCallback(async (e: React.FormEvent) => {
-    if (!editingEvent) return;
-    if (e) e.preventDefault();
-
-    setFieldErrors([]);
-    const result = await updateEvent(editingEvent.id);
-    if (result.success) {
-      setSuccess("Termin wurde erfolgreich aktualisiert");
-      setIsModalOpen(false);
-      setModalEventData(EMPTY_EVENT_FORM);
-      setEditingEvent(null);
-      await fetchEvents(currentPage);
-    } else if (result.fieldErrors) {
-      setFieldErrors(result.fieldErrors);
-    }
-  }, [currentPage, editingEvent, updateEvent, fetchEvents]);
-
-  const handleDeleteEvent = createDeleteHandler(
-    deleteEvent,
-    setSuccess,
-    "Termin wurde erfolgreich gelöscht",
-    // eslint-disable-next-line react-hooks/refs -- refresh only runs inside the click-triggered delete handler, never during render
-    () => fetchEvents(currentPage)
-  );
-
-  const startEditingEvent = useCallback((event: Event) => {
-    setEditingEvent(event);
-    const eventData = eventToFormData(event);
-    setModalEventData(eventData);
-    setInitialEventData(eventData);
-    setError("");
-    setFieldErrors([]);
-    setIsModalOpen(true);
-  }, []);
-
-  const openCreateModal = useCallback(() => {
-    setModalEventData(EMPTY_EVENT_FORM);
-    setEditingEvent(null);
-    setInitialEventData(undefined);
-    setError("");
-    setFieldErrors([]);
-    setIsModalOpen(true);
-  }, []);
-
   const closeModal = useCallback(() => {
-    setIsModalOpen(false);
-    setModalEventData(EMPTY_EVENT_FORM);
-    setInitialEventData(undefined);
-    setEditingEvent(null);
     setGeocodeSuccess(false);
-    setError("");
-    setFieldErrors([]);
-  }, []);
-
-  const cancelEditingEvent = useCallback(() => {
-    closeModal();
-  }, [closeModal]);
+    baseCloseModal();
+  }, [baseCloseModal]);
 
   const handleGeocode = useCallback(async () => {
-    if (!modalEventData.location || modalEventData.location.trim().length < 3) {
+    if (!modalData.location || modalData.location.trim().length < 3) {
       setError("Bitte geben Sie eine Adresse mit mindestens 3 Zeichen ein");
       return;
     }
@@ -254,7 +172,7 @@ export function useEventManagement(options: UseEventManagementOptions = {}) {
     setError("");
 
     try {
-      const response = await fetch(`/api/geocode?q=${encodeURIComponent(modalEventData.location)}`);
+      const response = await fetch(`/api/geocode?q=${encodeURIComponent(modalData.location)}`);
 
       const data = await response.json();
 
@@ -262,8 +180,8 @@ export function useEventManagement(options: UseEventManagementOptions = {}) {
         throw new Error(data.error || "Fehler beim Geocoding");
       }
 
-      setModalEventData({
-        ...modalEventData,
+      setModalData({
+        ...modalData,
         latitude: data.latitude.toString(),
         longitude: data.longitude.toString(),
       });
@@ -274,7 +192,7 @@ export function useEventManagement(options: UseEventManagementOptions = {}) {
     } finally {
       setIsGeocoding(false);
     }
-  }, [modalEventData]);
+  }, [modalData, setError, setModalData]);
 
   const handleUseLatestDescription = useCallback(async () => {
     setError("");
@@ -297,30 +215,30 @@ export function useEventManagement(options: UseEventManagementOptions = {}) {
         return;
       }
 
-      setModalEventData(eventToFormData(latestEvent));
+      setModalData(eventToFormData(latestEvent));
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Ein Fehler ist aufgetreten");
     } finally {
       setIsLoadingLatestDescription(false);
     }
-  }, []);
+  }, [setError, setModalData]);
 
-  const handlePublishEvent = useCallback(async (eventId: string, published: boolean) => {
+  const handlePublishEvent = useCallback(async (eventId: string) => {
     const publish = createPublishHandler(setSuccess, setError, () => fetchEvents(currentPage));
     setPublishingEventId(eventId);
     try {
       await publish(
         `/api/admin/events/${eventId}`,
-        { visible: published },
+        { visibility: Visibility.PUBLIC },
         {
-          success: published ? PUBLISH_MESSAGES.event.published : PUBLISH_MESSAGES.event.unpublished,
+          success: PUBLISH_MESSAGES.event.published,
           error: PUBLISH_MESSAGES.event.error,
         }
       );
     } finally {
       setPublishingEventId(null);
     }
-  }, [createPublishHandler, currentPage, fetchEvents]);
+  }, [createPublishHandler, currentPage, fetchEvents, setError, setSuccess]);
 
   const handlePageChange = useCallback((page: number) => {
     const maxPage = totalPages > 0 ? totalPages : 1;
@@ -337,31 +255,31 @@ export function useEventManagement(options: UseEventManagementOptions = {}) {
     totalEvents,
     eventsPerPage: EVENTS_PER_PAGE,
     isLoading,
-    isCreatingEvent,
-    isEditingEvent,
-    isDeletingEvent,
+    isCreatingEvent: management.isCreating,
+    isEditingEvent: management.isUpdating,
+    isDeletingEvent: management.isDeleting,
     publishingEventId,
     isGeocoding,
     isLoadingLatestDescription,
     geocodeSuccess,
-    error,
-    fieldErrors,
-    success,
-    editingEvent,
-    modalEventData,
-    setModalEventData,
-    initialEventData,
-    isModalOpen,
-    handleCreateEvent,
-    handleUpdateEvent,
-    handleDeleteEvent,
-    startEditingEvent,
-    cancelEditingEvent,
+    error: management.error,
+    fieldErrors: management.fieldErrors,
+    success: management.success,
+    editingEvent: management.editingItem,
+    modalEventData: management.modalData,
+    setModalEventData: management.setModalData,
+    initialEventData: management.initialData,
+    isModalOpen: management.isModalOpen,
+    handleCreateEvent: management.handleCreate,
+    handleUpdateEvent: management.handleUpdate,
+    handleDeleteEvent: management.handleDelete,
+    startEditingEvent: management.startEditing,
+    cancelEditingEvent: closeModal,
     handleGeocode,
     handleUseLatestDescription,
     handlePublishEvent,
     handlePageChange,
-    openCreateModal,
+    openCreateModal: management.openCreateModal,
     closeModal,
   };
 }

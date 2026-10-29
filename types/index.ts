@@ -1,4 +1,4 @@
-import { Role } from "@prisma/client";
+import { ExternalEventKind, Visibility, Role, VoteType } from "@prisma/client";
 
 // Domain models for the RAG Schießsport MSE application
 
@@ -20,7 +20,7 @@ export interface Event {
   type: string | null;
   cost: string | null;
   capacity: number | null;
-  visible: boolean;
+  visibility: Visibility;
   createdById?: string | null;
   createdAt: string;
   updatedAt: string;
@@ -50,7 +50,7 @@ export interface NewEvent {
   type: string;
   cost: string;
   capacity: string;
-  visible: boolean;
+  visibility: Visibility;
 }
 
 /**
@@ -166,6 +166,7 @@ export interface AusschreibungItem {
   originalFileName: string;
   mimeType: string;
   sizeBytes: number;
+  visibility: Visibility;
   createdAt: string;
   updatedAt?: string;
 }
@@ -174,7 +175,123 @@ export interface NewAusschreibungInput {
   title: string;
   description: string;
   expiresAt: string;
+  visibility: Visibility;
   file: File | null;
+}
+
+export interface ExternalEventItem {
+  id: string;
+  title: string;
+  startDate: string;
+  endDate: string;
+  allDay: boolean;
+  timeFrom: string | null;
+  timeTo: string | null;
+  location: string | null;
+  description: string | null;
+  url: string | null;
+  kind: ExternalEventKind | null;
+  visibility: Visibility;
+  ausschreibungId: string | null;
+  ausschreibung: { id: string; title: string } | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ExternalEventForm {
+  title: string;
+  startDate: string;
+  endDate: string;
+  allDay: boolean;
+  timeFrom: string;
+  timeTo: string;
+  location: string;
+  description: string;
+  url: string;
+  kind: ExternalEventKind | "";
+  visibility: Visibility;
+  ausschreibungId: string;
+}
+
+export const EMPTY_EXTERNAL_EVENT_FORM: ExternalEventForm = {
+  title: "",
+  startDate: "",
+  endDate: "",
+  allDay: true,
+  timeFrom: "",
+  timeTo: "",
+  location: "",
+  description: "",
+  url: "",
+  kind: "",
+  visibility: Visibility.MEMBER,
+  ausschreibungId: "",
+};
+
+export interface AbsenceItem {
+  id: string;
+  startDate: string;
+  endDate: string;
+  allDay: boolean;
+  timeFrom: string | null;
+  timeTo: string | null;
+  reason: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AbsenceForm {
+  startDate: string;
+  endDate: string;
+  allDay: boolean;
+  timeFrom: string;
+  timeTo: string;
+  reason: string;
+}
+
+export const EMPTY_ABSENCE_FORM: AbsenceForm = {
+  startDate: "",
+  endDate: "",
+  allDay: true,
+  timeFrom: "",
+  timeTo: "",
+  reason: "",
+};
+
+/**
+ * Represents a single answer option of a poll (Umfrage) with its vote count.
+ * Used for both API responses and UI state.
+ */
+export interface PollOption {
+  id: string;
+  text: string;
+  position: number;
+  _count: { votes: number };
+}
+
+/**
+ * Represents a poll (Umfrage) as returned by the member-facing polls API.
+ * Used for both API responses and UI state (list, archive, and detail pages).
+ */
+export interface Poll {
+  id: string;
+  title: string;
+  description: string | null;
+  type: "TERMIN" | "SONSTIGES";
+  status: "LIVE" | "CLOSED";
+  multipleChoice: boolean;
+  shortCode: string | null;
+  options: PollOption[];
+  _count: { votes: number };
+  userVoteOptionIds: string[];
+  event?: {
+    id: string;
+    date: string;
+    timeFrom: string;
+    timeTo: string;
+    location: string;
+    description: string;
+  } | null;
 }
 
 export interface ShootingRangeItem {
@@ -206,3 +323,57 @@ export const EMPTY_SHOOTING_RANGE: NewShootingRange = {
   latitude: "",
   longitude: "",
 };
+
+/**
+ * Pagination metadata as returned by paginated list APIs.
+ */
+export interface Pagination {
+  total: number;
+  page: number;
+  limit: number;
+  pages: number;
+}
+
+/**
+ * Generic paginated API response envelope.
+ */
+export interface PaginatedResponse<T> {
+  items: T[];
+  pagination: Pagination;
+}
+
+/**
+ * Per-user e-mail notification settings (member-facing settings page + API).
+ */
+export interface NotificationSettings {
+  eventReminderEnabled: boolean;
+  eventReminderDaysBefore: number;
+  pollNotificationEnabled: boolean;
+}
+
+/**
+ * Event details shown on the token-based RSVP page (Teilnahmeanmeldung per Link).
+ */
+export interface RsvpEvent {
+  id: string;
+  title: string | null;
+  date: string;
+  timeFrom: string;
+  timeTo: string;
+  location: string;
+  description: string;
+}
+
+/**
+ * Response of the token-based RSVP API (/api/notifications/rsvp/[token]).
+ */
+export interface RsvpData {
+  event: RsvpEvent;
+  user: {
+    name: string | null;
+  };
+  currentVote: {
+    id: string;
+    vote: VoteType;
+  } | null;
+}

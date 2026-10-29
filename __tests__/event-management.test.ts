@@ -16,7 +16,7 @@ describe("event management helpers", () => {
       type: "Training",
       cost: "25 € für Mitglieder, 40 € für Gäste",
       capacity: 12,
-      visible: false,
+      visibility: "MEMBER",
       createdAt: "2026-06-01T10:00:00.000Z",
       updatedAt: "2026-06-01T10:00:00.000Z",
     };
@@ -33,7 +33,7 @@ describe("event management helpers", () => {
       type: "Training",
       cost: "25 € für Mitglieder, 40 € für Gäste",
       capacity: "12",
-      visible: false,
+      visibility: "MEMBER",
     });
   });
 
@@ -51,7 +51,7 @@ describe("event management helpers", () => {
       type: null,
       cost: null,
       capacity: null,
-      visible: true,
+      visibility: "HIDDEN",
       createdAt: "2026-06-01T10:00:00.000Z",
       updatedAt: "2026-06-01T10:00:00.000Z",
     };
@@ -68,7 +68,7 @@ describe("event management helpers", () => {
       type: "",
       cost: "",
       capacity: "",
-      visible: true,
+      visibility: "HIDDEN",
     });
   });
 });

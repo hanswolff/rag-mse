@@ -37,7 +37,7 @@ describe("VotingResults", () => {
       <VotingResults votes={mockVotes} voteCounts={mockVoteCounts} isAdmin={false} />
     );
 
-    expect(screen.getByText("Anmeldestand (5-8 Anmeldungen)")).toBeInTheDocument();
+    expect(screen.getByText("Anmeldestand (5–8 Anmeldungen)")).toBeInTheDocument();
   });
 
   it("does not render vote count numbers (removed feature)", () => {

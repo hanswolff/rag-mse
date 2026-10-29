@@ -17,13 +17,13 @@ export function getDevLogDir(): string {
   const configuredLogDir = process.env.EMAIL_DEV_LOG_DIR?.trim();
   const rawLogDir = configuredLogDir && configuredLogDir.length > 0
     ? configuredLogDir
-    : path.resolve(process.cwd(), "data", "logs", "emails");
-  return path.isAbsolute(rawLogDir) ? rawLogDir : path.resolve(process.cwd(), rawLogDir);
+    : path.resolve(/* turbopackIgnore: true */ process.cwd(), "data", "logs", "emails");
+  return path.isAbsolute(rawLogDir) ? rawLogDir : path.resolve(/* turbopackIgnore: true */ process.cwd(), rawLogDir);
 }
 
 export async function ensureWritableLogDirectory(): Promise<string> {
   const configuredLogDir = getDevLogDir();
-  const fallbackLogDir = path.resolve(process.cwd(), "data", "logs", "emails");
+  const fallbackLogDir = path.resolve(/* turbopackIgnore: true */ process.cwd(), "data", "logs", "emails");
   const tmpLogDir = path.resolve("/tmp", "rag-mse", "emails");
   const candidates = [configuredLogDir, fallbackLogDir, tmpLogDir].filter(
     (candidate, index, all) => all.indexOf(candidate) === index

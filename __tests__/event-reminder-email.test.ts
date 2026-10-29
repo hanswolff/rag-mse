@@ -1,17 +1,9 @@
 jest.mock("@/lib/email-sender", () => ({
-  sendTemplateEmail: jest.fn().mockResolvedValue(undefined),
+  renderTemplateEmail: jest.fn().mockResolvedValue(undefined),
 }));
 
-jest.mock("@/lib/logger", () => ({
-  logInfo: jest.fn(),
-}));
-
-jest.mock("@/lib/api-utils", () => ({
-  logApiError: jest.fn(),
-}));
-
-import { sendTemplateEmail } from "@/lib/email-sender";
-import { sendEventReminderEmail } from "@/lib/notifications";
+import { renderTemplateEmail } from "@/lib/email-sender";
+import { renderEventReminderEmail } from "@/lib/reminders/notifications";
 
 const baseEvent = {
   id: "event-1",
@@ -24,7 +16,7 @@ const baseEvent = {
 };
 
 async function sendReminderFor(event: Partial<typeof baseEvent>) {
-  await sendEventReminderEmail({
+  await renderEventReminderEmail({
     email: "max@example.org",
     event: { ...baseEvent, ...event },
     daysBefore: 7,
@@ -32,10 +24,10 @@ async function sendReminderFor(event: Partial<typeof baseEvent>) {
     unsubscribeUrl: "https://example.org/benachrichtigungen/abmelden/token",
   });
 
-  return (sendTemplateEmail as jest.Mock).mock.calls[0][0].variables;
+  return (renderTemplateEmail as jest.Mock).mock.calls[0][0].variables;
 }
 
-describe("sendEventReminderEmail", () => {
+describe("renderEventReminderEmail", () => {
   beforeEach(() => {
     jest.clearAllMocks();
   });

@@ -6,13 +6,11 @@ import { signIn } from "next-auth/react";
 import { validatePassword } from "@/lib/password-validation";
 import { PasswordRequirements } from "@/components/password-requirements";
 import { LoadingButton } from "@/components/loading-button";
-import { GermanDatePicker } from "@/components/german-date-picker";
-import { ValidatedFieldGroup } from "@/components/validated-field-group";
+import { ProfileFieldsFieldset, useProfileFormFields } from "@/components/profile-fields-fieldset";
 import { normalizeDateInputValue } from "@/lib/date-picker-utils";
-import { useFormFieldValidation } from "@/lib/useFormFieldValidation";
-import { useCrossFieldValidation } from "@/lib/useCrossFieldValidation";
+import { useCrossFieldValidation } from "@/lib/use-cross-field-validation";
 import { mapServerErrorToField, PROFILE_FIELD_KEYWORDS } from "@/lib/server-error-mapper";
-import { profileValidationConfig, resetPasswordFormSchema } from "@/lib/validation-schema";
+import { resetPasswordFormSchema } from "@/lib/validation-schema";
 import { AlertBox } from "@/components/alert-box";
 
 interface InvitationStatus {
@@ -56,7 +54,6 @@ export default function InvitationPage({ params }: { params: Promise<{ token: st
   const [formError, setFormError] = useState("");
   const [success, setSuccess] = useState("");
   const [passwordServerErrors, setPasswordServerErrors] = useState<string[]>([]);
-  const [serverFieldErrors, setServerFieldErrors] = useState<Record<string, string>>({});
   const [showPasswordValidation, setShowPasswordValidation] = useState(false);
 
   const [formData, setFormData] = useState<FormData>({
@@ -74,13 +71,13 @@ export default function InvitationPage({ params }: { params: Promise<{ token: st
   });
 
   const {
-    errors: validationErrors,
-    validateField,
+    setServerFieldErrors,
+    setFieldValue,
+    handleFieldBlur,
+    getFieldError,
+    isFieldValidAndTouched,
     validateAllFields,
-    markFieldAsTouched,
-    shouldShowError,
-    isValidAndTouched,
-  } = useFormFieldValidation(profileValidationConfig);
+  } = useProfileFormFields(formData, setFormData);
 
   const passwordValidation = useMemo(() => validatePassword(formData.password), [formData.password]);
   const passwordErrors = [...passwordValidation.errors, ...passwordServerErrors];
@@ -128,27 +125,6 @@ export default function InvitationPage({ params }: { params: Promise<{ token: st
       fetchStatus();
     }
   }, [token]);
-
-  const getFieldError = (fieldName: keyof typeof formData): string | undefined => {
-    if (serverFieldErrors[fieldName]) return serverFieldErrors[fieldName];
-    return shouldShowError(fieldName, formData[fieldName] as string)
-      ? validationErrors[fieldName]
-      : undefined;
-  };
-
-  const setFieldValue = (fieldName: keyof typeof formData, value: string) => {
-    setFormData((current) => ({ ...current, [fieldName]: value }));
-    setServerFieldErrors((prev) => ({ ...prev, [fieldName]: "" }));
-
-    if (validationErrors[fieldName]) {
-      validateField(fieldName, value);
-    }
-  };
-
-  const handleFieldBlur = (fieldName: keyof typeof formData, value: string) => {
-    markFieldAsTouched(fieldName);
-    validateField(fieldName, value);
-  };
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -220,7 +196,7 @@ export default function InvitationPage({ params }: { params: Promise<{ token: st
         return;
       }
 
-      setSuccess("Konto wurde erstellt. Anmeldung wird durchgeführt...");
+      setSuccess("Konto wurde erstellt. Login wird durchgeführt…");
 
       const signInResult = await signIn("credentials", {
         email: data.email,
@@ -229,7 +205,7 @@ export default function InvitationPage({ params }: { params: Promise<{ token: st
       });
 
       if (signInResult?.error) {
-        setFormError("Anmeldung fehlgeschlagen. Bitte melden Sie sich manuell an.");
+        setFormError("Login fehlgeschlagen. Bitte loggen Sie sich manuell ein.");
         return;
       }
 
@@ -244,7 +220,7 @@ export default function InvitationPage({ params }: { params: Promise<{ token: st
   if (isLoading) {
     return (
       <main className="flex flex-1 items-center justify-center">
-        <div className="text-gray-600">Einladung wird geladen...</div>
+        <div className="text-gray-600">Einladung wird geladen…</div>
       </main>
     );
   }
@@ -272,157 +248,34 @@ export default function InvitationPage({ params }: { params: Promise<{ token: st
 
           {status && !fatalError && (
             <form onSubmit={handleSubmit} className="mt-6 space-y-4" noValidate>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <ValidatedFieldGroup
-                  label="Name"
-                  name="name"
-                  type="text"
-                  value={formData.name}
-                  onChange={(e) => setFieldValue("name", e.target.value)}
-                  onBlur={(e) => handleFieldBlur("name", e.target.value)}
-                  error={getFieldError("name")}
-                  showSuccess={isValidAndTouched("name", formData.name)}
-                  required
-                  maxLength={100}
-                  disabled={isSubmitting}
-                  autoFocus
-                />
-
-                <GermanDatePicker
-                  id="dateOfBirth"
-                  label="Geburtsdatum"
-                  value={formData.dateOfBirth}
-                  onChange={(date) => setFieldValue("dateOfBirth", date)}
-                  onBlur={() => handleFieldBlur("dateOfBirth", formData.dateOfBirth)}
-                  disabled={isSubmitting}
-                  error={getFieldError("dateOfBirth")}
-                  showSuccess={isValidAndTouched("dateOfBirth", formData.dateOfBirth)}
-                />
-              </div>
-
-              <ValidatedFieldGroup
-                label="Adresse"
-                name="address"
-                type="text"
-                value={formData.address}
-                onChange={(e) => setFieldValue("address", e.target.value)}
-                onBlur={(e) => handleFieldBlur("address", e.target.value)}
-                error={getFieldError("address")}
-                showSuccess={isValidAndTouched("address", formData.address)}
-                maxLength={200}
-                placeholder="Musterstraße 1, 12345 Musterstadt"
+              <ProfileFieldsFieldset
+                formData={formData}
                 disabled={isSubmitting}
+                onFieldChange={setFieldValue}
+                onFieldBlur={handleFieldBlur}
+                onHasPossessionCardChange={(checked) =>
+                  setFormData((current) => ({ ...current, hasPossessionCard: checked }))
+                }
+                getFieldError={getFieldError}
+                isValidAndTouched={isFieldValidAndTouched}
+                emailSlot={
+                  <div>
+                    <label htmlFor="email" className="form-label">
+                      E-Mail *
+                    </label>
+                    <input
+                      id="email"
+                      name="email"
+                      type="email"
+                      value={status?.email ?? ""}
+                      readOnly
+                      required
+                      className="form-input bg-gray-100 text-gray-700 cursor-not-allowed"
+                      disabled={isSubmitting}
+                    />
+                  </div>
+                }
               />
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label htmlFor="email" className="form-label">
-                    E-Mail *
-                  </label>
-                  <input
-                    id="email"
-                    name="email"
-                    type="email"
-                    value={status?.email ?? ""}
-                    readOnly
-                    required
-                    className="form-input bg-gray-100 text-gray-700 cursor-not-allowed"
-                    disabled={isSubmitting}
-                  />
-                </div>
-
-                <ValidatedFieldGroup
-                  label="Telefon"
-                  name="phone"
-                  type="tel"
-                  value={formData.phone}
-                  onChange={(e) => setFieldValue("phone", e.target.value)}
-                  onBlur={(e) => handleFieldBlur("phone", e.target.value)}
-                  error={getFieldError("phone")}
-                  showSuccess={isValidAndTouched("phone", formData.phone)}
-                  maxLength={30}
-                  placeholder="0123 456789"
-                  disabled={isSubmitting}
-                />
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <ValidatedFieldGroup
-                  label="Dienstgrad"
-                  name="rank"
-                  type="text"
-                  value={formData.rank}
-                  onChange={(e) => setFieldValue("rank", e.target.value)}
-                  onBlur={(e) => handleFieldBlur("rank", e.target.value)}
-                  error={getFieldError("rank")}
-                  showSuccess={isValidAndTouched("rank", formData.rank)}
-                  maxLength={30}
-                  placeholder="z.B. Obergefreiter d.R."
-                  disabled={isSubmitting}
-                />
-
-                <ValidatedFieldGroup
-                  label="PK"
-                  name="pk"
-                  type="text"
-                  value={formData.pk}
-                  onChange={(e) => setFieldValue("pk", e.target.value)}
-                  onBlur={(e) => handleFieldBlur("pk", e.target.value)}
-                  error={getFieldError("pk")}
-                  showSuccess={isValidAndTouched("pk", formData.pk)}
-                  maxLength={20}
-                  placeholder="z.B. 12345 A 67890"
-                  disabled={isSubmitting}
-                />
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <ValidatedFieldGroup
-                  label="Reservistenkameradschaft"
-                  name="reservistsAssociation"
-                  type="text"
-                  value={formData.reservistsAssociation}
-                  onChange={(e) => setFieldValue("reservistsAssociation", e.target.value)}
-                  onBlur={(e) => handleFieldBlur("reservistsAssociation", e.target.value)}
-                  error={getFieldError("reservistsAssociation")}
-                  showSuccess={isValidAndTouched("reservistsAssociation", formData.reservistsAssociation)}
-                  maxLength={30}
-                  placeholder="z.B. RK MSE"
-                  disabled={isSubmitting}
-                />
-
-                <ValidatedFieldGroup
-                  label="Mitgliedsnummer im Verband"
-                  name="associationMemberNumber"
-                  type="text"
-                  value={formData.associationMemberNumber}
-                  onChange={(e) => setFieldValue("associationMemberNumber", e.target.value)}
-                  onBlur={(e) => handleFieldBlur("associationMemberNumber", e.target.value)}
-                  error={getFieldError("associationMemberNumber")}
-                  showSuccess={isValidAndTouched("associationMemberNumber", formData.associationMemberNumber)}
-                  maxLength={30}
-                  placeholder="z.B. 1234567890"
-                  disabled={isSubmitting}
-                />
-              </div>
-
-              <div>
-                <label className="form-label">Waffenbesitzkarte</label>
-                <div className="flex items-center gap-3">
-                  <input
-                    id="hasPossessionCard"
-                    name="hasPossessionCard"
-                    type="checkbox"
-                    checked={formData.hasPossessionCard}
-                    onChange={(e) => setFormData({ ...formData, hasPossessionCard: e.target.checked })}
-                    className="w-5 h-5 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
-                    disabled={isSubmitting}
-                  />
-                  <label htmlFor="hasPossessionCard" className="text-gray-700 cursor-pointer">
-                    Ich besitze eine eigene Waffenbesitzkarte
-                  </label>
-                </div>
-              </div>
 
               <div>
                 <label htmlFor="password" className="form-label">
@@ -481,7 +334,7 @@ export default function InvitationPage({ params }: { params: Promise<{ token: st
               <LoadingButton
                 type="submit"
                 loading={isSubmitting}
-                loadingText="Wird erstellt..."
+                loadingText="Wird erstellt…"
                 className="w-full btn-primary py-2"
               >
                 Konto erstellen

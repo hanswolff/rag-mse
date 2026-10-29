@@ -1,49 +1,52 @@
 import { GET, POST } from "@/app/api/auth/reset-password/[token]/route";
-import { NextRequest } from "next/server";
+import { apiRequest, routeContext } from "./helpers/request";
+import { buildUser } from "./helpers/factories";
 import { prisma } from "@/lib/prisma";
 import { hashResetToken, getResetExpiryDate } from "@/lib/password-reset";
 import { logInfo, logValidationFailure, logResourceNotFound } from "@/lib/logger";
 import { hash } from "bcryptjs";
-import { NextResponse } from "next/server";
 
-jest.mock("@/lib/prisma", () => ({
-  prisma: {
-    passwordReset: {
-      findUnique: jest.fn(),
-      update: jest.fn(),
-      updateMany: jest.fn(),
-    },
-    user: {
-      findUnique: jest.fn(),
-      update: jest.fn(),
-    },
-    $transaction: jest.fn(),
-  },
-}));
+jest.mock("@/lib/prisma", () =>
+  jest.requireActual<typeof import("./helpers/prisma-mock")>("./helpers/prisma-mock").prismaModuleMock,
+);
 
-jest.mock("@/lib/logger", () => ({
-  logInfo: jest.fn(),
-  logError: jest.fn(),
-  logWarn: jest.fn(),
-  logValidationFailure: jest.fn(),
-  logResourceNotFound: jest.fn(),
-  maskToken: jest.fn((t) => t.substring(0, 6) + "..."),
-  maskEmail: jest.fn((e: string) => e),
-}));
+jest.mock("@/lib/logger", () =>
+  jest.requireActual<typeof import("./helpers/logger-mock")>("./helpers/logger-mock").mockLogger,
+);
 
 jest.mock("@/lib/api-utils", () => {
   const actual = jest.requireActual("@/lib/api-utils");
   return {
     ...actual,
-    parseJsonBody: jest.fn(async (req: Request) => req.json()),
     getClientIp: jest.fn(() => "127.0.0.1"),
     handleRateLimitBlocked: jest.fn(),
     checkTokenRateLimitWithPolicy: jest.fn(),
     recordSuccessfulTokenUsageWithPolicy: jest.fn(),
+  };
+});
+
+jest.mock("@/lib/request-body-parser", () => {
+  const actual = jest.requireActual("@/lib/request-body-parser");
+  return {
+    ...actual,
+    parseJsonBody: jest.fn(async (req: Request) => req.json()),
     validateRequestBody: jest.fn().mockReturnValue({ isValid: true, errors: [] }),
+  };
+});
+
+jest.mock("@/lib/csrf-validator", () => {
+  const actual = jest.requireActual("@/lib/csrf-validator");
+  return {
+    ...actual,
     validateCsrfHeaders: jest.fn(),
   };
 });
+
+jest.mock("@/lib/rate-limiter", () => ({
+  checkTokenRateLimit: jest.fn(),
+  checkTokenReadRateLimit: jest.fn(),
+  recordSuccessfulTokenUsage: jest.fn(),
+}));
 
 jest.mock("bcryptjs", () => ({
   hash: jest.fn(),
@@ -64,23 +67,16 @@ const mockedPrisma = prisma as unknown as {
 
 const mockedHash = hash as jest.Mock;
 const {
-  handleRateLimitBlocked,
-  checkTokenRateLimitWithPolicy,
   recordSuccessfulTokenUsageWithPolicy,
 } = jest.requireMock("@/lib/api-utils");
+const {
+  checkTokenRateLimit,
+  checkTokenReadRateLimit,
+} = jest.requireMock("@/lib/rate-limiter");
 const VALID_PASSWORD = "SecurePassword123!";
 
 function createMockRequest(body: Record<string, unknown>) {
-  return {
-    json: jest.fn().mockResolvedValue(body),
-    headers: {
-      get: jest.fn().mockReturnValue(null),
-    },
-  } as unknown as NextRequest;
-}
-
-function createMockParams(token: string) {
-  return Promise.resolve({ token });
+  return apiRequest("POST", "/api/auth/reset-password/token", { body });
 }
 
 describe("/api/auth/reset-password/[token] route - Security Regression Tests", () => {
@@ -92,34 +88,17 @@ describe("/api/auth/reset-password/[token] route - Security Regression Tests", (
     usedAt: null,
   };
 
-  const mockUser = {
-    id: "user-123",
-    email: "test@example.com",
-  };
+  const mockUser = buildUser({ id: "user-123" });
 
   beforeEach(() => {
     jest.clearAllMocks();
-    checkTokenRateLimitWithPolicy.mockResolvedValue({ allowed: true, attemptCount: 1 });
+    checkTokenRateLimit.mockResolvedValue({ allowed: true, attemptCount: 1 });
+    checkTokenReadRateLimit.mockResolvedValue({ allowed: true, attemptCount: 1 });
     recordSuccessfulTokenUsageWithPolicy.mockResolvedValue(undefined);
     mockedHash.mockResolvedValue("hashed-new-password");
     mockedPrisma.passwordReset.updateMany.mockResolvedValue({ count: 1 });
     mockedPrisma.$transaction.mockImplementation(async (callback) => {
       return callback(mockedPrisma);
-    });
-    handleRateLimitBlocked.mockImplementation((action: string, route: string, tokenHash: string, clientIp: string, blockedUntil: number | undefined) => {
-      if (blockedUntil) {
-        const blockedMinutes = Math.ceil((blockedUntil - Date.now()) / 60000);
-        return NextResponse.json(
-          {
-            error: `Zu viele fehlgeschlagene Versuche. Bitte versuchen Sie es in ${blockedMinutes} Minuten erneut.`
-          },
-          { status: 429 }
-        );
-      }
-      return NextResponse.json(
-        { error: "Zu viele Versuche. Bitte versuchen Sie es später erneut." },
-        { status: 429 }
-      );
     });
   });
 
@@ -128,7 +107,7 @@ describe("/api/auth/reset-password/[token] route - Security Regression Tests", (
       const request = createMockRequest({ password: "weak" });
       const sensitiveToken = "sensitive-token-123";
 
-      const response = await POST(request, { params: createMockParams(sensitiveToken) });
+      const response = await POST(request, routeContext({ token: sensitiveToken }));
       const data = await response.json();
 
       expect(response.status).toBe(400);
@@ -147,7 +126,7 @@ describe("/api/auth/reset-password/[token] route - Security Regression Tests", (
       const request = createMockRequest({ password: VALID_PASSWORD });
       const sensitiveToken = "sensitive-token-456";
 
-      const response = await POST(request, { params: createMockParams(sensitiveToken) });
+      const response = await POST(request, routeContext({ token: sensitiveToken }));
       const data = await response.json();
 
       expect(response.status).toBe(404);
@@ -171,7 +150,7 @@ describe("/api/auth/reset-password/[token] route - Security Regression Tests", (
       const request = createMockRequest({ password: VALID_PASSWORD });
       const sensitiveToken = "expired-token-789";
 
-      const response = await POST(request, { params: createMockParams(sensitiveToken) });
+      const response = await POST(request, routeContext({ token: sensitiveToken }));
       const data = await response.json();
 
       expect(response.status).toBe(410);
@@ -195,7 +174,7 @@ describe("/api/auth/reset-password/[token] route - Security Regression Tests", (
       const request = createMockRequest({ password: VALID_PASSWORD });
       const sensitiveToken = "used-token-999";
 
-      const response = await POST(request, { params: createMockParams(sensitiveToken) });
+      const response = await POST(request, routeContext({ token: sensitiveToken }));
       const data = await response.json();
 
       expect(response.status).toBe(410);
@@ -214,7 +193,7 @@ describe("/api/auth/reset-password/[token] route - Security Regression Tests", (
     it("should enforce rate limiting on password reset attempts", async () => {
       mockedPrisma.passwordReset.findUnique.mockResolvedValue(mockValidReset);
       mockedPrisma.user.findUnique.mockResolvedValue(mockUser);
-      checkTokenRateLimitWithPolicy.mockResolvedValue({
+      checkTokenRateLimit.mockResolvedValue({
         allowed: false,
         attemptCount: 4,
         blockedUntil: undefined,
@@ -222,7 +201,7 @@ describe("/api/auth/reset-password/[token] route - Security Regression Tests", (
 
       const request = createMockRequest({ password: VALID_PASSWORD });
 
-      const response = await POST(request, { params: createMockParams("rate-limit-test-token") });
+      const response = await POST(request, routeContext({ token: "rate-limit-test-token" }));
       const data = await response.json();
 
       expect(response.status).toBe(429);
@@ -239,7 +218,7 @@ describe("/api/auth/reset-password/[token] route - Security Regression Tests", (
 
       const request = createMockRequest({ password: VALID_PASSWORD });
 
-      const response = await POST(request, { params: createMockParams(token) });
+      const response = await POST(request, routeContext({ token: token }));
       const data = await response.json();
 
       expect(response.status).toBe(200);
@@ -248,7 +227,7 @@ describe("/api/auth/reset-password/[token] route - Security Regression Tests", (
         "/api/auth/reset-password/[token]",
         "POST",
         hashResetToken(token),
-        "127.0.0.1",
+        expect.any(String),
         expect.any(String)
       );
     });
@@ -261,21 +240,18 @@ describe("/api/auth/reset-password/[token] route - Security Regression Tests", (
 
       const request = createMockRequest({ password: VALID_PASSWORD });
 
-      await POST(request, { params: createMockParams(token) });
+      await POST(request, routeContext({ token: token }));
 
-      expect(checkTokenRateLimitWithPolicy).toHaveBeenCalledWith(
-        "/api/auth/reset-password/[token]",
-        "POST",
-        "127.0.0.1",
-        hashResetToken(token),
-        expect.any(String)
+      expect(checkTokenRateLimit).toHaveBeenCalledWith(
+        expect.any(String),
+        hashResetToken(token)
       );
     });
   });
 
   describe("Token Validation Scenarios", () => {
     it("GET should return 400 for missing token", async () => {
-      const request = {} as NextRequest;
+      const request = createMockRequest({});
       const response = await GET(request, { params: Promise.resolve({ token: "" }) });
       const data = await response.json();
 
@@ -295,8 +271,8 @@ describe("/api/auth/reset-password/[token] route - Security Regression Tests", (
     it("GET should return 404 for invalid token", async () => {
       mockedPrisma.passwordReset.findUnique.mockResolvedValue(null);
 
-      const request = {} as NextRequest;
-      const response = await GET(request, { params: createMockParams("invalid-token") });
+      const request = createMockRequest({});
+      const response = await GET(request, routeContext({ token: "invalid-token" }));
       const data = await response.json();
 
       expect(response.status).toBe(404);
@@ -307,7 +283,7 @@ describe("/api/auth/reset-password/[token] route - Security Regression Tests", (
       mockedPrisma.passwordReset.findUnique.mockResolvedValue(null);
 
       const request = createMockRequest({ password: VALID_PASSWORD });
-      const response = await POST(request, { params: createMockParams("invalid-token") });
+      const response = await POST(request, routeContext({ token: "invalid-token" }));
       const data = await response.json();
 
       expect(response.status).toBe(404);
@@ -321,8 +297,8 @@ describe("/api/auth/reset-password/[token] route - Security Regression Tests", (
       };
       mockedPrisma.passwordReset.findUnique.mockResolvedValue(expiredReset);
 
-      const request = {} as NextRequest;
-      const response = await GET(request, { params: createMockParams("expired-token") });
+      const request = createMockRequest({});
+      const response = await GET(request, routeContext({ token: "expired-token" }));
       const data = await response.json();
 
       expect(response.status).toBe(410);
@@ -337,7 +313,7 @@ describe("/api/auth/reset-password/[token] route - Security Regression Tests", (
       mockedPrisma.passwordReset.findUnique.mockResolvedValue(expiredReset);
 
       const request = createMockRequest({ password: VALID_PASSWORD });
-      const response = await POST(request, { params: createMockParams("expired-token") });
+      const response = await POST(request, routeContext({ token: "expired-token" }));
       const data = await response.json();
 
       expect(response.status).toBe(410);
@@ -351,8 +327,8 @@ describe("/api/auth/reset-password/[token] route - Security Regression Tests", (
       };
       mockedPrisma.passwordReset.findUnique.mockResolvedValue(usedReset);
 
-      const request = {} as NextRequest;
-      const response = await GET(request, { params: createMockParams("used-token") });
+      const request = createMockRequest({});
+      const response = await GET(request, routeContext({ token: "used-token" }));
       const data = await response.json();
 
       expect(response.status).toBe(410);
@@ -367,7 +343,7 @@ describe("/api/auth/reset-password/[token] route - Security Regression Tests", (
       mockedPrisma.passwordReset.findUnique.mockResolvedValue(usedReset);
 
       const request = createMockRequest({ password: VALID_PASSWORD });
-      const response = await POST(request, { params: createMockParams("used-token") });
+      const response = await POST(request, routeContext({ token: "used-token" }));
       const data = await response.json();
 
       expect(response.status).toBe(410);
@@ -379,8 +355,8 @@ describe("/api/auth/reset-password/[token] route - Security Regression Tests", (
     it("GET should return reset details for valid token", async () => {
       mockedPrisma.passwordReset.findUnique.mockResolvedValue(mockValidReset);
 
-      const request = {} as NextRequest;
-      const response = await GET(request, { params: createMockParams("valid-token") });
+      const request = createMockRequest({});
+      const response = await GET(request, routeContext({ token: "valid-token" }));
       const data = await response.json();
 
       expect(response.status).toBe(200);
@@ -396,7 +372,7 @@ describe("/api/auth/reset-password/[token] route - Security Regression Tests", (
 
       const request = createMockRequest({ password: VALID_PASSWORD });
 
-      const response = await POST(request, { params: createMockParams("valid-token") });
+      const response = await POST(request, routeContext({ token: "valid-token" }));
       const data = await response.json();
 
       expect(response.status).toBe(200);
@@ -418,7 +394,7 @@ describe("/api/auth/reset-password/[token] route - Security Regression Tests", (
 
       const request = createMockRequest({ password: VALID_PASSWORD });
 
-      await POST(request, { params: createMockParams("valid-token") });
+      await POST(request, routeContext({ token: "valid-token" }));
 
       expect(mockedHash).toHaveBeenCalledWith(VALID_PASSWORD, 10);
     });
@@ -443,7 +419,7 @@ describe("/api/auth/reset-password/[token] route - Security Regression Tests", (
 
       const request = createMockRequest({ password: VALID_PASSWORD });
 
-      const response = await POST(request, { params: createMockParams("valid-token") });
+      const response = await POST(request, routeContext({ token: "valid-token" }));
       const data = await response.json();
 
       expect(response.status).toBe(200);
@@ -469,7 +445,7 @@ describe("/api/auth/reset-password/[token] route - Security Regression Tests", (
 
       const request = createMockRequest({ password: VALID_PASSWORD });
 
-      const response = await POST(request, { params: createMockParams("valid-token") });
+      const response = await POST(request, routeContext({ token: "valid-token" }));
       const data = await response.json();
 
       expect(response.status).toBe(410);
@@ -484,7 +460,7 @@ describe("/api/auth/reset-password/[token] route - Security Regression Tests", (
 
       const request = createMockRequest({ password: VALID_PASSWORD });
 
-      const response = await POST(request, { params: createMockParams("valid-token") });
+      const response = await POST(request, routeContext({ token: "valid-token" }));
       const data = await response.json();
 
       expect(response.status).toBe(404);
@@ -505,7 +481,7 @@ describe("/api/auth/reset-password/[token] route - Security Regression Tests", (
 
       const request = createMockRequest({ password: weakPassword });
 
-      const response = await POST(request, { params: createMockParams("valid-token") });
+      const response = await POST(request, routeContext({ token: "valid-token" }));
       const data = await response.json();
 
       expect(response.status).toBe(400);
@@ -517,7 +493,7 @@ describe("/api/auth/reset-password/[token] route - Security Regression Tests", (
 
       const request = createMockRequest({});
 
-      const response = await POST(request, { params: createMockParams("valid-token") });
+      const response = await POST(request, routeContext({ token: "valid-token" }));
       const data = await response.json();
 
       expect(response.status).toBe(400);
@@ -529,8 +505,8 @@ describe("/api/auth/reset-password/[token] route - Security Regression Tests", (
     it("GET should handle database errors gracefully", async () => {
       mockedPrisma.passwordReset.findUnique.mockRejectedValue(new Error("Database error"));
 
-      const request = {} as NextRequest;
-      const response = await GET(request, { params: createMockParams("error-token") });
+      const request = createMockRequest({});
+      const response = await GET(request, routeContext({ token: "error-token" }));
       const data = await response.json();
 
       expect(response.status).toBe(500);
@@ -542,7 +518,7 @@ describe("/api/auth/reset-password/[token] route - Security Regression Tests", (
 
       const request = createMockRequest({ password: VALID_PASSWORD });
 
-      const response = await POST(request, { params: createMockParams("error-token") });
+      const response = await POST(request, routeContext({ token: "error-token" }));
       const data = await response.json();
 
       expect(response.status).toBe(500);
@@ -556,7 +532,7 @@ describe("/api/auth/reset-password/[token] route - Security Regression Tests", (
 
       const request = createMockRequest({ password: VALID_PASSWORD });
 
-      const response = await POST(request, { params: createMockParams("valid-token") });
+      const response = await POST(request, routeContext({ token: "valid-token" }));
       const data = await response.json();
 
       expect(response.status).toBe(500);

@@ -11,6 +11,8 @@ Copy `.env.example` to `.env` and update the following values:
 #### Database
 - [ ] `DATABASE_URL` - Ensure path points to production database file
   - Production example: `DATABASE_URL="file:/app/data/prod.db"`
+  - Default (compose.yaml, deploy.sh), wenn nicht gesetzt: `file:/app/data/prod.db`; die
+    Konfig-Validierung lehnt in Produktion eine leere oder nicht-`file:`-URL ab
 - [ ] `APP_UID` and `APP_GID` are set explicitly and match the owner of `./data`
   - Example: `APP_UID="1000"` and `APP_GID="1000"`
   - Verify owner on host: `stat -c '%u:%g %n' ./data ./data/*.db`
@@ -120,7 +122,7 @@ Copy `.env.example` to `.env` and update the following values:
 - [ ] SSL certificate path is correct
 - [ ] Backend server IP/Port matches Podman configuration (`127.0.0.1:3000`)
 - [ ] X-Forwarded-* headers are properly set
-- [ ] Stats endpoint is secured with strong password
+- [ ] Stats endpoint is bound to loopback only (`bind 127.0.0.1:8404`, access via SSH tunnel) and secured with a strong password
 - [ ] HAProxy logs are monitored
 
 ### 8. Application Build
@@ -260,7 +262,8 @@ The geocoding endpoint uses in-memory rate limiting (Map-based) which works corr
 ### 3. Maintenance
 - [ ] Update schedule is defined (security patches, dependency updates)
 - [ ] SSL certificate auto-renewal is configured
-  - Example: `0 3 * * * certbot renew --quiet && systemctl reload haproxy`
+  - HAProxy belegt Port 80: `certbot renew` nicht im `--standalone`-Modus ohne Hooks betreiben
+    (Optionen siehe README, Abschnitt „SSL/TLS Zertifikate“)
 - [ ] Log rotation is configured
 - [ ] Container updates are planned
 
@@ -325,18 +328,25 @@ SMTP_HOST="your-production-smtp.com"
 
 `deploy.sh` rollt bei einem fehlgeschlagenen Deployment automatisch zurück:
 
-- **Fehlgeschlagener Image-Build oder Recreate:** Das Skript bricht ab; der zuvor laufende
-  Container wird nicht angefasst. Die vorherigen `.next`-Build-Artefakte werden auf dem Host
+- **Fehlgeschlagener Image-Build:** Das Skript bricht ab; der zuvor laufende Container wird
+  nicht angefasst. Die vorherigen `.next`-Build-Artefakte werden auf dem Host
   wiederhergestellt.
+- **Fehlgeschlagenes Recreate** (`podman-compose up -d --force-recreate`): Läuft der alte
+  Container noch, wird nur der Compose-Image-Tag auf das vorherige Image zurückgesetzt. Ist er
+  bereits entfernt (Seite offline), folgt der volle Rollback wie bei „nie healthy“
+  (`with-db-restore`: DB-Backup zurückspielen, vorheriges Image taggen und starten).
 - **Neuer Container wird nie healthy** (z. B. fehlgeschlagene Migration in einer Crash-Loop):
   Das Skript stoppt den neuen Container, spielt das Pre-Deploy-Datenbank-Backup
   (`./data/backups/pre-deploy-*.db`) automatisch zurück (seit dem Backup gab es keine
   Benutzer-Schreibzugriffe), taggt das vorherige Image wieder als aktuelles Compose-Image und
   startet den Container mit dem alten Stand neu. Anschließend wird erneut auf `healthy`
   gewartet. Die vorherigen `.next`-Artefakte werden ebenfalls wiederhergestellt.
-- **CSP-Smoke-Check schlägt fehl, nachdem der Container bereits healthy war:** Rollback nur
-  auf das vorherige Image (`image-only`); die Datenbank bleibt unangetastet, da die App
-  bereits Anfragen angenommen haben kann.
+- **HTTP-Smoke vor dem Umschalten schlägt fehl** (Wegwerf-Container mit leerer
+  Wegwerf-Datenbank): Abbruch vor dem Container-Wechsel; der Produktiv-Container bleibt
+  unberührt, der Compose-Image-Tag wird auf das vorherige Image zurückgesetzt.
+- **CSP-Smoke-Check oder Post-Deploy-Selbsttest (`/api/selftest`) schlägt fehl, nachdem der
+  Container bereits healthy war:** Rollback nur auf das vorherige Image (`image-only`); die
+  Datenbank bleibt unangetastet, da die App bereits Anfragen angenommen haben kann.
 - Beim **ersten Deployment** (kein vorheriges Image vorhanden) bleibt der Container nach einem
   Fehlschlag gestoppt; das DB-Backup wird, sofern vorhanden, trotzdem zurückgespielt.
 
@@ -347,21 +357,20 @@ Eingreifen nach dem folgenden Ablauf nötig.
 
 Falls ein fehlerhaftes Image deployed wurde und der automatische Rollback nicht gegriffen hat:
 
-1. Stoppe die laufenden Container:
-   ```bash
-   podman-compose down
-   ```
-2. Checkout des letzten funktionierenden Commits:
+Den laufenden Container **nicht** vorher stoppen: `deploy.sh` ersetzt ihn selbst und braucht
+ihn als Rückfallebene, falls auch dieser Deploy scheitert.
+
+1. Checkout des letzten funktionierenden Commits:
    ```bash
    git checkout <previous-commit-sha>
    ```
-3. Deploy-Skript aus dem alten Stand ausführen (baut `.next` auf dem Host neu — das
+2. Deploy-Skript aus dem alten Stand ausführen (baut `.next` auf dem Host neu — das
    Containerfile kopiert die Host-Artefakte ins Image, ein reines `podman-compose build`
    würde die auf Platte liegenden Artefakte des fehlgeschlagenen Builds einpacken):
    ```bash
    ./deploy.sh
    ```
-4. Prüfe, ob die Anwendung korrekt läuft:
+3. Prüfe, ob die Anwendung korrekt läuft:
    ```bash
    podman-compose ps
    podman-compose logs --tail=50 app
@@ -383,9 +392,10 @@ Wiederherstellung aus einem Backup:
    cp /zfs/backups/beta-rag-mse/prod.db.<datum>.sqlite3 ./data/prod.db
    rm -f ./data/prod.db-wal ./data/prod.db-shm
    ```
-3. Falls nötig, Dokument-Verzeichnisse wiederherstellen:
+3. Falls nötig, Dokument-Verzeichnisse wiederherstellen (das Archiv enthält
+   `documents/` und `ausschreibungen/` relativ zu `data/`):
    ```bash
-   tar -xzf /zfs/backups/beta-rag-mse/files.<datum>.tar.gz -C .
+   tar -xzf /zfs/backups/beta-rag-mse/files.<datum>.tar.gz -C ./data
    ```
 4. Container neu starten:
    ```bash
@@ -394,12 +404,11 @@ Wiederherstellung aus einem Backup:
 
 ### Quick Recovery Steps (Notfall-Rollback)
 
-1. `podman-compose down`
-2. `git log --oneline -5` — letzten stabilen Commit identifizieren
-3. `git checkout <stable-commit>`
-4. Falls DB-Wiederherstellung nötig: Backup aus `/zfs/backups/beta-rag-mse/` entpacken und nach `./data/prod.db` kopieren
-5. `./deploy.sh` — baut Host-Artefakte und Image aus dem alten Stand neu und startet den Container
-6. `podman-compose ps` und `podman-compose logs --tail=50 app` — Zustand prüfen
+1. `git log --oneline -5` — letzten stabilen Commit identifizieren
+2. `git checkout <stable-commit>`
+3. Falls DB-Wiederherstellung nötig: `podman-compose stop app`, dann Backup aus `/zfs/backups/beta-rag-mse/` entpacken, nach `./data/prod.db` kopieren und `./data/prod.db-wal` sowie `./data/prod.db-shm` löschen (siehe „Datenbank-Wiederherstellung“)
+4. `./deploy.sh` — baut Host-Artefakte und Image aus dem alten Stand neu und ersetzt den Container
+5. `podman-compose ps` und `podman-compose logs --tail=50 app` — Zustand prüfen
 
 ## Additional Resources
 

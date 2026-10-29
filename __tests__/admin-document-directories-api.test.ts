@@ -1,4 +1,4 @@
-import { NextRequest } from "next/server";
+import { apiRequest, routeContext } from "./helpers/request";
 import { GET, POST } from "@/app/api/admin/document-directories/route";
 import { PATCH, DELETE } from "@/app/api/admin/document-directories/[id]/route";
 import { requireAdmin } from "@/lib/auth-utils";
@@ -8,20 +8,9 @@ jest.mock("@/lib/auth-utils", () => ({
   requireAdmin: jest.fn(),
 }));
 
-jest.mock("@/lib/prisma", () => ({
-  prisma: {
-    document: {
-      count: jest.fn(),
-    },
-    documentDirectory: {
-      findMany: jest.fn(),
-      findUnique: jest.fn(),
-      create: jest.fn(),
-      update: jest.fn(),
-      deleteMany: jest.fn(),
-    },
-  },
-}));
+jest.mock("@/lib/prisma", () =>
+  jest.requireActual<typeof import("./helpers/prisma-mock")>("./helpers/prisma-mock").prismaModuleMock,
+);
 
 describe("/api/admin/document-directories", () => {
   beforeEach(() => {
@@ -47,7 +36,7 @@ describe("/api/admin/document-directories", () => {
     ]);
     (prisma.document.count as jest.Mock).mockResolvedValue(2);
 
-    const request = new NextRequest("http://localhost:3000/api/admin/document-directories");
+    const request = apiRequest("GET", "/api/admin/document-directories");
     const response = await GET(request);
     const data = await response.json();
 
@@ -72,11 +61,7 @@ describe("/api/admin/document-directories", () => {
       },
     });
 
-    const request = new NextRequest("http://localhost:3000/api/admin/document-directories", {
-      method: "POST",
-      body: JSON.stringify({ name: "Anträge" }),
-      headers: { "content-type": "application/json" },
-    });
+    const request = apiRequest("POST", "/api/admin/document-directories", { body: { name: "Anträge" } });
 
     const response = await POST(request);
     const data = await response.json();
@@ -88,11 +73,7 @@ describe("/api/admin/document-directories", () => {
   it("returns conflict on duplicate directory", async () => {
     (prisma.documentDirectory.create as jest.Mock).mockRejectedValue({ code: "P2002" });
 
-    const request = new NextRequest("http://localhost:3000/api/admin/document-directories", {
-      method: "POST",
-      body: JSON.stringify({ name: "Anträge" }),
-      headers: { "content-type": "application/json" },
-    });
+    const request = apiRequest("POST", "/api/admin/document-directories", { body: { name: "Anträge" } });
 
     const response = await POST(request);
     const data = await response.json();
@@ -114,7 +95,7 @@ describe("/api/admin/document-directories", () => {
     ]);
     (prisma.document.count as jest.Mock).mockResolvedValue(1);
 
-    const request = new NextRequest("http://localhost:3000/api/admin/document-directories?area=MEMBER");
+    const request = apiRequest("GET", "/api/admin/document-directories?area=MEMBER");
     const response = await GET(request);
 
     expect(response.status).toBe(200);
@@ -123,7 +104,7 @@ describe("/api/admin/document-directories", () => {
   });
 
   it("rejects invalid area filter in list", async () => {
-    const request = new NextRequest("http://localhost:3000/api/admin/document-directories?area=INVALID");
+    const request = apiRequest("GET", "/api/admin/document-directories?area=INVALID");
     const response = await GET(request);
     const data = await response.json();
 
@@ -134,7 +115,7 @@ describe("/api/admin/document-directories", () => {
   });
 
   it("rejects empty area filter in list", async () => {
-    const request = new NextRequest("http://localhost:3000/api/admin/document-directories?area=");
+    const request = apiRequest("GET", "/api/admin/document-directories?area=");
     const response = await GET(request);
     const data = await response.json();
 
@@ -154,11 +135,7 @@ describe("/api/admin/document-directories", () => {
       _count: { documents: 0 },
     }));
 
-    const request = new NextRequest("http://localhost:3000/api/admin/document-directories", {
-      method: "POST",
-      body: JSON.stringify({ name: "Mitglieder-Formulare", area: "MEMBER" }),
-      headers: { "content-type": "application/json" },
-    });
+    const request = apiRequest("POST", "/api/admin/document-directories", { body: { name: "Mitglieder-Formulare", area: "MEMBER" } });
 
     const response = await POST(request);
     const data = await response.json();
@@ -181,11 +158,7 @@ describe("/api/admin/document-directories", () => {
       _count: { documents: 0 },
     }));
 
-    const request = new NextRequest("http://localhost:3000/api/admin/document-directories", {
-      method: "POST",
-      body: JSON.stringify({ name: "Anträge" }),
-      headers: { "content-type": "application/json" },
-    });
+    const request = apiRequest("POST", "/api/admin/document-directories", { body: { name: "Anträge" } });
 
     const response = await POST(request);
     expect(response.status).toBe(201);
@@ -196,11 +169,7 @@ describe("/api/admin/document-directories", () => {
   });
 
   it("rejects create when area is invalid", async () => {
-    const request = new NextRequest("http://localhost:3000/api/admin/document-directories", {
-      method: "POST",
-      body: JSON.stringify({ name: "Anträge", area: "INVALID" }),
-      headers: { "content-type": "application/json" },
-    });
+    const request = apiRequest("POST", "/api/admin/document-directories", { body: { name: "Anträge", area: "INVALID" } });
 
     const response = await POST(request);
     const data = await response.json();
@@ -233,13 +202,9 @@ describe("/api/admin/document-directories/[id]", () => {
       },
     });
 
-    const request = new NextRequest("http://localhost:3000/api/admin/document-directories/dir-1", {
-      method: "PATCH",
-      body: JSON.stringify({ name: "Formulare" }),
-      headers: { "content-type": "application/json" },
-    });
+    const request = apiRequest("PATCH", "/api/admin/document-directories/dir-1", { body: { name: "Formulare" } });
 
-    const response = await PATCH(request, { params: Promise.resolve({ id: "dir-1" }) });
+    const response = await PATCH(request, routeContext({ id: "dir-1" }));
     const data = await response.json();
 
     expect(response.status).toBe(200);
@@ -249,13 +214,9 @@ describe("/api/admin/document-directories/[id]", () => {
   it("rejects area field in patch body", async () => {
     (prisma.documentDirectory.findUnique as jest.Mock).mockResolvedValueOnce({ id: "dir-1", area: "ADMIN" });
 
-    const request = new NextRequest("http://localhost:3000/api/admin/document-directories/dir-1", {
-      method: "PATCH",
-      body: JSON.stringify({ name: "Formulare", area: "MEMBER" }),
-      headers: { "content-type": "application/json" },
-    });
+    const request = apiRequest("PATCH", "/api/admin/document-directories/dir-1", { body: { name: "Formulare", area: "MEMBER" } });
 
-    const response = await PATCH(request, { params: Promise.resolve({ id: "dir-1" }) });
+    const response = await PATCH(request, routeContext({ id: "dir-1" }));
     const data = await response.json();
 
     expect(response.status).toBe(400);
@@ -271,11 +232,9 @@ describe("/api/admin/document-directories/[id]", () => {
       },
     });
 
-    const request = new NextRequest("http://localhost:3000/api/admin/document-directories/dir-1", {
-      method: "DELETE",
-    });
+    const request = apiRequest("DELETE", "/api/admin/document-directories/dir-1");
 
-    const response = await DELETE(request, { params: Promise.resolve({ id: "dir-1" }) });
+    const response = await DELETE(request, routeContext({ id: "dir-1" }));
     const data = await response.json();
 
     expect(response.status).toBe(409);
@@ -291,11 +250,9 @@ describe("/api/admin/document-directories/[id]", () => {
     });
     (prisma.documentDirectory.deleteMany as jest.Mock).mockResolvedValue({ count: 1 });
 
-    const request = new NextRequest("http://localhost:3000/api/admin/document-directories/dir-1", {
-      method: "DELETE",
-    });
+    const request = apiRequest("DELETE", "/api/admin/document-directories/dir-1");
 
-    const response = await DELETE(request, { params: Promise.resolve({ id: "dir-1" }) });
+    const response = await DELETE(request, routeContext({ id: "dir-1" }));
     const data = await response.json();
 
     expect(response.status).toBe(200);
@@ -313,11 +270,9 @@ describe("/api/admin/document-directories/[id]", () => {
       .mockResolvedValueOnce({ id: "dir-1" });
     (prisma.documentDirectory.deleteMany as jest.Mock).mockResolvedValue({ count: 0 });
 
-    const request = new NextRequest("http://localhost:3000/api/admin/document-directories/dir-1", {
-      method: "DELETE",
-    });
+    const request = apiRequest("DELETE", "/api/admin/document-directories/dir-1");
 
-    const response = await DELETE(request, { params: Promise.resolve({ id: "dir-1" }) });
+    const response = await DELETE(request, routeContext({ id: "dir-1" }));
     const data = await response.json();
 
     expect(response.status).toBe(409);

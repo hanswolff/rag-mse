@@ -1,5 +1,5 @@
 import { newsFormSchema } from "./validation-schema";
-import { createValidationContext, zodToValidationResult } from "./validation-context";
+import { zodToValidationResult } from "./validation-context";
 import type { ValidationResult } from "./validation-context";
 
 export { validateTitle, validateContent } from "./validation-schema";
@@ -22,35 +22,15 @@ export interface UpdateNewsRequest {
 export function validateCreateNewsRequest(
   request: CreateNewsRequest
 ): ValidationResult {
-  const ctx = createValidationContext();
-
-  if (!request.newsDate) {
-    ctx.addError("newsDate", "Datum ist erforderlich");
-  }
-
-  const data = {
-    newsDate: request.newsDate || "",
-    title: request.title,
-    content: request.content,
-  };
-
-  const result = newsFormSchema.safeParse(data);
-
-  if (!result.success) {
-    for (const issue of result.error.issues) {
-      if (!ctx.errors.includes(issue.message)) {
-        ctx.errors.push(issue.message);
-      }
-      if (issue.path.length > 0) {
-        const field = String(issue.path[0]);
-        if (!ctx.fieldErrors.some((fe) => fe.field === field && fe.message === issue.message)) {
-          ctx.fieldErrors.push({ field, message: issue.message });
-        }
-      }
-    }
-  }
-
-  return ctx.toResult();
+  // Fehlendes newsDate wird zu "" und läuft in die min(1)-Meldung
+  // "Datum ist erforderlich" des Schemas — kein separater Vorab-Check nötig.
+  return zodToValidationResult(
+    newsFormSchema.safeParse({
+      newsDate: request.newsDate || "",
+      title: request.title,
+      content: request.content,
+    })
+  );
 }
 
 export function validateUpdateNewsRequest(

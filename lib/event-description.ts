@@ -94,12 +94,14 @@ export function formatEventDescriptionForDisplay(value: string): string {
   return escapedText.replace(/\n/g, "<br />");
 }
 
-export function getEventDescriptionPreview(value: string, maxChars = 180): string {
-  const plain = decodeHtmlEntities(stripEventDescriptionText(value));
-
-  if (plain.length <= maxChars) {
-    return plain;
+export function truncateText(value: string, maxChars: number): string {
+  if (value.length <= maxChars) {
+    return value;
   }
 
-  return `${plain.slice(0, maxChars - 1).trimEnd()}…`;
+  return `${value.slice(0, maxChars - 1).trimEnd()}…`;
+}
+
+export function getEventDescriptionPreview(value: string, maxChars = 180): string {
+  return truncateText(decodeHtmlEntities(stripEventDescriptionText(value)), maxChars);
 }

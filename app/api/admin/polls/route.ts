@@ -1,16 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
-import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { isUniqueConstraintError } from "@/lib/prisma-errors";
 import { requireAdmin } from "@/lib/auth-utils";
 import { validateCreatePollRequest, type CreatePollRequest } from "@/lib/poll-validation";
-import {
-  parseJsonBody,
-  withApiErrorHandling,
-  validateCsrfHeaders,
-} from "@/lib/api-utils";
+import { parseJsonBody, ValidationError } from "@/lib/request-body-parser";
+import { withApiErrorHandling } from "@/lib/api-error-handler";
+import { validateCsrfHeaders } from "@/lib/csrf-validator";
 import { logInfo, logValidationFailure } from "@/lib/logger";
 import { parsePageNumber, parsePageSize } from "@/lib/api-pagination";
 import { generateUniquePollId } from "@/lib/poll-utils";
+
+const ROUTE = "/api/admin/polls";
 
 const POLL_ID_RETRY_LIMIT = 3;
 
@@ -51,7 +51,7 @@ export const GET = withApiErrorHandling(async (request: NextRequest) => {
       pages: Math.ceil(total / limit),
     },
   });
-}, { route: "/api/admin/polls", method: "GET" });
+}, { route: ROUTE, method: "GET" });
 
 export const POST = withApiErrorHandling(async (request: NextRequest) => {
   validateCsrfHeaders(request);
@@ -60,8 +60,8 @@ export const POST = withApiErrorHandling(async (request: NextRequest) => {
 
   const validation = validateCreatePollRequest(body);
   if (!validation.isValid) {
-    logValidationFailure("/api/admin/polls", "POST", validation.errors, { userId: user.id });
-    return NextResponse.json({ error: validation.errors.join(". ") }, { status: 400 });
+    logValidationFailure(ROUTE, "POST", validation.errors, { userId: user.id });
+    throw new ValidationError(validation.errors);
   }
 
   if (body.type === "TERMIN" && body.eventId) {
@@ -100,11 +100,7 @@ export const POST = withApiErrorHandling(async (request: NextRequest) => {
       });
       break;
     } catch (error) {
-      if (
-        error instanceof Prisma.PrismaClientKnownRequestError &&
-        error.code === "P2002" &&
-        attempt < POLL_ID_RETRY_LIMIT - 1
-      ) {
+      if (isUniqueConstraintError(error) && attempt < POLL_ID_RETRY_LIMIT - 1) {
         continue;
       }
       throw error;
@@ -118,4 +114,4 @@ export const POST = withApiErrorHandling(async (request: NextRequest) => {
   logInfo("poll_created", "Poll created", { pollId: poll.id, userId: user.id, type: body.type });
 
   return NextResponse.json(poll, { status: 201 });
-}, { route: "/api/admin/polls", method: "POST" });
+}, { route: ROUTE, method: "POST" });

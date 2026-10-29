@@ -586,6 +586,16 @@ describe("Integrationsschicht: Auth- und Token-Flüsse", () => {
       });
       expect(invitationFromDb.usedAt).not.toBeNull();
     });
+
+    it("erkennt ein Bestandskonto mit Großbuchstaben in der E-Mail und legt kein zweites an", async () => {
+      const user = await createUser({ email: "Gross.Schreibung@Example.com" });
+      const { token } = await createInvitation({ email: "gross.schreibung@example.com" });
+
+      expect((await redeemInvitation(token, { name: "Neuer Name" })).status).toBe(200);
+
+      const users = await prisma.user.findMany({ where: { email: { in: [user.email, "gross.schreibung@example.com"] } } });
+      expect(users.map((u) => [u.id, u.name])).toEqual([[user.id, "Neuer Name"]]);
+    });
   });
 
   describe("Admin-Einladungserstellung", () => {
@@ -621,6 +631,16 @@ describe("Integrationsschicht: Auth- und Token-Flüsse", () => {
       expect(queuedEmails[0].status).toBe("QUEUED");
     });
 
+    it("lehnt eine Einladung ab, wenn ein Konto mit anders geschriebener E-Mail existiert", async () => {
+      await createUser({ email: "Bestand.Konto@Example.com" });
+      loginAs(await createAdmin());
+
+      const response = await createAdminInvitation("bestand.konto@example.com");
+
+      expect(response.status).toBe(409);
+      await expect(prisma.invitation.count({ where: { email: "bestand.konto@example.com" } })).resolves.toBe(0);
+    });
+
     it("entwertet beim erneuten Einladen die vorherige aktive Einladung derselben E-Mail", async () => {
       const admin = await createAdmin();
       loginAs(admin);
@@ -652,6 +672,112 @@ describe("Integrationsschicht: Auth- und Token-Flüsse", () => {
 
       const invitations = await prisma.invitation.findMany({ where: { email: user.email } });
       expect(invitations).toHaveLength(0);
+    });
+  });
+});
+
+describe("Integrationsschicht: Rate-Limit-Staffel", () => {
+  const MINUTE = 60_000;
+  const START = new Date("2026-09-30T10:00:00+02:00").getTime();
+
+  // Nur die Systemzeit wird gefälscht; Timer bleiben echt (Prisma/bcrypt arbeiten asynchron).
+  beforeEach(() => {
+    jest.useFakeTimers({
+      now: START,
+      doNotFake: [
+        "hrtime",
+        "nextTick",
+        "performance",
+        "queueMicrotask",
+        "requestAnimationFrame",
+        "cancelAnimationFrame",
+        "requestIdleCallback",
+        "cancelIdleCallback",
+        "setImmediate",
+        "clearImmediate",
+        "setInterval",
+        "clearInterval",
+        "setTimeout",
+        "clearTimeout",
+      ],
+    });
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
+  it("meldet die echte Sperrdauer und erlaubt nach Ablauf der ersten Stufe den Login mit richtigem Passwort", async () => {
+    const user = await createUser();
+
+    for (let attempt = 1; attempt <= 5; attempt += 1) {
+      expect((await login(user.email, "FalschesPasswort1")).status).toBe(401);
+    }
+
+    const blocked = await login(user.email, TEST_PASSWORD);
+    expect(blocked.status).toBe(429);
+    await expect(blocked.json()).resolves.toEqual({
+      error: "Zu viele fehlgeschlagene Login-Versuche. Bitte versuchen Sie es in 1 Minute erneut.",
+    });
+
+    jest.setSystemTime(START + 30_000);
+    expect((await login(user.email, TEST_PASSWORD)).status).toBe(429);
+
+    jest.setSystemTime(START + 1 * MINUTE);
+    expect((await login(user.email, TEST_PASSWORD)).status).toBe(200);
+  });
+
+  it("sperrt nach Ablauf der ersten Stufe erst wieder beim Erreichen der zweiten Stufe für 5 Minuten", async () => {
+    const user = await createUser();
+
+    for (let attempt = 1; attempt <= 6; attempt += 1) {
+      await login(user.email, "FalschesPasswort1");
+    }
+    jest.setSystemTime(START + 1 * MINUTE);
+
+    for (let attempt = 7; attempt <= 10; attempt += 1) {
+      expect((await login(user.email, "FalschesPasswort1")).status).toBe(401);
+    }
+
+    const stage2 = await login(user.email, "FalschesPasswort1");
+    expect(stage2.status).toBe(429);
+    await expect(stage2.json()).resolves.toEqual({
+      error: "Zu viele fehlgeschlagene Login-Versuche. Bitte versuchen Sie es in 5 Minuten erneut.",
+    });
+  });
+
+  it("erlaubt „Passwort vergessen“ nach Ablauf der 15-Minuten-Sperre wieder", async () => {
+    const user = await createUser();
+
+    expect((await forgotPassword(user.email)).status).toBe(200);
+    expect((await forgotPassword(user.email)).status).toBe(200);
+
+    const blocked = await forgotPassword(user.email);
+    expect(blocked.status).toBe(429);
+    await expect(blocked.json()).resolves.toEqual({
+      error: "Zu viele fehlgeschlagene Versuche. Bitte versuchen Sie es in 15 Minuten erneut.",
+    });
+
+    jest.setSystemTime(START + 15 * MINUTE);
+    expect((await forgotPassword(user.email)).status).toBe(200);
+  });
+
+  it("zählt Status-Aufrufe von Token-Links nicht aufs IP-Limit, Einlöseversuche weiterhin", async () => {
+    const { token } = await createInvitation({ role: "MEMBER" });
+
+    for (let view = 0; view < 29; view += 1) {
+      expect((await invitationStatus(token)).status).toBe(200);
+    }
+    // Die erfolgreiche Einlösung gibt ihren IP-Versuch zurück: 25 freie Versuche bleiben.
+    expect((await redeemInvitation(token)).status).toBe(200);
+
+    for (let attempt = 0; attempt < 25; attempt += 1) {
+      await redeemInvitation(`unbekannter-token-${attempt}`);
+    }
+    const ipBlocked = await redeemInvitation("unbekannter-token-letzter");
+    expect(ipBlocked.status).toBe(429);
+    await expect(ipBlocked.json()).resolves.toEqual({
+      error: "Zu viele fehlgeschlagene Versuche. Bitte versuchen Sie es in 15 Minuten erneut.",
     });
   });
 });

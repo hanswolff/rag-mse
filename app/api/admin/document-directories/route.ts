@@ -1,13 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/auth-utils";
-import { parseJsonBody, validateCsrfHeaders, withApiErrorHandling } from "@/lib/api-utils";
+import { parseJsonBody, ValidationError } from "@/lib/request-body-parser";
+import { validateCsrfHeaders } from "@/lib/csrf-validator";
+import { withApiErrorHandling } from "@/lib/api-error-handler";
 import {
   normalizeDirectoryNameForUniqueness,
   parseAndValidateDocumentDirectoryRequest,
   parseDocumentArea,
 } from "@/lib/document-validation";
 import { prisma } from "@/lib/prisma";
+import { isUniqueConstraintError } from "@/lib/prisma-errors";
 import { logValidationFailure } from "@/lib/logger";
+
+const ROUTE = "/api/admin/document-directories";
 
 export const GET = withApiErrorHandling(async (request: NextRequest) => {
   await requireAdmin("read");
@@ -47,7 +52,7 @@ export const GET = withApiErrorHandling(async (request: NextRequest) => {
       updatedAt: directory.updatedAt.toISOString(),
     })),
   });
-}, { route: "/api/admin/document-directories", method: "GET" });
+}, { route: ROUTE, method: "GET" });
 
 export const POST = withApiErrorHandling(async (request: NextRequest) => {
   validateCsrfHeaders(request);
@@ -57,8 +62,8 @@ export const POST = withApiErrorHandling(async (request: NextRequest) => {
   const parsed = parseAndValidateDocumentDirectoryRequest(rawBody);
 
   if (!parsed.isValid) {
-    logValidationFailure("/api/admin/document-directories", "POST", parsed.errors);
-    return NextResponse.json({ error: parsed.errors.join(". ") }, { status: 400 });
+    logValidationFailure(ROUTE, "POST", parsed.errors);
+    throw new ValidationError(parsed.errors);
   }
 
   const area = parsed.data.area ?? "ADMIN";
@@ -87,14 +92,9 @@ export const POST = withApiErrorHandling(async (request: NextRequest) => {
       updatedAt: created.updatedAt.toISOString(),
     }, { status: 201 });
   } catch (error: unknown) {
-    if (
-      error
-      && typeof error === "object"
-      && "code" in error
-      && error.code === "P2002"
-    ) {
+    if (isUniqueConstraintError(error)) {
       return NextResponse.json({ error: "Ein Verzeichnis mit diesem Namen existiert bereits" }, { status: 409 });
     }
     throw error;
   }
-}, { route: "/api/admin/document-directories", method: "POST" });
+}, { route: ROUTE, method: "POST" });

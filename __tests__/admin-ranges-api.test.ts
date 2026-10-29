@@ -2,60 +2,24 @@ jest.mock("@/lib/auth-utils", () => ({
   requireAdmin: jest.fn(),
 }));
 
-jest.mock("@/lib/prisma", () => ({
-  prisma: {
-    shootingRange: {
-      findMany: jest.fn(),
-      findUnique: jest.fn(),
-      create: jest.fn(),
-      update: jest.fn(),
-      delete: jest.fn(),
-    },
-  },
-}));
+jest.mock("@/lib/prisma", () =>
+  jest.requireActual<typeof import("./helpers/prisma-mock")>("./helpers/prisma-mock").prismaModuleMock,
+);
 
-jest.mock("@/lib/logger", () => ({
-  logInfo: jest.fn(),
-  logError: jest.fn(),
-  logWarn: jest.fn(),
-  logResourceNotFound: jest.fn(),
-  logValidationFailure: jest.fn(),
-  logApiError: jest.fn(),
-  logAccessDenied: jest.fn(),
-}));
+jest.mock("@/lib/logger", () =>
+  jest.requireActual<typeof import("./helpers/logger-mock")>("./helpers/logger-mock").mockLogger,
+);
 
 import { requireAdmin } from "@/lib/auth-utils";
 import { prisma } from "@/lib/prisma";
 import { GET, POST } from "@/app/api/admin/ranges/route";
 import { PUT, DELETE } from "@/app/api/admin/ranges/[id]/route";
-import { NextRequest } from "next/server";
+import { apiRequest, routeContext } from "./helpers/request";
+import { buildShootingRange } from "./helpers/factories";
 
 const mockAdmin = { id: "admin-1", role: "ADMIN", email: "admin@test.de" };
 
-function createRequest(url: string, options: RequestInit = {}) {
-  const { signal, ...rest } = options;
-  return new NextRequest(new URL(url, "http://localhost:3000"), {
-    ...rest,
-    signal: signal ?? undefined,
-    headers: {
-      "Content-Type": "application/json",
-      Origin: "http://localhost:3000",
-      ...((options.headers as Record<string, string>) || {}),
-    },
-  });
-}
-
-const sampleRange = {
-  id: "range-1",
-  name: "Schießstand Test",
-  street: "Teststraße 1",
-  postalCode: "12345",
-  city: "Teststadt",
-  latitude: 53.5,
-  longitude: 13.2,
-  createdAt: new Date(),
-  updatedAt: new Date(),
-};
+const sampleRange = buildShootingRange();
 
 describe("/api/admin/ranges", () => {
   beforeEach(() => {
@@ -105,10 +69,7 @@ describe("/api/admin/ranges", () => {
         updatedAt: new Date(),
       });
 
-      const request = createRequest("http://localhost:3000/api/admin/ranges", {
-        method: "POST",
-        body: JSON.stringify(validBody),
-      });
+      const request = apiRequest("POST", "/api/admin/ranges", { body: validBody, browser: true });
 
       const response = await POST(request);
       expect(response.status).toBe(201);
@@ -120,10 +81,7 @@ describe("/api/admin/ranges", () => {
     it("rejects duplicate name", async () => {
       (prisma.shootingRange.findUnique as jest.Mock).mockResolvedValue(sampleRange);
 
-      const request = createRequest("http://localhost:3000/api/admin/ranges", {
-        method: "POST",
-        body: JSON.stringify(validBody),
-      });
+      const request = apiRequest("POST", "/api/admin/ranges", { body: validBody, browser: true });
 
       const response = await POST(request);
       expect(response.status).toBe(409);
@@ -133,30 +91,21 @@ describe("/api/admin/ranges", () => {
     });
 
     it("rejects empty name", async () => {
-      const request = createRequest("http://localhost:3000/api/admin/ranges", {
-        method: "POST",
-        body: JSON.stringify({ ...validBody, name: "" }),
-      });
+      const request = apiRequest("POST", "/api/admin/ranges", { body: { ...validBody, name: "" }, browser: true });
 
       const response = await POST(request);
       expect(response.status).toBe(400);
     });
 
     it("rejects missing coordinates", async () => {
-      const request = createRequest("http://localhost:3000/api/admin/ranges", {
-        method: "POST",
-        body: JSON.stringify({ ...validBody, latitude: "", longitude: "" }),
-      });
+      const request = apiRequest("POST", "/api/admin/ranges", { body: { ...validBody, latitude: "", longitude: "" }, browser: true });
 
       const response = await POST(request);
       expect(response.status).toBe(400);
     });
 
     it("rejects invalid latitude", async () => {
-      const request = createRequest("http://localhost:3000/api/admin/ranges", {
-        method: "POST",
-        body: JSON.stringify({ ...validBody, latitude: "999" }),
-      });
+      const request = apiRequest("POST", "/api/admin/ranges", { body: { ...validBody, latitude: "999" }, browser: true });
 
       const response = await POST(request);
       expect(response.status).toBe(400);
@@ -191,12 +140,9 @@ describe("/api/admin/ranges/[id]", () => {
         longitude: 13.27,
       });
 
-      const request = createRequest("http://localhost:3000/api/admin/ranges/range-1", {
-        method: "PUT",
-        body: JSON.stringify(updateBody),
-      });
+      const request = apiRequest("PUT", "/api/admin/ranges/range-1", { body: updateBody, browser: true });
 
-      const response = await PUT(request, { params: Promise.resolve({ id: "range-1" }) });
+      const response = await PUT(request, routeContext({ id: "range-1" }));
       expect(response.status).toBe(200);
 
       const data = await response.json();
@@ -206,12 +152,9 @@ describe("/api/admin/ranges/[id]", () => {
     it("returns 404 for non-existent range", async () => {
       (prisma.shootingRange.findUnique as jest.Mock).mockResolvedValue(null);
 
-      const request = createRequest("http://localhost:3000/api/admin/ranges/nonexistent", {
-        method: "PUT",
-        body: JSON.stringify(updateBody),
-      });
+      const request = apiRequest("PUT", "/api/admin/ranges/nonexistent", { body: updateBody, browser: true });
 
-      const response = await PUT(request, { params: Promise.resolve({ id: "nonexistent" }) });
+      const response = await PUT(request, routeContext({ id: "nonexistent" }));
       expect(response.status).toBe(404);
     });
 
@@ -220,12 +163,9 @@ describe("/api/admin/ranges/[id]", () => {
         .mockResolvedValueOnce(sampleRange)
         .mockResolvedValueOnce({ id: "other-range", name: "Aktualisierter Stand" });
 
-      const request = createRequest("http://localhost:3000/api/admin/ranges/range-1", {
-        method: "PUT",
-        body: JSON.stringify(updateBody),
-      });
+      const request = apiRequest("PUT", "/api/admin/ranges/range-1", { body: updateBody, browser: true });
 
-      const response = await PUT(request, { params: Promise.resolve({ id: "range-1" }) });
+      const response = await PUT(request, routeContext({ id: "range-1" }));
       expect(response.status).toBe(409);
     });
   });
@@ -235,11 +175,9 @@ describe("/api/admin/ranges/[id]", () => {
       (prisma.shootingRange.findUnique as jest.Mock).mockResolvedValue(sampleRange);
       (prisma.shootingRange.delete as jest.Mock).mockResolvedValue(sampleRange);
 
-      const request = createRequest("http://localhost:3000/api/admin/ranges/range-1", {
-        method: "DELETE",
-      });
+      const request = apiRequest("DELETE", "/api/admin/ranges/range-1", { browser: true });
 
-      const response = await DELETE(request, { params: Promise.resolve({ id: "range-1" }) });
+      const response = await DELETE(request, routeContext({ id: "range-1" }));
       expect(response.status).toBe(200);
 
       const data = await response.json();
@@ -249,11 +187,9 @@ describe("/api/admin/ranges/[id]", () => {
     it("returns 404 for non-existent range", async () => {
       (prisma.shootingRange.findUnique as jest.Mock).mockResolvedValue(null);
 
-      const request = createRequest("http://localhost:3000/api/admin/ranges/nonexistent", {
-        method: "DELETE",
-      });
+      const request = apiRequest("DELETE", "/api/admin/ranges/nonexistent", { browser: true });
 
-      const response = await DELETE(request, { params: Promise.resolve({ id: "nonexistent" }) });
+      const response = await DELETE(request, routeContext({ id: "nonexistent" }));
       expect(response.status).toBe(404);
     });
   });

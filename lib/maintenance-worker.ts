@@ -1,6 +1,8 @@
 import { prisma } from "@/lib/prisma";
 import { logError, logInfo } from "@/lib/logger";
 import { PRUNED_ATTACHMENTS_MARKER } from "@/lib/email/types";
+import { createIntervalWorker } from "@/lib/worker-runtime";
+import { deleteExpiredAbsences } from "@/lib/absence-service";
 
 // Aufbewahrungsgrenzen (Code-Review): E-Mail-Anhänge (base64 inline) und
 // verbrauchte/abgelaufene Token-Zeilen wachsen sonst unbegrenzt.
@@ -8,12 +10,6 @@ const ATTACHMENT_RETENTION_DAYS = 30;
 const TOKEN_RETENTION_DAYS = 30;
 const INVITATION_RETENTION_DAYS = 90;
 const MAINTENANCE_INTERVAL_MS = 12 * 60 * 60 * 1000;
-
-const globalForMaintenance = globalThis as unknown as {
-  maintenanceWorkerStarted?: boolean;
-  maintenanceTickRunning?: boolean;
-  maintenanceTimer?: ReturnType<typeof setInterval>;
-};
 
 function daysAgo(days: number, now: Date): Date {
   return new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
@@ -25,6 +21,7 @@ export interface MaintenanceResult {
   deletedPasswordResets: number;
   deletedInvitations: number;
   deletedReminderDispatches: number;
+  deletedAbsences: number;
 }
 
 export async function runMaintenanceCleanup(now: Date = new Date()): Promise<MaintenanceResult> {
@@ -68,14 +65,17 @@ export async function runMaintenanceCleanup(now: Date = new Date()): Promise<Mai
     },
   });
 
-  // Dispatch-Zeilen dienen auch als Dedupe ("schon erinnert") — nur löschen,
-  // wenn beide Token längst abgelaufen sind, also der Termin lange vorbei ist
+  // Dispatch-Zeilen dienen auch als Dedupe ("schon erinnert") — nur löschen, wenn
+  // beide Token längst abgelaufen sind und der Termin selbst lange vorbei ist
   const deletedReminderDispatches = await prisma.eventReminderDispatch.deleteMany({
     where: {
       rsvpTokenExpiresAt: { lt: daysAgo(TOKEN_RETENTION_DAYS, now) },
       unsubscribeTokenExpiresAt: { lt: daysAgo(TOKEN_RETENTION_DAYS, now) },
+      event: { date: { lt: daysAgo(TOKEN_RETENTION_DAYS, now) } },
     },
   });
+
+  const deletedAbsences = await deleteExpiredAbsences(now);
 
   return {
     clearedAttachments: clearedAttachments.count,
@@ -83,63 +83,40 @@ export async function runMaintenanceCleanup(now: Date = new Date()): Promise<Mai
     deletedPasswordResets: deletedPasswordResets.count,
     deletedInvitations: deletedInvitations.count,
     deletedReminderDispatches: deletedReminderDispatches.count,
+    deletedAbsences,
   };
 }
 
-async function runMaintenanceTick(): Promise<void> {
-  if (globalForMaintenance.maintenanceTickRunning) {
-    return;
-  }
-
-  globalForMaintenance.maintenanceTickRunning = true;
-
-  try {
+const maintenanceWorker = createIntervalWorker({
+  name: "maintenance",
+  getIntervalMs: () => MAINTENANCE_INTERVAL_MS,
+  tick: async () => {
     const result = await runMaintenanceCleanup();
     const total =
       result.clearedAttachments +
       result.clearedSensitiveTokens +
       result.deletedPasswordResets +
       result.deletedInvitations +
-      result.deletedReminderDispatches;
+      result.deletedReminderDispatches +
+      result.deletedAbsences;
     if (total > 0) {
       logInfo("maintenance_cleanup_completed", "Maintenance cleanup completed", { ...result });
     }
-  } catch (error) {
+  },
+  onTickError: (error) => {
     logError("maintenance_cleanup_failed", "Maintenance cleanup failed", {
       error: error instanceof Error ? error.message : String(error),
     });
-  } finally {
-    globalForMaintenance.maintenanceTickRunning = false;
-  }
-}
+  },
+  onStarted: (intervalMs) => {
+    logInfo("maintenance_worker_started", "Maintenance worker started", { intervalMs });
+  },
+});
 
 export function startMaintenanceWorker(): void {
-  if (process.env.NODE_ENV === "test") {
-    return;
-  }
-
-  if (globalForMaintenance.maintenanceWorkerStarted) {
-    return;
-  }
-
-  globalForMaintenance.maintenanceWorkerStarted = true;
-
-  globalForMaintenance.maintenanceTimer = setInterval(() => {
-    void runMaintenanceTick();
-  }, MAINTENANCE_INTERVAL_MS);
-
-  void runMaintenanceTick();
-
-  logInfo("maintenance_worker_started", "Maintenance worker started", {
-    intervalMs: MAINTENANCE_INTERVAL_MS,
-  });
+  maintenanceWorker.start();
 }
 
 export function stopMaintenanceWorkerForTests(): void {
-  if (globalForMaintenance.maintenanceTimer) {
-    clearInterval(globalForMaintenance.maintenanceTimer);
-  }
-
-  globalForMaintenance.maintenanceWorkerStarted = false;
-  globalForMaintenance.maintenanceTickRunning = false;
+  maintenanceWorker.stopForTests();
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { buildLoginUrlWithReturnUrl, getCurrentPathWithSearch } from "@/lib/return-url";
@@ -167,6 +167,8 @@ export function useDocumentsList({
     }
   }, [appendQueryParams, directoriesApiPrefix, resolvedDirectoriesQueryParams]);
 
+  const loadDocumentsRequestIdRef = useRef(0);
+
   const loadDocuments = useCallback(
     async (
       targetPage: number,
@@ -175,6 +177,8 @@ export function useDocumentsList({
       nextSortBy: DocumentSortField,
       nextSortDir: DocumentSortDirection,
     ) => {
+      const requestId = ++loadDocumentsRequestIdRef.current;
+      const isStale = () => requestId !== loadDocumentsRequestIdRef.current;
       setIsLoading(true);
       setError(null);
 
@@ -199,6 +203,7 @@ export function useDocumentsList({
 
         const response = await fetch(`${documentsApiPrefix}?${params.toString()}`);
         const data = (await response.json()) as DocumentsResponse | { error?: string };
+        if (isStale()) return;
 
         if (!response.ok) {
           const errorMessage =
@@ -217,12 +222,13 @@ export function useDocumentsList({
           setMaxUploadMb(payload.uploadConstraints.maxUploadMb);
         }
       } catch (loadError: unknown) {
+        if (isStale()) return;
         setDocuments([]);
         setTotal(0);
         setTotalPages(0);
         setError(loadError instanceof Error ? loadError.message : "Dokumente konnten nicht geladen werden");
       } finally {
-        setIsLoading(false);
+        if (!isStale()) setIsLoading(false);
       }
     },
     [documentsApiPrefix, resolvedDocumentsQueryParams],

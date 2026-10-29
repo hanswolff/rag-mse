@@ -2,13 +2,14 @@ import type { MetadataRoute } from "next";
 import { access } from "node:fs/promises";
 import path from "node:path";
 import { prisma } from "@/lib/prisma";
-
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://rag-mse.de";
+import { siteUrl } from "@/lib/site-config";
+import { getVisibilityFilter } from "@/lib/visibility";
 
 const staticPaths = [
   "",
   "/termine",
   "/termine/vergangenheit",
+  "/kalender",
   "/news",
   "/ausschreibungen",
   "/ueber-uns",
@@ -36,7 +37,7 @@ async function canQueryDynamicEntries(): Promise<boolean> {
   const sqlitePathRaw = decodeURIComponent(databaseUrl.replace("file:", ""));
   const sqlitePath = path.isAbsolute(sqlitePathRaw)
     ? sqlitePathRaw
-    : path.resolve(process.cwd(), sqlitePathRaw);
+    : path.resolve(/* turbopackIgnore: true */ process.cwd(), sqlitePathRaw);
   const sqliteDirectory = path.dirname(sqlitePath);
 
   try {
@@ -55,7 +56,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     try {
       [events, news] = await Promise.all([
         prisma.event.findMany({
-          where: { visible: true },
+          where: getVisibilityFilter(false),
           select: { id: true, updatedAt: true },
           orderBy: { updatedAt: "desc" },
         }),

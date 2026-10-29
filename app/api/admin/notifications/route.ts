@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireAuth, ForbiddenError } from "@/lib/auth-utils";
-import { withApiErrorHandling } from "@/lib/api-utils";
+import { withApiErrorHandling } from "@/lib/api-error-handler";
 import { formatDateForStorage } from "@/lib/date-picker-utils";
 import { Permissions } from "@/lib/permissions";
 import {
@@ -92,12 +92,16 @@ export const GET = withApiErrorHandling(async (request: NextRequest) => {
           gte: cutoff,
         },
       },
-      {
-        sentAt: null,
-        queuedAt: {
-          gte: cutoff,
-        },
-      },
+      ...(notificationType === "poll"
+        ? [
+            {
+              sentAt: null,
+              queuedAt: {
+                gte: cutoff,
+              },
+            },
+          ]
+        : []),
     ],
     ...(query
       ? {

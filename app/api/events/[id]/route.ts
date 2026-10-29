@@ -3,11 +3,14 @@ import { prisma } from "@/lib/prisma";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { VoteType } from "@prisma/client";
+import type { Visibility } from "@/lib/visibility";
+import { getEventAccess } from "@/lib/event-visibility";
 import { canAccessAdminArea } from "@/lib/role-utils";
-import { withApiErrorHandling, getNoCacheHeaders, getAuthNoCacheHeaders, getPublicCacheHeaders } from "@/lib/api-utils";
+import { withApiErrorHandling, getNoCacheHeaders, getAuthNoCacheHeaders, getPublicCacheHeaders } from "@/lib/api-error-handler";
 import { formatDateForStorage } from "@/lib/date-picker-utils";
 import { logResourceNotFound } from "@/lib/logger";
 import { createShootingRangeLookup, getEventLocationDisplay, getRangeNameFromLocation } from "@/lib/event-location";
+import { countVotes } from "@/lib/event-list-utils";
 
 type EventWithVotes = {
   id: string;
@@ -22,7 +25,7 @@ type EventWithVotes = {
   type: string | null;
   cost: string | null;
   capacity: number | null;
-  visible: boolean;
+  visibility: Visibility;
   createdById: string | null;
   createdAt: Date;
   updatedAt: Date;
@@ -45,8 +48,6 @@ type CurrentUserVote = {
   id: string;
   vote: VoteType;
 };
-
-type VoteCounts = Record<VoteType, number>;
 
 export const GET = withApiErrorHandling(async (
   request: NextRequest,
@@ -73,7 +74,7 @@ export const GET = withApiErrorHandling(async (
       type: true,
       cost: true,
       capacity: true,
-      visible: true,
+      visibility: true,
       createdById: true,
       createdAt: true,
       updatedAt: true,
@@ -109,7 +110,7 @@ export const GET = withApiErrorHandling(async (
       type: true,
       cost: true,
       capacity: true,
-      visible: true,
+      visibility: true,
       createdById: true,
       createdAt: true,
       updatedAt: true,
@@ -127,7 +128,15 @@ export const GET = withApiErrorHandling(async (
     );
   }
 
-  if (!event.visible && !canSeeAll && event.createdById !== userId) {
+  const access = getEventAccess(event, { userId, canSeeAll });
+  if (access === "login-required") {
+    return NextResponse.json(
+      { error: "Anmeldung erforderlich" },
+      { status: 401, headers: getNoCacheHeaders() }
+    );
+  }
+
+  if (access === "not-found") {
     logResourceNotFound('event', id, '/api/events/[id]', 'GET', {
       reason: 'event not visible',
       isAuthenticated,
@@ -160,12 +169,6 @@ export const GET = withApiErrorHandling(async (
   };
 
   if (!isAuthenticated) {
-    if (!event.visible) {
-      return NextResponse.json(
-        { error: "Termin nicht gefunden" },
-        { status: 404, headers: getNoCacheHeaders() }
-      );
-    }
     const { createdById, ...publicEvent } = formattedEventWithLocation;
     void createdById;
     return NextResponse.json(publicEvent, { headers: getPublicCacheHeaders() });
@@ -174,13 +177,7 @@ export const GET = withApiErrorHandling(async (
   if ("votes" in formattedEventWithLocation) {
     const eventWithVotes = formattedEventWithLocation as unknown as EventWithVotes;
     const guestRegistrations = eventWithVotes.guestRegistrations ?? [];
-    const voteCounts: VoteCounts = eventWithVotes.votes.reduce(
-      (acc, { vote }) => ({ ...acc, [vote]: acc[vote] + 1 }),
-      { JA: 0, NEIN: 0, VIELLEICHT: 0 }
-    );
-    for (const guest of guestRegistrations) {
-      voteCounts[guest.vote] += 1;
-    }
+    const voteCounts = countVotes(eventWithVotes.votes, guestRegistrations);
 
     if (canSeeAll) {
       const guestVotes = guestRegistrations.map((guest) => ({

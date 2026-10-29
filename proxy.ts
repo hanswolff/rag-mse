@@ -52,7 +52,7 @@ export async function proxy(req: NextRequest) {
 
   const secret = process.env.NEXTAUTH_SECRET;
   if (!secret) {
-    console.error("NEXTAUTH_SECRET fehlt. Zugriff auf geschuetzte Routen wird blockiert.");
+    console.error("NEXTAUTH_SECRET fehlt. Zugriff auf geschützte Routen wird blockiert.");
     return withReportOnly(NextResponse.redirect(loginUrl));
   }
 
@@ -85,6 +85,6 @@ export const config = {
   // `/apiary` oder `/apple-iconography` ausgenommen, weil sie mit `api` bzw.
   // `apple-icon` beginnen — eine solche Seite bekäme stillschweigend keine Nonce.
   matcher: [
-    "/((?!(?:api|_next/static|_next/image|apple-icon)(?:/|$)|favicon\\.ico$|.*\\.(?:png|jpg|jpeg|gif|svg|ico|webp|pdf|txt|xml|webmanifest)$).*)",
+    "/((?!(?:api|_next/static|_next/image|apple-icon)(?:/|$)|favicon\\.ico$|.*\\.(?:png|jpg|jpeg|gif|svg|ico|webp|pdf|txt|xml|ics|webmanifest)$).*)",
   ],
 };

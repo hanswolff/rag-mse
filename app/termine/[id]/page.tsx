@@ -2,13 +2,13 @@
 
 import { useEffect, use } from "react";
 import { useSession } from "next-auth/react";
-import Link from "next/link";
 import { formatDate, formatTime } from "@/lib/date-utils";
 import { VotingResults } from "@/components/voting-results";
 import { EventMap } from "@/components/event-map";
 import { EventFormModal } from "@/components/event-form-modal";
-import { isAdmin } from "@/lib/role-utils";
+import { canManageAdminArea } from "@/lib/role-utils";
 import { VOTE_OPTIONS } from "@/lib/vote-utils";
+import { VoteButtonGroup } from "@/components/vote-button-group";
 import { BackLink } from "@/components/back-link";
 import { ExternalLinkIcon } from "@/components/icons";
 import { LoadingButton } from "@/components/loading-button";
@@ -17,9 +17,12 @@ import { formatEventDescriptionForDisplay } from "@/lib/event-description";
 import { Modal } from "@/components/modal";
 import { AlertBox } from "@/components/alert-box";
 import { useEventDetail } from "@/lib/use-event-detail";
-import { useEventVoting } from "@/lib/use-event-voting";
+import { useAttendanceVote } from "@/lib/use-attendance-vote";
+import { useAdminRegistrations } from "@/lib/use-admin-registrations";
+import { useEventPolls } from "@/lib/use-event-polls";
 import { serializeJsonLd } from "@/lib/json-ld";
 import { EventTypeBadge } from "@/components/event-type-badge";
+import { PollCard } from "@/components/poll-card";
 import { pluralize } from "@/lib/pluralization";
 import { formatOccupancy } from "@/lib/registration-count";
 
@@ -30,7 +33,7 @@ function getOpenStreetMapUrl(latitude: number, longitude: number): string {
 export default function EventDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const { data: session } = useSession();
-  const isAdminUser = session ? isAdmin(session.user) : false;
+  const isAdminUser = session ? canManageAdminArea(session.user) : false;
   const eventManagement = useEventManagement({ enforceAdminRedirect: false, enabled: isAdminUser });
 
   const {
@@ -44,16 +47,25 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
     loginUrl,
   } = useEventDetail(id);
 
-  const voting = useEventVoting({
+  const adminRegistrations = useAdminRegistrations({
     eventId: id,
+    event,
+    fetchEvent,
+    isAdminUser,
+  });
+
+  const attendance = useAttendanceVote({
     event,
     setEvent,
     fetchEvent,
     session: session ?? null,
-    isAdminUser,
+    onOwnVoteWithdrawn: isAdminUser ? adminRegistrations.applyOwnVoteWithdrawn : undefined,
+    refreshRegistrations: isAdminUser ? adminRegistrations.refresh : undefined,
   });
 
-  const { refreshAdminRegistrations } = voting;
+  const eventPolls = useEventPolls(id, session ?? null);
+
+  const refreshAdminRegistrations = adminRegistrations.refresh;
 
   useEffect(() => {
     if (eventManagement.success && !eventManagement.isModalOpen) {
@@ -71,7 +83,7 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
           <BackLink href="/termine" className="inline-flex items-center">
             Zurück zur Termin-Übersicht
           </BackLink>
-          {session && isAdmin(session.user) && event && (
+          {session && canManageAdminArea(session.user) && event && (
             <button
               onClick={() => eventManagement.startEditingEvent(event)}
               className="btn-primary text-base w-full sm:w-auto"
@@ -82,7 +94,7 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
         </div>
 
         {isLoading ? (
-          <div className="text-gray-600 text-center py-8">Laden...</div>
+          <div className="text-gray-600 text-center py-8">Laden…</div>
         ) : error ? (
           <div className="card text-center">
             <p className="text-red-600 mb-4">{error}</p>
@@ -172,7 +184,7 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
                   />
                 </div>
 
-                <AlertBox type="error" message={voting.voteError} className="mb-4" />
+                <AlertBox type="error" message={attendance.voteError} className="mb-4" />
               </div>
             </article>
 
@@ -186,7 +198,7 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
                     Bitte einloggen, um Ihre Teilnahme anzumelden
                   </p>
                   <a href={loginUrl} className="btn-primary text-base font-semibold inline-block">
-                    Zur Anmeldung bitte Einloggen
+                    Zur Anmeldung bitte einloggen
                   </a>
                 </div>
               </section>
@@ -208,37 +220,28 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
                   <div className="mb-6 sm:mb-8">
                     <p className="text-gray-600 mb-3 sm:mb-4 text-base sm:text-base">
                       {isPast
-                        ? voting.currentUserVote
+                        ? attendance.currentUserVote
                           ? "Sie haben sich für diesen Termin angemeldet:"
                           : "Keine Anmeldung vorhanden"
-                        : voting.currentUserVote
+                        : attendance.currentUserVote
                           ? "Sie haben sich bereits angemeldet:"
                           : "Melden Sie Ihre Teilnahme an:"}
                     </p>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3">
-                      {VOTE_OPTIONS.map((option) => (
-                        <LoadingButton
-                          key={option.value}
-                          onClick={() => voting.handleVote(option.value)}
-                          disabled={isPast || voting.isVoting}
-                          loading={voting.isVoting && voting.pendingVote === option.value}
-                          loadingText={option.label}
-                          className={`px-4 sm:px-6 py-3 rounded-lg font-medium border-2 transition-all text-base sm:text-base touch-manipulation ${
-                            voting.currentUserVote?.vote === option.value
-                              ? `${option.color} border-current`
-                              : "bg-white border-gray-300 text-gray-700 hover:border-gray-400"
-                          } disabled:opacity-50 disabled:cursor-not-allowed`}
-                        >
-                          {option.label}
-                        </LoadingButton>
-                      ))}
-                    </div>
+                    <VoteButtonGroup
+                      currentVote={attendance.currentUserVote?.vote}
+                      onVote={attendance.handleVote}
+                      isVoting={attendance.isVoting}
+                      pendingVote={attendance.pendingVote}
+                      disabled={isPast || attendance.isVoting}
+                      gridClassName="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3"
+                      buttonClassName="px-4 sm:px-6 py-3 rounded-lg font-medium border-2 transition-all text-base sm:text-base touch-manipulation disabled:opacity-50 disabled:cursor-not-allowed"
+                    />
 
-                    {voting.currentUserVote && !isPast && (
+                    {attendance.currentUserVote && !isPast && (
                       <button
-                        onClick={voting.handleDeleteVote}
-                        disabled={voting.isVoting}
+                        onClick={attendance.handleDeleteVote}
+                        disabled={attendance.isVoting}
                         className="mt-3 sm:mt-4 text-base sm:text-base text-gray-500 hover:text-brand-red-700 underline disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         Anmeldung zurückziehen
@@ -248,56 +251,32 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
 
                   {event.voteCounts && (
                     <VotingResults
-                      votes={isAdminUser ? voting.editableVotesForAdmin : event.votes}
+                      votes={isAdminUser ? adminRegistrations.editableVotes : event.votes}
                       voteCounts={event.voteCounts}
                       isAdmin={isAdminUser}
                       onAddVote={
-                        isAdminUser && voting.adminRegistrations && !voting.isAdminRegistrationsLoading
-                          ? voting.openAddRegistrationModal
+                        isAdminUser && adminRegistrations.registrations && !adminRegistrations.isLoading
+                          ? adminRegistrations.openAddModal
                           : undefined
                       }
                       onRemoveVote={
                         isAdminUser
-                          ? (voteId, registration) => void voting.deleteRegistration(registration, voteId)
+                          ? (voteId, registration) => void adminRegistrations.deleteRegistration(registration, voteId)
                           : undefined
                       }
-                      registrationActionKey={voting.registrationActionKey}
+                      registrationActionKey={adminRegistrations.actionKey}
                     />
                   )}
                 </div>
               </section>
             )}
 
-            {session && voting.eventPolls.length > 0 && (
+            {session && eventPolls.length > 0 && (
               <section className="card mt-6">
                 <h2 className="text-2xl font-bold text-gray-900 mb-4">Umfragen zu diesem Termin</h2>
                 <div className="space-y-3">
-                  {voting.eventPolls.map((poll) => (
-                    <Link
-                      key={poll.id}
-                      href={`/umfragen/${poll.id}`}
-                      className="block p-4 rounded-lg border border-gray-200 hover:border-brand-red-300 hover:shadow-sm transition-all"
-                    >
-                      <div className="flex items-center justify-between gap-2 mb-1">
-                        <span className="font-semibold text-gray-900 hover:text-brand-red-600">{poll.title}</span>
-                        <div className="flex items-center gap-2">
-                          {poll.userVoteOptionIds.length > 0 ? (
-                            <span className="px-2 py-0.5 text-xs font-medium rounded bg-green-100 text-green-800">Abgestimmt</span>
-                          ) : (
-                            <span className="px-2 py-0.5 text-xs font-medium rounded bg-amber-100 text-amber-800">Offen</span>
-                          )}
-                          {poll.status === "CLOSED" && (
-                            <span className="px-2 py-0.5 text-xs font-medium rounded bg-red-100 text-red-800">Geschlossen</span>
-                          )}
-                        </div>
-                      </div>
-                      {poll.description && (
-                        <p className="text-sm text-gray-600 line-clamp-1">{poll.description}</p>
-                      )}
-                      <p className="text-xs text-gray-500 mt-1">
-                        {poll.options.length} Optionen · {poll._count.votes} Stimmen
-                      </p>
-                    </Link>
+                  {eventPolls.map((poll) => (
+                    <PollCard key={poll.id} poll={poll} variant="compact" />
                   ))}
                 </div>
               </section>
@@ -308,29 +287,29 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
 
       {/* Bei offenem Modal zeigt die AlertBox im Modal den Fehler — der Toast läge
           unsichtbar hinter dem Overlay und würde doppelt per Screenreader angesagt */}
-      {isAdminUser && !voting.isAddRegistrationModalOpen && (
-        <AlertBox type="error" message={voting.adminRegistrationError} className="fixed bottom-4 right-4 shadow-lg z-40" />
+      {isAdminUser && !adminRegistrations.isAddModalOpen && (
+        <AlertBox type="error" message={adminRegistrations.error} className="fixed bottom-4 right-4 shadow-lg z-40" />
       )}
       {isAdminUser && (
-        <AlertBox type="success" message={voting.adminRegistrationSuccess} className="fixed bottom-4 left-4 shadow-lg z-40" />
+        <AlertBox type="success" message={adminRegistrations.success} className="fixed bottom-4 left-4 shadow-lg z-40" />
       )}
 
       <Modal
-        isOpen={voting.isAddRegistrationModalOpen}
-        onClose={voting.closeAddRegistrationModal}
-        title={`Anmeldung hinzufügen (${VOTE_OPTIONS.find((option) => option.value === voting.addRegistrationVote)?.label ?? "Ja"})`}
+        isOpen={adminRegistrations.isAddModalOpen}
+        onClose={adminRegistrations.closeAddModal}
+        title={`Anmeldung hinzufügen (${VOTE_OPTIONS.find((option) => option.value === adminRegistrations.addVote)?.label ?? "Ja"})`}
         size="lg"
       >
-        <form onSubmit={voting.handleSubmitAddRegistration} className="space-y-5">
-          <AlertBox type="error" message={voting.adminRegistrationError} />
+        <form onSubmit={adminRegistrations.handleSubmitAdd} className="space-y-5">
+          <AlertBox type="error" message={adminRegistrations.error} />
           <div className="flex flex-wrap gap-5">
             <label className="inline-flex items-center gap-2.5 text-base text-gray-800">
               <input
                 type="radio"
                 name="registration-mode"
                 value="member"
-                checked={voting.addRegistrationMode === "member"}
-                onChange={() => voting.setAddRegistrationMode("member")}
+                checked={adminRegistrations.addMode === "member"}
+                onChange={() => adminRegistrations.setAddMode("member")}
                 className="h-4 w-4 accent-brand-red-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-red-600/30"
               />
               Mitglied
@@ -340,33 +319,33 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
                 type="radio"
                 name="registration-mode"
                 value="guest"
-                checked={voting.addRegistrationMode === "guest"}
-                onChange={() => voting.setAddRegistrationMode("guest")}
+                checked={adminRegistrations.addMode === "guest"}
+                onChange={() => adminRegistrations.setAddMode("guest")}
                 className="h-4 w-4 accent-brand-red-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-red-600/30"
               />
               Gast
             </label>
           </div>
 
-          {voting.addRegistrationMode === "member" ? (
+          {adminRegistrations.addMode === "member" ? (
             <div>
               <label htmlFor="member-select" className="form-label">
                 Nicht angemeldetes Mitglied
               </label>
               <select
                 id="member-select"
-                value={voting.selectedMemberId}
-                onChange={(e) => voting.setSelectedMemberId(e.target.value)}
+                value={adminRegistrations.selectedMemberId}
+                onChange={(e) => adminRegistrations.setSelectedMemberId(e.target.value)}
                 className="form-select"
               >
                 <option value="">Bitte auswählen</option>
-                {voting.unregisteredMembers.map((member) => (
+                {adminRegistrations.unregisteredMembers.map((member) => (
                   <option key={member.userId} value={member.userId}>
                     {member.name}
                   </option>
                 ))}
               </select>
-              {voting.unregisteredMembers.length === 0 && (
+              {adminRegistrations.unregisteredMembers.length === 0 && (
                 <p className="text-sm text-gray-500 mt-2">Es sind keine weiteren Mitglieder ohne Anmeldung verfügbar.</p>
               )}
             </div>
@@ -378,8 +357,8 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
               <input
                 id="guest-name"
                 type="text"
-                value={voting.guestName}
-                onChange={(e) => voting.setGuestName(e.target.value)}
+                value={adminRegistrations.guestName}
+                onChange={(e) => adminRegistrations.setGuestName(e.target.value)}
                 className="form-input"
                 placeholder="Name des Gasts"
               />
@@ -387,12 +366,12 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
           )}
 
           <div className="flex justify-end gap-2 pt-1">
-            <button type="button" onClick={voting.closeAddRegistrationModal} className="btn-outline">
+            <button type="button" onClick={adminRegistrations.closeAddModal} className="btn-outline">
               Abbrechen
             </button>
             <LoadingButton
               type="submit"
-              loading={voting.registrationActionKey === "create-registration"}
+              loading={adminRegistrations.actionKey === "create-registration"}
               loadingText="Speichern"
               className="btn-primary"
             >
@@ -410,6 +389,7 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
         eventData={eventManagement.modalEventData}
         setEventData={eventManagement.setModalEventData}
         isEditing={!!eventManagement.editingEvent}
+        eventId={eventManagement.editingEvent?.id}
         errors={eventManagement.error ? { general: eventManagement.error } : {}}
         fieldErrors={eventManagement.fieldErrors}
         initialEventData={eventManagement.initialEventData}

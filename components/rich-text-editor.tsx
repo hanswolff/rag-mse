@@ -7,7 +7,8 @@ import { EditorContent, useEditor } from "@tiptap/react";
 import { getUtf8ByteLength } from "@/lib/event-description";
 
 interface RichTextEditorProps {
-  id: string;
+  labelId: string;
+  errorId?: string;
   value: string;
   onChange: (html: string) => void;
   onBlur?: () => void;
@@ -20,8 +21,11 @@ const BUTTON_BASE_CLASS =
   "px-2 py-1 text-sm rounded border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed";
 const BUTTON_ACTIVE_CLASS = "bg-brand-blue-50 text-brand-blue-800 border-brand-blue-200";
 
+const EDITOR_CLASS = "tiptap-content form-input min-h-[140px] max-h-[350px] overflow-y-auto";
+
 export function RichTextEditor({
-  id,
+  labelId,
+  errorId,
   value,
   onChange,
   onBlur,
@@ -58,7 +62,7 @@ export function RichTextEditor({
       },
       editorProps: {
         attributes: {
-          class: "tiptap-content form-input min-h-[140px] max-h-[350px] overflow-y-auto",
+          class: EDITOR_CLASS,
         },
       },
     },
@@ -79,6 +83,21 @@ export function RichTextEditor({
   useEffect(() => {
     editor?.setEditable(!disabled);
   }, [editor, disabled]);
+
+  useEffect(() => {
+    editor?.setOptions({
+      editorProps: {
+        attributes: {
+          class: EDITOR_CLASS,
+          role: "textbox",
+          "aria-multiline": "true",
+          "aria-labelledby": labelId,
+          "aria-invalid": error ? "true" : "false",
+          ...(error && errorId ? { "aria-describedby": errorId } : {}),
+        },
+      },
+    });
+  }, [editor, labelId, error, errorId]);
 
   const bytes = getUtf8ByteLength(value);
   const isOverLimit = bytes > maxBytes;
@@ -116,7 +135,7 @@ export function RichTextEditor({
     try {
       const parsed = new URL(url);
       if (!ALLOWED_PROTOCOLS.includes(parsed.protocol)) {
-        setLinkError("Nur http, https und mailto Links sind erlaubt.");
+        setLinkError("Nur http-, https- und mailto-Links sind erlaubt.");
         return;
       }
     } catch {
@@ -140,8 +159,6 @@ export function RichTextEditor({
 
   return (
     <div>
-      <textarea id={id} value={value} readOnly disabled={disabled} className="sr-only" tabIndex={-1} aria-hidden="true" />
-
       <div className="mb-2 flex flex-wrap gap-2">
         <button
           type="button"
@@ -149,6 +166,7 @@ export function RichTextEditor({
           disabled={disabled || !editor}
           className={`${BUTTON_BASE_CLASS} ${editor?.isActive("bold") ? BUTTON_ACTIVE_CLASS : ""}`}
           aria-label="Fett"
+          aria-pressed={editor?.isActive("bold") ?? false}
         >
           Fett
         </button>
@@ -158,6 +176,7 @@ export function RichTextEditor({
           disabled={disabled || !editor}
           className={`${BUTTON_BASE_CLASS} ${editor?.isActive("italic") ? BUTTON_ACTIVE_CLASS : ""}`}
           aria-label="Kursiv"
+          aria-pressed={editor?.isActive("italic") ?? false}
         >
           Kursiv
         </button>
@@ -167,6 +186,7 @@ export function RichTextEditor({
           disabled={disabled || !editor}
           className={`${BUTTON_BASE_CLASS} ${editor?.isActive("bulletList") ? BUTTON_ACTIVE_CLASS : ""}`}
           aria-label="Aufzählung"
+          aria-pressed={editor?.isActive("bulletList") ?? false}
         >
           Liste
         </button>
@@ -176,6 +196,7 @@ export function RichTextEditor({
           disabled={disabled || !editor}
           className={`${BUTTON_BASE_CLASS} ${editor?.isActive("orderedList") ? BUTTON_ACTIVE_CLASS : ""}`}
           aria-label="Nummerierte Liste"
+          aria-pressed={editor?.isActive("orderedList") ?? false}
         >
           Nummeriert
         </button>
@@ -204,6 +225,7 @@ export function RichTextEditor({
               if (e.key === "Escape") { setLinkInputOpen(false); setLinkUrl(""); setLinkError(""); }
             }}
             placeholder="https://example.com"
+            aria-label="Link-Adresse"
             className="form-input flex-1 min-w-0 text-sm py-1"
             autoFocus
           />

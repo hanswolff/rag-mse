@@ -1,59 +1,55 @@
 import { POST, GET } from "@/app/api/invitations/[token]/route";
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
+import { apiRequest, routeContext } from "./helpers/request";
 import { prisma } from "@/lib/prisma";
 import { getInvitationExpiryDate } from "@/lib/invitations";
 import { logInfo, logValidationFailure, logResourceNotFound, logError } from "@/lib/logger";
-import { parseJsonBody } from "@/lib/api-utils";
+import { parseJsonBody } from "@/lib/request-body-parser";
 
-jest.mock("@/lib/prisma", () => ({
-  prisma: {
-    invitation: {
-      findUnique: jest.fn(),
-      update: jest.fn(),
-    },
-    user: {
-      findUnique: jest.fn(),
-      update: jest.fn(),
-      create: jest.fn(),
-    },
-    $transaction: jest.fn(),
-  },
-}));
+jest.mock("@/lib/prisma", () =>
+  jest.requireActual<typeof import("./helpers/prisma-mock")>("./helpers/prisma-mock").prismaModuleMock,
+);
 
-jest.mock("@/lib/logger", () => ({
-  logInfo: jest.fn(),
-  logError: jest.fn(),
-  logValidationFailure: jest.fn(),
-  logResourceNotFound: jest.fn(),
-  logWarn: jest.fn(),
-  maskToken: jest.fn((t) => t.substring(0, 8) + "..."),
+jest.mock("@/lib/logger", () =>
+  jest.requireActual<typeof import("./helpers/logger-mock")>("./helpers/logger-mock").mockLogger,
+);
+
+jest.mock("@/lib/rate-limiter", () => ({
+  checkTokenRateLimit: jest.fn(),
+  checkTokenReadRateLimit: jest.fn(),
+  recordSuccessfulTokenUsage: jest.fn(),
 }));
 
 jest.mock("@/lib/api-utils", () => {
   const actual = jest.requireActual("@/lib/api-utils");
   return {
     ...actual,
-    parseJsonBody: jest.fn(),
     getClientIp: jest.fn(() => "127.0.0.1"),
     handleRateLimitBlocked: jest.fn(),
-    validateRequestBody: jest.fn().mockReturnValue({ isValid: true, errors: [] }),
-    validateCsrfHeaders: jest.fn(),
     checkTokenRateLimitWithPolicy: jest.fn(),
     recordSuccessfulTokenUsageWithPolicy: jest.fn(),
   };
 });
 
-function createMockRequest(body: Record<string, unknown>) {
+jest.mock("@/lib/request-body-parser", () => {
+  const actual = jest.requireActual("@/lib/request-body-parser");
   return {
-    json: jest.fn().mockResolvedValue(body),
-    headers: {
-      get: jest.fn().mockReturnValue(null),
-    },
-  } as unknown as NextRequest;
-}
+    ...actual,
+    parseJsonBody: jest.fn(),
+    validateRequestBody: jest.fn().mockReturnValue({ isValid: true, errors: [] }),
+  };
+});
 
-function createMockParams(token: string) {
-  return Promise.resolve({ token });
+jest.mock("@/lib/csrf-validator", () => {
+  const actual = jest.requireActual("@/lib/csrf-validator");
+  return {
+    ...actual,
+    validateCsrfHeaders: jest.fn(),
+  };
+});
+
+function createMockRequest(body: Record<string, unknown>) {
+  return apiRequest("POST", "/api/invitations/token", { body });
 }
 
 describe("/api/invitations/[token] route", () => {
@@ -68,12 +64,18 @@ describe("/api/invitations/[token] route", () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    const { checkTokenRateLimitWithPolicy } = jest.requireMock("@/lib/api-utils");
-    checkTokenRateLimitWithPolicy.mockResolvedValue({ allowed: true, attemptCount: 1 });
+    // clearAllMocks lässt nicht verbrauchte mockResolvedValueOnce-Werte stehen;
+    // sie würden sonst in den nächsten Test durchsickern (reihenfolgeabhängig).
+    (prisma.invitation.findUnique as jest.Mock).mockReset();
+    (prisma.user.findUnique as jest.Mock).mockReset();
+    const { checkTokenRateLimit, checkTokenReadRateLimit } = jest.requireMock("@/lib/rate-limiter");
+    checkTokenRateLimit.mockResolvedValue({ allowed: true, attemptCount: 1 });
+    checkTokenReadRateLimit.mockResolvedValue({ allowed: true, attemptCount: 1 });
     (prisma.$transaction as jest.Mock).mockImplementation(async (callback: (tx: typeof prisma) => Promise<unknown>) => {
       const tx = {
         invitation: prisma.invitation,
         user: prisma.user,
+        $queryRaw: prisma.$queryRaw,
       };
       return callback(tx as unknown as typeof prisma);
     });
@@ -87,8 +89,8 @@ describe("/api/invitations/[token] route", () => {
         name: "Max Mustermann",
       });
 
-      const request = {} as NextRequest;
-      const response = await GET(request, { params: createMockParams("valid-token") });
+      const request = createMockRequest({});
+      const response = await GET(request, routeContext({ token: "valid-token" }));
       const data = await response.json();
 
       expect(response.status).toBe(200);
@@ -104,21 +106,18 @@ describe("/api/invitations/[token] route", () => {
     });
 
     it("rate-limits token probing on GET", async () => {
-      const { checkTokenRateLimitWithPolicy, handleRateLimitBlocked } = jest.requireMock("@/lib/api-utils");
-      checkTokenRateLimitWithPolicy.mockResolvedValue({ allowed: false, attemptCount: 5, blockedUntil: Date.now() + 60000 });
-      handleRateLimitBlocked.mockReturnValue(
-        NextResponse.json({ error: "Zu viele Versuche" }, { status: 429 })
-      );
+      const { checkTokenReadRateLimit } = jest.requireMock("@/lib/rate-limiter");
+      checkTokenReadRateLimit.mockResolvedValue({ allowed: false, attemptCount: 5, blockedUntil: Date.now() + 60000 });
 
-      const request = {} as NextRequest;
-      const response = await GET(request, { params: createMockParams("probed-token") });
+      const request = createMockRequest({});
+      const response = await GET(request, routeContext({ token: "probed-token" }));
 
       expect(response.status).toBe(429);
       expect(prisma.invitation.findUnique).not.toHaveBeenCalled();
     });
 
     it("returns 400 for missing token", async () => {
-      const request = {} as NextRequest;
+      const request = createMockRequest({});
       const response = await GET(request, { params: Promise.resolve({ token: "" }) });
       const data = await response.json();
 
@@ -129,8 +128,8 @@ describe("/api/invitations/[token] route", () => {
     it("returns 404 for invalid token", async () => {
       (prisma.invitation.findUnique as jest.Mock).mockResolvedValue(null);
 
-      const request = {} as NextRequest;
-      const response = await GET(request, { params: createMockParams("invalid-token") });
+      const request = createMockRequest({});
+      const response = await GET(request, routeContext({ token: "invalid-token" }));
       const data = await response.json();
 
       expect(response.status).toBe(404);
@@ -145,8 +144,8 @@ describe("/api/invitations/[token] route", () => {
       };
       (prisma.invitation.findUnique as jest.Mock).mockResolvedValue(expiredInvitation);
 
-      const request = {} as NextRequest;
-      const response = await GET(request, { params: createMockParams("expired-token") });
+      const request = createMockRequest({});
+      const response = await GET(request, routeContext({ token: "expired-token" }));
       const data = await response.json();
 
       expect(response.status).toBe(410);
@@ -160,8 +159,8 @@ describe("/api/invitations/[token] route", () => {
       };
       (prisma.invitation.findUnique as jest.Mock).mockResolvedValue(usedInvitation);
 
-      const request = {} as NextRequest;
-      const response = await GET(request, { params: createMockParams("used-token") });
+      const request = createMockRequest({});
+      const response = await GET(request, routeContext({ token: "used-token" }));
       const data = await response.json();
 
       expect(response.status).toBe(410);
@@ -171,8 +170,8 @@ describe("/api/invitations/[token] route", () => {
     it("handles errors gracefully", async () => {
       (prisma.invitation.findUnique as jest.Mock).mockRejectedValue(new Error("Database error"));
 
-      const request = {} as NextRequest;
-      const response = await GET(request, { params: createMockParams("error-token") });
+      const request = createMockRequest({});
+      const response = await GET(request, routeContext({ token: "error-token" }));
       const data = await response.json();
 
       expect(response.status).toBe(500);
@@ -205,7 +204,7 @@ describe("/api/invitations/[token] route", () => {
       (prisma.invitation.update as jest.Mock).mockResolvedValue({});
 
       const request = createMockRequest(validRequestBody);
-      const response = await POST(request, { params: createMockParams("valid-token") });
+      const response = await POST(request, routeContext({ token: "valid-token" }));
       const data = await response.json();
 
       expect(response.status).toBe(200);
@@ -226,7 +225,7 @@ describe("/api/invitations/[token] route", () => {
       const invalidBody = { ...validRequestBody, name: "" };
 
       const request = createMockRequest(invalidBody);
-      const response = await POST(request, { params: createMockParams("valid-token") });
+      const response = await POST(request, routeContext({ token: "valid-token" }));
       const data = await response.json();
 
       expect(response.status).toBe(400);
@@ -238,7 +237,7 @@ describe("/api/invitations/[token] route", () => {
       const invalidBody = { ...validRequestBody, password: "weak" };
 
       const request = createMockRequest(invalidBody);
-      const response = await POST(request, { params: createMockParams("valid-token") });
+      const response = await POST(request, routeContext({ token: "valid-token" }));
       const data = await response.json();
 
       expect(response.status).toBe(400);
@@ -250,7 +249,7 @@ describe("/api/invitations/[token] route", () => {
       const invalidBody = { ...validRequestBody, confirmPassword: "DifferentPassword123!" };
 
       const request = createMockRequest(invalidBody);
-      const response = await POST(request, { params: createMockParams("valid-token") });
+      const response = await POST(request, routeContext({ token: "valid-token" }));
       const data = await response.json();
 
       expect(response.status).toBe(400);
@@ -288,7 +287,7 @@ describe("/api/invitations/[token] route", () => {
       (prisma.invitation.update as jest.Mock).mockResolvedValue({});
 
       const request = createMockRequest(validRequestBody);
-      const response = await POST(request, { params: createMockParams("valid-token") });
+      const response = await POST(request, routeContext({ token: "valid-token" }));
       const data = await response.json();
 
       expect(response.status).toBe(200);
@@ -330,7 +329,7 @@ describe("/api/invitations/[token] route", () => {
         associationMemberNumber: "",
         hasPossessionCard: false,
       });
-      const response = await POST(request, { params: createMockParams("valid-token") });
+      const response = await POST(request, routeContext({ token: "valid-token" }));
 
       expect(response.status).toBe(200);
       const updateData = (prisma.user.update as jest.Mock).mock.calls[0][0].data;
@@ -362,7 +361,7 @@ describe("/api/invitations/[token] route", () => {
         password: "SecurePassword123!",
         confirmPassword: "SecurePassword123!",
       });
-      const response = await POST(request, { params: createMockParams("used-token") });
+      const response = await POST(request, routeContext({ token: "used-token" }));
       const data = await response.json();
 
       expect(response.status).toBe(410);
@@ -384,7 +383,7 @@ describe("/api/invitations/[token] route", () => {
         password: "SecurePassword123!",
         confirmPassword: "SecurePassword123!",
       });
-      const response = await POST(request, { params: createMockParams("expired-token") });
+      const response = await POST(request, routeContext({ token: "expired-token" }));
       const data = await response.json();
 
       expect(response.status).toBe(410);
@@ -406,7 +405,7 @@ describe("/api/invitations/[token] route", () => {
         password: "SecurePassword123!",
         confirmPassword: "SecurePassword123!",
       });
-      const response = await POST(request, { params: createMockParams("deleted-token") });
+      const response = await POST(request, routeContext({ token: "deleted-token" }));
       const data = await response.json();
 
       expect(response.status).toBe(404);
@@ -437,7 +436,7 @@ describe("/api/invitations/[token] route", () => {
         password: "SecurePassword123!",
         confirmPassword: "SecurePassword123!",
       });
-      const response = await POST(request, { params: createMockParams("invalid-token") });
+      const response = await POST(request, routeContext({ token: "invalid-token" }));
       const data = await response.json();
 
       expect(response.status).toBe(404);
@@ -457,7 +456,7 @@ describe("/api/invitations/[token] route", () => {
         password: "SecurePassword123!",
         confirmPassword: "SecurePassword123!",
       });
-      const response = await POST(request, { params: createMockParams("expired-token") });
+      const response = await POST(request, routeContext({ token: "expired-token" }));
       const data = await response.json();
 
       expect(response.status).toBe(410);
@@ -477,7 +476,7 @@ describe("/api/invitations/[token] route", () => {
         password: "SecurePassword123!",
         confirmPassword: "SecurePassword123!",
       });
-      const response = await POST(request, { params: createMockParams("used-token") });
+      const response = await POST(request, routeContext({ token: "used-token" }));
       const data = await response.json();
 
       expect(response.status).toBe(410);
@@ -493,7 +492,7 @@ describe("/api/invitations/[token] route", () => {
         password: "SecurePassword123!",
         confirmPassword: "SecurePassword123!",
       });
-      const response = await POST(request, { params: createMockParams("error-token") });
+      const response = await POST(request, routeContext({ token: "error-token" }));
       const data = await response.json();
 
       expect(response.status).toBe(500);
@@ -522,7 +521,7 @@ describe("/api/invitations/[token] route", () => {
         password: "SecurePassword123!",
         confirmPassword: "SecurePassword123!",
       });
-      const response = await POST(request, { params: createMockParams("valid-token") });
+      const response = await POST(request, routeContext({ token: "valid-token" }));
       const data = await response.json();
 
       expect(response.status).toBe(200);
@@ -548,7 +547,7 @@ describe("/api/invitations/[token] route", () => {
         password: "SecurePassword123!",
         confirmPassword: "SecurePassword123!",
       });
-      const response = await POST(request, { params: createMockParams("valid-token") });
+      const response = await POST(request, routeContext({ token: "valid-token" }));
 
       expect(response.status).toBe(200);
       expect(prisma.user.create).toHaveBeenCalledWith(

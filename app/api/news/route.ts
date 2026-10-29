@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getPublicCacheHeaders, withApiErrorHandling } from "@/lib/api-utils";
+import { getPublicCacheHeaders, withApiErrorHandling } from "@/lib/api-error-handler";
 import { parsePageNumber, parsePageSize } from "@/lib/api-pagination";
 
 export const GET = withApiErrorHandling(async (request: NextRequest) => {

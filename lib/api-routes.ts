@@ -13,11 +13,15 @@ export const API_ROUTES = {
   RANGES: "/api/ranges",
   POLLS: "/api/polls",
   AUSSCHREIBUNGEN: "/api/ausschreibungen",
+  ABSENCES: "/api/abwesenheiten",
+  CALENDAR: "/api/kalender",
   ADMIN: {
     EVENTS: "/api/admin/events",
     DOCUMENTS: "/api/admin/documents",
     DOCUMENT_DIRECTORIES: "/api/admin/document-directories",
     AUSSCHREIBUNGEN: "/api/admin/ausschreibungen",
+    EXTERNAL_EVENTS: "/api/admin/fremdtermine",
+    COLLISIONS: "/api/admin/kollisionen",
   },
   MEMBER: {
     DOCUMENTS: "/api/member/documents",

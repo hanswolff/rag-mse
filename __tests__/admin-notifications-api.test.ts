@@ -3,18 +3,9 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/auth-utils";
 
-jest.mock("@/lib/prisma", () => ({
-  prisma: {
-    eventReminderDispatch: {
-      findMany: jest.fn(),
-      count: jest.fn(),
-    },
-    pollNotificationDispatch: {
-      findMany: jest.fn(),
-      count: jest.fn(),
-    },
-  },
-}));
+jest.mock("@/lib/prisma", () =>
+  jest.requireActual<typeof import("./helpers/prisma-mock")>("./helpers/prisma-mock").prismaModuleMock,
+);
 
 jest.mock("@/lib/auth-utils", () => ({
   requireAuth: jest.fn(),
@@ -78,11 +69,9 @@ describe("/api/admin/notifications", () => {
     });
 
     const firstCall = (prisma.eventReminderDispatch.findMany as jest.Mock).mock.calls[0][0];
-    expect(firstCall.where.OR).toHaveLength(2);
+    expect(firstCall.where.OR).toHaveLength(1);
     expect(firstCall.where.OR[0].sentAt.not).toBeNull();
     expect(firstCall.where.OR[0].sentAt.gte).toBeInstanceOf(Date);
-    expect(firstCall.where.OR[1].sentAt).toBeNull();
-    expect(firstCall.where.OR[1].queuedAt.gte).toBeInstanceOf(Date);
     expect(firstCall.orderBy).toEqual([{ sentAt: "desc" }, { queuedAt: "desc" }, { id: "desc" }]);
   });
 

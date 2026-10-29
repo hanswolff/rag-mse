@@ -1,36 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/auth-utils";
-import { BadRequestError, withApiErrorHandling, validateCsrfHeaders } from "@/lib/api-utils";
-import {
-  buildInviteUrl,
-  generateInvitationToken,
-  hashInvitationToken,
-  getInvitationExpiryDate,
-  sendInvitationEmail,
-} from "@/lib/invitations";
-import { logWarn } from "@/lib/logger";
-
-type InvitationTransactionClient = {
-  invitation: Pick<typeof prisma.invitation, "updateMany" | "update">;
-};
-
-async function rollbackInvitationToken(invitationId: string, previousTokenHash: string, previousExpiresAt: Date): Promise<void> {
-  try {
-    await prisma.invitation.update({
-      where: { id: invitationId },
-      data: {
-        tokenHash: previousTokenHash,
-        expiresAt: previousExpiresAt,
-      },
-    });
-  } catch (rollbackError) {
-    logWarn("invitation_resend_rollback_failed", "Failed to rollback invitation token after email failure", {
-      invitationId,
-      error: rollbackError instanceof Error ? rollbackError.message : String(rollbackError),
-    });
-  }
-}
+import { withApiErrorHandling } from "@/lib/api-error-handler";
+import { validateCsrfHeaders } from "@/lib/csrf-validator";
+import { reissueInvitation } from "@/lib/invitations";
+import { getAppUrl } from "@/lib/site-config";
 
 export const POST = withApiErrorHandling(async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
   validateCsrfHeaders(request);
@@ -56,50 +30,19 @@ export const POST = withApiErrorHandling(async (request: NextRequest, { params }
     );
   }
 
-  const appUrl = process.env.APP_URL;
-  if (!appUrl) {
-    throw new BadRequestError("APP_URL ist nicht konfiguriert");
-  }
+  const appUrl = getAppUrl();
 
-  const newToken = generateInvitationToken();
-  const newTokenHash = hashInvitationToken(newToken);
-
-  await prisma.$transaction(async (tx: InvitationTransactionClient) => {
-    await tx.invitation.updateMany({
-      where: {
-        email: invitation.email,
-        usedAt: null,
-        NOT: { id: invitationId },
-      },
-      data: {
-        usedAt: new Date(),
-      },
-    });
-
-    await tx.invitation.update({
-      where: { id: invitationId },
-      data: {
-        tokenHash: newTokenHash,
-        expiresAt: getInvitationExpiryDate(),
-      },
-    });
-  });
-
-  const inviteUrl = buildInviteUrl(appUrl, newToken);
-
-  const result = await sendInvitationEmail({
-    email: invitation.email,
-    inviteUrl,
+  const result = await reissueInvitation({
+    invitation,
+    appUrl,
     logContext: {
       route: "/api/admin/invitations/[id]/resend",
       method: "POST",
-      invitationId: invitationId,
       userEmail: invitation.invitedBy?.email,
     },
   });
 
-  if (!result.success) {
-    await rollbackInvitationToken(invitationId, invitation.tokenHash, invitation.expiresAt);
+  if (!result.emailSent) {
     return NextResponse.json(
       { error: "E-Mail konnte nicht gesendet werden. Bitte versuchen Sie es erneut." },
       { status: 500 }

@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireMember } from "@/lib/auth-utils";
-import { withApiErrorHandling, getAuthNoCacheHeaders } from "@/lib/api-utils";
+import { canAccessAdminArea } from "@/lib/role-utils";
+import { redactInvisibleEvent } from "@/lib/event-visibility";
+import { withApiErrorHandling, getAuthNoCacheHeaders } from "@/lib/api-error-handler";
 import { parsePageNumber, parsePageSize } from "@/lib/api-pagination";
 
 export const GET = withApiErrorHandling(async (request: NextRequest) => {
@@ -66,15 +68,17 @@ export const GET = withApiErrorHandling(async (request: NextRequest) => {
           select: { optionId: true },
         },
         event: {
-          select: { id: true, date: true, timeFrom: true, timeTo: true, location: true, description: true },
+          select: { id: true, date: true, timeFrom: true, timeTo: true, location: true, description: true, visibility: true, createdById: true },
         },
       },
     }),
     prisma.poll.count({ where }),
   ]);
 
-  const pollsWithUserVotes = polls.map(({ votes, ...poll }) => ({
+  const viewer = { userId: user.id, canSeeAll: canAccessAdminArea(user) };
+  const pollsWithUserVotes = polls.map(({ votes, event, ...poll }) => ({
     ...poll,
+    event: redactInvisibleEvent(event, viewer),
     userVoteOptionIds: votes.map((v) => v.optionId),
   }));
 

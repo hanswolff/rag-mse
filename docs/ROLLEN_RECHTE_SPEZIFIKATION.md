@@ -97,6 +97,10 @@ Stand von `lib/permissions.ts`.
 ### Ausschreibungen
 
 - Die öffentliche Seite `/ausschreibungen` ist ohne Login zugänglich.
+- Sichtbarkeitsstufen (ADR 0011): Anonyme Besucher sehen nur `PUBLIC`, eingeloggte
+  Benutzer aller Rollen zusätzlich `MEMBER`; `HIDDEN` erscheint ausschließlich im
+  Adminbereich. Das gilt auch für den öffentlichen Datei-Endpunkt; Rollen mit
+  Admin-Lesezugriff erreichen jedes PDF über `GET /api/admin/ausschreibungen/[id]/file`.
 - `canReadAusschreibungenAdmin` (= Adminbereich lesen, inkl. `AUDITOR`): Lesezugriff
   auf den Ausschreibungen-Adminbereich (`/admin/ausschreibungen`).
 - `canManageAusschreibungen` (= `ADMIN`/`SITE_ADMINISTRATOR`): Ausschreibungs-PDFs

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth, ForbiddenError } from "@/lib/auth-utils";
-import { withApiErrorHandling } from "@/lib/api-utils";
+import { withApiErrorHandling } from "@/lib/api-error-handler";
 import { Permissions } from "@/lib/permissions";
 import { redactSensitiveLinkTokens } from "@/lib/email/redact";
 import {

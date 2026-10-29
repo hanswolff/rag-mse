@@ -12,13 +12,9 @@ jest.mock("@/lib/auth-utils", () => ({
   },
 }));
 
-jest.mock("@/lib/prisma", () => ({
-  prisma: {
-    user: {
-      findUnique: jest.fn(),
-    },
-  },
-}));
+jest.mock("@/lib/prisma", () =>
+  jest.requireActual<typeof import("./helpers/prisma-mock")>("./helpers/prisma-mock").prismaModuleMock,
+);
 
 describe("POST /api/admin/users/[id]/impersonate", () => {
   const mockRequireAuth = requireAuth as jest.Mock;

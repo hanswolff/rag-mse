@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getPublicCacheHeaders, withApiErrorHandling } from "@/lib/api-utils";
+import { getPublicCacheHeaders, withApiErrorHandling } from "@/lib/api-error-handler";
 import { logResourceNotFound } from "@/lib/logger";
 
 export const GET = withApiErrorHandling(async (

@@ -176,7 +176,7 @@ describe("ForgotPasswordPage", () => {
       fireEvent.click(submitButton);
 
       expect(submitButton).toBeDisabled();
-      expect(submitButton).toHaveTextContent("Wird gesendet...");
+      expect(submitButton).toHaveTextContent("Wird gesendet…");
 
       resolveFetch!({
         ok: true,

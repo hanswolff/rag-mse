@@ -64,7 +64,7 @@ export default function UeberUnsPage() {
             <p>
               Wir bieten regelmäßige Schießtermine, Aus- und Fortbildungen,
               Meisterschaften und kameradschaftliche Treffen. Interessierte sind
-              nach vorheriger Anmeldung willkommen – werde Teil unserer
+              nach vorheriger Anmeldung willkommen – werden Sie Teil unserer
               Gemeinschaft!
             </p>
           </div>

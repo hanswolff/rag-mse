@@ -2,11 +2,12 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useSession, signOut } from "next-auth/react";
 import { canAccessAdminArea, canManageOwnProfile, canReadMemberDocuments } from "@/lib/role-utils";
-import { API_ROUTES } from "@/lib/api-routes";
+import { useNavBadges } from "@/lib/use-nav-badges";
+import { useStopImpersonation } from "@/lib/use-stop-impersonation";
 import { MenuIcon, XIcon } from "./icons";
 import { ImpersonationBanner } from "./nav/impersonation-banner";
 import { DesktopInfoMenu, MobileInfoMenu, INFO_ITEMS, TOP_INFO_ITEMS, MEMBER_DOCUMENTS_ITEM } from "./nav/info-menu";
@@ -17,6 +18,7 @@ const NAV_ITEMS = [
   { href: "/", label: "Startseite" },
   { href: "/ueber-uns", label: "Über uns" },
   { href: "/termine", label: "Termine" },
+  { href: "/kalender", label: "Kalender" },
 ] as const;
 
 const ACTIVE_CLASSES = "text-brand-red-700 border-brand-red-600";
@@ -29,18 +31,15 @@ const MOBILE_LINK_CLASSES =
 
 export function Navigation() {
   const pathname = usePathname();
-  const router = useRouter();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [isInfoMenuOpen, setIsInfoMenuOpen] = useState(false);
   const [isMobileInfoOpen, setIsMobileInfoOpen] = useState(false);
-  const [isStoppingImpersonation, setIsStoppingImpersonation] = useState(false);
-  const [impersonationError, setImpersonationError] = useState("");
-  const [openPollsCount, setOpenPollsCount] = useState(0);
-  const [openAusschreibungenCount, setOpenAusschreibungenCount] = useState(0);
   const userMenuRef = useRef<HTMLDivElement>(null);
   const infoMenuRef = useRef<HTMLDivElement>(null);
-  const { data: session, status, update } = useSession();
+  const { data: session, status } = useSession();
+  const { isImpersonating, impersonatedBy, isStoppingImpersonation, impersonationError, handleStopImpersonation } =
+    useStopImpersonation();
 
   const isActive = (path: string) => pathname === path;
 
@@ -70,70 +69,10 @@ export function Navigation() {
 
   const userName = session?.user?.name || "Benutzer";
   const canAccessSelfServiceMenu = !!session && canManageOwnProfile(session.user);
-  const isImpersonating = !!session?.user?.isImpersonating && !!session.user.impersonatedBy?.id;
-  const impersonatedBy = session?.user?.impersonatedBy;
   const showAdminLink = !!session && canAccessAdminArea(session.user);
   const showMemberDocuments = status === "authenticated" && !!session && canReadMemberDocuments(session.user);
 
-  // Fetch open polls count for badge in user menu
-  useEffect(() => {
-    if (status !== "authenticated" || !canAccessSelfServiceMenu) return;
-
-    let ignore = false;
-    const fetchOpenPollsCount = async () => {
-      try {
-        const response = await fetch("/api/polls?status=LIVE&limit=50");
-        if (!response.ok || ignore) return;
-        const data = await response.json();
-        // Count polls where user hasn't voted
-        const count = data.polls.filter(
-          (poll: { userVoteOptionIds: string[] }) => poll.userVoteOptionIds.length === 0
-        ).length;
-        if (!ignore) setOpenPollsCount(count);
-      } catch {
-        // Silently fail - badge is optional
-      }
-    };
-
-    void fetchOpenPollsCount();
-
-    // Listen for poll vote changes to refresh badge
-    const handlePollVoteChanged = () => {
-      void fetchOpenPollsCount();
-    };
-
-    window.addEventListener("poll-vote-changed", handlePollVoteChanged);
-    return () => {
-      ignore = true;
-      window.removeEventListener("poll-vote-changed", handlePollVoteChanged);
-    };
-  }, [status, canAccessSelfServiceMenu]);
-
-  // Badge im Infos-Menü: Anzahl der noch laufenden Ausschreibungen. Die Route ist
-  // öffentlich und liefert die Aufteilung aktuell/historisch bereits fertig, das
-  // Badge hängt daher nicht am Login-Status.
-  useEffect(() => {
-    let ignore = false;
-
-    const fetchOpenAusschreibungenCount = async () => {
-      try {
-        const response = await fetch(API_ROUTES.AUSSCHREIBUNGEN);
-        if (!response.ok || ignore) return;
-        const data = await response.json();
-        if (!ignore) {
-          setOpenAusschreibungenCount(Array.isArray(data.current) ? data.current.length : 0);
-        }
-      } catch {
-        // Silently fail - badge is optional
-      }
-    };
-
-    void fetchOpenAusschreibungenCount();
-
-    return () => {
-      ignore = true;
-    };
-  }, []);
+  const { openPollsCount, openAusschreibungenCount } = useNavBadges(status, canAccessSelfServiceMenu);
 
   const handleLogout = async () => {
     setIsUserMenuOpen(false);
@@ -143,42 +82,6 @@ export function Navigation() {
   const handleMobileLogout = async () => {
     setIsMenuOpen(false);
     await signOut({ callbackUrl: "/" });
-  };
-
-  const handleStopImpersonation = async () => {
-    if (!isImpersonating || isStoppingImpersonation) return;
-
-    if (typeof update !== "function") {
-      setImpersonationError("Impersonierung konnte nicht beendet werden");
-      return;
-    }
-
-    setImpersonationError("");
-    setIsStoppingImpersonation(true);
-    try {
-      const response = await fetch(API_ROUTES.AUTH.IMPERSONATION_STOP, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-      });
-      const data = await response.json();
-      if (!response.ok || typeof data.proof !== "string") {
-        setImpersonationError(data.error || "Impersonierung konnte nicht beendet werden");
-        return;
-      }
-
-      const updatedSession = await update({ impersonationStopProof: data.proof });
-      if (updatedSession?.user?.isImpersonating) {
-        setImpersonationError("Impersonierung konnte nicht beendet werden");
-        return;
-      }
-
-      router.push("/admin/benutzerverwaltung");
-      router.refresh();
-    } catch {
-      setImpersonationError("Impersonierung konnte nicht beendet werden");
-    } finally {
-      setIsStoppingImpersonation(false);
-    }
   };
 
   const isInfoActive =
@@ -205,7 +108,7 @@ export function Navigation() {
               <div className="relative w-9 h-9 sm:w-12 sm:h-12">
                 <Image
                   src="/vdrbw-logo.svg"
-                  alt="RAG Schießsport Logo"
+                  alt="RAG-Schießsport-Logo"
                   fill
                   className="object-contain"
                   priority
@@ -260,8 +163,9 @@ export function Navigation() {
               className="inline-flex items-center justify-center p-2 rounded-md text-brand-blue-900 hover:text-brand-red-700 hover:bg-brand-blue-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-white focus:ring-brand-red-600/30 touch-manipulation"
               onClick={() => setIsMenuOpen(!isMenuOpen)}
               aria-expanded={isMenuOpen}
+              aria-controls="mobile-menu"
             >
-              <span className="sr-only">Menü öffnen</span>
+              <span className="sr-only">{isMenuOpen ? "Menü schließen" : "Menü öffnen"}</span>
               <span className={`${isMenuOpen ? "hidden" : "block"} h-6 w-6`}>
                 <MenuIcon />
               </span>
@@ -273,7 +177,7 @@ export function Navigation() {
         </div>
       </div>
 
-      <div className={`${isMenuOpen ? "block" : "hidden"} lg:hidden`} data-testid="mobile-menu">
+      <div id="mobile-menu" className={`${isMenuOpen ? "block" : "hidden"} lg:hidden`} data-testid="mobile-menu">
         <div className="px-3 pt-1.5 pb-3 space-y-0.5 bg-white border-t border-brand-blue-100 max-h-[calc(100vh-3.5rem)] sm:max-h-[calc(100vh-5rem)] overflow-y-auto overscroll-contain">
           {NAV_ITEMS.map((item) => (
             <Link

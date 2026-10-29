@@ -1,5 +1,6 @@
 import { promises as fs } from "fs";
 import path from "path";
+import { appName } from "./site-config";
 
 const TEMPLATE_DIR = path.join(process.cwd(), "emails", "templates");
 
@@ -33,21 +34,25 @@ export async function loadEmailTemplate(templateName: string): Promise<EmailTemp
 
 function applyPlaceholders(template: string, variables: Record<string, string>): string {
   // Ein Durchlauf über das Template statt sequenzieller replaceAll-Aufrufe:
-  // Sonst würde ein "{{andereVariable}}" in einem Benutzerwert (z.B. Name im
+  // Sonst würde ein "{{andereVariable}}" in einem Benutzerwert (z. B. Name im
   // Kontaktformular) nachträglich mit ersetzt (Content-Spoofing).
   return template.replace(/\{\{(\w+)\}\}/g, (match, key: string) =>
     Object.prototype.hasOwnProperty.call(variables, key) ? variables[key] : match
   );
 }
 
+export function applyEmailTemplate(template: EmailTemplate, variables: Record<string, string>): EmailTemplate {
+  const allVariables = { appName, ...variables };
+
+  return {
+    subject: applyPlaceholders(template.subject, allVariables),
+    body: applyPlaceholders(template.body, allVariables),
+  };
+}
+
 export async function renderEmailTemplate(
   templateName: string,
   variables: Record<string, string>
 ): Promise<EmailTemplate> {
-  const template = await loadEmailTemplate(templateName);
-
-  return {
-    subject: applyPlaceholders(template.subject, variables),
-    body: applyPlaceholders(template.body, variables),
-  };
+  return applyEmailTemplate(await loadEmailTemplate(templateName), variables);
 }

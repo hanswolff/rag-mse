@@ -66,6 +66,11 @@ describe("password-reset", () => {
       expect(expiry).toEqual(expected);
     });
 
+    it("should stay 24 physical hours across the DST switch", () => {
+      const now = new Date("2026-10-24T22:20:00.000Z");
+      expect(getResetExpiryDate(now)).toEqual(new Date("2026-10-25T22:20:00.000Z"));
+    });
+
     it("should default to current time if no date provided", () => {
       const now = new Date();
       const expiry = getResetExpiryDate();

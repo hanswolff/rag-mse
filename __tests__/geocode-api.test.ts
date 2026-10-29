@@ -1,15 +1,12 @@
 import { GET } from "@/app/api/geocode/route";
-import { NextRequest } from "next/server";
+import { apiRequest } from "./helpers/request";
 import { logWarn, logInfo } from "@/lib/logger";
 import { resetRateLimitForTesting } from "@/lib/rate-limiter";
 import * as rateLimiter from "@/lib/rate-limiter";
 
-jest.mock("@/lib/logger", () => ({
-  logInfo: jest.fn(),
-  logError: jest.fn(),
-  logWarn: jest.fn(),
-  logValidationFailure: jest.fn(),
-}));
+jest.mock("@/lib/logger", () =>
+  jest.requireActual<typeof import("./helpers/logger-mock")>("./helpers/logger-mock").mockLogger,
+);
 
 jest.mock("@/lib/auth-utils", () => ({
   requireAdmin: jest.fn().mockResolvedValue(undefined),
@@ -33,18 +30,9 @@ let uniqueCounter = 0;
 function createMockRequest(url: string = "http://localhost:3000/api/geocode?q=Test%20Address", headers: Record<string, string> = {}, ip?: string) {
   uniqueCounter++;
   const clientIp = ip || `192.168.1.${uniqueCounter}`;
-  const request = {
-    url,
-    ip: "127.0.0.1",
-    headers: {
-      get: jest.fn((name: string) => {
-        if (name === "x-forwarded-for") return headers["x-forwarded-for"] || clientIp;
-        if (name === "x-real-ip") return headers["x-real-ip"] || "127.0.0.1";
-        return headers[name] || null;
-      }),
-    },
-  } as unknown as NextRequest;
-  return request;
+  return apiRequest("GET", url, {
+    headers: { "x-forwarded-for": clientIp, "x-real-ip": "127.0.0.1", ...headers },
+  });
 }
 
 describe("/api/geocode/route", () => {

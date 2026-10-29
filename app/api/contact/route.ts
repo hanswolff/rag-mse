@@ -1,11 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { validateContactFormData, ContactFormData } from "@/lib/contact-validation";
-import { parseJsonBody, validateRequestBody, validateCsrfHeaders, withApiErrorHandling } from "@/lib/api-utils";
+import { checkRateLimitWithPolicy } from "@/lib/api-utils";
+import { parseAndValidateBody, ValidationError } from "@/lib/request-body-parser";
+import { validateCsrfHeaders } from "@/lib/csrf-validator";
+import { withApiErrorHandling } from "@/lib/api-error-handler";
 import { sendTemplateEmail } from "@/lib/email-sender";
 import { logInfo, logWarn, logValidationFailure, logError } from "@/lib/logger";
 import { getClientIdentifier } from "@/lib/proxy-trust";
 import { checkContactRateLimit } from "@/lib/rate-limiter";
-import { shouldFailOpenOnRateLimiterError } from "@/lib/rate-limit-policy";
+
+const ROUTE = "/api/contact";
 
 const RATE_LIMIT_WINDOW_MS = 60_000;
 const RATE_LIMIT_MAX_REQUESTS = 5;
@@ -20,51 +24,31 @@ export const POST = withApiErrorHandling(async (request: NextRequest) => {
   validateCsrfHeaders(request);
 
   const clientId = getClientIdentifier(request);
-  try {
-    const rateLimitResult = await checkContactRateLimit(clientId, RATE_LIMIT_WINDOW_MS, RATE_LIMIT_MAX_REQUESTS);
-    if (!rateLimitResult.allowed) {
-      logWarn('rate_limit_exceeded', 'Contact form rate limit exceeded', {
-        clientId,
-        attemptCount: rateLimitResult.attemptCount,
-        route: "/api/contact",
-        method: "POST",
-      });
-      return NextResponse.json(
-        { error: "Zu viele Anfragen. Bitte später erneut versuchen." },
-        { status: 429 }
-      );
+  const rateLimitResult = await checkRateLimitWithPolicy(
+    () => checkContactRateLimit(clientId, RATE_LIMIT_WINDOW_MS, RATE_LIMIT_MAX_REQUESTS),
+    {
+      unavailableAction: "rate_limit_unavailable",
+      routeLabel: "contact",
+      logContext: { clientId, route: ROUTE, method: "POST" },
     }
-  } catch (rateLimitError) {
-    if (!shouldFailOpenOnRateLimiterError()) {
-      logError("rate_limit_unavailable", "Rate limiter unavailable for contact route, blocking request", {
-        clientId,
-        route: "/api/contact",
-        method: "POST",
-        error: rateLimitError instanceof Error ? rateLimitError.message : String(rateLimitError),
-      });
-      return NextResponse.json(
-        { error: "Dienst aktuell nicht verfügbar. Bitte später erneut versuchen." },
-        { status: 503 }
-      );
-    }
-
-    logWarn('rate_limit_unavailable', 'Rate limiter unavailable for contact route, continuing due fail-open policy', {
-      clientId,
-      route: "/api/contact",
-      method: "POST",
-      error: rateLimitError instanceof Error ? rateLimitError.message : String(rateLimitError),
-    });
+  );
+  if (rateLimitResult instanceof NextResponse) {
+    return rateLimitResult;
   }
-
-  const body = await parseJsonBody<Record<string, unknown>>(request);
-
-  const bodyValidation = validateRequestBody(body, contactSchema, { route: '/api/contact', method: 'POST' });
-  if (!bodyValidation.isValid) {
+  if (!rateLimitResult.allowed) {
+    logWarn('rate_limit_exceeded', 'Contact form rate limit exceeded', {
+      clientId,
+      attemptCount: rateLimitResult.attemptCount,
+      route: ROUTE,
+      method: "POST",
+    });
     return NextResponse.json(
-      { error: bodyValidation.errors.join(". ") },
-      { status: 400 }
+      { error: "Zu viele Anfragen. Bitte später erneut versuchen." },
+      { status: 429 }
     );
   }
+
+  const body = await parseAndValidateBody<Record<string, unknown>>(request, contactSchema, { route: ROUTE, method: 'POST' });
 
   const formData: ContactFormData = {
     name: typeof body.name === "string" ? body.name.trim() : "",
@@ -75,20 +59,18 @@ export const POST = withApiErrorHandling(async (request: NextRequest) => {
   const validation = validateContactFormData(formData);
 
   if (!validation.isValid) {
-    logValidationFailure('/api/contact', 'POST', validation.errors, {
+    logValidationFailure(ROUTE, 'POST', validation.errors, {
       clientId,
     });
-    return NextResponse.json(
-      { errors: validation.errors, fieldErrors: validation.fieldErrors },
-      { status: 400 }
-    );
+    // Die Kontakt-Seite liest bewusst `errors` als Liste (app/kontakt/page.tsx)
+    throw new ValidationError(validation.errors, { fieldErrors: validation.fieldErrors, format: "errors" });
   }
 
   const adminEmails = process.env.ADMIN_EMAILS;
 
   if (!adminEmails) {
     logError('contact_failed', 'ADMIN_EMAILS not configured', {
-      route: "/api/contact",
+      route: ROUTE,
       method: "POST",
       status: 500,
     });
@@ -105,7 +87,7 @@ export const POST = withApiErrorHandling(async (request: NextRequest) => {
 
   if (recipients.length === 0) {
     logError('contact_failed', 'ADMIN_EMAILS contains no valid recipients', {
-      route: "/api/contact",
+      route: ROUTE,
       method: "POST",
       status: 500,
       configuredRecipientCount: adminEmails
@@ -131,7 +113,7 @@ export const POST = withApiErrorHandling(async (request: NextRequest) => {
     });
   } catch (emailError) {
     logError('contact_email_failed', 'Failed to send contact email', {
-      route: "/api/contact",
+      route: ROUTE,
       method: "POST",
       error: emailError instanceof Error ? emailError.message : String(emailError),
     });
@@ -150,4 +132,4 @@ export const POST = withApiErrorHandling(async (request: NextRequest) => {
     { message: "Ihre Nachricht wurde erfolgreich gesendet." },
     { status: 200 }
   );
-}, { route: "/api/contact", method: "POST" });
+}, { route: ROUTE, method: "POST" });

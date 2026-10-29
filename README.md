@@ -1,6 +1,6 @@
 # RAG Schießsport MSE - Website
 
-Website für die RAG Schießsport MSE mit Mitgliederverwaltung, Admin-gestellten Terminen mit Teilnahmeanmeldung, Umfragen, Ausschreibungen, News und Kontaktformular.
+Website für die RAG Schießsport MSE mit Mitgliederverwaltung, Admin-gestellten Terminen mit Teilnahmeanmeldung, Vereinskalender (inkl. Fremdterminen, Abwesenheiten und iCal-Abo), Umfragen, Ausschreibungen, News und Kontaktformular.
 
 ## Tech Stack
 
@@ -15,7 +15,7 @@ Website für die RAG Schießsport MSE mit Mitgliederverwaltung, Admin-gestellten
 
 ### Voraussetzungen
 
-- Node.js 22 LTS+ und pnpm
+- Node.js 22.x (`engines` + `engine-strict`; andere Major-Versionen verweigert `pnpm install`) und pnpm 11 (über Corepack, Version aus `packageManager`)
 - Podman und podman-compose (für den vollständigen lokalen Stack)
 
 ### Installation
@@ -94,9 +94,12 @@ Der Seed-Script erstellt einen initialen Benutzer mit der Rolle `SITE_ADMINISTRA
 pnpm run db:seed
 ```
 
-**WICHTIG: Umgebung-Variablen werden automatisch aus `.env` geladen**
+**WICHTIG: `.env` wird vom Seed-Skript derzeit NICHT zuverlässig geladen**
 
-Der Seed-Script verwendet `dotenv`, Umgebungsvariablen werden automatisch aus der `.env`-Datei im Projektverzeichnis geladen. Sie müssen also keine `export`-Befehle verwenden.
+`prisma/seed.ts` lädt `dotenv` nur asynchron (`void import("dotenv/config")`); die
+Variablen werden aber synchron gelesen, bevor der Import abgeschlossen ist. Übergeben Sie
+`DATABASE_URL` und `SEED_ADMIN_*` deshalb explizit in der Shell. Ohne `DATABASE_URL`
+schreibt der Seed nach `./data/prod.db` — auf dem Produktivhost ist das die Live-Datenbank.
 
 Es gibt keine Standard-Credentials: Fehlen `SEED_ADMIN_EMAIL` oder `SEED_ADMIN_PASSWORD`,
 überspringt das Skript das Anlegen des Admin-Benutzers mit einer Warnung.
@@ -110,8 +113,9 @@ SEED_ADMIN_PASSWORD="IhrSicheresPasswort123"
 SEED_ADMIN_NAME="Administrator"
 ```
 
-2. Führen Sie den Seed-Script aus:
+2. Führen Sie den Seed-Script aus (Variablen aus `.env` in die Shell übernehmen):
 ```bash
+set -a; . ./.env; set +a
 pnpm run db:seed
 ```
 
@@ -124,10 +128,10 @@ pnpm run db:seed
 
 | Kontext | Wie werden `.env`-Variablen geladen? |
 |---------|-------------------------------------|
-| Lokal mit `pnpm run db:seed` | Automatisch via `dotenv` aus `.env` |
+| Lokal mit `pnpm run db:seed` | Nicht automatisch — Variablen in der Shell setzen (siehe oben) |
 | Lokal mit `pnpm run dev` | Automatisch via Next.js aus `.env` |
 | podman-compose | Aus `compose.yaml` environment mapping |
-| Direkter `tsx prisma/seed.ts` Aufruf | Automatisch via `dotenv` aus `.env` |
+| Direkter `tsx prisma/seed.ts` Aufruf | Nicht automatisch — Variablen in der Shell setzen (siehe oben) |
 
 ### Weitere Datenbank-Skripte
 
@@ -159,13 +163,13 @@ VALUES ('admin001', 'admin@rag-mse.de', '<BCRYPT_HASH_AUS_SCHRITT_2>', 'Administ
 SELECT id, email, name, role FROM User;
 ```
 
-**HINWEIS:** Die Datei `create_admin.sql` enthält eine kommentierte Vorlage für diesen Prozess. Diese Methode ist nur für fortgeschrittene Benutzer gedacht, die volle Kontrolle über die Datenbank benötigen.
+**HINWEIS:** Die Datei `prisma/baseline.sql` enthält eine kommentierte Vorlage für diesen Prozess. Diese Methode ist nur für fortgeschrittene Benutzer gedacht, die volle Kontrolle über die Datenbank benötigen.
 
 ## Datenbank-Setup
 
-Für frische Datenbanken verwendet `pnpm run db:migrate` intern die Baseline aus `create_admin.sql`
+Für frische Datenbanken verwendet `pnpm run db:migrate` intern die Baseline aus `prisma/baseline.sql`
 und wendet anschließend die SQL-Migrationskette aus `prisma/migrations/*/migration.sql` an.
-Im normalen Betrieb müssen Sie `create_admin.sql` daher nicht manuell ausführen. Details siehe
+Im normalen Betrieb müssen Sie `prisma/baseline.sql` daher nicht manuell ausführen. Details siehe
 [MIGRATIONS.md](./MIGRATIONS.md).
 
 ### Datenbank-Operationen in Produktion
@@ -186,8 +190,8 @@ automatisch gestartet.
    ```bash
    # Schema anpassen und neue SQL-Migration unter prisma/migrations anlegen
 
-   # Migration lokal anwenden und testen
-   pnpm run db:migrate
+   # Migration gegen eine lokale Test-DB anwenden (nie gegen data/prod.db)
+   DATABASE_URL=file:/tmp/rag-mse-dev.db pnpm run db:migrate
    pnpm run test
 
    # Optional zusätzlich Lint/Build lokal prüfen
@@ -197,14 +201,15 @@ automatisch gestartet.
 
 2. **Produktion aktualisieren:**
    ```bash
-   # Datenbank sichern (online-backup, gzip, retention)
-   ./scripts/backup-sqlite.sh
-
-   # Aktualisierte Anwendung bereitstellen
-   podman-compose up -d
+   # Einziger vorgesehener Weg: Quality-Gates, Build, Smoke-Test, Pre-Deploy-Backup,
+   # Container-Wechsel, Healthcheck und automatischer Rollback
+   ./deploy.sh
 
    # Migrationen laufen beim Containerstart automatisch
    ```
+
+   Ein bloßes `podman-compose up -d` baut weder die Artefakte neu noch sichert es die
+   Datenbank und ersetzt `deploy.sh` nicht.
 
 3. **Verifikation:**
    ```bash
@@ -228,7 +233,7 @@ podman-compose wird verwendet, um die Anwendung mit allen Abhängigkeiten zu bet
 - **Persistente Volumes**: SQLite-Datenbank
 
 > Migrieren Sie einen bestehenden Docker-Stack? Siehe den
-> [Migrationsleitfaden Docker → rootless Podman](DOCKER_TO_PODMAN_MIGRATION.md).
+> [Migrationsleitfaden Docker → rootless Podman](docs/DOCKER_TO_PODMAN_MIGRATION.md).
 
 ### Mit podman-compose starten
 
@@ -303,8 +308,12 @@ Hochgeladene Dokumente liegen standardmäßig unter `./data/documents` und sollt
 # Backup jetzt ausfuehren
 ./scripts/backup-sqlite.sh
 
-# Restore-Beispiel (Dateiname anpassen)
+# Restore-Beispiel (Dateiname anpassen) — App vorher stoppen und die WAL-/SHM-Dateien
+# der alten Datenbank entfernen, sonst spielt SQLite das alte WAL auf das Backup
+podman-compose stop app
+rm -f data/prod.db-wal data/prod.db-shm
 gunzip -c /zfs/backups/beta-rag-mse/prod.db.YYYY-MM-DD.sqlite3.gz > data/prod.db
+podman-compose start app
 ```
 
 ### Container stoppen
@@ -390,23 +399,43 @@ Für HTTPS benötigen Sie ein SSL/TLS-Zertifikat. Empfohlene Optionen:
 ```bash
 sudo apt install certbot
 
-# Zertifikat anfordern
+# Erstausstellung (Port 80 muss frei sein – HAProxy vorher stoppen oder webroot nutzen, s. u.)
 sudo certbot certonly --standalone -d ihre-domain.de -d www.ihre-domain.de
 
 # Zertifikate für HAProxy zusammenfügen
 sudo cat /etc/letsencrypt/live/ihre-domain.de/fullchain.pem \
          /etc/letsencrypt/live/ihre-domain.de/privkey.pem \
          | sudo tee /etc/ssl/haproxy/rag-mse.pem
-
-# Zertifikat erneuern (automatisch via Cron)
-sudo crontab -e
 ```
 
-Fügen Sie diesen Cron-Job für automatische Erneuerung hinzu:
+**Erneuerung – Konflikt mit HAProxy auf Port 80:** `certbot renew` verwendet das Verfahren
+der Erstausstellung weiter. Im `--standalone`-Modus startet certbot einen eigenen Webserver
+auf Port 80; den belegt aber HAProxy (`bind *:80` in `haproxy.cfg.example`). Ein
+Cron-Job `certbot renew` ohne weitere Vorkehrung scheitert dann, und das Zertifikat läuft
+unbemerkt ab. Zwei gängige Auswege:
 
-```
-0 3 * * * certbot renew --quiet && cat /etc/letsencrypt/live/ihre-domain.de/fullchain.pem /etc/letsencrypt/live/ihre-domain.de/privkey.pem | tee /etc/ssl/haproxy/rag-mse.pem && systemctl reload haproxy
-```
+1. **Standalone mit pre/post-Hooks:** HAProxy für die Dauer der Erneuerung stoppen und danach
+   mit dem zusammengefügten Zertifikat wieder starten (kurze Unterbrechung der Seite):
+
+   ```bash
+   sudo certbot renew --quiet \
+     --pre-hook "systemctl stop haproxy" \
+     --post-hook "cat /etc/letsencrypt/live/ihre-domain.de/fullchain.pem /etc/letsencrypt/live/ihre-domain.de/privkey.pem > /etc/ssl/haproxy/rag-mse.pem && systemctl start haproxy"
+   ```
+
+   Die Hooks lassen sich auch dauerhaft als Skripte unter
+   `/etc/letsencrypt/renewal-hooks/pre/` bzw. `post/` ablegen.
+
+2. **webroot:** HAProxy bleibt aktiv und leitet `/.well-known/acme-challenge/` an einen
+   lokalen Webserver weiter, der ein Verzeichnis ausliefert, in das certbot die
+   Challenge-Dateien schreibt (`certbot certonly --webroot -w <verzeichnis> -d …`). Dafür
+   braucht `haproxy.cfg` ein zusätzliches ACL/Backend für diesen Pfad (nicht in
+   `haproxy.cfg.example` enthalten). Nach der Erneuerung per `--deploy-hook` die `.pem`
+   neu zusammenfügen und `systemctl reload haproxy` ausführen – ohne Downtime.
+
+Welches Verfahren auf dem Live-Host eingerichtet ist, legt der Betreiber fest; eine Variante
+muss aktiv sein, sonst schlägt die automatische Erneuerung fehl. Prüfen lässt sich die
+Konfiguration mit `sudo certbot renew --dry-run`.
 
 **Kommerzielles Zertifikat:**
 
@@ -476,11 +505,12 @@ Details zu geprüften Teilsystemen und Design-Entscheidungen: siehe [`docs/SELFT
 
 ### HAProxy Monitoring
 
-HAProxy stellt eine Statistik-Seite bereit (standardmäßig auf Port 8404):
+HAProxy stellt eine Statistik-Seite bereit (Port 8404, in der Beispielkonfiguration nur auf
+`127.0.0.1` gebunden):
 
 ```bash
-# Im Browser öffnen
-http://ihre-domain.de:8404/stats
+# SSH-Tunnel öffnen, dann im Browser http://localhost:8404/stats aufrufen
+ssh -L 8404:127.0.0.1:8404 <server>
 
 # Login mit konfigurierten Credentials
 User: admin
@@ -498,20 +528,13 @@ sudo systemctl stop haproxy
 sudo haproxy -d -f /etc/haproxy/haproxy.cfg
 ```
 
-### HAProxy konfigurieren für Load Balancing (optional)
+### Mehrere App-Instanzen (nicht unterstützt)
 
-Bei mehreren Instanzen der Anwendung:
-
-```
-backend rag-mse-app
-    mode http
-    balance roundrobin
-    option httpchk GET /api/health
-
-    server app1 127.0.0.1:3000 check inter 5s rise 2 fall 3
-    server app2 127.0.0.1:3001 check inter 5s rise 2 fall 3
-    server app3 127.0.0.1:3002 check inter 5s rise 2 fall 3
-```
+Die Anwendung ist derzeit auf **genau eine** Instanz ausgelegt: Rate-Limiting läuft im
+Arbeitsspeicher (ADR 0006), der E-Mail-Outbox-Worker läuft in jedem Prozess (ADR 0005),
+und alle Instanzen teilten sich dieselbe SQLite-Datei. Ein HAProxy-Backend mit mehreren
+`server`-Einträgen ist deshalb kein gültiges Setup — Voraussetzungen siehe
+[ADR 0009](docs/adr/0009-deploy-mit-kurzer-bewusster-downtime.md).
 
 ### Troubleshooting
 
@@ -620,7 +643,10 @@ pnpm run format
 # Veraltete Pakete anzeigen
 pnpm outdated
 
-# Pakete innerhalb ihres Major-Bereichs aktualisieren
+# Pakete innerhalb des Versionsbereichs aus package.json aktualisieren
+pnpm update <paket>
+
+# Auf die neueste Version heben (ignoriert den Bereich, auch Major-Sprünge)
 pnpm update --latest <paket>
 ```
 
@@ -708,7 +734,7 @@ SMTP_FROM="noreply@rag-mse.de"
 ADMIN_EMAILS="admin1@example.com,admin2@example.com"
 
 # Proxy-Trust für Rate-Limits (trusted proxy/source ranges)
-TRUSTED_PROXY_IPS="127.0.0.1/32,172.16.0.0/12"
+TRUSTED_PROXY_IPS="127.0.0.1/32,::1,10.0.2.0/24,10.88.0.0/16"
 RATE_LIMIT_FAIL_OPEN="false"
 
 # Datenbank-Operationen in Produktion (SICHERHEIT!)
@@ -781,6 +807,7 @@ TZ="Europe/Berlin"                             # Default: Europe/Berlin
 
 - Öffentliche Terminliste und öffentliche Termindetailseiten
 - Admins können Termine erstellen, bearbeiten und löschen
+- Sichtbarkeitsstufe je Termin: Öffentlich, Nur für Mitglieder (nach Login) oder Verborgen (nur ADMIN/AUDITOR und der Ersteller)
 - Rich-Text-Beschreibungen mit Tiptap-Editor
 - Terminarten: Training, Wettkampf und Lehrgang (optional)
 - Standortunterstützung mit OpenStreetMap (Karte auf der Detailseite)
@@ -789,6 +816,30 @@ TZ="Europe/Berlin"                             # Default: Europe/Berlin
 - Teilnahmeanmeldung (Ja/Nein/Vielleicht) nur für eingeloggte Benutzer
 - Eine Teilnahmeanmeldung pro Mitglied pro Termin, inklusive Rückzug der eigenen Teilnahmeanmeldung
 - Ergebnisse der Teilnahmeanmeldungen nur für eingeloggte Benutzer sichtbar
+
+### Fremdtermine
+
+- Termine Dritter (z. B. RDL, Veranstaltungen anderer Reservistenkameradschaften, externe Wettkämpfe) unter `/admin/fremdtermine`
+- Zeitraum von–bis, ganztägig oder mit Uhrzeit; optional Art (RDL, RK-Veranstaltung, Wettkampf, Sonstiges), Ort, Beschreibung, Link und verknüpfte Ausschreibung
+- Sichtbarkeitsstufe je Fremdtermin (Standard: Nur für Mitglieder)
+- Admins erstellen, bearbeiten und löschen; AUDITOR hat Lesezugriff
+
+### Abwesenheiten
+
+- Eingeloggte Benutzer (alle Rollen) tragen eigene Abwesenheiten ein: Zeitraum von–bis, ganztägig oder mit Uhrzeit, optional kurzer Grund (max. 200 Zeichen)
+- API `/api/abwesenheiten` (GET eigene, POST) und `/api/abwesenheiten/[id]` (PUT, DELETE) — nur eigene, fremde ⇒ 404, auch für Admins
+- Sichtbar nur für den Ersteller sowie ADMIN/SITE_ADMINISTRATOR und AUDITOR (mit Name, ohne weitere Kontaktdaten)
+- Automatische Löschung 30 Tage nach Ende durch den Maintenance-Worker; beim Löschen des Benutzers sofort (Cascade)
+
+### Kalender
+
+- Öffentliche Seite `/kalender` (FullCalendar 6.1.22) mit Monat, Woche und Liste; unter 768 px ist die Liste Standard
+- Teilbare URL: `?ansicht=monat|woche|liste&datum=JJJJ-MM-TT`
+- Zeigt Termine, Fremdtermine und Abwesenheiten je nach Betrachter: anonym nur Öffentliches, eingeloggt zusätzlich „Nur für Mitglieder“ und die eigenen Abwesenheiten, ADMIN/AUDITOR alles inkl. Verborgenem und fremder Abwesenheiten (pro Tag gesammelt, z. B. „3 abwesend“)
+- Lese-API `GET /api/kalender?von=JJJJ-MM-TT&bis=JJJJ-MM-TT` (max. 100 Tage); anonyme Antworten öffentlich cachebar, authentifizierte `no-store`
+- Filter je Eintragsart, im Browser per `localStorage` gemerkt
+- Kollisionen (nur ADMIN/AUDITOR): Tage, an denen ein Termin denselben Kalendertag berührt wie ein anderer Termin, ein Fremdtermin oder eine Abwesenheit, werden markiert (`kollisionen` in der Lese-API); `GET /api/admin/kollisionen?datum=JJJJ-MM-TT[&ohneTermin=<id>]` liefert die Einträge eines Tages, das Termin-Formular zeigt sie als nicht blockierenden Hinweis
+- iCal-Abo `GET /kalender.ics` (öffentlich, `text/calendar`, öffentlich cachebar): alle öffentlichen Termine und öffentlichen Fremdtermine von 90 Tagen in der Vergangenheit bis 1 Jahr in der Zukunft; Zeiten in UTC (aus Europe/Berlin umgerechnet), ganztägige Fremdtermine als `VALUE=DATE` mit exklusivem Ende, stabile UIDs; nie „Nur für Mitglieder“, Verborgenes oder Abwesenheiten. Auf `/kalender` gibt es „Kalender abonnieren“ mit kopierbarer https-Adresse und `webcal://`-Link
 
 ### Benutzerverwaltung (Admin)
 
@@ -859,6 +910,8 @@ Die Anwendung verwendet ein rollenbasiertes Zugriffskontrollsystem mit vier Roll
 | Admin-Bereich (verwalten) | ✗ | ✗ | ✓ | ✓ |
 | Teilnahmeanmeldung zum Termin | ✓ | ✓ | ✓ | ✓ |
 | Eigenes Profil verwalten | ✓ | ✓ | ✓ | ✓ |
+| Eigene Abwesenheiten verwalten | ✓ | ✓ | ✓ | ✓ |
+| Abwesenheiten aller Benutzer sehen | ✗ | ✓ | ✓ | ✓ |
 
 **Hinweis:** Die Rolle `SITE_ADMINISTRATOR` kann nicht über die Benutzeroberfläche vergeben werden. Sie wird ausschließlich über Datenbank-Migrationen oder direkte Datenbankänderungen gesetzt.
 
@@ -901,6 +954,7 @@ Administratoren verwalten die Bereiche über zwei getrennte Admin-Seiten:
 - Grund: Next.js App Router erzeugt Inline-Bootstrap-/Hydration-Skripte; ein striktes `script-src 'self'` deaktiviert interaktive UI wie Navigation, Menüs und Login-bezogene Client-Funktionen.
 - Als Ausgleich ist die Policy an anderer Stelle gehärtet, insbesondere mit `object-src 'none'`, `base-uri 'self'`, `form-action 'self'` und `frame-ancestors 'self'`.
 - Jede spätere CSP-Verschärfung muss an einer realen Produktionsantwort verifiziert werden: keine blockierten Inline-Skripte in der Browser-Konsole und funktionsfähige interaktive Navigation.
+- Parallel liefert `proxy.ts` eine Nonce-basierte Policy als `Content-Security-Policy-Report-Only` aus (erzwingt nichts). Stand und offene Entscheidung zu statisch vorgerenderten Seiten: [`docs/CSP_NONCE_ROLLOUT.md`](docs/CSP_NONCE_ROLLOUT.md).
 
 ## Deployment
 
@@ -909,17 +963,15 @@ Die Anwendung wird hinter einem Reverse Proxy (z.B. HAProxy) auf einem VPS berei
 > Die Deployment-Konfiguration ist vollständig implementiert und produktiv im Einsatz.
 > Siehe AGENTS.md für die produktive Behandlung der compose.yaml.
 
-### Produktions-Build erstellen
+### Deployment ausführen
 
 ```bash
-pnpm run build
+./deploy.sh                  # regulärer Deploy (Gates, Build, Smoke, Backup, Wechsel, Rollback)
+./deploy.sh --first-deploy   # Erstinstallation ohne vorhandene Datenbankdatei
 ```
 
-### Produktionsserver starten
-
-```bash
-pnpm start
-```
+`deploy.sh` ist die einzige CI/CD-Pipeline (AGENTS.md); `pnpm run build`/`pnpm start`
+allein erzeugen weder das Container-Image noch sichern sie die Datenbank.
 
 ### Wichtige Produktions-Einstellungen
 
@@ -941,7 +993,11 @@ APP_GID="1000"
 
 ## Backup-Strategie
 
-Die SQLite-Datenbank wird in einem host-gemounteten Volume (./data) gespeichert. Regelmäßige Backups der Datenbankdatei werden empfohlen.
+Die SQLite-Datenbank wird in einem host-gemounteten Volume (./data) gespeichert.
+Nächtliche Backups (Datenbank + Upload-Verzeichnisse, mit Aufbewahrung) übernimmt
+`scripts/backup-sqlite.sh` per systemd-Timer (`ops/BACKUP_OPTIONS.md`); zusätzlich legt
+`deploy.sh` vor jedem Container-Wechsel ein Pre-Deploy-Backup unter `data/backups/` an
+(die letzten 10 bleiben erhalten).
 
 ## Lizenzen und Branding
 

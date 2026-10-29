@@ -116,7 +116,7 @@ describe("NewsPage (Admin)", () => {
 
       render(<NewsPage />);
 
-      expect(screen.getByText("Laden...")).toBeInTheDocument();
+      expect(screen.getByText("Laden…")).toBeInTheDocument();
     });
   });
 

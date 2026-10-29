@@ -3,8 +3,9 @@ import { logError, logWarn } from "@/lib/logger";
 import { addCorrelationIdHeaders } from "@/lib/api-middleware";
 import { getCorrelationId, withNewCorrelationId } from "./correlation-id";
 import { TokenRateLimitUnavailableError } from "./errors";
-import { BadRequestError, PayloadTooLargeError } from "./request-body-parser";
+import { BadRequestError, PayloadTooLargeError, ValidationError } from "./request-body-parser";
 import { CsrfError } from "./csrf-validator";
+import { AppUrlNotConfiguredError } from "./site-config";
 
 type ApiErrorContext = {
   route?: string;
@@ -53,10 +54,14 @@ export function getNoCacheHeaders() {
   };
 }
 
+export function getPublicCacheControl(maxAgeSeconds = 60, sMaxAgeSeconds = 300) {
+  return `public, max-age=${maxAgeSeconds}, s-maxage=${sMaxAgeSeconds}, stale-while-revalidate=${sMaxAgeSeconds}`;
+}
+
 export function getPublicCacheHeaders(maxAgeSeconds = 60, sMaxAgeSeconds = 300) {
   return {
-    "Cache-Control": `public, max-age=${maxAgeSeconds}, s-maxage=${sMaxAgeSeconds}, stale-while-revalidate=${sMaxAgeSeconds}`,
-    // Dieselbe URL liefert eingeloggt eine andere Antwort (z.B. eigene
+    "Cache-Control": getPublicCacheControl(maxAgeSeconds, sMaxAgeSeconds),
+    // Dieselbe URL liefert eingeloggt eine andere Antwort (z. B. eigene
     // Teilnahmeanmeldung): Caches müssen nach Cookie unterscheiden, sonst
     // wird Mitgliedern nach dem Login die anonyme Variante serviert.
     "Vary": "Cookie",
@@ -108,6 +113,12 @@ function errorResponse(message: string, status: number): NextResponse {
 
 const errorHandlers: ErrorHandler[] = [
   (error, _routeInfo) => {
+    if (error instanceof ValidationError) {
+      return NextResponse.json(error.toResponseBody(), { status: 400, headers: getNoCacheHeaders() });
+    }
+    return null;
+  },
+  (error, _routeInfo) => {
     if (error instanceof BadRequestError) {
       return errorResponse(error.message, 400);
     }
@@ -152,6 +163,13 @@ const errorHandlers: ErrorHandler[] = [
   (error, _routeInfo) => {
     if (error instanceof TokenRateLimitUnavailableError) {
       return errorResponse("Dienst aktuell nicht verfügbar. Bitte später erneut versuchen.", 503);
+    }
+    return null;
+  },
+  (error, routeInfo) => {
+    if (error instanceof AppUrlNotConfiguredError) {
+      logApiError(error, { route: routeInfo.route, method: routeInfo.method, status: 500 });
+      return errorResponse(error.message, 500);
     }
     return null;
   },

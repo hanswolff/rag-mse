@@ -1,5 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import VergangeneTerminePage from "@/app/termine/vergangenheit/page";
+import { buildEvent } from "./helpers/factories";
 import { getServerSession } from "next-auth";
 import { prisma } from "@/lib/prisma";
 
@@ -7,17 +8,9 @@ jest.mock("next-auth", () => ({
   getServerSession: jest.fn(),
 }));
 
-jest.mock("@/lib/prisma", () => ({
-  prisma: {
-    event: {
-      findMany: jest.fn(),
-      count: jest.fn(),
-    },
-    shootingRange: {
-      findMany: jest.fn(),
-    },
-  },
-}));
+jest.mock("@/lib/prisma", () =>
+  jest.requireActual<typeof import("./helpers/prisma-mock")>("./helpers/prisma-mock").prismaModuleMock,
+);
 
 describe("VergangeneTerminePage", () => {
   beforeEach(() => {
@@ -45,16 +38,13 @@ describe("VergangeneTerminePage", () => {
 
   it("renders past events", async () => {
     (prisma.event.findMany as jest.Mock).mockResolvedValue([
-      {
+      buildEvent({
         id: "e1",
         date: new Date("2026-01-15T00:00:00.000Z"),
-        timeFrom: "18:00",
-        timeTo: "20:00",
         location: "Stand A",
         description: "Training",
         type: "Training",
-        visible: true,
-      },
+      }),
     ]);
 
     const view = await VergangeneTerminePage({ searchParams: Promise.resolve({ page: "1" }) });

@@ -93,7 +93,7 @@ export default function MemberDocumentsPage() {
               <h2 className="text-lg sm:text-xl font-semibold text-gray-900">Dokumente</h2>
               <div className="mt-1 flex items-center gap-3">
                 <p className="text-base text-gray-600">{total} {pluralize(total, "Datei", "Dateien")}</p>
-                {isLoading && <span className="text-sm text-gray-500">Aktualisiere...</span>}
+                {isLoading && <span className="text-sm text-gray-500">Aktualisiere…</span>}
               </div>
             </div>
             <form onSubmit={handleSubmitSearch} className="flex flex-col sm:flex-row w-full md:w-auto gap-2">
@@ -102,6 +102,7 @@ export default function MemberDocumentsPage() {
                 value={searchInput}
                 onChange={(event) => setSearchInput(event.target.value)}
                 placeholder="Suche nach Dokumentenname"
+                aria-label="Suche nach Dokumentenname"
                 className="form-input w-full md:w-80"
               />
               <button type="submit" className="btn-primary px-4 py-2 text-base whitespace-nowrap w-full sm:w-auto">

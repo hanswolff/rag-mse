@@ -8,7 +8,7 @@ import { useProtectedPage } from "@/lib/use-protected-page";
 import { AlertBox } from "@/components/alert-box";
 
 export default function ChangePasswordPage() {
-  const { isLoading } = useProtectedPage();
+  const { isLoading, update } = useProtectedPage();
   const [isChangingPassword, setIsChangingPassword] = useState(false);
   const [passwordError, setPasswordError] = useState("");
   const [passwordSuccess, setPasswordSuccess] = useState("");
@@ -55,6 +55,10 @@ export default function ChangePasswordPage() {
         return;
       }
 
+      if (typeof data.passwordChangeProof === "string") {
+        await update({ passwordChangeProof: data.passwordChangeProof });
+      }
+
       setPasswordForm({ currentPassword: "", newPassword: "", confirmPassword: "" });
       setPasswordSuccess("Passwort wurde erfolgreich geändert");
       setIsPasswordChanged(true);
@@ -63,7 +67,7 @@ export default function ChangePasswordPage() {
     } finally {
       setIsChangingPassword(false);
     }
-  }, [passwordForm]);
+  }, [passwordForm, update]);
 
   if (isLoading) {
     return <LoadingScreen />;

@@ -1,17 +1,13 @@
 import { PUT } from "@/app/api/user/change-password/route";
-import { NextRequest } from "next/server";
+import { apiRequest } from "./helpers/request";
 import { prisma } from "@/lib/prisma";
 import { requireMember } from "@/lib/auth-utils";
 import { compare, hash } from "bcryptjs";
+import { verifyPasswordChangeProof } from "@/lib/auth-proof";
 
-jest.mock("@/lib/prisma", () => ({
-  prisma: {
-    user: {
-      findUnique: jest.fn(),
-      update: jest.fn(),
-    },
-  },
-}));
+jest.mock("@/lib/prisma", () =>
+  jest.requireActual<typeof import("./helpers/prisma-mock")>("./helpers/prisma-mock").prismaModuleMock,
+);
 
 jest.mock("@/lib/auth-utils", () => {
   const actual = jest.requireActual("@/lib/auth-utils");
@@ -26,30 +22,28 @@ jest.mock("bcryptjs", () => ({
   hash: jest.fn(),
 }));
 
-jest.mock("@/lib/logger", () => ({
-  logInfo: jest.fn(),
-  logError: jest.fn(),
-  logWarn: jest.fn(),
-  logValidationFailure: jest.fn(),
-  maskEmail: jest.fn((email: string) => email),
-}));
+jest.mock("@/lib/logger", () =>
+  jest.requireActual<typeof import("./helpers/logger-mock")>("./helpers/logger-mock").mockLogger,
+);
 
-jest.mock("@/lib/api-utils", () => {
-  const actual = jest.requireActual("@/lib/api-utils");
+jest.mock("@/lib/request-body-parser", () => {
+  const actual = jest.requireActual("@/lib/request-body-parser");
   return {
     ...actual,
     parseJsonBody: jest.fn(async (req: Request) => req.json()),
+  };
+});
+
+jest.mock("@/lib/csrf-validator", () => {
+  const actual = jest.requireActual("@/lib/csrf-validator");
+  return {
+    ...actual,
     validateCsrfHeaders: jest.fn(),
   };
 });
 
 function createMockRequest(body: Record<string, unknown>) {
-  return {
-    json: jest.fn().mockResolvedValue(body),
-    headers: {
-      get: jest.fn().mockReturnValue(null),
-    },
-  } as unknown as NextRequest;
+  return apiRequest("PUT", "/api/user/change-password", { body });
 }
 
 const member = { id: "user-1", email: "member@example.com", role: "MEMBER", name: "Mitglied" };
@@ -61,6 +55,7 @@ describe("PUT /api/user/change-password", () => {
     (prisma.user.findUnique as jest.Mock).mockResolvedValue({ password: "stored-hash" });
     (compare as jest.Mock).mockResolvedValue(true);
     (hash as jest.Mock).mockResolvedValue("new-hash");
+    (prisma.user.update as jest.Mock).mockResolvedValue({ passwordUpdatedAt: new Date("2026-09-30T10:00:00.123Z") });
   });
 
   it("returns 401 when not logged in", async () => {
@@ -134,5 +129,24 @@ describe("PUT /api/user/change-password", () => {
         data: expect.objectContaining({ password: "new-hash" }),
       })
     );
+    expect(verifyPasswordChangeProof(data.passwordChangeProof, "user-1", Date.parse("2026-09-30T10:00:00.123Z"))).toBe(true);
+  });
+
+  it("liefert während einer Impersonierung keinen Passwortwechsel-Proof", async () => {
+    (requireMember as jest.Mock).mockResolvedValue({
+      ...member,
+      isImpersonating: true,
+      impersonatedBy: { id: "site-1", role: "SITE_ADMINISTRATOR", name: "Site", email: "site@example.com" },
+    });
+
+    const response = await PUT(createMockRequest({
+      currentPassword: "AltesPasswort1",
+      newPassword: "NeuesPasswort1",
+      confirmPassword: "NeuesPasswort1",
+    }));
+    const data = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(data.passwordChangeProof).toBeUndefined();
   });
 });

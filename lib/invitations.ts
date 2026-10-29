@@ -1,6 +1,8 @@
+import type { Prisma } from "@prisma/client";
+import { prisma } from "./prisma";
 import { sendTemplateEmail } from "./email-sender";
-import { logInfo } from "./logger";
-import { logApiError } from "./api-utils";
+import { logInfo, logWarn } from "./logger";
+import { logApiError } from "./api-error-handler";
 import { generateRandomToken, hashToken } from "./crypto-utils";
 import { appName } from "./site-config";
 
@@ -75,4 +77,172 @@ export async function sendInvitationEmail({
 
     return { success: false, error: emailError instanceof Error ? emailError : new Error(String(emailError)) };
   }
+}
+
+export type InvitationLogContext = {
+  route: string;
+  method: string;
+  userEmail?: string;
+};
+
+export function createInvitationTokenSet(now = new Date()): {
+  token: string;
+  tokenHash: string;
+  expiresAt: Date;
+} {
+  const token = generateInvitationToken();
+  return {
+    token,
+    tokenHash: hashInvitationToken(token),
+    expiresAt: getInvitationExpiryDate(now),
+  };
+}
+
+// Einladungen werden normalisiert gespeichert, Bestandskonten können noch eine
+// Adresse mit Großbuchstaben tragen.
+export async function findUserIdByEmailIgnoringCase(
+  db: Pick<Prisma.TransactionClient, "user" | "$queryRaw">,
+  email: string
+): Promise<string | null> {
+  const exact = await db.user.findUnique({ where: { email }, select: { id: true } });
+  if (exact) return exact.id;
+  const rows = await db.$queryRaw<{ id: string }[]>`SELECT "id" FROM "User" WHERE lower("email") = lower(${email}) LIMIT 1`;
+  return rows[0]?.id ?? null;
+}
+
+export async function invalidateOpenInvitations(
+  db: Pick<Prisma.TransactionClient, "invitation">,
+  email: string
+): Promise<void> {
+  await db.invitation.updateMany({
+    where: { email: { in: [...new Set([email, email.trim().toLowerCase()])] }, usedAt: null },
+    data: { usedAt: new Date() },
+  });
+}
+
+// Offene Einladungen derselben Adresse entwerten, damit immer nur der zuletzt
+// versendete Link gültig ist.
+export async function invalidateOtherOpenInvitations(
+  db: Pick<Prisma.TransactionClient, "invitation">,
+  email: string,
+  exclude: { invitationId: string } | { tokenHash: string }
+): Promise<void> {
+  await db.invitation.updateMany({
+    where: {
+      email,
+      usedAt: null,
+      NOT: "invitationId" in exclude ? { id: exclude.invitationId } : { tokenHash: exclude.tokenHash },
+    },
+    data: {
+      usedAt: new Date(),
+    },
+  });
+}
+
+async function rollbackCreatedInvitation(invitationId: string): Promise<void> {
+  try {
+    await prisma.invitation.delete({
+      where: { id: invitationId },
+    });
+  } catch (rollbackError) {
+    logInfo("invitation_create_rollback_failed", "Failed to delete created invitation after email failure", {
+      invitationId,
+      error: rollbackError instanceof Error ? rollbackError.message : String(rollbackError),
+    });
+  }
+}
+
+async function rollbackInvitationToken(invitationId: string, previousTokenHash: string, previousExpiresAt: Date): Promise<void> {
+  try {
+    await prisma.invitation.update({
+      where: { id: invitationId },
+      data: {
+        tokenHash: previousTokenHash,
+        expiresAt: previousExpiresAt,
+      },
+    });
+  } catch (rollbackError) {
+    logWarn("invitation_resend_rollback_failed", "Failed to rollback invitation token after email failure", {
+      invitationId,
+      error: rollbackError instanceof Error ? rollbackError.message : String(rollbackError),
+    });
+  }
+}
+
+// Neue Einladung: anlegen → E-Mail → bei Erfolg alte Einladungen entwerten,
+// bei E-Mail-Fehler die angelegte Einladung wieder löschen.
+export async function issueInvitation(options: {
+  email: string;
+  invitedById: string;
+  appUrl: string;
+  logContext: InvitationLogContext;
+}): Promise<{ emailSent: boolean }> {
+  const { token, tokenHash, expiresAt } = createInvitationTokenSet();
+
+  const invitation = await prisma.invitation.create({
+    data: {
+      email: options.email,
+      tokenHash,
+      expiresAt,
+      invitedById: options.invitedById,
+    },
+  });
+
+  const result = await sendInvitationEmail({
+    email: options.email,
+    inviteUrl: buildInviteUrl(options.appUrl, token),
+    logContext: {
+      ...options.logContext,
+      invitationId: invitation.id,
+    },
+  });
+
+  if (!result.success) {
+    await rollbackCreatedInvitation(invitation.id);
+    return { emailSent: false };
+  }
+
+  await invalidateOtherOpenInvitations(prisma, options.email, { invitationId: invitation.id });
+
+  return { emailSent: true };
+}
+
+// Bestehende Einladung erneut versenden: neuer Token in einer Transaktion
+// (andere offene Einladungen entwerten), dann E-Mail; bei E-Mail-Fehler den
+// vorherigen Token wiederherstellen.
+export async function reissueInvitation(options: {
+  invitation: { id: string; email: string; tokenHash: string; expiresAt: Date };
+  appUrl: string;
+  logContext: InvitationLogContext;
+}): Promise<{ emailSent: boolean }> {
+  const { invitation } = options;
+  const { token, tokenHash, expiresAt } = createInvitationTokenSet();
+
+  await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+    await invalidateOtherOpenInvitations(tx, invitation.email, { invitationId: invitation.id });
+
+    await tx.invitation.update({
+      where: { id: invitation.id },
+      data: {
+        tokenHash,
+        expiresAt,
+      },
+    });
+  });
+
+  const result = await sendInvitationEmail({
+    email: invitation.email,
+    inviteUrl: buildInviteUrl(options.appUrl, token),
+    logContext: {
+      ...options.logContext,
+      invitationId: invitation.id,
+    },
+  });
+
+  if (!result.success) {
+    await rollbackInvitationToken(invitation.id, invitation.tokenHash, invitation.expiresAt);
+    return { emailSent: false };
+  }
+
+  return { emailSent: true };
 }

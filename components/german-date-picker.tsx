@@ -93,7 +93,7 @@ export function GermanDatePicker({ id, value, onChange, onBlur, error, label, re
         )}
       </div>
       {error && (
-        <p id={errorId} className="text-red-500 text-sm mt-1" role="alert">{error}</p>
+        <p id={errorId} className="text-red-600 text-sm mt-1" role="alert">{error}</p>
       )}
     </div>
   );

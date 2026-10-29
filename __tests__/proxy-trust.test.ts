@@ -1,4 +1,4 @@
-import { getClientIdentifier, getClientIdentifierFromHeaders, getDirectIp, clearTrustedProxyCache } from "@/lib/proxy-trust";
+import { getClientIdentifier, getClientIdentifierFromHeaders, clearTrustedProxyCache } from "@/lib/proxy-trust";
 import { NextRequest } from "next/server";
 
 describe("proxy-trust", () => {
@@ -167,34 +167,6 @@ describe("proxy-trust", () => {
       const headers = new Headers({ "x-forwarded-for": "203.0.113.7" });
 
       expect(getClientIdentifierFromHeaders(headers, null)).toBe("203.0.113.7");
-    });
-  });
-
-  describe("getDirectIp", () => {
-    it("returns real IP from x-real-ip header", () => {
-      const request = new NextRequest("http://example.com", {
-        headers: {
-          "x-real-ip": "192.168.1.100",
-        },
-      });
-
-      expect(getDirectIp(request)).toBe("192.168.1.100");
-    });
-
-    it("returns null when x-real-ip is not present", () => {
-      const request = new NextRequest("http://example.com");
-
-      expect(getDirectIp(request)).toBeNull();
-    });
-
-    it("returns null when x-real-ip is empty", () => {
-      const request = new NextRequest("http://example.com", {
-        headers: {
-          "x-real-ip": "",
-        },
-      });
-
-      expect(getDirectIp(request)).toBeNull();
     });
   });
 });

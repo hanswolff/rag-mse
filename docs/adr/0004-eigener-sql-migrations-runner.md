@@ -16,7 +16,7 @@ weitergedreht wurden.
 - **Gewählt: eigener Runner.** Er kommt ohne die Prisma-CLI im Laufzeit-Image aus
   (`entrypoint.sh` ruft das vorkompilierte `scripts-dist/scripts/run-db-migrations.js`;
   im Runtime-Image gibt es kein pnpm), verträgt vorhandene Datenbanken mit Drift und
-  kann eine leere Datei zuerst aus der Baseline `create_admin.sql` initialisieren.
+  kann eine leere Datei zuerst aus der Baseline `prisma/baseline.sql` initialisieren.
 - **Verworfen: `prisma migrate deploy`.** Es hätte die Prisma-CLI plus Engine im Image
   erzwungen und wäre an jeder Abweichung zwischen `_prisma_migrations` und dem realen
   Schema hart gescheitert — bei einer über Monate von Hand gepflegten SQLite-Datei der

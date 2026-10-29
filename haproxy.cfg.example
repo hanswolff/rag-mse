@@ -91,9 +91,11 @@ backend rag-mse-app
     # Sticky Sessions (für NextAuth Sessions, falls benötigt)
     # cookie SERVERID insert indirect nocache
 
-# Statistik-Seite (optional, für Monitoring)
+# Statistik-Seite (optional, für Monitoring). Nur auf Loopback binden: Die Seite
+# läuft ohne TLS (Basic-Auth im Klartext) und legt Backend-Interna offen. Zugriff
+# per SSH-Tunnel: ssh -L 8404:127.0.0.1:8404 <server>
 listen stats
-    bind *:8404
+    bind 127.0.0.1:8404
     mode http
     stats enable
     stats uri /stats

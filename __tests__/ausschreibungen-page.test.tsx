@@ -3,13 +3,9 @@ import userEvent from "@testing-library/user-event";
 import AusschreibungenPage from "@/app/ausschreibungen/page";
 import { prisma } from "@/lib/prisma";
 
-jest.mock("@/lib/prisma", () => ({
-  prisma: {
-    ausschreibung: {
-      findMany: jest.fn(),
-    },
-  },
-}));
+jest.mock("@/lib/prisma", () =>
+  jest.requireActual<typeof import("./helpers/prisma-mock")>("./helpers/prisma-mock").prismaModuleMock,
+);
 
 jest.mock("next/dynamic", () => () => {
   function MockPdfViewer() {

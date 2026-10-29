@@ -1,20 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
+import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import {
-  getClientIp,
-  getNoCacheHeaders,
-  handleRateLimitBlocked,
-  parseJsonBody,
-  checkTokenRateLimitWithPolicy,
-  recordSuccessfulTokenUsageWithPolicy,
-  validateRequestBody,
-  validateCsrfHeaders,
-  withApiErrorHandling,
-} from "@/lib/api-utils";
+import { getNoCacheHeaders } from "@/lib/api-error-handler";
+import { parseAndValidateBody, ValidationError } from "@/lib/request-body-parser";
+import { recordSuccessfulTokenUsageWithPolicy, withTokenRateLimit } from "@/lib/api-utils";
 import { hash } from "bcryptjs";
 import { validatePassword } from "@/lib/password-validation";
 import { hashResetToken } from "@/lib/password-reset";
 import { logInfo, logValidationFailure, logResourceNotFound, maskToken, maskEmail } from "@/lib/logger";
+
+const ROUTE = "/api/auth/reset-password/[token]";
 
 const BCRYPT_SALT_ROUNDS = 10;
 
@@ -50,37 +45,15 @@ async function findValidResetToken(token: string) {
   return { reset, status: 200 };
 }
 
-export const GET = withApiErrorHandling(async (
-  request: NextRequest,
-  context: { params: Promise<{ token: string }> }
-) => {
-  const { token } = await context.params;
-  if (!token) {
-    return NextResponse.json({ error: "Ungültiger Link" }, { status: 400, headers: getNoCacheHeaders() });
-  }
-
-  const clientIp = getClientIp(request);
-  const tokenHash = hashResetToken(token);
-  const rateLimitResult = await checkTokenRateLimitWithPolicy(
-    "/api/auth/reset-password/[token]",
-    "GET",
-    clientIp,
-    tokenHash,
-    maskToken(token),
-    "read"
-  );
-
-  if (!rateLimitResult.allowed) {
-    return handleRateLimitBlocked(
-      'password_reset_rate_limited',
-      '/api/auth/reset-password/[token]',
-      token,
-      clientIp,
-      rateLimitResult.blockedUntil,
-      rateLimitResult.attemptCount
-    );
-  }
-
+export const GET = withTokenRateLimit({
+  route: ROUTE,
+  method: "GET",
+  action: "password_reset_rate_limited",
+  hashToken: hashResetToken,
+  kind: "read",
+  invalidTokenMessage: "Ungültiger Link",
+  invalidTokenNoCache: true,
+}, async (_request: NextRequest, { token }) => {
   const { reset, status } = await findValidResetToken(token);
   if (!reset) {
     const message = status === 410 ? "Der Link ist abgelaufen" : "Ungültiger Link";
@@ -94,65 +67,30 @@ export const GET = withApiErrorHandling(async (
     },
     { headers: getNoCacheHeaders() }
   );
-}, { route: "/api/auth/reset-password/[token]", method: "GET" });
+});
 
-export const POST = withApiErrorHandling(async (
-  request: NextRequest,
-  context: { params: Promise<{ token: string }> }
-) => {
-  validateCsrfHeaders(request);
-
-  const { token } = await context.params;
-  if (!token) {
-    return NextResponse.json({ error: "Ungültiger Link" }, { status: 400 });
-  }
-
-  const clientIp = getClientIp(request);
-  const tokenHash = hashResetToken(token);
-  const rateLimitResult = await checkTokenRateLimitWithPolicy(
-    "/api/auth/reset-password/[token]",
-    "POST",
-    clientIp,
-    tokenHash,
-    maskToken(token)
-  );
-
-  if (!rateLimitResult.allowed) {
-    return handleRateLimitBlocked(
-      'password_reset_rate_limited',
-      '/api/auth/reset-password/[token]',
-      token,
-      clientIp,
-      rateLimitResult.blockedUntil,
-      rateLimitResult.attemptCount
-    );
-  }
-
-  const body = await parseJsonBody<ResetPasswordRequest>(request);
-
-  const bodyValidation = validateRequestBody(body, resetPasswordSchema, { route: '/api/auth/reset-password/[token]', method: 'POST' });
-  if (!bodyValidation.isValid) {
-    return NextResponse.json(
-      { error: bodyValidation.errors.join(". ") },
-      { status: 400 }
-    );
-  }
+export const POST = withTokenRateLimit({
+  route: ROUTE,
+  method: "POST",
+  action: "password_reset_rate_limited",
+  hashToken: hashResetToken,
+  requireCsrf: true,
+  invalidTokenMessage: "Ungültiger Link",
+}, async (request: NextRequest, { token, tokenHash, clientIp }) => {
+  const body = await parseAndValidateBody<ResetPasswordRequest>(request, resetPasswordSchema, { route: ROUTE, method: 'POST' });
 
   const password = typeof body.password === "string" ? body.password : "";
 
   const passwordValidation = validatePassword(password);
   if (!passwordValidation.isValid) {
-    logValidationFailure('/api/auth/reset-password/[token]', 'POST', passwordValidation.errors, { token: maskToken(token) });
-    return NextResponse.json(
-      { error: passwordValidation.errors.join(". ") },
-      { status: 400 }
-    );
+    logValidationFailure(ROUTE, 'POST', passwordValidation.errors, { token: maskToken(token) });
+    throw new ValidationError(passwordValidation.errors);
   }
 
   const { reset, status } = await findValidResetToken(token);
   if (!reset) {
     const message = status === 410 ? "Der Link ist abgelaufen" : "Ungültiger Link";
-    logResourceNotFound('password_reset', maskToken(token), '/api/auth/reset-password/[token]', 'POST', {
+    logResourceNotFound('password_reset', maskToken(token), ROUTE, 'POST', {
       reason: status === 410 ? 'expired' : 'invalid',
     });
     return NextResponse.json({ error: message }, { status });
@@ -164,7 +102,7 @@ export const POST = withApiErrorHandling(async (
   });
 
   if (!user) {
-    logResourceNotFound('user', maskEmail(reset.email), '/api/auth/reset-password/[token]', 'POST');
+    logResourceNotFound('user', maskEmail(reset.email), ROUTE, 'POST');
     return NextResponse.json(
       { error: "Benutzer nicht gefunden" },
       { status: 404 }
@@ -174,7 +112,7 @@ export const POST = withApiErrorHandling(async (
   const hashedPassword = await hash(password, BCRYPT_SALT_ROUNDS);
 
   try {
-    await prisma.$transaction(async (tx: Omit<typeof prisma, "\$connect" | "\$disconnect" | "\$on" | "\$transaction" | "\$extends">) => {
+    await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       const consumed = await tx.passwordReset.updateMany({
         where: { id: reset.id, usedAt: null },
         data: { usedAt: new Date() },
@@ -194,7 +132,7 @@ export const POST = withApiErrorHandling(async (
     });
   } catch (error) {
     if (error instanceof ResetTokenAlreadyUsedError) {
-      logResourceNotFound('password_reset', maskToken(token), '/api/auth/reset-password/[token]', 'POST', {
+      logResourceNotFound('password_reset', maskToken(token), ROUTE, 'POST', {
         reason: 'already_used',
       });
       return NextResponse.json({ error: "Der Link ist abgelaufen" }, { status: 410 });
@@ -203,7 +141,7 @@ export const POST = withApiErrorHandling(async (
   }
 
   await recordSuccessfulTokenUsageWithPolicy(
-    "/api/auth/reset-password/[token]",
+    ROUTE,
     "POST",
     tokenHash,
     clientIp,
@@ -217,4 +155,4 @@ export const POST = withApiErrorHandling(async (
   return NextResponse.json({
     message: "Passwort wurde erfolgreich geändert",
   });
-}, { route: "/api/auth/reset-password/[token]", method: "POST" });
+});

@@ -39,6 +39,7 @@ describe("Proxy configuration", () => {
     "/logo.png",
     "/dokumente/merkblatt.pdf",
     "/robots.txt",
+    "/kalender.ics",
     "/sitemap.xml",
     "/manifest.webmanifest",
     // Next liefert app/apple-icon.tsx unter einem Pfad ohne Dateiendung aus.

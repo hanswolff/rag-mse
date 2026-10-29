@@ -12,14 +12,9 @@ import { checkLoginRateLimit, recordSuccessfulLogin } from "@/lib/rate-limiter";
 import { shouldFailOpenOnRateLimiterError } from "@/lib/rate-limit-policy";
 import { compare } from "bcryptjs";
 
-jest.mock("@/lib/prisma", () => ({
-  prisma: {
-    user: {
-      findUnique: jest.fn(),
-      update: jest.fn(),
-    },
-  },
-}));
+jest.mock("@/lib/prisma", () =>
+  jest.requireActual<typeof import("./helpers/prisma-mock")>("./helpers/prisma-mock").prismaModuleMock,
+);
 
 jest.mock("@/lib/rate-limiter", () => ({
   checkLoginRateLimit: jest.fn(),
@@ -71,6 +66,7 @@ describe("auth", () => {
       email,
       name: "Member",
       role: Role.MEMBER,
+      passwordUpdatedAt: null,
     });
     expect(mockPrismaUserUpdate).toHaveBeenCalledWith({
       where: { id: "user-1" },
@@ -145,6 +141,7 @@ describe("auth", () => {
       email: "site@example.com",
       name: "Site Admin",
       role: Role.SITE_ADMINISTRATOR,
+      passwordUpdatedAt: null,
     });
     expect(mockPrismaUserUpdate).toHaveBeenCalledWith({
       where: { id: "site-1" },
@@ -193,6 +190,7 @@ describe("auth", () => {
       email: "member2@example.com",
       name: "Member 2",
       role: Role.ADMIN,
+      passwordUpdatedAt: null,
     });
     expect(mockRecordSuccessfulLogin).toHaveBeenCalledWith("203.0.113.21", "member2@example.com");
     expect(mockPrismaUserUpdate).toHaveBeenCalledWith({
@@ -203,7 +201,7 @@ describe("auth", () => {
 
   it("starts impersonation in jwt callback with valid start proof", async () => {
     mockPrismaUserFindUnique
-      .mockResolvedValueOnce({ role: Role.SITE_ADMINISTRATOR, name: "Site Admin" })
+      .mockResolvedValueOnce({ role: Role.SITE_ADMINISTRATOR, name: "Site Admin", passwordUpdatedAt: null })
       .mockResolvedValueOnce({
         id: "target-1",
         email: "member@example.com",
@@ -221,6 +219,7 @@ describe("auth", () => {
         role: Role.SITE_ADMINISTRATOR,
         name: "Site Admin",
         email: "site@example.com",
+        passwordUpdatedAt: null,
       } as never,
       user: undefined as never,
       account: null,
@@ -237,7 +236,14 @@ describe("auth", () => {
 
   it("stops impersonation in jwt callback with valid stop proof", async () => {
     mockPrismaUserFindUnique
-      .mockResolvedValueOnce({ role: Role.MEMBER, name: "Member" })
+      .mockResolvedValueOnce({ role: Role.MEMBER, name: "Member", passwordUpdatedAt: null })
+      .mockResolvedValueOnce({
+        id: "actor-1",
+        email: "site@example.com",
+        name: "Site Admin",
+        role: Role.SITE_ADMINISTRATOR,
+        passwordUpdatedAt: null,
+      })
       .mockResolvedValueOnce({
         id: "actor-1",
         email: "site@example.com",
@@ -259,6 +265,7 @@ describe("auth", () => {
         impersonatedByRole: Role.SITE_ADMINISTRATOR,
         impersonatedByName: "Site Admin",
         impersonatedByEmail: "site@example.com",
+        passwordUpdatedAt: null,
       } as never,
       user: undefined as never,
       account: null,
@@ -332,6 +339,7 @@ describe("auth", () => {
         impersonatedByRole: Role.SITE_ADMINISTRATOR,
         impersonatedByName: "Site Admin",
         impersonatedByEmail: "site@example.com",
+        passwordUpdatedAt: null,
       } as never,
       user: undefined as never,
       account: null,

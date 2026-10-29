@@ -4,13 +4,13 @@ import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/auth-utils";
 import { validateName } from "@/lib/user-validation";
 import { validateVote } from "@/lib/event-validation";
-import {
-  parseJsonBody,
-  validateCsrfHeaders,
-  validateRequestBody,
-  withApiErrorHandling,
-} from "@/lib/api-utils";
+import { parseAndValidateBody } from "@/lib/request-body-parser";
+import { validateCsrfHeaders } from "@/lib/csrf-validator";
+import { withApiErrorHandling } from "@/lib/api-error-handler";
 import { logInfo, logResourceNotFound, logValidationFailure } from "@/lib/logger";
+import { suppressCatchUpReminder } from "@/lib/reminders/event-reminder-worker";
+
+const ROUTE = "/api/admin/events/[id]/registrations";
 
 type RegistrationType = "member" | "guest";
 
@@ -35,7 +35,7 @@ function isRegistrationType(value: string): value is RegistrationType {
 async function ensureEventExists(eventId: string) {
   const event = await prisma.event.findUnique({ where: { id: eventId }, select: { id: true } });
   if (!event) {
-    logResourceNotFound("event", eventId, "/api/admin/events/[id]/registrations", "*", {});
+    logResourceNotFound("event", eventId, ROUTE, "*", {});
     return false;
   }
   return true;
@@ -48,7 +48,7 @@ export const GET = withApiErrorHandling(async (_request: NextRequest, ctx: Route
 
   const eventExists = await ensureEventExists(eventId);
   if (!eventExists) {
-    logResourceNotFound("event", eventId, "/api/admin/events/[id]/registrations", "GET");
+    logResourceNotFound("event", eventId, ROUTE, "GET");
     return NextResponse.json({ error: "Termin nicht gefunden" }, { status: 404 });
   }
 
@@ -90,7 +90,7 @@ export const GET = withApiErrorHandling(async (_request: NextRequest, ctx: Route
     })),
     guests,
   });
-}, { route: "/api/admin/events/[id]/registrations", method: "GET" });
+}, { route: ROUTE, method: "GET" });
 
 export const POST = withApiErrorHandling(async (request: NextRequest, ctx: RouteContext<"/api/admin/events/[id]/registrations">) => {
   validateCsrfHeaders(request);
@@ -98,15 +98,7 @@ export const POST = withApiErrorHandling(async (request: NextRequest, ctx: Route
   await requireAdmin("write");
 
   const { id: eventId } = await ctx.params;
-  const body = await parseJsonBody<RegistrationRequest>(request);
-
-  const bodyValidation = validateRequestBody(body, registrationSchema, {
-    route: "/api/admin/events/[id]/registrations",
-    method: "POST",
-  });
-  if (!bodyValidation.isValid) {
-    return NextResponse.json({ error: bodyValidation.errors.join(". ") }, { status: 400 });
-  }
+  const body = await parseAndValidateBody<RegistrationRequest>(request, registrationSchema, { route: ROUTE, method: "POST" });
 
   if (!body.type || !isRegistrationType(body.type)) {
     return NextResponse.json({ error: "Ungültiger Anmeldungstyp" }, { status: 400 });
@@ -118,7 +110,7 @@ export const POST = withApiErrorHandling(async (request: NextRequest, ctx: Route
 
   if (!body.vote || !validateVote(body.vote)) {
     logValidationFailure(
-      "/api/admin/events/[id]/registrations",
+      ROUTE,
       "POST",
       "Ungültige Teilnahmeanmeldung. Erlaubt sind: JA, NEIN, VIELLEICHT",
       { eventId }
@@ -141,7 +133,7 @@ export const POST = withApiErrorHandling(async (request: NextRequest, ctx: Route
     });
 
     if (!user) {
-      logResourceNotFound("user", userId, "/api/admin/events/[id]/registrations", "POST", { eventId });
+      logResourceNotFound("user", userId, ROUTE, "POST", { eventId });
       return NextResponse.json({ error: "Mitglied nicht gefunden" }, { status: 404 });
     }
 
@@ -223,7 +215,7 @@ export const POST = withApiErrorHandling(async (request: NextRequest, ctx: Route
     type: "guest",
     registration: savedGuest,
   });
-}, { route: "/api/admin/events/[id]/registrations", method: "POST" });
+}, { route: ROUTE, method: "POST" });
 
 export const DELETE = withApiErrorHandling(async (request: NextRequest, ctx: RouteContext<"/api/admin/events/[id]/registrations">) => {
   validateCsrfHeaders(request);
@@ -231,15 +223,7 @@ export const DELETE = withApiErrorHandling(async (request: NextRequest, ctx: Rou
   await requireAdmin("write");
 
   const { id: eventId } = await ctx.params;
-  const body = await parseJsonBody<RegistrationRequest>(request);
-
-  const bodyValidation = validateRequestBody(body, registrationSchema, {
-    route: "/api/admin/events/[id]/registrations",
-    method: "DELETE",
-  });
-  if (!bodyValidation.isValid) {
-    return NextResponse.json({ error: bodyValidation.errors.join(". ") }, { status: 400 });
-  }
+  const body = await parseAndValidateBody<RegistrationRequest>(request, registrationSchema, { route: ROUTE, method: "DELETE" });
 
   if (!body.type || !isRegistrationType(body.type)) {
     return NextResponse.json({ error: "Ungültiger Anmeldungstyp" }, { status: 400 });
@@ -263,11 +247,13 @@ export const DELETE = withApiErrorHandling(async (request: NextRequest, ctx: Rou
     });
 
     if (result.count === 0) {
-      logResourceNotFound("vote", `${userId}-${eventId}`, "/api/admin/events/[id]/registrations", "DELETE", {
+      logResourceNotFound("vote", `${userId}-${eventId}`, ROUTE, "DELETE", {
         type: "member",
       });
       return NextResponse.json({ error: "Teilnahmeanmeldung nicht gefunden" }, { status: 404 });
     }
+
+    await suppressCatchUpReminder(userId, eventId);
 
     logInfo("admin_member_registration_deleted", "Admin removed member registration", {
       eventId,
@@ -290,7 +276,7 @@ export const DELETE = withApiErrorHandling(async (request: NextRequest, ctx: Rou
   });
 
   if (result.count === 0) {
-    logResourceNotFound("guest_registration", `${eventId}-${guestName}`, "/api/admin/events/[id]/registrations", "DELETE", {
+    logResourceNotFound("guest_registration", `${eventId}-${guestName}`, ROUTE, "DELETE", {
       type: "guest",
     });
     return NextResponse.json({ error: "Gastanmeldung nicht gefunden" }, { status: 404 });
@@ -302,4 +288,4 @@ export const DELETE = withApiErrorHandling(async (request: NextRequest, ctx: Rou
   });
 
   return NextResponse.json({ success: true });
-}, { route: "/api/admin/events/[id]/registrations", method: "DELETE" });
+}, { route: ROUTE, method: "DELETE" });

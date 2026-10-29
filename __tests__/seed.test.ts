@@ -292,7 +292,7 @@ describe("Seed Script", () => {
   describe("Error handling", () => {
     it("should handle database errors gracefully", async () => {
       process.env.SEED_ADMIN_EMAIL = "admin@example.com";
-      process.env.SEED_ADMIN_PASSWORD = "password123";
+      process.env.SEED_ADMIN_PASSWORD = "Password123";
 
       (mockPrismaClient.user.findUnique as jest.Mock).mockRejectedValue(
         new Error("Database connection failed")
@@ -303,11 +303,7 @@ describe("Seed Script", () => {
 
       const { main } = await import("../prisma/seed");
 
-      try {
-        await main();
-      } catch (error) {
-        expect(error).toBeTruthy();
-      }
+      await expect(main(mockPrismaClient)).rejects.toThrow("Database connection failed");
     });
   });
 

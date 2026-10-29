@@ -1,4 +1,4 @@
-import { NextRequest } from "next/server";
+import { apiRequest, routeContext } from "./helpers/request";
 import { GET as listPolls, POST as createPoll } from "@/app/api/admin/polls/route";
 import {
   GET as getPoll,
@@ -9,8 +9,8 @@ import { POST as publishPoll } from "@/app/api/admin/polls/[id]/publish/route";
 import { POST as closePoll } from "@/app/api/admin/polls/[id]/close/route";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/auth-utils";
-import { validateCsrfHeaders } from "@/lib/api-utils";
-import { sendTemplateEmail } from "@/lib/email-sender";
+import { validateCsrfHeaders } from "@/lib/csrf-validator";
+import { enqueueRenderedEmail } from "@/lib/email-sender";
 import { generateUniquePollId } from "@/lib/poll-utils";
 import { validateCreatePollRequest, validateUpdatePollRequest } from "@/lib/poll-validation";
 
@@ -18,47 +18,23 @@ jest.mock("@/lib/auth-utils", () => ({
   requireAdmin: jest.fn(),
 }));
 
-jest.mock("@/lib/prisma", () => ({
-  prisma: {
-    poll: {
-      findMany: jest.fn(),
-      findUnique: jest.fn(),
-      create: jest.fn(),
-      update: jest.fn(),
-      updateMany: jest.fn(),
-      delete: jest.fn(),
-      count: jest.fn(),
-    },
-    pollOption: {
-      deleteMany: jest.fn(),
-      createMany: jest.fn(),
-    },
-    pollVote: {
-      deleteMany: jest.fn(),
-    },
-    event: {
-      findUnique: jest.fn(),
-    },
-    user: {
-      findMany: jest.fn(),
-    },
-    pollNotificationDispatch: {
-      create: jest.fn(),
-    },
-    $transaction: jest.fn(),
-  },
-}));
+jest.mock("@/lib/prisma", () =>
+  jest.requireActual<typeof import("./helpers/prisma-mock")>("./helpers/prisma-mock").prismaModuleMock,
+);
 
-jest.mock("@/lib/api-utils", () => ({
-  parseJsonBody: jest.fn(async (req) => req.json()),
-  validateCsrfHeaders: jest.fn(),
-  withApiErrorHandling: jest.fn((handler) => handler),
-  validateRequestBody: jest.fn().mockReturnValue({ isValid: true, errors: [] }),
-  getAuthNoCacheHeaders: jest.fn(() => ({})),
-}));
+jest.mock("@/lib/csrf-validator", () => {
+  const actual = jest.requireActual("@/lib/csrf-validator");
+  return {
+    ...actual,
+    validateCsrfHeaders: jest.fn(actual.validateCsrfHeaders),
+  };
+});
 
 jest.mock("@/lib/email-sender", () => ({
-  sendTemplateEmail: jest.fn().mockResolvedValue(true),
+  createTemplateEmailRenderer: jest.fn(async (template: string) =>
+    (options: Record<string, unknown>) => ({ template, ...options })
+  ),
+  enqueueRenderedEmail: jest.fn().mockResolvedValue({ queued: true }),
 }));
 
 jest.mock("@/lib/poll-validation", () => ({
@@ -70,13 +46,9 @@ jest.mock("@/lib/poll-utils", () => ({
   generateUniquePollId: jest.fn(),
 }));
 
-jest.mock("@/lib/logger", () => ({
-  logInfo: jest.fn(),
-  logError: jest.fn(),
-  logWarn: jest.fn(),
-  logValidationFailure: jest.fn(),
-  logResourceNotFound: jest.fn(),
-}));
+jest.mock("@/lib/logger", () =>
+  jest.requireActual<typeof import("./helpers/logger-mock")>("./helpers/logger-mock").mockLogger,
+);
 
 const mockRequireAdmin = requireAdmin as jest.Mock;
 const mockPollFindMany = prisma.poll.findMany as jest.Mock;
@@ -90,8 +62,9 @@ const mockPollOptionDeleteMany = prisma.pollOption.deleteMany as jest.Mock;
 const mockPollOptionCreateMany = prisma.pollOption.createMany as jest.Mock;
 const mockEventFindUnique = (prisma as unknown as { event: { findUnique: jest.Mock } }).event.findUnique;
 const mockUserFindMany = prisma.user.findMany as jest.Mock;
+const mockPollNotificationFindMany = (prisma as unknown as { pollNotificationDispatch: { findMany: jest.Mock } }).pollNotificationDispatch.findMany;
 const mockPollNotificationCreate = (prisma as unknown as { pollNotificationDispatch: { create: jest.Mock } }).pollNotificationDispatch.create;
-const mockSendTemplateEmail = sendTemplateEmail as jest.Mock;
+const mockEnqueueRenderedEmail = enqueueRenderedEmail as jest.Mock;
 const mockGeneratePollId = generateUniquePollId as jest.Mock;
 const mockValidateCreate = validateCreatePollRequest as jest.Mock;
 const mockValidateUpdate = validateUpdatePollRequest as jest.Mock;
@@ -99,8 +72,9 @@ const mockValidateCsrf = validateCsrfHeaders as jest.Mock;
 
 const adminUser = { id: "admin-1", role: "ADMIN", name: "Admin" };
 
+// Browser-typische Header, damit die echte CSRF-Prüfung durchlaufen wird
 function idContext(id: string) {
-  return { params: Promise.resolve({ id }) } as never;
+  return routeContext({ id }) as never;
 }
 
 const mockTransaction = (prisma as unknown as { $transaction: jest.Mock }).$transaction;
@@ -112,6 +86,8 @@ describe("/api/admin/polls", () => {
     mockValidateCreate.mockReturnValue({ isValid: true, errors: [] });
     mockValidateUpdate.mockReturnValue({ isValid: true, errors: [] });
     mockGeneratePollId.mockResolvedValue("abc12345");
+    mockPollNotificationFindMany.mockResolvedValue([]);
+    mockPollNotificationCreate.mockResolvedValue({});
     // Interaktive Transaktionen führen den Callback gegen das gemockte prisma aus.
     mockTransaction.mockImplementation(async (arg: unknown) =>
       typeof arg === "function" ? (arg as (tx: typeof prisma) => unknown)(prisma) : Promise.all(arg as Promise<unknown>[])
@@ -127,7 +103,7 @@ describe("/api/admin/polls", () => {
       mockPollFindMany.mockResolvedValueOnce(polls);
       mockPollCount.mockResolvedValueOnce(2);
 
-      const request = new NextRequest("http://localhost:3000/api/admin/polls?page=1&limit=10");
+      const request = apiRequest("GET", "/api/admin/polls?page=1&limit=10");
       const response = await listPolls(request);
       const json = await response.json();
 
@@ -140,7 +116,7 @@ describe("/api/admin/polls", () => {
       mockPollFindMany.mockResolvedValueOnce([]);
       mockPollCount.mockResolvedValueOnce(0);
 
-      const request = new NextRequest("http://localhost:3000/api/admin/polls");
+      const request = apiRequest("GET", "/api/admin/polls");
       const response = await listPolls(request);
       const json = await response.json();
 
@@ -153,7 +129,7 @@ describe("/api/admin/polls", () => {
       mockPollFindMany.mockResolvedValueOnce([]);
       mockPollCount.mockResolvedValueOnce(0);
 
-      const request = new NextRequest("http://localhost:3000/api/admin/polls");
+      const request = apiRequest("GET", "/api/admin/polls");
       await listPolls(request);
 
       expect(mockRequireAdmin).toHaveBeenCalledWith("read");
@@ -177,14 +153,11 @@ describe("/api/admin/polls", () => {
       };
       mockPollCreate.mockResolvedValueOnce(createdPoll);
 
-      const request = new NextRequest("http://localhost:3000/api/admin/polls", {
-        method: "POST",
-        body: JSON.stringify({
+      const request = apiRequest("POST", "/api/admin/polls", { body: {
           title: "Test Poll",
           type: "SONSTIGES",
           options: [{ text: "Option A" }, { text: "Option B" }],
-        }),
-      });
+        }, browser: true });
 
       const response = await createPoll(request);
       const json = await response.json();
@@ -219,15 +192,12 @@ describe("/api/admin/polls", () => {
       };
       mockPollCreate.mockResolvedValueOnce(createdPoll);
 
-      const request = new NextRequest("http://localhost:3000/api/admin/polls", {
-        method: "POST",
-        body: JSON.stringify({
+      const request = apiRequest("POST", "/api/admin/polls", { body: {
           title: "Termin Poll",
           type: "TERMIN",
           eventId: "event-1",
           options: [{ text: "Ja" }, { text: "Nein" }],
-        }),
-      });
+        }, browser: true });
 
       const response = await createPoll(request);
       const json = await response.json();
@@ -240,14 +210,11 @@ describe("/api/admin/polls", () => {
     it("validates CSRF headers", async () => {
       mockPollCreate.mockResolvedValueOnce({ id: "p1", options: [] });
 
-      const request = new NextRequest("http://localhost:3000/api/admin/polls", {
-        method: "POST",
-        body: JSON.stringify({
+      const request = apiRequest("POST", "/api/admin/polls", { body: {
           title: "X",
           type: "SONSTIGES",
           options: [{ text: "A" }, { text: "B" }],
-        }),
-      });
+        }, browser: true });
 
       await createPoll(request);
 
@@ -257,14 +224,11 @@ describe("/api/admin/polls", () => {
     it("calls requireAdmin with write permission", async () => {
       mockPollCreate.mockResolvedValueOnce({ id: "p1", options: [] });
 
-      const request = new NextRequest("http://localhost:3000/api/admin/polls", {
-        method: "POST",
-        body: JSON.stringify({
+      const request = apiRequest("POST", "/api/admin/polls", { body: {
           title: "X",
           type: "SONSTIGES",
           options: [{ text: "A" }, { text: "B" }],
-        }),
-      });
+        }, browser: true });
 
       await createPoll(request);
 
@@ -277,10 +241,7 @@ describe("/api/admin/polls", () => {
         errors: ["Titel ist erforderlich"],
       });
 
-      const request = new NextRequest("http://localhost:3000/api/admin/polls", {
-        method: "POST",
-        body: JSON.stringify({ title: "", type: "SONSTIGES", options: [] }),
-      });
+      const request = apiRequest("POST", "/api/admin/polls", { body: { title: "", type: "SONSTIGES", options: [] }, browser: true });
 
       const response = await createPoll(request);
 
@@ -292,15 +253,12 @@ describe("/api/admin/polls", () => {
     it("returns 404 for TERMIN poll with non-existent event", async () => {
       mockEventFindUnique.mockResolvedValueOnce(null);
 
-      const request = new NextRequest("http://localhost:3000/api/admin/polls", {
-        method: "POST",
-        body: JSON.stringify({
+      const request = apiRequest("POST", "/api/admin/polls", { body: {
           title: "Termin",
           type: "TERMIN",
           eventId: "missing-event",
           options: [{ text: "A" }, { text: "B" }],
-        }),
-      });
+        }, browser: true });
 
       const response = await createPoll(request);
 
@@ -328,7 +286,7 @@ describe("/api/admin/polls", () => {
       };
       mockPollFindUnique.mockResolvedValueOnce(poll);
 
-      const request = new NextRequest("http://localhost:3000/api/admin/polls/p1");
+      const request = apiRequest("GET", "/api/admin/polls/p1");
       const response = await getPoll(request, idContext("p1"));
       const json = await response.json();
 
@@ -341,7 +299,7 @@ describe("/api/admin/polls", () => {
     it("returns 404 for non-existent poll", async () => {
       mockPollFindUnique.mockResolvedValueOnce(null);
 
-      const request = new NextRequest("http://localhost:3000/api/admin/polls/missing");
+      const request = apiRequest("GET", "/api/admin/polls/missing");
       const response = await getPoll(request, idContext("missing"));
 
       expect(response.status).toBe(404);
@@ -361,10 +319,7 @@ describe("/api/admin/polls", () => {
       };
       mockPollUpdate.mockResolvedValueOnce(updatedPoll);
 
-      const request = new NextRequest("http://localhost:3000/api/admin/polls/p1", {
-        method: "PATCH",
-        body: JSON.stringify({ title: "Updated Title", description: "New desc" }),
-      });
+      const request = apiRequest("PATCH", "/api/admin/polls/p1", { body: { title: "Updated Title", description: "New desc" }, browser: true });
 
       const response = await updatePoll(request, idContext("p1"));
       const json = await response.json();
@@ -384,10 +339,7 @@ describe("/api/admin/polls", () => {
         ],
       });
 
-      const request = new NextRequest("http://localhost:3000/api/admin/polls/p1", {
-        method: "PATCH",
-        body: JSON.stringify({ options: [{ text: "X" }, { text: "Y" }] }),
-      });
+      const request = apiRequest("PATCH", "/api/admin/polls/p1", { body: { options: [{ text: "X" }, { text: "Y" }] }, browser: true });
 
       const response = await updatePoll(request, idContext("p1"));
 
@@ -404,10 +356,7 @@ describe("/api/admin/polls", () => {
     it("returns 409 for non-DRAFT poll", async () => {
       mockPollFindUnique.mockResolvedValueOnce({ id: "p1", status: "LIVE" });
 
-      const request = new NextRequest("http://localhost:3000/api/admin/polls/p1", {
-        method: "PATCH",
-        body: JSON.stringify({ title: "Update" }),
-      });
+      const request = apiRequest("PATCH", "/api/admin/polls/p1", { body: { title: "Update" }, browser: true });
 
       const response = await updatePoll(request, idContext("p1"));
 
@@ -419,10 +368,7 @@ describe("/api/admin/polls", () => {
     it("returns 404 for non-existent poll", async () => {
       mockPollFindUnique.mockResolvedValueOnce(null);
 
-      const request = new NextRequest("http://localhost:3000/api/admin/polls/missing", {
-        method: "PATCH",
-        body: JSON.stringify({ title: "Update" }),
-      });
+      const request = apiRequest("PATCH", "/api/admin/polls/missing", { body: { title: "Update" }, browser: true });
 
       const response = await updatePoll(request, idContext("missing"));
 
@@ -438,10 +384,7 @@ describe("/api/admin/polls", () => {
         .mockResolvedValueOnce({ id: "p1", status: "DRAFT" })
         .mockResolvedValueOnce({ id: "p1", status: "LIVE" });
 
-      const request = new NextRequest("http://localhost:3000/api/admin/polls/p1", {
-        method: "PATCH",
-        body: JSON.stringify({ options: [{ text: "X" }] }),
-      });
+      const request = apiRequest("PATCH", "/api/admin/polls/p1", { body: { options: [{ text: "X" }] }, browser: true });
 
       const response = await updatePoll(request, idContext("p1"));
 
@@ -459,9 +402,7 @@ describe("/api/admin/polls", () => {
       mockPollFindUnique.mockResolvedValueOnce({ id: "p1" });
       mockPollDelete.mockResolvedValueOnce({ id: "p1" });
 
-      const request = new NextRequest("http://localhost:3000/api/admin/polls/p1", {
-        method: "DELETE",
-      });
+      const request = apiRequest("DELETE", "/api/admin/polls/p1", { browser: true });
 
       const response = await deletePoll(request, idContext("p1"));
       const json = await response.json();
@@ -474,9 +415,7 @@ describe("/api/admin/polls", () => {
     it("returns 404 for non-existent poll", async () => {
       mockPollFindUnique.mockResolvedValueOnce(null);
 
-      const request = new NextRequest("http://localhost:3000/api/admin/polls/missing", {
-        method: "DELETE",
-      });
+      const request = apiRequest("DELETE", "/api/admin/polls/missing", { browser: true });
 
       const response = await deletePoll(request, idContext("missing"));
 
@@ -511,9 +450,7 @@ describe("/api/admin/polls", () => {
       mockPollUpdateMany.mockResolvedValueOnce({ count: 1 });
       mockUserFindMany.mockResolvedValueOnce([]);
 
-      const request = new NextRequest("http://localhost:3000/api/admin/polls/abc12345/publish", {
-        method: "POST",
-      });
+      const request = apiRequest("POST", "/api/admin/polls/abc12345/publish", { browser: true });
 
       const response = await publishPoll(request, idContext("abc12345"));
       const json = await response.json();
@@ -539,18 +476,13 @@ describe("/api/admin/polls", () => {
       };
       mockPollFindUnique.mockResolvedValueOnce(draftPoll);
       mockPollUpdateMany.mockResolvedValueOnce({ count: 0 });
-      mockUserFindMany.mockResolvedValueOnce([
-        { id: "u1", name: "Max", email: "max@test.de" },
-      ]);
 
-      const request = new NextRequest("http://localhost:3000/api/admin/polls/abc12345/publish", {
-        method: "POST",
-      });
+      const request = apiRequest("POST", "/api/admin/polls/abc12345/publish", { browser: true });
 
       const response = await publishPoll(request, idContext("abc12345"));
 
       expect(response.status).toBe(409);
-      expect(mockSendTemplateEmail).not.toHaveBeenCalled();
+      expect(mockEnqueueRenderedEmail).not.toHaveBeenCalled();
       expect(mockPollNotificationCreate).not.toHaveBeenCalled();
     });
 
@@ -571,9 +503,7 @@ describe("/api/admin/polls", () => {
         { id: "u2", name: "Eva", email: "eva@test.de" },
       ]);
 
-      const request = new NextRequest("http://localhost:3000/api/admin/polls/abc12345/publish", {
-        method: "POST",
-      });
+      const request = apiRequest("POST", "/api/admin/polls/abc12345/publish", { browser: true });
 
       await publishPoll(request, idContext("abc12345"));
 
@@ -582,19 +512,22 @@ describe("/api/admin/polls", () => {
           where: { pollNotificationEnabled: true, activatedAt: { not: null } },
         })
       );
-      expect(mockSendTemplateEmail).toHaveBeenCalledTimes(2);
-      expect(mockSendTemplateEmail).toHaveBeenCalledWith(
+      expect(mockEnqueueRenderedEmail).toHaveBeenCalledTimes(2);
+      expect(mockEnqueueRenderedEmail).toHaveBeenCalledWith(
         expect.objectContaining({
           template: "umfrage-benachrichtigung",
           to: ["max@test.de"],
         }),
         expect.anything()
       );
-      expect(mockPollNotificationCreate).toHaveBeenCalledTimes(2);
-      // Dedupe-Eintrag muss vor dem E-Mail-Insert erfolgen
-      expect(mockPollNotificationCreate.mock.invocationCallOrder[0]).toBeLessThan(
-        mockSendTemplateEmail.mock.invocationCallOrder[0]
-      );
+      expect(mockPollNotificationCreate).toHaveBeenCalledWith({
+        data: expect.objectContaining({ pollId: "abc12345", userId: "u1" }),
+      });
+      expect(mockPollNotificationCreate).toHaveBeenCalledWith({
+        data: expect.objectContaining({ pollId: "abc12345", userId: "u2" }),
+      });
+      // Umfrage-Benachrichtigung und E-Mail laufen in derselben Transaktion
+      expect(mockTransaction).toHaveBeenCalledTimes(1);
     });
 
     it("skips members that already have a dispatch entry (unique violation)", async () => {
@@ -613,25 +546,21 @@ describe("/api/admin/polls", () => {
         { id: "u1", name: "Max", email: "max@test.de" },
         { id: "u2", name: "Eva", email: "eva@test.de" },
       ]);
-      mockPollNotificationCreate
-        .mockRejectedValueOnce({ code: "P2002" })
-        .mockResolvedValueOnce({});
+      mockPollNotificationFindMany.mockResolvedValueOnce([{ userId: "u1" }]);
 
-      const request = new NextRequest("http://localhost:3000/api/admin/polls/abc12345/publish", {
-        method: "POST",
-      });
+      const request = apiRequest("POST", "/api/admin/polls/abc12345/publish", { browser: true });
 
       const response = await publishPoll(request, idContext("abc12345"));
 
       expect(response.status).toBe(200);
-      expect(mockSendTemplateEmail).toHaveBeenCalledTimes(1);
-      expect(mockSendTemplateEmail).toHaveBeenCalledWith(
+      expect(mockEnqueueRenderedEmail).toHaveBeenCalledTimes(1);
+      expect(mockEnqueueRenderedEmail).toHaveBeenCalledWith(
         expect.objectContaining({ to: ["eva@test.de"] }),
         expect.anything()
       );
     });
 
-    it("propagates a wholesale notification failure so the transaction rolls back", async () => {
+    it("propagates a notification failure out of the block transaction", async () => {
       const draftPoll = {
         id: "abc12345",
         title: "Notification Poll",
@@ -646,11 +575,15 @@ describe("/api/admin/polls", () => {
       ]);
       mockPollNotificationCreate.mockRejectedValueOnce(new Error("db down"));
 
-      const request = new NextRequest("http://localhost:3000/api/admin/polls/abc12345/publish", {
-        method: "POST",
-      });
+      const request = apiRequest("POST", "/api/admin/polls/abc12345/publish", { browser: true });
 
-      await expect(publishPoll(request, idContext("abc12345"))).rejects.toThrow("db down");
+      // Der Fehler muss aus dem Transaktions-Callback herauspropagieren
+      // (→ Rollback in Prisma); die Route mappt ihn dann auf 500.
+      const response = await publishPoll(request, idContext("abc12345"));
+
+      expect(response.status).toBe(500);
+      await expect(mockTransaction.mock.results[0].value).rejects.toThrow("db down");
+      expect(mockEnqueueRenderedEmail).not.toHaveBeenCalled();
     });
 
     it("returns 400 for non-DRAFT poll", async () => {
@@ -660,9 +593,7 @@ describe("/api/admin/polls", () => {
         options: [{ id: "opt-1" }, { id: "opt-2" }],
       });
 
-      const request = new NextRequest("http://localhost:3000/api/admin/polls/p1/publish", {
-        method: "POST",
-      });
+      const request = apiRequest("POST", "/api/admin/polls/p1/publish", { browser: true });
 
       const response = await publishPoll(request, idContext("p1"));
 
@@ -674,9 +605,7 @@ describe("/api/admin/polls", () => {
     it("returns 404 for non-existent poll", async () => {
       mockPollFindUnique.mockResolvedValueOnce(null);
 
-      const request = new NextRequest("http://localhost:3000/api/admin/polls/missing/publish", {
-        method: "POST",
-      });
+      const request = apiRequest("POST", "/api/admin/polls/missing/publish", { browser: true });
 
       const response = await publishPoll(request, idContext("missing"));
 
@@ -692,15 +621,13 @@ describe("/api/admin/polls", () => {
         options: [{ id: "opt-1" }],
       });
 
-      const request = new NextRequest("http://localhost:3000/api/admin/polls/p1/publish", {
-        method: "POST",
-      });
+      const request = apiRequest("POST", "/api/admin/polls/p1/publish", { browser: true });
 
       const response = await publishPoll(request, idContext("p1"));
 
       expect(response.status).toBe(400);
       const json = await response.json();
-      expect(json.error).toContain("Mindestens 2 Optionen");
+      expect(json.error).toContain("mindestens 2 Optionen");
     });
   });
 
@@ -717,9 +644,7 @@ describe("/api/admin/polls", () => {
       };
       mockPollUpdate.mockResolvedValueOnce(closedPoll);
 
-      const request = new NextRequest("http://localhost:3000/api/admin/polls/p1/close", {
-        method: "POST",
-      });
+      const request = apiRequest("POST", "/api/admin/polls/p1/close", { browser: true });
 
       const response = await closePoll(request, idContext("p1"));
       const json = await response.json();
@@ -737,9 +662,7 @@ describe("/api/admin/polls", () => {
     it("returns 409 for non-LIVE poll", async () => {
       mockPollFindUnique.mockResolvedValueOnce({ id: "p1", status: "DRAFT" });
 
-      const request = new NextRequest("http://localhost:3000/api/admin/polls/p1/close", {
-        method: "POST",
-      });
+      const request = apiRequest("POST", "/api/admin/polls/p1/close", { browser: true });
 
       const response = await closePoll(request, idContext("p1"));
 
@@ -751,9 +674,7 @@ describe("/api/admin/polls", () => {
     it("returns 404 for non-existent poll", async () => {
       mockPollFindUnique.mockResolvedValueOnce(null);
 
-      const request = new NextRequest("http://localhost:3000/api/admin/polls/missing/close", {
-        method: "POST",
-      });
+      const request = apiRequest("POST", "/api/admin/polls/missing/close", { browser: true });
 
       const response = await closePoll(request, idContext("missing"));
 

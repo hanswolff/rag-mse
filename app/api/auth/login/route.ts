@@ -1,10 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { authorizeCredentials, createLoginProof } from "@/lib/auth";
 import { logError, logValidationFailure, maskEmail } from "@/lib/logger";
-import { parseJsonBody, validateRequestBody, validateCsrfHeaders, getClientIp, withApiErrorHandling } from "@/lib/api-utils";
+import { parseAndValidateBody } from "@/lib/request-body-parser";
+import { validateCsrfHeaders } from "@/lib/csrf-validator";
+import { getClientIp } from "@/lib/api-utils";
+import { withApiErrorHandling } from "@/lib/api-error-handler";
 import { validateEmail } from "@/lib/validation-schema";
 import { pluralize } from "@/lib/pluralization";
 import { RateLimitError, RateLimitUnavailableError } from "@/lib/errors";
+
+const ROUTE = "/api/auth/login";
 
 interface LoginRequest {
   email: string;
@@ -19,22 +24,15 @@ const loginSchema = {
 export const POST = withApiErrorHandling(async (request: NextRequest) => {
   validateCsrfHeaders(request);
 
-  const body = await parseJsonBody<LoginRequest>(request);
+  const body = await parseAndValidateBody<LoginRequest>(request, loginSchema, { route: ROUTE, method: 'POST' });
 
-  const bodyValidation = validateRequestBody(body, loginSchema, { route: '/api/auth/login', method: 'POST' });
-  if (!bodyValidation.isValid) {
-    return NextResponse.json(
-      { error: bodyValidation.errors.join(". ") },
-      { status: 400 }
-    );
-  }
-
-  const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
+  const rawEmail = typeof body.email === "string" ? body.email.trim() : "";
+  const email = rawEmail.toLowerCase();
   const password = typeof body.password === "string" ? body.password : "";
 
   if (!email || !password) {
-    logValidationFailure('/api/auth/login', 'POST', 'E-Mail und Passwort sind erforderlich', {
-      route: '/api/auth/login',
+    logValidationFailure(ROUTE, 'POST', 'E-Mail und Passwort sind erforderlich', {
+      route: ROUTE,
     });
     return NextResponse.json(
       { error: "E-Mail und Passwort sind erforderlich" },
@@ -43,8 +41,8 @@ export const POST = withApiErrorHandling(async (request: NextRequest) => {
   }
 
   if (!validateEmail(email)) {
-    logValidationFailure('/api/auth/login', 'POST', 'Bitte geben Sie eine gültige E-Mail-Adresse ein', {
-      route: '/api/auth/login',
+    logValidationFailure(ROUTE, 'POST', 'Bitte geben Sie eine gültige E-Mail-Adresse ein', {
+      route: ROUTE,
     });
     return NextResponse.json(
       { error: "Bitte geben Sie eine gültige E-Mail-Adresse ein" },
@@ -54,7 +52,7 @@ export const POST = withApiErrorHandling(async (request: NextRequest) => {
 
   let user;
   try {
-    user = await authorizeCredentials({ email, password }, request);
+    user = await authorizeCredentials({ email: rawEmail, password }, request);
   } catch (error) {
     if (error instanceof RateLimitError) {
       const minutes = error.blockedMinutes;
@@ -101,4 +99,4 @@ export const POST = withApiErrorHandling(async (request: NextRequest) => {
       { status: 503 }
     );
   }
-}, { route: "/api/auth/login", method: "POST" });
+}, { route: ROUTE, method: "POST" });

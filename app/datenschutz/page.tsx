@@ -1,6 +1,7 @@
 export { metadata } from "./metadata";
 
 import { BackLink } from "@/components/back-link";
+import { PostalAddress } from "@/components/postal-address";
 import { appName } from "@/lib/site-config";
 
 export default function DatenschutzPage() {
@@ -9,7 +10,7 @@ export default function DatenschutzPage() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
         <div className="card">
           <h1 className="text-2xl sm:text-3xl font-bold text-center mb-6 sm:mb-8 text-gray-900">Datenschutzerklärung</h1>
-          <p className="text-center text-sm text-gray-600 -mt-3 mb-6 sm:mb-8">Zuletzt geändert: 13. März 2026</p>
+          <p className="text-center text-sm text-gray-600 -mt-3 mb-6 sm:mb-8">Zuletzt geändert: 19. Oktober 2026</p>
 
           <section className="mb-6 sm:mb-8">
             <h2 className="text-lg sm:text-xl font-semibold mb-3 sm:mb-4 text-gray-900">1. Datenschutz auf einen Blick</h2>
@@ -27,7 +28,7 @@ export default function DatenschutzPage() {
             <h2 className="text-lg sm:text-xl font-semibold mb-3 sm:mb-4 text-gray-900">2. Verantwortlicher</h2>
             <p className="text-base sm:text-base text-gray-800">
               Verantwortlich für die Datenverarbeitung ist die {appName}. Die Kontaktdaten finden Sie im
-              Abschnitt &ldquo;Kontakt für Datenschutz&rdquo; am Ende dieser Seite.
+              Abschnitt &bdquo;Kontakt für Datenschutz&ldquo; am Ende dieser Seite.
             </p>
           </section>
 
@@ -42,14 +43,7 @@ export default function DatenschutzPage() {
               itemType="https://schema.org/Organization"
             >
               <p><strong className="text-gray-900">Anbieter:</strong> <span itemProp="name">dedimax solutions GmbH</span></p>
-              <div itemProp="address" itemScope itemType="https://schema.org/PostalAddress" className="space-y-0.5">
-                <p><strong>Adresse:</strong></p>
-                <p itemProp="streetAddress">Wieseneck 32</p>
-                <p>
-                  <span itemProp="postalCode">17192</span>{" "}
-                  <span itemProp="addressLocality">Waren (Müritz)</span>
-                </p>
-              </div>
+              <PostalAddress label="Adresse:" street="Wieseneck 32" postalCode="17192" locality="Waren (Müritz)" />
             </address>
             <p className="text-base sm:text-base text-gray-800">
               <strong>Website:</strong>{" "}
@@ -84,10 +78,10 @@ export default function DatenschutzPage() {
               Name, Adresse, Telefon, Rolle sowie Erstellungs- und Änderungszeitpunkte.
             </p>
             <p className="mb-4 text-base sm:text-base text-gray-800">
-              Für die Anmeldung setzen wir notwendige Session-Cookies, die für die Nutzung des Mitgliederbereichs
+              Für den Login setzen wir notwendige Session-Cookies, die für die Nutzung des Mitgliederbereichs
               erforderlich sind. Rechtsgrundlage hierfür ist § 25 Abs. 2 Nr. 2 TDDDG (technisch erforderlich) sowie
-              Art. 6 Abs. 1 lit. b und lit. f DSGVO. Die Einwilligung in den Cookie-Hinweis wird in Ihrem Browser lokal
-              in <strong>localStorage</strong> gespeichert.
+              Art. 6 Abs. 1 lit. b und lit. f DSGVO. Die Einwilligung in den Cookie-Hinweis und die Filterauswahl im
+              Kalender werden in Ihrem Browser lokal in <strong>localStorage</strong> gespeichert.
             </p>
             <p className="text-base sm:text-base text-gray-800">
               Rechtsgrundlage für die Verarbeitung im Mitgliederbereich ist Art. 6 Abs. 1 lit. b DSGVO
@@ -102,7 +96,7 @@ export default function DatenschutzPage() {
               Person sowie einen Einladungs-Token.
             </p>
             <p className="text-base sm:text-base text-gray-800">
-              Bei der &ldquo;Passwort vergessen&rdquo;-Funktion verarbeiten wir Ihre E-Mail-Adresse und speichern einen
+              Bei der &bdquo;Passwort vergessen&ldquo;-Funktion verarbeiten wir Ihre E-Mail-Adresse und speichern einen
               Reset-Token ausschließlich gehasht. Der Token ist zeitlich befristet (24 Stunden). Rechtsgrundlage ist
               Art. 6 Abs. 1 lit. b DSGVO.
             </p>
@@ -127,7 +121,31 @@ export default function DatenschutzPage() {
           </section>
 
           <section className="mb-6 sm:mb-8">
-            <h2 className="text-lg sm:text-xl font-semibold mb-3 sm:mb-4 text-gray-900">7. Kontaktformular und E-Mail</h2>
+            <h2 className="text-lg sm:text-xl font-semibold mb-3 sm:mb-4 text-gray-900">7. Abwesenheiten</h2>
+            <p className="mb-4 text-base sm:text-base text-gray-800">
+              Eingeloggte Benutzer können freiwillig Abwesenheiten eintragen, also Zeiträume, in denen sie nicht
+              verfügbar sind. Zweck ist die Terminplanung des Vereins: Administratoren sehen, ob ein geplanter Termin
+              mit Abwesenheiten zusammenfällt.
+            </p>
+            <p className="mb-4 text-base sm:text-base text-gray-800">
+              Dabei verarbeiten wir den Zeitraum (Start- und Enddatum, ganztägig oder mit Uhrzeit), einen optionalen
+              kurzen Grund sowie die Zuordnung zu Ihrem Benutzerkonto. Die Angabe ist freiwillig; ohne sie entstehen
+              Ihnen keine Nachteile. Bitte machen Sie im Grund keine Gesundheits- oder sonstigen sensiblen Angaben –
+              &bdquo;Urlaub&ldquo; oder &bdquo;verhindert&ldquo; genügt.
+            </p>
+            <p className="mb-4 text-base sm:text-base text-gray-800">
+              Ihre Abwesenheiten sehen nur Sie selbst sowie die Administratoren und Prüfer des Vereins (mit Ihrem Namen,
+              dem Zeitraum und dem Grund). Andere Mitglieder und Besucher der Website sehen sie nicht.
+            </p>
+            <p className="text-base sm:text-base text-gray-800">
+              Abwesenheiten werden 30 Tage nach ihrem Ende automatisch gelöscht, bei Löschung Ihres Benutzerkontos
+              sofort. Sie können eigene Abwesenheiten jederzeit selbst ändern oder löschen. Rechtsgrundlage ist
+              Art. 6 Abs. 1 lit. b DSGVO (Mitgliedschaft/Organisation).
+            </p>
+          </section>
+
+          <section className="mb-6 sm:mb-8">
+            <h2 className="text-lg sm:text-xl font-semibold mb-3 sm:mb-4 text-gray-900">8. Kontaktformular und E-Mail</h2>
             <p className="mb-4 text-base sm:text-base text-gray-800">
               Wenn Sie uns per Kontaktformular Anfragen senden, verarbeiten wir Ihren Namen, Ihre E-Mail-Adresse und
               Ihre Nachricht zur Bearbeitung. Rechtsgrundlage ist Art. 6 Abs. 1 lit. a DSGVO (Einwilligung).
@@ -139,7 +157,7 @@ export default function DatenschutzPage() {
           </section>
 
           <section className="mb-6 sm:mb-8">
-            <h2 className="text-lg sm:text-xl font-semibold mb-3 sm:mb-4 text-gray-900">8. Karten und Geocoding</h2>
+            <h2 className="text-lg sm:text-xl font-semibold mb-3 sm:mb-4 text-gray-900">9. Karten und Geocoding</h2>
             <p className="mb-4 text-base sm:text-base text-gray-800">
               Auf der Termin-Detailseite binden wir Karten von OpenStreetMap ein. Dabei werden Inhalte von
               OpenStreetMap-Servern geladen. Es werden technisch notwendige Daten (z. B. IP-Adresse) an OpenStreetMap
@@ -157,11 +175,13 @@ export default function DatenschutzPage() {
           </section>
 
           <section className="mb-6 sm:mb-8">
-            <h2 className="text-lg sm:text-xl font-semibold mb-3 sm:mb-4 text-gray-900">9. Speicherdauer</h2>
+            <h2 className="text-lg sm:text-xl font-semibold mb-3 sm:mb-4 text-gray-900">10. Speicherdauer</h2>
             <p className="mb-4 text-base sm:text-base text-gray-800">
               Wir speichern personenbezogene Daten nur so lange, wie es für die jeweiligen Zwecke erforderlich ist.
               Mitgliedsdaten werden in der Regel bis zum Ende der Mitgliedschaft gespeichert. Kontaktanfragen werden nach
               Abschluss der Bearbeitung gelöscht, sofern keine gesetzlichen Aufbewahrungspflichten bestehen.
+              Abwesenheiten werden 30 Tage nach ihrem Ende automatisch gelöscht, spätestens jedoch mit dem
+              Benutzerkonto.
             </p>
             <p className="text-base sm:text-base text-gray-800">
               Server-Logdaten werden für Sicherheits- und Fehleranalysezwecke vorübergehend gespeichert und anschließend
@@ -171,7 +191,7 @@ export default function DatenschutzPage() {
 
           <section className="mb-6 sm:mb-8">
             <h2 className="text-lg sm:text-xl font-semibold mb-3 sm:mb-4 text-gray-900">
-              10. Rechte der betroffenen Person
+              11. Rechte der betroffenen Person
             </h2>
             <p className="mb-2 text-base sm:text-base text-gray-800">
               Sie haben jederzeit das Recht auf Auskunft, Berichtigung, Löschung, Einschränkung der Verarbeitung,
@@ -181,7 +201,7 @@ export default function DatenschutzPage() {
           </section>
 
           <section>
-            <h2 className="text-lg sm:text-xl font-semibold mb-3 sm:mb-4 text-gray-900">11. Kontakt für Datenschutz</h2>
+            <h2 className="text-lg sm:text-xl font-semibold mb-3 sm:mb-4 text-gray-900">12. Kontakt für Datenschutz</h2>
             <p className="mb-2 text-base sm:text-base text-gray-800">
               Bei Fragen zum Datenschutz können Sie sich jederzeit an uns wenden:
             </p>
@@ -201,13 +221,7 @@ export default function DatenschutzPage() {
             >
               <p><strong className="text-gray-900">Postanschrift:</strong></p>
               <p className="font-medium text-gray-900" itemProp="name">Hans Wolff</p>
-              <div itemProp="address" itemScope itemType="https://schema.org/PostalAddress" className="space-y-0.5">
-                <p itemProp="streetAddress">Wieseneck 32</p>
-                <p>
-                  <span itemProp="postalCode">17192</span>{" "}
-                  <span itemProp="addressLocality">Waren (Müritz)</span>
-                </p>
-              </div>
+              <PostalAddress street="Wieseneck 32" postalCode="17192" locality="Waren (Müritz)" />
             </address>
           </section>
         </div>

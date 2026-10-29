@@ -2,12 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/auth-utils";
 import { validateUpdatePollRequest, type UpdatePollRequest } from "@/lib/poll-validation";
-import {
-  parseJsonBody,
-  withApiErrorHandling,
-  validateCsrfHeaders,
-} from "@/lib/api-utils";
+import { parseJsonBody, ValidationError } from "@/lib/request-body-parser";
+import { withApiErrorHandling } from "@/lib/api-error-handler";
+import { validateCsrfHeaders } from "@/lib/csrf-validator";
 import { logInfo, logResourceNotFound, logValidationFailure } from "@/lib/logger";
+
+const ROUTE = "/api/admin/polls/[id]";
 
 type RouteParams = { params: Promise<{ id: string }> };
 
@@ -38,12 +38,12 @@ export const GET = withApiErrorHandling(async (_request: NextRequest, context: R
   });
 
   if (!poll) {
-    logResourceNotFound("poll", id, "/api/admin/polls/[id]", "GET");
+    logResourceNotFound("poll", id, ROUTE, "GET");
     return NextResponse.json({ error: "Umfrage nicht gefunden" }, { status: 404 });
   }
 
   return NextResponse.json(poll);
-}, { route: "/api/admin/polls/[id]", method: "GET" });
+}, { route: ROUTE, method: "GET" });
 
 export const PATCH = withApiErrorHandling(async (request: NextRequest, context: RouteParams) => {
   validateCsrfHeaders(request);
@@ -56,7 +56,7 @@ export const PATCH = withApiErrorHandling(async (request: NextRequest, context: 
   });
 
   if (!poll) {
-    logResourceNotFound("poll", id, "/api/admin/polls/[id]", "PATCH");
+    logResourceNotFound("poll", id, ROUTE, "PATCH");
     return NextResponse.json({ error: "Umfrage nicht gefunden" }, { status: 404 });
   }
 
@@ -70,8 +70,8 @@ export const PATCH = withApiErrorHandling(async (request: NextRequest, context: 
   const body = await parseJsonBody<UpdatePollRequest>(request);
   const validation = validateUpdatePollRequest(body);
   if (!validation.isValid) {
-    logValidationFailure("/api/admin/polls/[id]", "PATCH", validation.errors, { userId: user.id });
-    return NextResponse.json({ error: validation.errors.join(". ") }, { status: 400 });
+    logValidationFailure(ROUTE, "PATCH", validation.errors, { userId: user.id });
+    throw new ValidationError(validation.errors);
   }
 
   const updateData: Record<string, unknown> = {};
@@ -126,7 +126,7 @@ export const PATCH = withApiErrorHandling(async (request: NextRequest, context: 
   logInfo("poll_updated", "Poll updated", { pollId: id, userId: user.id });
 
   return NextResponse.json(updated);
-}, { route: "/api/admin/polls/[id]", method: "PATCH" });
+}, { route: ROUTE, method: "PATCH" });
 
 export const DELETE = withApiErrorHandling(async (request: NextRequest, context: RouteParams) => {
   validateCsrfHeaders(request);
@@ -139,7 +139,7 @@ export const DELETE = withApiErrorHandling(async (request: NextRequest, context:
   });
 
   if (!poll) {
-    logResourceNotFound("poll", id, "/api/admin/polls/[id]", "DELETE");
+    logResourceNotFound("poll", id, ROUTE, "DELETE");
     return NextResponse.json({ error: "Umfrage nicht gefunden" }, { status: 404 });
   }
 
@@ -148,4 +148,4 @@ export const DELETE = withApiErrorHandling(async (request: NextRequest, context:
   logInfo("poll_deleted", "Poll deleted", { pollId: id, userId: user.id });
 
   return NextResponse.json({ success: true });
-}, { route: "/api/admin/polls/[id]", method: "DELETE" });
+}, { route: ROUTE, method: "DELETE" });

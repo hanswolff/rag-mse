@@ -4,11 +4,11 @@ import {
   EVENT_REMINDER_MIN_DAYS,
   isReminderDaysBeforeValid,
   validateReminderSettings,
-} from "@/lib/notification-settings";
+} from "@/lib/reminders/notification-settings";
 import {
   buildNotificationRsvpUrl,
   buildNotificationUnsubscribeUrl,
-} from "@/lib/notification-links";
+} from "@/lib/reminders/notification-links";
 
 describe("notifications utils", () => {
   it("validates reminder range boundaries", () => {

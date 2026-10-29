@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/auth-utils";
-import { withApiErrorHandling, validateCsrfHeaders } from "@/lib/api-utils";
+import { withApiErrorHandling } from "@/lib/api-error-handler";
+import { validateCsrfHeaders } from "@/lib/csrf-validator";
 import { logInfo, logResourceNotFound } from "@/lib/logger";
 
 type RouteParams = { params: Promise<{ id: string }> };

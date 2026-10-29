@@ -4,9 +4,7 @@ import { Providers } from "@/components/providers";
 import { CookieBanner } from "@/components/cookie-banner";
 import { Navigation } from "@/components/navigation";
 import { Footer } from "@/components/footer";
-import { appName, appDescription } from "@/lib/site-config";
-
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://rag-mse.de";
+import { appName, appDescription, siteUrl } from "@/lib/site-config";
 
 export const metadata: Metadata = {
   title: {

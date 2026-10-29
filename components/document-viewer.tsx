@@ -1,22 +1,10 @@
 "use client";
 
 import { useMemo } from "react";
-import dynamic from "next/dynamic";
 import Image from "next/image";
 import { Modal } from "@/components/modal";
+import { PdfViewerLazy } from "@/components/pdf-viewer-lazy";
 import type { DocumentItem } from "@/types";
-
-import { LoadingIndicator } from "@/components/loading-indicator";
-
-const PdfViewer = dynamic(() => import("@/components/pdf-viewer").then((m) => m.PdfViewer), {
-  ssr: false,
-  loading: () => (
-    <div className="flex items-center justify-center gap-2 p-8 text-gray-500">
-      <LoadingIndicator size="md" className="text-gray-400" />
-      <span>PDF wird geladen…</span>
-    </div>
-  ),
-});
 
 interface DocumentViewerProps {
   isOpen: boolean;
@@ -45,7 +33,7 @@ export function DocumentViewer({
     const source = `${viewUrlPrefix}/${document.id}/view`;
 
     if (document.mimeType === "application/pdf") {
-      return <PdfViewer source={source} />;
+      return <PdfViewerLazy source={source} />;
     }
 
     if (document.mimeType.startsWith("image/")) {

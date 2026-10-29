@@ -1,8 +1,12 @@
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { screen, fireEvent, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom";
 import { UserFormModal } from "../components/user-form-modal";
 import { Role } from "@prisma/client";
+import {
+  createModalRenderer,
+  includeSharedFormModalTests,
+} from "./helpers/modal";
 
 describe("UserFormModal", () => {
   const mockOnClose = jest.fn();
@@ -25,20 +29,23 @@ describe("UserFormModal", () => {
   };
 
   const initialUserData = {
+    ...defaultUserData,
     email: "initial@example.com",
     name: "Initial User",
     address: "",
     phone: "",
-    role: Role.MEMBER,
-    memberSince: "",
-    dateOfBirth: "",
-    rank: "",
-    pk: "",
-    reservistsAssociation: "",
-    associationMemberNumber: "",
-    hasPossessionCard: false,
-    adminNotes: "",
   };
+
+  const { renderModal, modalElement } = createModalRenderer(UserFormModal, () => ({
+    isOpen: true,
+    onClose: mockOnClose,
+    onSubmit: mockOnSubmit,
+    isSubmitting: false,
+    userData: defaultUserData,
+    setUserData: jest.fn(),
+    isEditing: false,
+    initialUserData: undefined,
+  }));
 
   beforeEach(() => {
     mockOnClose.mockClear();
@@ -47,53 +54,17 @@ describe("UserFormModal", () => {
 
   describe("Create Mode", () => {
     it("should render create modal with correct title", () => {
-      render(
-        <UserFormModal
-          isOpen={true}
-          onClose={mockOnClose}
-          onSubmit={mockOnSubmit}
-          isSubmitting={false}
-          userData={defaultUserData}
-          setUserData={jest.fn()}
-          isEditing={false}
-          initialUserData={undefined}
-        />
-      );
-
+      renderModal();
       expect(screen.getByText("Benutzer erstellen")).toBeInTheDocument();
     });
 
     it("should show 'Erstellen' button in create mode", () => {
-      render(
-        <UserFormModal
-          isOpen={true}
-          onClose={mockOnClose}
-          onSubmit={mockOnSubmit}
-          isSubmitting={false}
-          userData={defaultUserData}
-          setUserData={jest.fn()}
-          isEditing={false}
-          initialUserData={undefined}
-        />
-      );
-
+      renderModal();
       expect(screen.getByRole("button", { name: "Erstellen" })).toBeInTheDocument();
     });
 
     it("should have email input with autoFocus in create mode", async () => {
-      render(
-        <UserFormModal
-          isOpen={true}
-          onClose={mockOnClose}
-          onSubmit={mockOnSubmit}
-          isSubmitting={false}
-          userData={defaultUserData}
-          setUserData={jest.fn()}
-          isEditing={false}
-          initialUserData={undefined}
-        />
-      );
-
+      renderModal();
       const emailInput = screen.getByLabelText(/E-Mail/);
       await waitFor(() => {
         expect(emailInput).toHaveFocus();
@@ -103,53 +74,17 @@ describe("UserFormModal", () => {
 
   describe("Edit Mode", () => {
     it("should render edit modal with correct title", () => {
-      render(
-        <UserFormModal
-          isOpen={true}
-          onClose={mockOnClose}
-          onSubmit={mockOnSubmit}
-          isSubmitting={false}
-          userData={defaultUserData}
-          setUserData={jest.fn()}
-          isEditing={true}
-          initialUserData={initialUserData}
-        />
-      );
-
+      renderModal({ isEditing: true, initialUserData });
       expect(screen.getByText("Benutzer bearbeiten")).toBeInTheDocument();
     });
 
     it("should show 'Aktualisieren' button in edit mode", () => {
-      render(
-        <UserFormModal
-          isOpen={true}
-          onClose={mockOnClose}
-          onSubmit={mockOnSubmit}
-          isSubmitting={false}
-          userData={defaultUserData}
-          setUserData={jest.fn()}
-          isEditing={true}
-          initialUserData={initialUserData}
-        />
-      );
-
+      renderModal({ isEditing: true, initialUserData });
       expect(screen.getByRole("button", { name: "Aktualisieren" })).toBeInTheDocument();
     });
 
     it("should have name input with autoFocus in edit mode", async () => {
-      render(
-        <UserFormModal
-          isOpen={true}
-          onClose={mockOnClose}
-          onSubmit={mockOnSubmit}
-          isSubmitting={false}
-          userData={defaultUserData}
-          setUserData={jest.fn()}
-          isEditing={true}
-          initialUserData={initialUserData}
-        />
-      );
-
+      renderModal({ isEditing: true, initialUserData });
       const nameInput = screen.getByLabelText(/Name/);
       await waitFor(() => {
         expect(nameInput).toHaveFocus();
@@ -159,19 +94,7 @@ describe("UserFormModal", () => {
 
   describe("Form Fields", () => {
     it("should render all required fields with labels", () => {
-      render(
-        <UserFormModal
-          isOpen={true}
-          onClose={mockOnClose}
-          onSubmit={mockOnSubmit}
-          isSubmitting={false}
-          userData={defaultUserData}
-          setUserData={jest.fn()}
-          isEditing={false}
-          initialUserData={undefined}
-        />
-      );
-
+      renderModal();
       expect(screen.getByLabelText(/E-Mail \*/)).toBeInTheDocument();
       expect(screen.getByLabelText(/Name \*/)).toBeInTheDocument();
       expect(screen.getByLabelText(/Adresse/)).toBeInTheDocument();
@@ -187,18 +110,7 @@ describe("UserFormModal", () => {
     });
 
     it("should place address directly after phone and birth date fields", () => {
-      render(
-        <UserFormModal
-          isOpen={true}
-          onClose={mockOnClose}
-          onSubmit={mockOnSubmit}
-          isSubmitting={false}
-          userData={defaultUserData}
-          setUserData={jest.fn()}
-          isEditing={false}
-          initialUserData={undefined}
-        />
-      );
+      renderModal();
 
       const addressInput = screen.getByLabelText(/Adresse/);
       const rankInput = screen.getByLabelText(/Dienstgrad/);
@@ -207,103 +119,35 @@ describe("UserFormModal", () => {
     });
 
     it("should render email input with correct type", () => {
-      render(
-        <UserFormModal
-          isOpen={true}
-          onClose={mockOnClose}
-          onSubmit={mockOnSubmit}
-          isSubmitting={false}
-          userData={defaultUserData}
-          setUserData={jest.fn()}
-          isEditing={false}
-          initialUserData={undefined}
-        />
-      );
-
-      const emailInput = screen.getByLabelText(/E-Mail/);
-      expect(emailInput).toHaveAttribute("type", "email");
+      renderModal();
+      expect(screen.getByLabelText(/E-Mail/)).toHaveAttribute("type", "email");
     });
 
     it("should render phone input with correct type", () => {
-      render(
-        <UserFormModal
-          isOpen={true}
-          onClose={mockOnClose}
-          onSubmit={mockOnSubmit}
-          isSubmitting={false}
-          userData={defaultUserData}
-          setUserData={jest.fn()}
-          isEditing={false}
-          initialUserData={undefined}
-        />
-      );
-
-      const phoneInput = screen.getByLabelText(/Telefon/);
-      expect(phoneInput).toHaveAttribute("type", "tel");
+      renderModal();
+      expect(screen.getByLabelText(/Telefon/)).toHaveAttribute("type", "tel");
     });
 
     it("should render role select with correct options", () => {
-      render(
-        <UserFormModal
-          isOpen={true}
-          onClose={mockOnClose}
-          onSubmit={mockOnSubmit}
-          isSubmitting={false}
-          userData={defaultUserData}
-          setUserData={jest.fn()}
-          isEditing={false}
-          initialUserData={undefined}
-        />
-      );
-
+      renderModal();
       expect(screen.getByRole("option", { name: "Mitglied" })).toBeInTheDocument();
       expect(screen.getByRole("option", { name: "Administrator" })).toBeInTheDocument();
     });
 
     it("should have required fields marked", () => {
-      render(
-        <UserFormModal
-          isOpen={true}
-          onClose={mockOnClose}
-          onSubmit={mockOnSubmit}
-          isSubmitting={false}
-          userData={defaultUserData}
-          setUserData={jest.fn()}
-          isEditing={false}
-          initialUserData={undefined}
-        />
-      );
-
-      const emailInput = screen.getByLabelText(/E-Mail/);
-      const nameInput = screen.getByLabelText(/Name/);
-      const roleSelect = screen.getByLabelText(/Rolle/);
-
-      expect(emailInput).toHaveAttribute("required");
-      expect(nameInput).toHaveAttribute("required");
-      expect(roleSelect).toHaveAttribute("required");
+      renderModal();
+      expect(screen.getByLabelText(/E-Mail/)).toHaveAttribute("required");
+      expect(screen.getByLabelText(/Name/)).toHaveAttribute("required");
+      expect(screen.getByLabelText(/Rolle/)).toHaveAttribute("required");
     });
   });
 
   describe("Validation Errors", () => {
     it("should display email error when email is invalid on blur", async () => {
-      const setUserData = jest.fn();
       const user = userEvent.setup();
+      renderModal({ userData: { ...defaultUserData, email: "" } });
 
-      render(
-        <UserFormModal
-          isOpen={true}
-          onClose={mockOnClose}
-          onSubmit={mockOnSubmit}
-          isSubmitting={false}
-          userData={{ ...defaultUserData, email: "" }}
-          setUserData={setUserData}
-          isEditing={false}
-          initialUserData={undefined}
-        />
-      );
-
-      const emailInput = screen.getByLabelText(/E-Mail/);
-      await user.click(emailInput);
+      await user.click(screen.getByLabelText(/E-Mail/));
       await user.tab();
 
       await waitFor(() => {
@@ -312,24 +156,10 @@ describe("UserFormModal", () => {
     });
 
     it("should display name error when name is invalid on blur", async () => {
-      const setUserData = jest.fn();
       const user = userEvent.setup();
+      renderModal({ userData: { ...defaultUserData, name: "" } });
 
-      render(
-        <UserFormModal
-          isOpen={true}
-          onClose={mockOnClose}
-          onSubmit={mockOnSubmit}
-          isSubmitting={false}
-          userData={{ ...defaultUserData, name: "" }}
-          setUserData={setUserData}
-          isEditing={false}
-          initialUserData={undefined}
-        />
-      );
-
-      const nameInput = screen.getByLabelText(/Name/);
-      await user.click(nameInput);
+      await user.click(screen.getByLabelText(/Name/));
       await user.tab();
 
       await waitFor(() => {
@@ -339,67 +169,21 @@ describe("UserFormModal", () => {
 
     it("should clear validation state when modal is reopened", async () => {
       const user = userEvent.setup();
-      const { rerender } = render(
-        <UserFormModal
-          isOpen={true}
-          onClose={mockOnClose}
-          onSubmit={mockOnSubmit}
-          isSubmitting={false}
-          userData={{ ...defaultUserData, email: "" }}
-          setUserData={jest.fn()}
-          isEditing={false}
-          initialUserData={undefined}
-        />
-      );
+      const userData = { ...defaultUserData, email: "" };
+      const { rerender } = renderModal({ userData });
 
       await user.click(screen.getByRole("button", { name: "Erstellen" }));
       expect(screen.getByText("E-Mail ist erforderlich")).toBeInTheDocument();
 
-      rerender(
-        <UserFormModal
-          isOpen={false}
-          onClose={mockOnClose}
-          onSubmit={mockOnSubmit}
-          isSubmitting={false}
-          userData={{ ...defaultUserData, email: "" }}
-          setUserData={jest.fn()}
-          isEditing={false}
-          initialUserData={undefined}
-        />
-      );
-
-      rerender(
-        <UserFormModal
-          isOpen={true}
-          onClose={mockOnClose}
-          onSubmit={mockOnSubmit}
-          isSubmitting={false}
-          userData={{ ...defaultUserData, email: "" }}
-          setUserData={jest.fn()}
-          isEditing={false}
-          initialUserData={undefined}
-        />
-      );
+      rerender(modalElement({ userData, isOpen: false }));
+      rerender(modalElement({ userData, isOpen: true }));
 
       expect(screen.queryByText("E-Mail ist erforderlich")).not.toBeInTheDocument();
     });
 
     it("should apply error styling to invalid inputs", async () => {
-      const setUserData = jest.fn();
       const user = userEvent.setup();
-
-      render(
-        <UserFormModal
-          isOpen={true}
-          onClose={mockOnClose}
-          onSubmit={mockOnSubmit}
-          isSubmitting={false}
-          userData={{ ...defaultUserData, email: "" }}
-          setUserData={setUserData}
-          isEditing={false}
-          initialUserData={undefined}
-        />
-      );
+      renderModal({ userData: { ...defaultUserData, email: "" } });
 
       const emailInput = screen.getByLabelText(/E-Mail/);
       await user.click(emailInput);
@@ -411,94 +195,8 @@ describe("UserFormModal", () => {
     });
 
     it("should display server errors when errors prop is provided", () => {
-      const serverErrors = { email: "E-Mail bereits vergeben" };
-
-      render(
-        <UserFormModal
-          isOpen={true}
-          onClose={mockOnClose}
-          onSubmit={mockOnSubmit}
-          isSubmitting={false}
-          userData={defaultUserData}
-          setUserData={jest.fn()}
-          isEditing={false}
-          initialUserData={undefined}
-          errors={serverErrors}
-        />
-      );
-
+      renderModal({ errors: { email: "E-Mail bereits vergeben" } });
       expect(screen.getByText("E-Mail bereits vergeben")).toBeInTheDocument();
-    });
-  });
-
-  describe("Unsaved Changes Confirmation", () => {
-    it("should show confirmation dialog when closing with unsaved changes", () => {
-      render(
-        <UserFormModal
-          isOpen={true}
-          onClose={mockOnClose}
-          onSubmit={mockOnSubmit}
-          isSubmitting={false}
-          userData={{ ...defaultUserData, email: "changed@example.com" }}
-          setUserData={jest.fn()}
-          isEditing={true}
-          initialUserData={initialUserData}
-        />
-      );
-
-      const cancelButton = screen.getByRole("button", { name: "Abbrechen" });
-      fireEvent.click(cancelButton);
-
-      expect(
-        screen.getByText("Sie haben ungespeicherte Änderungen. Wirklich schließen?")
-      ).toBeInTheDocument();
-    });
-
-    it("should close modal without confirmation when no unsaved changes", () => {
-      render(
-        <UserFormModal
-          isOpen={true}
-          onClose={mockOnClose}
-          onSubmit={mockOnSubmit}
-          isSubmitting={false}
-          userData={defaultUserData}
-          setUserData={jest.fn()}
-          isEditing={true}
-          initialUserData={defaultUserData}
-        />
-      );
-
-      const cancelButton = screen.getByRole("button", { name: "Abbrechen" });
-      fireEvent.click(cancelButton);
-
-      expect(
-        screen.queryByText("Sie haben ungespeicherte Änderungen. Wirklich schließen?")
-      ).not.toBeInTheDocument();
-      expect(mockOnClose).toHaveBeenCalledTimes(1);
-    });
-
-    it("should not close when user cancels confirmation dialog", () => {
-      render(
-        <UserFormModal
-          isOpen={true}
-          onClose={mockOnClose}
-          onSubmit={mockOnSubmit}
-          isSubmitting={false}
-          userData={{ ...defaultUserData, email: "changed@example.com" }}
-          setUserData={jest.fn()}
-          isEditing={true}
-          initialUserData={initialUserData}
-        />
-      );
-
-      const cancelButton = screen.getByRole("button", { name: "Abbrechen" });
-      fireEvent.click(cancelButton);
-
-      // ConfirmCloseModal is shown; click its "Abbrechen" to dismiss
-      const abortButtons = screen.getAllByRole("button", { name: "Abbrechen" });
-      fireEvent.click(abortButtons[abortButtons.length - 1]);
-
-      expect(mockOnClose).not.toHaveBeenCalled();
     });
   });
 
@@ -506,19 +204,7 @@ describe("UserFormModal", () => {
     it("should call setUserData when email is changed", async () => {
       const setUserData = jest.fn();
       const user = userEvent.setup();
-
-      render(
-        <UserFormModal
-          isOpen={true}
-          onClose={mockOnClose}
-          onSubmit={mockOnSubmit}
-          isSubmitting={false}
-          userData={defaultUserData}
-          setUserData={setUserData}
-          isEditing={false}
-          initialUserData={undefined}
-        />
-      );
+      renderModal({ setUserData });
 
       const emailInput = screen.getByLabelText(/E-Mail/);
       await user.clear(emailInput);
@@ -529,44 +215,18 @@ describe("UserFormModal", () => {
 
     it("should call setUserData when name is changed", async () => {
       const setUserData = jest.fn();
+      renderModal({ setUserData });
 
-      render(
-        <UserFormModal
-          isOpen={true}
-          onClose={mockOnClose}
-          onSubmit={mockOnSubmit}
-          isSubmitting={false}
-          userData={defaultUserData}
-          setUserData={setUserData}
-          isEditing={false}
-          initialUserData={undefined}
-        />
-      );
-
-      const nameInput = screen.getByLabelText(/Name/);
-      fireEvent.change(nameInput, { target: { value: "New Name" } });
+      fireEvent.change(screen.getByLabelText(/Name/), { target: { value: "New Name" } });
 
       expect(setUserData).toHaveBeenCalled();
     });
 
     it("should call setUserData when address is changed", async () => {
       const setUserData = jest.fn();
+      renderModal({ setUserData });
 
-      render(
-        <UserFormModal
-          isOpen={true}
-          onClose={mockOnClose}
-          onSubmit={mockOnSubmit}
-          isSubmitting={false}
-          userData={defaultUserData}
-          setUserData={setUserData}
-          isEditing={false}
-          initialUserData={undefined}
-        />
-      );
-
-      const addressInput = screen.getByLabelText(/Adresse/);
-      fireEvent.change(addressInput, { target: { value: "New Address" } });
+      fireEvent.change(screen.getByLabelText(/Adresse/), { target: { value: "New Address" } });
 
       expect(setUserData).toHaveBeenCalled();
     });
@@ -574,22 +234,9 @@ describe("UserFormModal", () => {
     it("should call setUserData when role is changed", async () => {
       const setUserData = jest.fn();
       const user = userEvent.setup();
+      renderModal({ setUserData });
 
-      render(
-        <UserFormModal
-          isOpen={true}
-          onClose={mockOnClose}
-          onSubmit={mockOnSubmit}
-          isSubmitting={false}
-          userData={defaultUserData}
-          setUserData={setUserData}
-          isEditing={false}
-          initialUserData={undefined}
-        />
-      );
-
-      const roleSelect = screen.getByLabelText(/Rolle/);
-      await user.selectOptions(roleSelect, Role.ADMIN);
+      await user.selectOptions(screen.getByLabelText(/Rolle/), Role.ADMIN);
 
       expect(setUserData).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -601,281 +248,90 @@ describe("UserFormModal", () => {
 
   describe("Form Submission", () => {
     it("should render submit button with correct text for create mode", () => {
-      render(
-        <UserFormModal
-          isOpen={true}
-          onClose={mockOnClose}
-          onSubmit={mockOnSubmit}
-          isSubmitting={false}
-          userData={defaultUserData}
-          setUserData={jest.fn()}
-          isEditing={false}
-          initialUserData={undefined}
-        />
-      );
-
-      const submitButton = screen.getByRole("button", { name: "Erstellen" });
-      expect(submitButton).toBeInTheDocument();
+      renderModal();
+      expect(screen.getByRole("button", { name: "Erstellen" })).toBeInTheDocument();
     });
 
     it("should render submit button with correct text for edit mode", () => {
-      render(
-        <UserFormModal
-          isOpen={true}
-          onClose={mockOnClose}
-          onSubmit={mockOnSubmit}
-          isSubmitting={false}
-          userData={defaultUserData}
-          setUserData={jest.fn()}
-          isEditing={true}
-          initialUserData={initialUserData}
-        />
-      );
-
-      const submitButton = screen.getByRole("button", { name: "Aktualisieren" });
-      expect(submitButton).toBeInTheDocument();
+      renderModal({ isEditing: true, initialUserData });
+      expect(screen.getByRole("button", { name: "Aktualisieren" })).toBeInTheDocument();
     });
 
     it("should not call onSubmit when form has validation errors - empty email", async () => {
-      const setUserData = jest.fn();
       const user = userEvent.setup();
+      renderModal({ userData: { ...defaultUserData, email: "" } });
 
-      render(
-        <UserFormModal
-          isOpen={true}
-          onClose={mockOnClose}
-          onSubmit={mockOnSubmit}
-          isSubmitting={false}
-          userData={{ ...defaultUserData, email: "" }}
-          setUserData={setUserData}
-          isEditing={false}
-          initialUserData={undefined}
-        />
-      );
-
-      const submitButton = screen.getByRole("button", { name: "Erstellen" });
-      await user.click(submitButton);
+      await user.click(screen.getByRole("button", { name: "Erstellen" }));
 
       expect(mockOnSubmit).not.toHaveBeenCalled();
       expect(screen.getByText("E-Mail ist erforderlich")).toBeInTheDocument();
     });
 
     it("should not call onSubmit when form has validation errors - empty name", async () => {
-      const setUserData = jest.fn();
       const user = userEvent.setup();
+      renderModal({ userData: { ...defaultUserData, name: "" } });
 
-      render(
-        <UserFormModal
-          isOpen={true}
-          onClose={mockOnClose}
-          onSubmit={mockOnSubmit}
-          isSubmitting={false}
-          userData={{ ...defaultUserData, name: "" }}
-          setUserData={setUserData}
-          isEditing={false}
-          initialUserData={undefined}
-        />
-      );
-
-      const submitButton = screen.getByRole("button", { name: "Erstellen" });
-      await user.click(submitButton);
+      await user.click(screen.getByRole("button", { name: "Erstellen" }));
 
       expect(mockOnSubmit).not.toHaveBeenCalled();
       expect(screen.getByText("Name ist erforderlich")).toBeInTheDocument();
     });
 
     it("should not call onSubmit when form has invalid email", async () => {
-      const setUserData = jest.fn();
       const user = userEvent.setup();
+      renderModal({ userData: { ...defaultUserData, email: "invalid-email" } });
 
-      render(
-        <UserFormModal
-          isOpen={true}
-          onClose={mockOnClose}
-          onSubmit={mockOnSubmit}
-          isSubmitting={false}
-          userData={{ ...defaultUserData, email: "invalid-email" }}
-          setUserData={setUserData}
-          isEditing={false}
-          initialUserData={undefined}
-        />
-      );
-
-      const submitButton = screen.getByRole("button", { name: "Erstellen" });
-      await user.click(submitButton);
+      await user.click(screen.getByRole("button", { name: "Erstellen" }));
 
       expect(mockOnSubmit).not.toHaveBeenCalled();
       expect(screen.getByText("E-Mail hat ungültiges Format")).toBeInTheDocument();
     });
 
     it("should not call onSubmit when form has all required fields empty", async () => {
-      const setUserData = jest.fn();
       const user = userEvent.setup();
+      renderModal({
+        userData: {
+          ...defaultUserData,
+          email: "",
+          name: "",
+          address: "",
+          phone: "",
+        },
+      });
 
-      render(
-        <UserFormModal
-          isOpen={true}
-          onClose={mockOnClose}
-          onSubmit={mockOnSubmit}
-          isSubmitting={false}
-          userData={{
-            email: "",
-            name: "",
-            address: "",
-            phone: "",
-            role: Role.MEMBER,
-            memberSince: "",
-            dateOfBirth: "",
-            rank: "",
-            pk: "",
-            reservistsAssociation: "",
-            associationMemberNumber: "",
-            hasPossessionCard: false,
-            adminNotes: "",
-          }}
-          setUserData={setUserData}
-          isEditing={false}
-          initialUserData={undefined}
-        />
-      );
-
-      const submitButton = screen.getByRole("button", { name: "Erstellen" });
-      await user.click(submitButton);
+      await user.click(screen.getByRole("button", { name: "Erstellen" }));
 
       expect(mockOnSubmit).not.toHaveBeenCalled();
       expect(mockOnClose).not.toHaveBeenCalled();
       expect(screen.getByText("E-Mail ist erforderlich")).toBeInTheDocument();
       expect(screen.getByText("Name ist erforderlich")).toBeInTheDocument();
     });
-
-    it("should not call onSubmit when cancel button is clicked", () => {
-      render(
-        <UserFormModal
-          isOpen={true}
-          onClose={mockOnClose}
-          onSubmit={mockOnSubmit}
-          isSubmitting={false}
-          userData={defaultUserData}
-          setUserData={jest.fn()}
-          isEditing={false}
-          initialUserData={defaultUserData}
-        />
-      );
-
-      const cancelButton = screen.getByRole("button", { name: "Abbrechen" });
-      fireEvent.click(cancelButton);
-
-      expect(mockOnSubmit).not.toHaveBeenCalled();
-      expect(mockOnClose).toHaveBeenCalledTimes(1);
-    });
   });
 
-  describe("Disabled State", () => {
-    it("should disable all inputs when isSubmitting is true", () => {
-      render(
-        <UserFormModal
-          isOpen={true}
-          onClose={mockOnClose}
-          onSubmit={mockOnSubmit}
-          isSubmitting={true}
-          userData={defaultUserData}
-          setUserData={jest.fn()}
-          isEditing={false}
-          initialUserData={undefined}
-        />
-      );
-
-      const emailInput = screen.getByLabelText(/E-Mail/);
-      const nameInput = screen.getByLabelText(/Name/);
-      const addressInput = screen.getByLabelText(/Adresse/);
-      const phoneInput = screen.getByLabelText(/Telefon/);
-      const roleSelect = screen.getByLabelText(/Rolle/);
-      const dateOfBirthInput = screen.getByLabelText(/Geburtsdatum/);
-      const rankInput = screen.getByLabelText(/Dienstgrad/);
-      const pkInput = screen.getByLabelText(/PK/);
-      const memberSinceInput = screen.getByLabelText(/Mitglied seit/);
-
-      expect(emailInput).toBeDisabled();
-      expect(nameInput).toBeDisabled();
-      expect(addressInput).toBeDisabled();
-      expect(phoneInput).toBeDisabled();
-      expect(roleSelect).toBeDisabled();
-      expect(dateOfBirthInput).toBeDisabled();
-      expect(rankInput).toBeDisabled();
-      expect(pkInput).toBeDisabled();
-      expect(memberSinceInput).toBeDisabled();
-    });
-
-    it("should show 'Wird gespeichert...' text when isSubmitting is true", () => {
-      render(
-        <UserFormModal
-          isOpen={true}
-          onClose={mockOnClose}
-          onSubmit={mockOnSubmit}
-          isSubmitting={true}
-          userData={defaultUserData}
-          setUserData={jest.fn()}
-          isEditing={false}
-          initialUserData={undefined}
-        />
-      );
-
-      expect(screen.getByText("Wird gespeichert...")).toBeInTheDocument();
-    });
-
-    it("should disable submit button when isSubmitting is true", () => {
-      render(
-        <UserFormModal
-          isOpen={true}
-          onClose={mockOnClose}
-          onSubmit={mockOnSubmit}
-          isSubmitting={true}
-          userData={defaultUserData}
-          setUserData={jest.fn()}
-          isEditing={false}
-          initialUserData={undefined}
-        />
-      );
-
-      const submitButton = screen.getByRole("button", { name: "Wird gespeichert..." });
-      expect(submitButton).toBeDisabled();
-    });
-
-    it("should disable cancel button when isSubmitting is true", () => {
-      render(
-        <UserFormModal
-          isOpen={true}
-          onClose={mockOnClose}
-          onSubmit={mockOnSubmit}
-          isSubmitting={true}
-          userData={defaultUserData}
-          setUserData={jest.fn()}
-          isEditing={false}
-          initialUserData={undefined}
-        />
-      );
-
-      const cancelButton = screen.getByRole("button", { name: "Abbrechen" });
-      expect(cancelButton).toBeDisabled();
-    });
-  });
-
-  describe("Not Rendered When Closed", () => {
-    it("should not render when isOpen is false", () => {
-      render(
-        <UserFormModal
-          isOpen={false}
-          onClose={mockOnClose}
-          onSubmit={mockOnSubmit}
-          isSubmitting={false}
-          userData={defaultUserData}
-          setUserData={jest.fn()}
-          isEditing={false}
-          initialUserData={undefined}
-        />
-      );
-
-      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-    });
+  includeSharedFormModalTests({
+    renderModal,
+    onClose: mockOnClose,
+    onSubmit: mockOnSubmit,
+    dirtyEditProps: {
+      userData: { ...defaultUserData, email: "changed@example.com" },
+      isEditing: true,
+      initialUserData,
+    },
+    cleanEditProps: {
+      userData: defaultUserData,
+      isEditing: true,
+      initialUserData: defaultUserData,
+    },
+    disabledWhenSubmitting: [
+      /E-Mail/,
+      /Name/,
+      /Adresse/,
+      /Telefon/,
+      /Rolle/,
+      /Geburtsdatum/,
+      /Dienstgrad/,
+      /PK/,
+      /Mitglied seit/,
+    ],
   });
 });

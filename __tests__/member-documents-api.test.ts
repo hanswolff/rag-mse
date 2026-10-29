@@ -9,17 +9,9 @@ jest.mock("@/lib/auth-utils", () => ({
   requireMember: jest.fn(),
 }));
 
-jest.mock("@/lib/prisma", () => ({
-  prisma: {
-    document: {
-      findMany: jest.fn(),
-      count: jest.fn(),
-    },
-    documentDirectory: {
-      findMany: jest.fn(),
-    },
-  },
-}));
+jest.mock("@/lib/prisma", () =>
+  jest.requireActual<typeof import("./helpers/prisma-mock")>("./helpers/prisma-mock").prismaModuleMock,
+);
 
 describe("/api/member/documents", () => {
   beforeEach(() => {

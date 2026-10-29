@@ -22,6 +22,15 @@ const LOGIN_PROOF_TTL_MS = 60_000;
 const LOGIN_PROOF_VERSION = "v1";
 const IMPERSONATION_PROOF_TTL_MS = 60_000;
 const IMPERSONATION_PROOF_VERSION = "v1i";
+const PASSWORD_CHANGE_PROOF_TTL_MS = 60_000;
+const PASSWORD_CHANGE_PROOF_VERSION = "v1p";
+
+interface PasswordChangeProof {
+  version: 1;
+  userId: string;
+  passwordUpdatedAt: number;
+  expiresAt: number;
+}
 
 // Mit NEXTAUTH_SECRET geschlüsselt statt blankem SHA-256: Der Proof geht an den
 // Browser, ein ungesalzener Passwort-Hash darin wäre offline knackbar. Die Bindung
@@ -44,11 +53,9 @@ function signLoginProof(payloadSegment: string, secret: string): string {
 }
 
 function verifyLoginProofSignature(payloadSegment: string, signatureSegment: string, secret: string): boolean {
-  const expected = signLoginProof(payloadSegment, secret);
-  if (expected.length !== signatureSegment.length) {
-    return false;
-  }
-  return crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(signatureSegment));
+  const expected = Buffer.from(signLoginProof(payloadSegment, secret));
+  const actual = Buffer.from(signatureSegment);
+  return expected.length === actual.length && crypto.timingSafeEqual(expected, actual);
 }
 
 export function createLoginProof(email: string, clientIp: string, password: string): string {
@@ -66,20 +73,31 @@ export function createLoginProof(email: string, clientIp: string, password: stri
   return `${LOGIN_PROOF_VERSION}.${payloadSegment}.${signatureSegment}`;
 }
 
-function createSignedImpersonationProof(payload: ImpersonationProof): string {
+function createSignedProof(versionPrefix: string, payload: object): string {
   const secret = getLoginProofSecret();
   const payloadSegment = Buffer.from(JSON.stringify(payload), "utf8").toString("base64url");
   const signatureSegment = signLoginProof(payloadSegment, secret);
-  return `${IMPERSONATION_PROOF_VERSION}.${payloadSegment}.${signatureSegment}`;
+  return `${versionPrefix}.${payloadSegment}.${signatureSegment}`;
+}
+
+function createSignedImpersonationProof(payload: ImpersonationProof): string {
+  return createSignedProof(IMPERSONATION_PROOF_VERSION, payload);
 }
 
 function parseAndValidateImpersonationProof(token: string): ImpersonationProof | null {
+  return parseAndValidateSignedProof<ImpersonationProof>(token, IMPERSONATION_PROOF_VERSION);
+}
+
+function parseAndValidateSignedProof<T extends { version: number; expiresAt: number }>(
+  token: string,
+  versionPrefix: string
+): T | null {
   if (!token) {
     return null;
   }
 
   const parts = token.split(".");
-  if (parts.length !== 3 || parts[0] !== IMPERSONATION_PROOF_VERSION) {
+  if (parts.length !== 3 || parts[0] !== versionPrefix) {
     return null;
   }
 
@@ -95,9 +113,9 @@ function parseAndValidateImpersonationProof(token: string): ImpersonationProof |
     return null;
   }
 
-  let payload: ImpersonationProof | null = null;
+  let payload: T | null = null;
   try {
-    payload = JSON.parse(Buffer.from(payloadSegment, "base64url").toString("utf8")) as ImpersonationProof;
+    payload = JSON.parse(Buffer.from(payloadSegment, "base64url").toString("utf8")) as T;
   } catch {
     return null;
   }
@@ -155,6 +173,26 @@ export function verifyImpersonationStopProof(token: string, actorUserId: string,
   }
 
   return true;
+}
+
+export function createPasswordChangeProof(userId: string, passwordUpdatedAt: number): string {
+  const payload: PasswordChangeProof = {
+    version: 1,
+    userId,
+    passwordUpdatedAt,
+    expiresAt: Date.now() + PASSWORD_CHANGE_PROOF_TTL_MS,
+  };
+  return createSignedProof(PASSWORD_CHANGE_PROOF_VERSION, payload);
+}
+
+export function verifyPasswordChangeProof(token: string, userId: string, passwordUpdatedAt: number | null): boolean {
+  const payload = parseAndValidateSignedProof<PasswordChangeProof>(token, PASSWORD_CHANGE_PROOF_VERSION);
+  return Boolean(
+    payload
+    && passwordUpdatedAt !== null
+    && payload.userId === userId
+    && payload.passwordUpdatedAt === passwordUpdatedAt
+  );
 }
 
 export function validateLoginProof(token: string, email: string, clientIp: string, password: string): boolean {

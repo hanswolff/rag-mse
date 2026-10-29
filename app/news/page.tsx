@@ -5,10 +5,10 @@ import { getServerSession } from "next-auth";
 import { formatDate } from "@/lib/date-utils";
 import { prisma } from "@/lib/prisma";
 import { authOptions } from "@/lib/auth";
-import { isAdmin } from "@/lib/role-utils";
+import { canManageAdminArea } from "@/lib/role-utils";
 import { Pagination } from "@/components/pagination";
 import { PageHeader } from "@/components/page-header";
-import { EmptyNewsIllustration } from "@/components/icons";
+import { EmptyNewsIllustration } from "@/components/empty-illustrations";
 import { appName } from "@/lib/site-config";
 
 const PAGE_SIZE = 10;
@@ -53,7 +53,7 @@ export default async function NewsPage({
         subtitle={`Aktuelle News von der ${appName}`}
       />
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
-        {session && isAdmin(session.user) && (
+        {session && canManageAdminArea(session.user) && (
           <div className="mb-6 sm:mb-8">
             <Link href="/admin/news" className="btn-primary text-base font-semibold">
               News verwalten
@@ -65,7 +65,7 @@ export default async function NewsPage({
           <div className="card empty-state">
             <EmptyNewsIllustration className="empty-state-icon" />
             <p className="text-gray-500 text-base sm:text-lg font-medium">Keine News gefunden</p>
-            <p className="text-gray-400 text-sm mt-1">Neue Beiträge werden hier veröffentlicht</p>
+            <p className="text-gray-400 text-sm mt-1">Neue News werden hier veröffentlicht</p>
           </div>
         ) : (
           <div className="space-y-4 sm:space-y-6">

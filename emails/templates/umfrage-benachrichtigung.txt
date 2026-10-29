@@ -2,12 +2,12 @@ Subject: Neue Umfrage: {{pollTitle}}
 
 Hallo {{userName}},
 
-es wurde eine neue Umfrage veröffentlicht: "{{pollTitle}}"
+es wurde eine neue Umfrage veröffentlicht: „{{pollTitle}}“
 
 {{pollDescription}}
 
 Hier können Sie abstimmen:
 {{pollUrl}}
 
-Viele Grüße,
-RAG Schießsport MSE
+Viele Grüße
+{{appName}}

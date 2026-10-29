@@ -1,8 +1,6 @@
-jest.mock("@/lib/prisma", () => ({
-  prisma: {
-    $queryRaw: jest.fn(),
-  },
-}));
+jest.mock("@/lib/prisma", () =>
+  jest.requireActual<typeof import("./helpers/prisma-mock")>("./helpers/prisma-mock").prismaModuleMock,
+);
 
 import { GET } from "@/app/api/health/route";
 import { prisma } from "@/lib/prisma";

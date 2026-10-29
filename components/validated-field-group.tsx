@@ -10,6 +10,7 @@ type BaseProps = {
   /** Shows success styling when field is valid, touched, and has value */
   showSuccess?: boolean;
   helpText?: string;
+  hint?: string;
 };
 
 export interface ValidatedFieldGroupProps extends BaseProps, Omit<InputHTMLAttributes<HTMLInputElement>, "name" | "required"> {
@@ -32,6 +33,7 @@ export const ValidatedFieldGroup = forwardRef<HTMLInputElement | HTMLTextAreaEle
       required,
       showSuccess,
       helpText,
+      hint,
       className = "",
       id,
       ...restProps
@@ -40,6 +42,7 @@ export const ValidatedFieldGroup = forwardRef<HTMLInputElement | HTMLTextAreaEle
     const fieldId = id || name;
     const errorId = `${fieldId}-error`;
     const helpId = `${fieldId}-help`;
+    const hintId = `${fieldId}-hint`;
 
     const showCheckmark = showSuccess && !error && !helpText;
     const baseInputClasses = "form-input";
@@ -49,6 +52,7 @@ export const ValidatedFieldGroup = forwardRef<HTMLInputElement | HTMLTextAreaEle
     const inputClassName = `${baseInputClasses} ${errorClasses} ${successClasses} ${checkmarkPadding} ${className}`.trim();
 
     const ariaDescribedBy = [
+      hint ? hintId : null,
       error ? errorId : null,
       helpText && !error ? helpId : null,
     ].filter(Boolean).join(" ") || undefined;
@@ -70,6 +74,11 @@ export const ValidatedFieldGroup = forwardRef<HTMLInputElement | HTMLTextAreaEle
         <label htmlFor={fieldId} className="form-label">
           {label} {required && <span className="text-red-500">*</span>}
         </label>
+        {hint && (
+          <p id={hintId} className="form-help text-gray-600 mb-1">
+            {hint}
+          </p>
+        )}
 
         <div className="relative">
           {isTextarea ? (

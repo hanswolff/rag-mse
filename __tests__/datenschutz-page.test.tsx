@@ -11,7 +11,7 @@ describe("DatenschutzPage", () => {
 
   it("renders the last updated date", () => {
     render(<DatenschutzPage />);
-    expect(screen.getByText("Zuletzt geändert: 13. März 2026")).toBeInTheDocument();
+    expect(screen.getByText("Zuletzt geändert: 19. Oktober 2026")).toBeInTheDocument();
   });
 
   it("renders data protection overview section", () => {
@@ -45,7 +45,7 @@ describe("DatenschutzPage", () => {
   it("renders contact form section", () => {
     render(<DatenschutzPage />);
     const heading = screen.getByRole("heading", {
-      name: "7. Kontaktformular und E-Mail",
+      name: "8. Kontaktformular und E-Mail",
     });
     expect(heading).toBeInTheDocument();
     expect(screen.getAllByText(/Einwilligung/i).length).toBeGreaterThan(0);
@@ -54,7 +54,7 @@ describe("DatenschutzPage", () => {
   it("renders data subject rights section", () => {
     render(<DatenschutzPage />);
     const heading = screen.getByRole("heading", {
-      name: "10. Rechte der betroffenen Person",
+      name: "11. Rechte der betroffenen Person",
     });
     expect(heading).toBeInTheDocument();
   });
@@ -62,7 +62,7 @@ describe("DatenschutzPage", () => {
   it("renders contact for data protection section", () => {
     render(<DatenschutzPage />);
     const heading = screen.getByRole("heading", {
-      name: "11. Kontakt für Datenschutz",
+      name: "12. Kontakt für Datenschutz",
     });
     expect(heading).toBeInTheDocument();
     const emailImage = screen.getByAltText("E-Mail-Adresse");
@@ -96,5 +96,24 @@ describe("DatenschutzPage", () => {
     expect(screen.getByText(/^9\./)).toBeInTheDocument();
     expect(screen.getByText(/^10\./)).toBeInTheDocument();
     expect(screen.getByText(/^11\./)).toBeInTheDocument();
+    expect(screen.getByText(/^12\./)).toBeInTheDocument();
+  });
+
+  it("renders the absences section with purpose, recipients and retention", () => {
+    render(<DatenschutzPage />);
+    const heading = screen.getByRole("heading", { name: "7. Abwesenheiten" });
+    const section = heading.closest("section");
+    expect(section).toHaveTextContent(/Terminplanung/);
+    expect(section).toHaveTextContent(/freiwillig/);
+    expect(section).toHaveTextContent(/keine Gesundheits- oder sonstigen sensiblen Angaben/);
+    expect(section).toHaveTextContent(/Administratoren und Prüfer/);
+    expect(section).toHaveTextContent(/30 Tage nach ihrem Ende automatisch gelöscht/);
+    expect(section).toHaveTextContent(/Löschung Ihres Benutzerkontos/);
+  });
+
+  it("names the absence retention in the storage duration section", () => {
+    render(<DatenschutzPage />);
+    const section = screen.getByRole("heading", { name: "10. Speicherdauer" }).closest("section");
+    expect(section).toHaveTextContent(/Abwesenheiten werden 30 Tage nach ihrem Ende automatisch gelöscht/);
   });
 });

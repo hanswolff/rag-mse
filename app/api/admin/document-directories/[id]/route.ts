@@ -1,13 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/auth-utils";
-import { parseJsonBody, validateCsrfHeaders, withApiErrorHandling } from "@/lib/api-utils";
+import { parseJsonBody, ValidationError } from "@/lib/request-body-parser";
+import { validateCsrfHeaders } from "@/lib/csrf-validator";
+import { withApiErrorHandling } from "@/lib/api-error-handler";
 import {
   normalizeDirectoryNameForUniqueness,
   parseAndValidateUpdateDocumentDirectoryRequest,
 } from "@/lib/document-validation";
 import { prisma } from "@/lib/prisma";
+import { isUniqueConstraintError } from "@/lib/prisma-errors";
 import { logResourceNotFound, logValidationFailure } from "@/lib/logger";
 import { pluralize } from "@/lib/pluralization";
+
+const ROUTE = "/api/admin/document-directories/[id]";
 
 export const PATCH = withApiErrorHandling(async (request: NextRequest, ctx: RouteContext<"/api/admin/document-directories/[id]">) => {
   validateCsrfHeaders(request);
@@ -19,7 +24,7 @@ export const PATCH = withApiErrorHandling(async (request: NextRequest, ctx: Rout
     select: { id: true, area: true },
   });
   if (!existingDirectory) {
-    logResourceNotFound("documentDirectory", id, "/api/admin/document-directories/[id]", "PATCH");
+    logResourceNotFound("documentDirectory", id, ROUTE, "PATCH");
     return NextResponse.json({ error: "Verzeichnis nicht gefunden" }, { status: 404 });
   }
 
@@ -27,8 +32,8 @@ export const PATCH = withApiErrorHandling(async (request: NextRequest, ctx: Rout
   const parsed = parseAndValidateUpdateDocumentDirectoryRequest(rawBody);
 
   if (!parsed.isValid) {
-    logValidationFailure("/api/admin/document-directories/[id]", "PATCH", parsed.errors, { directoryId: id });
-    return NextResponse.json({ error: parsed.errors.join(". ") }, { status: 400 });
+    logValidationFailure(ROUTE, "PATCH", parsed.errors, { directoryId: id });
+    throw new ValidationError(parsed.errors);
   }
   const normalizedName = parsed.data.name;
 
@@ -56,17 +61,12 @@ export const PATCH = withApiErrorHandling(async (request: NextRequest, ctx: Rout
       updatedAt: updated.updatedAt.toISOString(),
     });
   } catch (error: unknown) {
-    if (
-      error
-      && typeof error === "object"
-      && "code" in error
-      && error.code === "P2002"
-    ) {
+    if (isUniqueConstraintError(error)) {
       return NextResponse.json({ error: "Ein Verzeichnis mit diesem Namen existiert bereits" }, { status: 409 });
     }
     throw error;
   }
-}, { route: "/api/admin/document-directories/[id]", method: "PATCH" });
+}, { route: ROUTE, method: "PATCH" });
 
 export const DELETE = withApiErrorHandling(async (request: NextRequest, ctx: RouteContext<"/api/admin/document-directories/[id]">) => {
   validateCsrfHeaders(request);
@@ -85,7 +85,7 @@ export const DELETE = withApiErrorHandling(async (request: NextRequest, ctx: Rou
   });
 
   if (!existingDirectory) {
-    logResourceNotFound("documentDirectory", id, "/api/admin/document-directories/[id]", "DELETE");
+    logResourceNotFound("documentDirectory", id, ROUTE, "DELETE");
     return NextResponse.json({ error: "Verzeichnis nicht gefunden" }, { status: 404 });
   }
 
@@ -113,7 +113,7 @@ export const DELETE = withApiErrorHandling(async (request: NextRequest, ctx: Rou
     });
 
     if (!stillExists) {
-      logResourceNotFound("documentDirectory", id, "/api/admin/document-directories/[id]", "DELETE");
+      logResourceNotFound("documentDirectory", id, ROUTE, "DELETE");
       return NextResponse.json({ error: "Verzeichnis nicht gefunden" }, { status: 404 });
     }
 
@@ -124,4 +124,4 @@ export const DELETE = withApiErrorHandling(async (request: NextRequest, ctx: Rou
   }
 
   return NextResponse.json({ success: true });
-}, { route: "/api/admin/document-directories/[id]", method: "DELETE" });
+}, { route: ROUTE, method: "DELETE" });

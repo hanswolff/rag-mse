@@ -7,17 +7,12 @@ import {
   EVENT_REMINDER_DEFAULT_DAYS,
   EVENT_REMINDER_MAX_DAYS,
   EVENT_REMINDER_MIN_DAYS,
-} from "@/lib/notification-settings";
+} from "@/lib/reminders/notification-settings";
 import { API_ROUTES } from "@/lib/api-routes";
 import { useProtectedPage } from "@/lib/use-protected-page";
 import { AlertBox } from "@/components/alert-box";
-import { fetchWithTimeout } from "@/lib/fetch-with-timeout";
-
-interface NotificationSettings {
-  eventReminderEnabled: boolean;
-  eventReminderDaysBefore: number;
-  pollNotificationEnabled: boolean;
-}
+import { apiFetch, DEFAULT_API_TIMEOUT_MS } from "@/lib/api-fetch";
+import type { NotificationSettings } from "@/types";
 
 export default function NotificationsPage() {
   const { status } = useProtectedPage();
@@ -33,12 +28,11 @@ export default function NotificationsPage() {
 
   const fetchSettings = useCallback(async (signal?: AbortSignal) => {
     try {
-      const response = await fetchWithTimeout(API_ROUTES.USER.NOTIFICATIONS, { signal });
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || "Fehler beim Laden der Benachrichtigungseinstellungen");
-      }
-      const data = await response.json();
+      const data = await apiFetch<NotificationSettings>(API_ROUTES.USER.NOTIFICATIONS, {
+        signal,
+        timeoutMs: DEFAULT_API_TIMEOUT_MS,
+        fallbackError: "Fehler beim Laden der Benachrichtigungseinstellungen",
+      });
       setSettings(data);
     } catch (fetchError) {
       if (fetchError instanceof DOMException && fetchError.name === "AbortError") return;
@@ -62,17 +56,12 @@ export default function NotificationsPage() {
     setIsSaving(true);
 
     try {
-      const response = await fetchWithTimeout(API_ROUTES.USER.NOTIFICATIONS, {
+      const data = await apiFetch<NotificationSettings>(API_ROUTES.USER.NOTIFICATIONS, {
         method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(settings),
+        body: settings,
+        timeoutMs: DEFAULT_API_TIMEOUT_MS,
+        fallbackError: "Fehler beim Speichern der Einstellungen",
       });
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.error || "Fehler beim Speichern der Einstellungen");
-      }
 
       setSettings(data);
       setSuccess("Benachrichtigungseinstellungen wurden gespeichert");
@@ -140,7 +129,7 @@ export default function NotificationsPage() {
                     }))
                   }
                   disabled={isSaving || !settings.eventReminderEnabled}
-                  className="form-input max-w-24"
+                  className="form-select max-w-24"
                 >
                   {Array.from(
                     { length: EVENT_REMINDER_MAX_DAYS - EVENT_REMINDER_MIN_DAYS + 1 },
@@ -181,7 +170,7 @@ export default function NotificationsPage() {
             <LoadingButton
               type="submit"
               loading={isSaving}
-              loadingText="Speichern..."
+              loadingText="Speichern…"
               className="btn-primary"
             >
               Speichern

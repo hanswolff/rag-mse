@@ -5,6 +5,8 @@ import { getEventDescriptionPreview } from "@/lib/event-description";
 import { getEventLocationDisplay } from "@/lib/event-location";
 import { getVoteLabel } from "@/lib/event-list-utils";
 import { EventTypeBadge } from "@/components/event-type-badge";
+import { VisibilityBadge } from "@/components/visibility-badge";
+import type { Visibility } from "@/lib/visibility";
 
 export type EventCardData = {
   id: string;
@@ -16,7 +18,7 @@ export type EventCardData = {
   description: string;
   type: string | null;
   capacity?: number | null;
-  visible: boolean;
+  visibility: Visibility;
   votes?: { vote: VoteType }[];
   guestRegistrations?: { vote: VoteType }[];
 };
@@ -41,11 +43,7 @@ export function EventCard({ event, rangeLookup, showVoteLabel }: EventCardProps)
                 {event.title || eventDate}
               </h2>
               <EventTypeBadge type={event.type} />
-              {!event.visible && (
-                <span className="px-2 py-0.5 text-base font-medium rounded bg-amber-100 text-amber-800">
-                  Dieser Termin ist noch nicht öffentlich
-                </span>
-              )}
+              <VisibilityBadge visibility={event.visibility} />
             </div>
             {showVoteLabel && (
               <span className="bg-brand-blue-50 text-brand-blue-800 text-base font-medium px-2.5 py-0.5 rounded self-start sm:self-auto">

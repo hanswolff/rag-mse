@@ -5,6 +5,8 @@ const IP_WINDOW_MS = 15 * 60 * 1000;
 const TOKEN_WINDOW_MS = 15 * 60 * 1000;
 const FORGOT_PASSWORD_WINDOW_MS = 60 * 60 * 1000;
 const IP_MAX_ATTEMPTS = 25;
+const TOKEN_READ_IP_WINDOW_MS = 15 * 60 * 1000;
+const TOKEN_READ_IP_MAX_ATTEMPTS = 100;
 
 const LOGIN_ATTEMPT_THRESHOLDS = [
   { attempts: 6, blockDuration: 1 * 60 * 1000 },
@@ -20,8 +22,10 @@ const TOKEN_ATTEMPT_THRESHOLDS = [
 ];
 
 // Status-Lookups (GET) laufen bei jedem Seitenaufruf — teilen sie sich das knappe
-// Einlöse-Budget, sperrt sich ein Eingeladener schon durch zweimaliges Öffnen des
-// Links plus einen Reload selbst aus. Enumeration bremst weiterhin das IP-Limit.
+// Einlöse-Budget oder das IP-Limit, sperren Seitenaufrufe Eingeladene bzw. ganze
+// NAT-Netze aus. Sie zählen daher nur auf dieses eigene Budget (pro Token und
+// großzügig pro IP gegen Enumeration mit ständig neuen Tokens); Einlöseversuche
+// (POST) bleiben am IP-Limit.
 const TOKEN_READ_ATTEMPT_THRESHOLDS = [
   { attempts: 30, blockDuration: 15 * 60 * 1000 },
   { attempts: 60, blockDuration: 60 * 60 * 1000 },
@@ -38,6 +42,7 @@ const IP_PREFIX = `${RATE_LIMIT_PREFIX}ip:`;
 const LOGIN_PREFIX = `${RATE_LIMIT_PREFIX}login:`;
 const TOKEN_PREFIX = `${RATE_LIMIT_PREFIX}token:`;
 const TOKEN_READ_PREFIX = `${RATE_LIMIT_PREFIX}token-read:`;
+const TOKEN_READ_IP_PREFIX = `${RATE_LIMIT_PREFIX}token-read-ip:`;
 const FORGOT_PASSWORD_PREFIX = `${RATE_LIMIT_PREFIX}forgot:`;
 const CONTACT_PREFIX = `${RATE_LIMIT_PREFIX}contact:`;
 const GEOCODE_PREFIX = `${RATE_LIMIT_PREFIX}geocode:`;
@@ -70,14 +75,17 @@ async function incrementFixedWindowCounter(key: string, windowMs: number): Promi
   return count;
 }
 
-async function decrementIpCounter(ip: string): Promise<void> {
-  const ipKey = `${IP_PREFIX}${ip}`;
+async function decrementCounter(key: string): Promise<void> {
   const store = getRateLimitStore();
-  const decremented = store.decr(ipKey);
+  const decremented = store.decr(key);
 
   if (decremented <= 0) {
-    store.del(ipKey);
+    store.del(key);
   }
+}
+
+async function decrementIpCounter(ip: string): Promise<void> {
+  await decrementCounter(`${IP_PREFIX}${ip}`);
 }
 
 export interface RateLimitResult {
@@ -96,26 +104,45 @@ interface ThresholdConfig {
   blockDuration: number;
 }
 
-async function incrementIpAttempt(ip: string): Promise<{ allowed: boolean; attemptCount: number }> {
-  const ipKey = `${IP_PREFIX}${ip}`;
-  const count = await incrementFixedWindowCounter(ipKey, IP_WINDOW_MS);
+interface IpBudget {
+  prefix: string;
+  windowMs: number;
+  maxAttempts: number;
+}
 
-  if (count > IP_MAX_ATTEMPTS) {
-    await decrementIpCounter(ip);
-    return { allowed: false, attemptCount: IP_MAX_ATTEMPTS };
+const IP_BUDGET: IpBudget = { prefix: IP_PREFIX, windowMs: IP_WINDOW_MS, maxAttempts: IP_MAX_ATTEMPTS };
+const TOKEN_READ_IP_BUDGET: IpBudget = {
+  prefix: TOKEN_READ_IP_PREFIX,
+  windowMs: TOKEN_READ_IP_WINDOW_MS,
+  maxAttempts: TOKEN_READ_IP_MAX_ATTEMPTS,
+};
+
+async function incrementIpAttempt(ip: string, now: number, budget: IpBudget = IP_BUDGET): Promise<RateLimitResult> {
+  const ipKey = `${budget.prefix}${ip}`;
+  const count = await incrementFixedWindowCounter(ipKey, budget.windowMs);
+
+  if (count > budget.maxAttempts) {
+    await decrementCounter(ipKey);
+    const remainingMs = getRateLimitStore().pttl(ipKey);
+    return {
+      allowed: false,
+      blockedUntil: remainingMs > 0 ? now + remainingMs : undefined,
+      attemptCount: budget.maxAttempts,
+    };
   }
 
   return { allowed: true, attemptCount: count };
 }
 
-function checkThresholds(attemptCount: number, thresholds: ThresholdConfig[]): number {
-  let blockDuration = 0;
-  for (const threshold of thresholds) {
-    if (attemptCount >= threshold.attempts) {
-      blockDuration = threshold.blockDuration;
-    }
+// Zwischenstufen sperren nur beim genauen Erreichen; ab der letzten Stufe sperrt
+// jeder weitere Versuch nach Ablauf erneut für deren volle Dauer, bis das
+// Zählerfenster ausläuft oder ein Erfolg zurücksetzt.
+function findReachedThreshold(attemptCount: number, thresholds: ThresholdConfig[]): ThresholdConfig | undefined {
+  const lastThreshold = thresholds[thresholds.length - 1];
+  if (lastThreshold && attemptCount >= lastThreshold.attempts) {
+    return lastThreshold;
   }
-  return blockDuration;
+  return thresholds.find((threshold) => threshold.attempts === attemptCount);
 }
 
 async function checkRateLimit(
@@ -124,11 +151,12 @@ async function checkRateLimit(
   now: number,
   windowMs: number,
   thresholds: ThresholdConfig[],
-  ip: string
-): Promise<{ allowed: boolean; blockedUntil?: number; attemptCount: number }> {
-  const ipAttempt = await incrementIpAttempt(ip);
+  ip: string,
+  ipBudget: IpBudget = IP_BUDGET
+): Promise<RateLimitResult> {
+  const ipAttempt = await incrementIpAttempt(ip, now, ipBudget);
   if (!ipAttempt.allowed) {
-    return { allowed: false, attemptCount: ipAttempt.attemptCount };
+    return ipAttempt;
   }
 
   const key = `${keyPrefix}${keySuffix}`;
@@ -136,20 +164,18 @@ async function checkRateLimit(
   const store = getRateLimitStore();
   const blockedUntilRaw = store.get(blockedUntilKey);
   const blockedUntil = blockedUntilRaw ? Number.parseInt(blockedUntilRaw, 10) : NaN;
-  const currentCount = await getCounterValue(key);
 
   if (Number.isFinite(blockedUntil) && blockedUntil > now) {
-    return { allowed: false, blockedUntil, attemptCount: currentCount };
+    return { allowed: false, blockedUntil, attemptCount: await getCounterValue(key) };
   }
 
   const attemptCount = await incrementFixedWindowCounter(key, windowMs);
 
-  const blockDuration = checkThresholds(attemptCount, thresholds);
-  if (blockDuration > 0) {
-    const nextBlockedUntil = now + blockDuration;
-    const counterTtlMs = store.pttl(key);
-    const effectiveTtlMs = Math.max(windowMs, blockDuration, counterTtlMs > 0 ? counterTtlMs : 0);
-    store.set(blockedUntilKey, `${nextBlockedUntil}`, "PX", effectiveTtlMs);
+  const reached = findReachedThreshold(attemptCount, thresholds);
+  if (reached) {
+    const nextBlockedUntil = now + reached.blockDuration;
+    store.set(blockedUntilKey, `${nextBlockedUntil}`, "PX", reached.blockDuration);
+    store.pexpire(key, Math.max(store.pttl(key), reached.blockDuration + windowMs));
     return { allowed: false, blockedUntil: nextBlockedUntil, attemptCount };
   }
 
@@ -172,12 +198,11 @@ async function checkFixedWindowRateLimit(
 }
 
 export async function checkLoginRateLimit(ip: string, email?: string): Promise<RateLimitResult> {
+  const now = Date.now();
   if (!email) {
-    const ipAttempt = await incrementIpAttempt(ip);
-    return { allowed: ipAttempt.allowed, attemptCount: ipAttempt.attemptCount };
+    return incrementIpAttempt(ip, now);
   }
 
-  const now = Date.now();
   const key = `${ip}:${email.toLowerCase()}`;
   return checkRateLimit(LOGIN_PREFIX, key, now, LOGIN_WINDOW_MS, LOGIN_ATTEMPT_THRESHOLDS, ip);
 }
@@ -196,7 +221,15 @@ export async function checkTokenRateLimit(ip: string, tokenHash: string): Promis
 
 export async function checkTokenReadRateLimit(ip: string, tokenHash: string): Promise<RateLimitResult> {
   const now = Date.now();
-  return checkRateLimit(TOKEN_READ_PREFIX, tokenHash, now, TOKEN_WINDOW_MS, TOKEN_READ_ATTEMPT_THRESHOLDS, ip);
+  return checkRateLimit(
+    TOKEN_READ_PREFIX,
+    tokenHash,
+    now,
+    TOKEN_WINDOW_MS,
+    TOKEN_READ_ATTEMPT_THRESHOLDS,
+    ip,
+    TOKEN_READ_IP_BUDGET
+  );
 }
 
 export async function recordSuccessfulTokenUsage(tokenHash: string, ip: string): Promise<void> {
@@ -221,32 +254,6 @@ export async function checkContactRateLimit(clientId: string, windowMs: number, 
 
 export async function checkGeocodeRateLimit(clientId: string, windowMs: number, maxAttempts: number): Promise<FixedWindowAttemptResult> {
   return checkFixedWindowRateLimit(GEOCODE_PREFIX, clientId, windowMs, maxAttempts);
-}
-
-export async function getRateLimitStats(): Promise<{
-  loginAttemptsCount: number;
-  ipAttemptsCount: number;
-  tokenAttemptsCount: number;
-  forgotPasswordAttemptsCount: number;
-  contactAttemptsCount: number;
-  geocodeAttemptsCount: number;
-}> {
-  const store = getRateLimitStore();
-  const loginKeys = store.keys(`${LOGIN_PREFIX}*`);
-  const ipKeys = store.keys(`${IP_PREFIX}*`);
-  const tokenKeys = store.keys(`${TOKEN_PREFIX}*`);
-  const forgotKeys = store.keys(`${FORGOT_PASSWORD_PREFIX}*`);
-  const contactKeys = store.keys(`${CONTACT_PREFIX}*`);
-  const geocodeKeys = store.keys(`${GEOCODE_PREFIX}*`);
-
-  return {
-    loginAttemptsCount: loginKeys.length,
-    ipAttemptsCount: ipKeys.length,
-    tokenAttemptsCount: tokenKeys.length,
-    forgotPasswordAttemptsCount: forgotKeys.length,
-    contactAttemptsCount: contactKeys.length,
-    geocodeAttemptsCount: geocodeKeys.length,
-  };
 }
 
 export async function resetRateLimitForTesting(): Promise<void> {

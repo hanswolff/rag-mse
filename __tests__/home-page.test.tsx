@@ -8,16 +8,9 @@ jest.mock("next/cache", () => ({
   unstable_noStore: jest.fn(),
 }));
 
-jest.mock("@/lib/prisma", () => ({
-  prisma: {
-    event: {
-      findFirst: jest.fn(),
-    },
-    ausschreibung: {
-      findFirst: jest.fn(),
-    },
-  },
-}));
+jest.mock("@/lib/prisma", () =>
+  jest.requireActual<typeof import("./helpers/prisma-mock")>("./helpers/prisma-mock").prismaModuleMock,
+);
 
 jest.mock("node:fs/promises", () => ({
   access: jest.fn(),
@@ -56,7 +49,7 @@ describe("Home", () => {
   it("renders call to action buttons", async () => {
     render(await Home());
 
-    expect(screen.getByText("Über Uns")).toBeInTheDocument();
+    expect(screen.getByText("Über uns")).toBeInTheDocument();
     expect(screen.getByText("Kontakt aufnehmen")).toBeInTheDocument();
   });
 
@@ -98,8 +91,18 @@ describe("Home", () => {
 
     render(await Home());
 
-    expect(screen.getByText("Nächster Termin:")).toBeInTheDocument();
+    expect(screen.getByText("Nächster Termin")).toBeInTheDocument();
     expect(screen.getByText("12.03.2026")).toBeInTheDocument();
+  });
+
+  it("zeigt einen Termin kurz nach Mitternacht am Berliner Kalendertag", async () => {
+    (prisma.event.findFirst as jest.Mock).mockResolvedValue({
+      date: new Date("2026-07-11T22:30:00.000Z"),
+    });
+
+    render(await Home());
+
+    expect(screen.getByText("12.07.2026")).toBeInTheDocument();
   });
 
   it("renders annual planning link when file exists", async () => {
@@ -222,8 +225,8 @@ describe("Home - Ausschreibungen-Karte", () => {
   it("zeigt das Ablaufdatum der nächsten Ausschreibung als Unterkarte", async () => {
     render(await Home());
 
-    expect(screen.getByText("Nächste Ausschreibung:")).toBeInTheDocument();
-    expect(screen.getByText("12.09.2026")).toBeInTheDocument();
+    expect(screen.getByText("Nächste Ausschreibung")).toBeInTheDocument();
+    expect(screen.getByText("Anzeigen bis 12.09.2026")).toBeInTheDocument();
   });
 
   it("zeigt ohne aktuelle Ausschreibung wieder die bisherige Karte", async () => {
@@ -233,7 +236,7 @@ describe("Home - Ausschreibungen-Karte", () => {
 
     expect(screen.queryByRole("heading", { name: "Ausschreibungen" })).not.toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Formulare" })).toBeInTheDocument();
-    expect(screen.queryByText("Nächste Ausschreibung:")).not.toBeInTheDocument();
+    expect(screen.queryByText("Nächste Ausschreibung")).not.toBeInTheDocument();
   });
 
   it("lässt die Termine-Unterkarte unberührt", async () => {
@@ -243,8 +246,8 @@ describe("Home - Ausschreibungen-Karte", () => {
 
     render(await Home());
 
-    expect(screen.getByText("Nächster Termin:")).toBeInTheDocument();
+    expect(screen.getByText("Nächster Termin")).toBeInTheDocument();
     expect(screen.getByText("12.03.2026")).toBeInTheDocument();
-    expect(screen.getByText("Nächste Ausschreibung:")).toBeInTheDocument();
+    expect(screen.getByText("Nächste Ausschreibung")).toBeInTheDocument();
   });
 });

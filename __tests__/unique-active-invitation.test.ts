@@ -2,50 +2,42 @@ import { POST } from "@/app/api/admin/invitations/route";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/auth-utils";
-import { sendInvitationEmail } from "@/lib/invitations";
+import { sendTemplateEmail } from "@/lib/email-sender";
+import { logInfo } from "@/lib/logger";
 
-jest.mock("@/lib/prisma", () => ({
-  prisma: {
-    user: {
-      findUnique: jest.fn(),
-    },
-    invitation: {
-      updateMany: jest.fn(),
-      create: jest.fn(),
-      delete: jest.fn(),
-    },
-  },
-}));
+jest.mock("@/lib/prisma", () =>
+  jest.requireActual<typeof import("./helpers/prisma-mock")>("./helpers/prisma-mock").prismaModuleMock,
+);
 
 jest.mock("@/lib/auth-utils", () => ({
   requireAdmin: jest.fn(),
 }));
 
-jest.mock("@/lib/invitations", () => ({
-  generateInvitationToken: jest.fn(() => "new-token-123"),
-  hashInvitationToken: jest.fn((token: string) => `hashed-${token}`),
-  getInvitationExpiryDate: jest.fn(() => new Date("2024-12-31T23:59:59Z")),
-  buildInviteUrl: jest.fn((appUrl: string, token: string) => `${appUrl}/einladung/${token}`),
-  sendInvitationEmail: jest.fn(),
+// E-Mail-Versand an der Systemgrenze mocken (SMTP), nicht den Einladungs-Service
+jest.mock("@/lib/email-sender", () => ({
+  sendTemplateEmail: jest.fn(),
 }));
 
-jest.mock("@/lib/api-utils", () => {
-  const actual = jest.requireActual("@/lib/api-utils");
+jest.mock("@/lib/request-body-parser", () => {
+  const actual = jest.requireActual("@/lib/request-body-parser");
   return {
     ...actual,
     parseJsonBody: jest.fn(async (req: Request) => req.json()),
     validateRequestBody: jest.fn().mockReturnValue({ isValid: true, errors: [] }),
+  };
+});
+
+jest.mock("@/lib/csrf-validator", () => {
+  const actual = jest.requireActual("@/lib/csrf-validator");
+  return {
+    ...actual,
     validateCsrfHeaders: jest.fn(),
   };
 });
 
-jest.mock("@/lib/logger", () => ({
-  logValidationFailure: jest.fn(),
-  logInfo: jest.fn(),
-  logError: jest.fn(),
-  logWarn: jest.fn(),
-  maskEmail: jest.fn((e: string) => e),
-}));
+jest.mock("@/lib/logger", () =>
+  jest.requireActual<typeof import("./helpers/logger-mock")>("./helpers/logger-mock").mockLogger,
+);
 
 jest.mock("@/lib/user-validation", () => ({
   validateEmail: jest.fn(() => ({ isValid: true })),
@@ -63,7 +55,7 @@ const mockedPrisma = prisma as unknown as {
 };
 
 const mockedRequireAdmin = requireAdmin as jest.Mock;
-const mockedSendInvitationEmail = sendInvitationEmail as jest.Mock;
+const mockedSendTemplateEmail = sendTemplateEmail as jest.Mock;
 
 describe("POST /api/admin/invitations - Unique active invitation per email", () => {
   beforeEach(() => {
@@ -73,7 +65,7 @@ describe("POST /api/admin/invitations - Unique active invitation per email", () 
       id: "admin-1",
       email: "admin@example.com",
     });
-    mockedSendInvitationEmail.mockResolvedValue({ success: true });
+    mockedSendTemplateEmail.mockResolvedValue(true);
     mockedPrisma.invitation.delete.mockResolvedValue({ id: "deleted-invitation" });
   });
 
@@ -210,10 +202,7 @@ describe("POST /api/admin/invitations - Unique active invitation per email", () 
       tokenHash: "hashed-new-token-111",
       expiresAt: new Date("2024-12-31T23:59:59Z"),
     });
-    mockedSendInvitationEmail.mockResolvedValue({
-      success: false,
-      error: new Error("SMTP connection failed"),
-    });
+    mockedSendTemplateEmail.mockRejectedValue(new Error("SMTP connection failed"));
 
     const request = new NextRequest("https://example.com/api/admin/invitations", {
       method: "POST",
@@ -277,16 +266,25 @@ describe("POST /api/admin/invitations - Unique active invitation per email", () 
 
     expect(response.status).toBe(200);
 
-    expect(mockedSendInvitationEmail).toHaveBeenCalledWith({
-      email: "user@example.com",
-      inviteUrl: "https://example.com/einladung/new-token-123",
-      logContext: {
+    expect(mockedSendTemplateEmail).toHaveBeenCalledWith(
+      expect.objectContaining({
+        template: "einladung-zur-rag-mse",
+        to: "user@example.com",
+        variables: expect.objectContaining({
+          inviteUrl: expect.stringMatching(/^https:\/\/example\.com\/einladung\/.+$/),
+        }),
+      })
+    );
+    expect(logInfo).toHaveBeenCalledWith(
+      "invitation_email_queued",
+      expect.any(String),
+      expect.objectContaining({
+        invitationId: "inv-with-id",
         route: "/api/admin/invitations",
         method: "POST",
-        invitationId: "inv-with-id",
         userEmail: "admin@example.com",
-      },
-    });
+      })
+    );
   });
 
   it("should return 409 if user already exists", async () => {

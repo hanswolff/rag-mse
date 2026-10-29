@@ -66,4 +66,22 @@ describe("ChangePasswordPage", () => {
       expect(screen.queryByText("mock-password-form")).not.toBeInTheDocument();
     });
   });
+
+  it("zieht die eigene Sitzung mit dem Passwortwechsel-Proof nach", async () => {
+    const mockUpdate = jest.fn().mockResolvedValue(null);
+    (useSession as jest.Mock).mockReturnValue({ status: "authenticated", update: mockUpdate });
+    (global.fetch as jest.Mock).mockResolvedValue({
+      ok: true,
+      json: async () => ({ message: "Passwort wurde erfolgreich geändert", passwordChangeProof: "v1p.abc.def" }),
+    } as Response);
+
+    render(<ChangePasswordPage />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Passwort absenden" }));
+
+    await waitFor(() => {
+      expect(mockUpdate).toHaveBeenCalledWith({ passwordChangeProof: "v1p.abc.def" });
+      expect(screen.getByText("Passwort wurde erfolgreich geändert")).toBeInTheDocument();
+    });
+  });
 });

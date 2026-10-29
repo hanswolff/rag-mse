@@ -26,7 +26,4 @@ export async function generateUniquePollId(): Promise<string> {
   throw new Error("Umfrage-ID-Generierung fehlgeschlagen nach mehreren Versuchen");
 }
 
-export const generateShortCode = generatePollId;
-export const generateUniqueShortCode = generateUniquePollId;
-
 export { getPollTypeLabel, getPollStatusLabel } from "./poll-labels";

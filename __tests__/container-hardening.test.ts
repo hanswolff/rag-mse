@@ -19,8 +19,10 @@ describe("Container hardening", () => {
     expect(containerfile).toContain('ENV TZ="Europe/Berlin"');
     expect(compose).toContain("TZ=${TZ:-Europe/Berlin}");
     // Baseline-Schema muss im Image liegen, sonst crasht der Erststart
-    // mit leerer Datenbank (ENOENT in run-db-migrations).
-    expect(containerfile).toContain("create_admin.sql");
+    // mit leerer Datenbank (ENOENT in run-db-migrations). Es reist im
+    // prisma/-Verzeichnis mit (prisma/baseline.sql).
+    expect(containerfile).toContain("COPY --chown=${APP_UID}:${APP_GID} prisma ./prisma");
+    expect(existsSync(join(__dirname, "../prisma/baseline.sql"))).toBe(true);
     expect(containerfile).toContain('ENV DATABASE_URL="file:/app/data/prod.db"');
   });
 
@@ -43,6 +45,35 @@ describe("Container hardening", () => {
     // Healthcheck dauerhaft unhealthy und der Deploy würde zurückrollen.
     expect(compose).toContain('"wget"');
     expect(containerfile).toContain("install -y --no-install-recommends wget");
+  });
+
+  it("keeps prod data, secrets and git history out of the standalone build", () => {
+    // .next/standalone wird 1:1 ins Image kopiert; das File-Tracing nahm
+    // wegen dynamischer process.cwd()-Pfade den ganzen Projektbaum auf.
+    const nextConfig = readFileSync(join(__dirname, "../next.config.mjs"), "utf-8");
+    const excludesBlock = nextConfig.match(/outputFileTracingExcludes:\s*\{\s*'\*':\s*\[([^\]]*)\]/)?.[1] ?? "";
+    for (const pattern of ["data/**", "backups/**", ".git/**", ".env*", "coverage/**", ".scratch/**"]) {
+      expect(excludesBlock).toContain(`'${pattern}'`);
+    }
+
+    const fileStorage = readFileSync(join(__dirname, "../lib/file-storage.ts"), "utf-8");
+    expect(fileStorage).toContain("path.join(/* turbopackIgnore: true */ process.cwd(), config.defaultSubdir)");
+
+    // Next kopiert .env unabhängig vom Tracing; deploy.sh entfernt sie und
+    // bricht ab, falls trotzdem etwas Sensibles im Standalone liegt.
+    const deploy = readFileSync(join(__dirname, "../deploy.sh"), "utf-8");
+    expect(deploy).toContain('rm -f "$PROJECT_DIR/.next/standalone/.env"');
+    expect(deploy).toContain("Running quality gate: standalone contents...");
+    expect(deploy).toMatch(/-name data -o -name backups -o -name '\.env\*' -o -name \.git/);
+    const gateIndex = deploy.indexOf("Running quality gate: standalone contents...");
+    expect(gateIndex).toBeGreaterThan(deploy.indexOf("pnpm run build\n"));
+    expect(gateIndex).toBeLessThan(deploy.indexOf("podman-compose build app"));
+
+    const containerignore = readFileSync(containerignorePath, "utf-8");
+    const reinclude = containerignore.indexOf("!.next/standalone/**");
+    for (const pattern of [".next/standalone/.env", ".next/standalone/.git", ".next/standalone/data", ".next/standalone/backups"]) {
+      expect(containerignore.indexOf(`${pattern}\n`)).toBeGreaterThan(reinclude);
+    }
   });
 
   it("excludes sensitive paths while allowing required host build artifacts", () => {

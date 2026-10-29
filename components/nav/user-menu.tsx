@@ -3,6 +3,7 @@
 import type { RefObject } from "react";
 import Link from "next/link";
 import { UserIcon } from "../icons";
+import { DropdownItem } from "./dropdown-item";
 import { MenuBadge } from "./menu-badge";
 
 interface DesktopUserMenuProps {
@@ -57,58 +58,32 @@ export function DesktopUserMenu({
         <div className="absolute right-0 mt-2 w-auto min-w-[15rem] bg-white rounded-md shadow-lg py-1 z-dropdown border border-gray-200">
           {showAdminLink && (
             <>
-              <Link
-                href="/admin"
-                onClick={onItemClick}
-                className="block px-4 py-2 text-base text-gray-700 hover:bg-gray-100 transition-colors"
-              >
+              <DropdownItem href="/admin" onClick={onItemClick}>
                 Adminbereich
-              </Link>
+              </DropdownItem>
               <div className="border-t border-gray-200 my-1" />
             </>
           )}
           {showSelfServiceMenu && (
             <>
-              <Link
-                href="/profil"
-                onClick={onItemClick}
-                className="block px-4 py-2 text-base text-gray-700 hover:bg-gray-100 transition-colors"
-              >
+              <DropdownItem href="/profil" onClick={onItemClick}>
                 Profil
-              </Link>
-              <Link
-                href="/passwort-aendern"
-                onClick={onItemClick}
-                className="block px-4 py-2 text-base text-gray-700 hover:bg-gray-100 transition-colors"
-              >
+              </DropdownItem>
+              <DropdownItem href="/passwort-aendern" onClick={onItemClick}>
                 Passwort ändern
-              </Link>
+              </DropdownItem>
               <div className="border-t border-gray-200 my-1" />
-              <Link
-                href="/umfragen"
-                onClick={onItemClick}
-                className="flex items-center justify-between px-4 py-2 text-base text-gray-700 hover:bg-gray-100 transition-colors"
-              >
+              <DropdownItem href="/umfragen" onClick={onItemClick} layout="flex">
                 Umfragen
                 <MenuBadge count={openPollsCount} label="offene Umfragen" />
-              </Link>
-              <Link
-                href="/benachrichtigungen"
-                onClick={onItemClick}
-                className="block px-4 py-2 text-base text-gray-700 hover:bg-gray-100 transition-colors"
-              >
+              </DropdownItem>
+              <DropdownItem href="/benachrichtigungen" onClick={onItemClick}>
                 Benachrichtigungen
-              </Link>
+              </DropdownItem>
             </>
           )}
           <div className="border-t border-gray-200 my-1" />
-          <button
-            type="button"
-            onClick={onLogout}
-            className="block w-full text-left px-4 py-2 text-base text-gray-700 hover:bg-gray-100 transition-colors"
-          >
-            Ausloggen
-          </button>
+          <DropdownItem onClick={onLogout}>Ausloggen</DropdownItem>
         </div>
       )}
     </div>

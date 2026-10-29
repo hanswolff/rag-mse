@@ -1,9 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireMember } from "@/lib/auth-utils";
-import { parseJsonBody, validateRequestBody, withApiErrorHandling, validateCsrfHeaders } from "@/lib/api-utils";
-import { validateReminderSettings } from "@/lib/notification-settings";
+import { parseAndValidateBody, ValidationError } from "@/lib/request-body-parser";
+import { withApiErrorHandling } from "@/lib/api-error-handler";
+import { validateCsrfHeaders } from "@/lib/csrf-validator";
+import { validateReminderSettings } from "@/lib/reminders/notification-settings";
 import { logInfo, logValidationFailure } from "@/lib/logger";
+
+const ROUTE = "/api/user/notifications";
 
 type UpdateNotificationRequest = {
   eventReminderEnabled?: boolean;
@@ -34,22 +38,13 @@ export const GET = withApiErrorHandling(async () => {
   }
 
   return NextResponse.json(settings);
-}, { route: "/api/user/notifications", method: "GET" });
+}, { route: ROUTE, method: "GET" });
 
 export const PUT = withApiErrorHandling(async (request: NextRequest) => {
   validateCsrfHeaders(request);
 
   const user = await requireMember();
-  const body = await parseJsonBody<UpdateNotificationRequest>(request);
-  const bodyValidation = validateRequestBody(
-    body,
-    updateNotificationsSchema,
-    { route: "/api/user/notifications", method: "PUT" }
-  );
-
-  if (!bodyValidation.isValid) {
-    return NextResponse.json({ error: bodyValidation.errors.join(". ") }, { status: 400 });
-  }
+  const body = await parseAndValidateBody<UpdateNotificationRequest>(request, updateNotificationsSchema, { route: ROUTE, method: "PUT" });
 
   if (body.eventReminderEnabled === undefined && body.eventReminderDaysBefore === undefined && body.pollNotificationEnabled === undefined) {
     return NextResponse.json(
@@ -60,8 +55,8 @@ export const PUT = withApiErrorHandling(async (request: NextRequest) => {
 
   const validation = validateReminderSettings(body.eventReminderEnabled, body.eventReminderDaysBefore);
   if (!validation.isValid) {
-    logValidationFailure("/api/user/notifications", "PUT", validation.errors, { userId: user.id });
-    return NextResponse.json({ error: validation.errors.join(". ") }, { status: 400 });
+    logValidationFailure(ROUTE, "PUT", validation.errors, { userId: user.id });
+    throw new ValidationError(validation.errors);
   }
 
   if (body.pollNotificationEnabled !== undefined && typeof body.pollNotificationEnabled !== "boolean") {
@@ -102,4 +97,4 @@ export const PUT = withApiErrorHandling(async (request: NextRequest) => {
   });
 
   return NextResponse.json(updated);
-}, { route: "/api/user/notifications", method: "PUT" });
+}, { route: ROUTE, method: "PUT" });

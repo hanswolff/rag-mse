@@ -11,9 +11,16 @@ import {
   parseAusschreibungExpiresAt,
   validateCreateAusschreibungMetadata,
 } from "@/lib/ausschreibung-validation";
+import { parseVisibility } from "@/lib/visibility";
 import { deleteAusschreibungFile, writeAusschreibungFile } from "@/lib/ausschreibung-storage";
-import { withApiErrorHandling, validateCsrfHeaders } from "@/lib/api-utils";
-import { logInfo, logValidationFailure, logWarn } from "@/lib/logger";
+import { createWithFileRollback, readAndSniffUploadedFile, validateUploadedFile } from "@/lib/file-storage";
+import { ValidationError } from "@/lib/request-body-parser";
+import { withApiErrorHandling } from "@/lib/api-error-handler";
+import { validateCsrfHeaders } from "@/lib/csrf-validator";
+import { logInfo, logValidationFailure } from "@/lib/logger";
+import { serializeAusschreibung } from "@/lib/ausschreibung-response";
+
+const ROUTE = "/api/admin/ausschreibungen";
 
 export const GET = withApiErrorHandling(async () => {
   await requireAdmin("read");
@@ -23,114 +30,82 @@ export const GET = withApiErrorHandling(async () => {
   });
 
   return NextResponse.json({
-    ausschreibungen: ausschreibungen.map((ausschreibung) => ({
-      ...ausschreibung,
-      expiresAt: ausschreibung.expiresAt.toISOString(),
-      createdAt: ausschreibung.createdAt.toISOString(),
-      updatedAt: ausschreibung.updatedAt.toISOString(),
-    })),
+    ausschreibungen: ausschreibungen.map(serializeAusschreibung),
     uploadConstraints: {
       maxUploadMb: Math.floor(MAX_AUSSCHREIBUNG_UPLOAD_BYTES / (1024 * 1024)),
       maxUploadBytes: MAX_AUSSCHREIBUNG_UPLOAD_BYTES,
     },
   });
-}, { route: "/api/admin/ausschreibungen", method: "GET" });
+}, { route: ROUTE, method: "GET" });
 
 export const POST = withApiErrorHandling(async (request: NextRequest) => {
   validateCsrfHeaders(request);
   await requireAdmin("write");
 
-  const contentLength = request.headers.get("content-length");
-  if (contentLength) {
-    const parsedContentLength = Number.parseInt(contentLength, 10);
-    const multipartOverheadBytes = 1024 * 1024;
-    if (Number.isFinite(parsedContentLength) && parsedContentLength > MAX_AUSSCHREIBUNG_UPLOAD_BYTES + multipartOverheadBytes) {
-      return NextResponse.json(
-        { error: `Datei ist zu groß. Maximal erlaubt: ${getMaxAusschreibungUploadSizeLabel()}` },
-        { status: 413 },
-      );
-    }
+  const upload = await validateUploadedFile(request, {
+    maxBytes: MAX_AUSSCHREIBUNG_UPLOAD_BYTES,
+    maxSizeLabel: getMaxAusschreibungUploadSizeLabel(),
+  });
+  if (!upload.ok) {
+    return upload.response;
   }
-
-  const formData = await request.formData();
-  const maybeFile = formData.get("file");
-
-  if (!(maybeFile instanceof File)) {
-    return NextResponse.json({ error: "Datei ist erforderlich" }, { status: 400 });
-  }
-
-  const file = maybeFile;
-
-  if (file.size <= 0) {
-    return NextResponse.json({ error: "Datei ist leer" }, { status: 400 });
-  }
-
-  if (file.size > MAX_AUSSCHREIBUNG_UPLOAD_BYTES) {
-    return NextResponse.json(
-      { error: `Datei ist zu groß. Maximal erlaubt: ${getMaxAusschreibungUploadSizeLabel()}` },
-      { status: 413 },
-    );
-  }
+  const { formData, file } = upload;
 
   const titleRaw = String(formData.get("title") || "");
   const descriptionRaw = formData.get("description");
   const expiresAtRaw = String(formData.get("expiresAt") || "");
+  const visibilityRaw = formData.get("visibility");
 
   const validation = validateCreateAusschreibungMetadata({
     title: titleRaw,
     description: typeof descriptionRaw === "string" ? descriptionRaw : undefined,
     expiresAt: expiresAtRaw,
+    visibility: typeof visibilityRaw === "string" ? visibilityRaw : undefined,
   });
 
   if (!validation.isValid) {
-    logValidationFailure("/api/admin/ausschreibungen", "POST", validation.errors);
-    return NextResponse.json({ error: validation.errors.join(". "), ...(validation.fieldErrors?.length ? { fieldErrors: validation.fieldErrors } : {}) }, { status: 400 });
+    logValidationFailure(ROUTE, "POST", validation.errors);
+    throw new ValidationError(validation.errors, { fieldErrors: validation.fieldErrors?.length ? validation.fieldErrors : undefined });
   }
 
-  const arrayBuffer = await file.arrayBuffer();
-  const fileContent = new Uint8Array(arrayBuffer);
-
-  if (!isPdfContent(fileContent)) {
-    return NextResponse.json({ error: "Nur PDF-Dateien sind erlaubt" }, { status: 400 });
+  const sniffed = await readAndSniffUploadedFile(file, {
+    detectMimeType: (content) => (isPdfContent(content) ? AUSSCHREIBUNG_MIME_TYPE : null),
+    unsupportedContentMessage: "Nur PDF-Dateien sind erlaubt",
+  });
+  if (!sniffed.ok) {
+    return sniffed.response;
   }
 
-  const { storedFileName } = await writeAusschreibungFile({ content: fileContent });
+  // Ohne Angabe bleibt es beim Schema-Default PUBLIC.
+  const visibility = typeof visibilityRaw === "string" ? parseVisibility(visibilityRaw) : undefined;
 
-  try {
-    const ausschreibung = await prisma.ausschreibung.create({
-      data: {
-        title: normalizeAusschreibungTitle(titleRaw),
-        description: normalizeAusschreibungDescription(typeof descriptionRaw === "string" ? descriptionRaw : null),
-        expiresAt: parseAusschreibungExpiresAt(expiresAtRaw),
-        originalFileName: file.name,
-        storedFileName,
-        mimeType: AUSSCHREIBUNG_MIME_TYPE,
-        sizeBytes: file.size,
-      },
-    });
+  const { storedFileName } = await writeAusschreibungFile({ content: sniffed.content });
 
-    logInfo("ausschreibung_created", "Ausschreibung created", {
-      ausschreibungId: ausschreibung.id,
-    });
+  const ausschreibung = await createWithFileRollback({
+    storedFileName,
+    deleteFile: deleteAusschreibungFile,
+    cleanupFailedLog: { action: "ausschreibung_upload_cleanup_failed" },
+    create: () =>
+      prisma.ausschreibung.create({
+        data: {
+          title: normalizeAusschreibungTitle(titleRaw),
+          description: normalizeAusschreibungDescription(typeof descriptionRaw === "string" ? descriptionRaw : null),
+          expiresAt: parseAusschreibungExpiresAt(expiresAtRaw),
+          originalFileName: file.name,
+          storedFileName,
+          mimeType: AUSSCHREIBUNG_MIME_TYPE,
+          sizeBytes: file.size,
+          ...(visibility ? { visibility } : {}),
+        },
+      }),
+  });
 
-    return NextResponse.json(
-      {
-        ...ausschreibung,
-        expiresAt: ausschreibung.expiresAt.toISOString(),
-        createdAt: ausschreibung.createdAt.toISOString(),
-        updatedAt: ausschreibung.updatedAt.toISOString(),
-      },
-      { status: 201 },
-    );
-  } catch (error: unknown) {
-    try {
-      await deleteAusschreibungFile(storedFileName);
-    } catch (cleanupError: unknown) {
-      logWarn("ausschreibung_upload_cleanup_failed", "Failed to clean up file after metadata error", {
-        storedFileName,
-        error: cleanupError instanceof Error ? cleanupError.message : String(cleanupError),
-      });
-    }
-    throw error;
-  }
-}, { route: "/api/admin/ausschreibungen", method: "POST" });
+  logInfo("ausschreibung_created", "Ausschreibung created", {
+    ausschreibungId: ausschreibung.id,
+  });
+
+  return NextResponse.json(
+    serializeAusschreibung(ausschreibung),
+    { status: 201 },
+  );
+}, { route: ROUTE, method: "POST" });

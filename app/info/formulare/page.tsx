@@ -10,7 +10,7 @@ const pathways = [
   {
     title: "Mitglied im Reservistenverband werden",
     description:
-      "Sie möchten Mitglied im Reservistenverband werden. Nutzen Sie den Aufnahmeantrag für die Anmeldung.",
+      "Sie möchten Mitglied im Reservistenverband werden? Nutzen Sie den Aufnahmeantrag für die Anmeldung.",
     actions: [
       {
         label: "Aufnahmeantrag Reservistenverband",
@@ -22,10 +22,10 @@ const pathways = [
   {
     title: "Mitglied werden",
     description:
-      `Sie möchten der ${appName} beitreten. Nutzen Sie den Aufnahmeantrag für die Anmeldung.`,
+      `Sie möchten der ${appName} beitreten? Nutzen Sie den Aufnahmeantrag für die Anmeldung.`,
     actions: [
       {
-        label: "Aufnahmeantrag",
+        label: "Aufnahmeantrag RAG",
         href: "/dokumente/Antrag_Mitgliedschaft_RAG.pdf",
         className: "document-download-link-download"
       }
@@ -49,7 +49,7 @@ const pathways = [
       "Die Schießkladde dient der strukturierten Dokumentation von Schießterminen, Ergebnissen und Munitionsverbrauch.",
     actions: [
       {
-        label: "Schiesskladde RAG",
+        label: "Schießkladde RAG",
         href: "/dokumente/Schiesskladde_RAG.pdf",
         className: "document-download-link-download"
       }

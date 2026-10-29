@@ -1,0 +1,2 @@
+# Migrations-Checksummen hängen am exakten Dateiinhalt: SQL immer mit LF auschecken.
+*.sql text eol=lf

@@ -1,5 +1,6 @@
 import { VoteType } from "@prisma/client";
 import { parseDateAndTime } from "@/lib/date-picker-utils";
+import { isTimeRangeValid } from "@/lib/dates";
 import {
   validateDateString,
   validateTimeString as validateTimeFormat,
@@ -21,15 +22,11 @@ import {
 } from "./event-description";
 import { describeAllowedEventTypes } from "./event-types";
 import { createValidationContext } from "./validation-context";
+import { getVisibilityErrorMessage, parseVisibility } from "./visibility";
 import type { ValidationContext, ValidationResult } from "./validation-context";
 
 // Re-export validation functions for backward compatibility with tests
 export { validateLocation, validateDescription, validateLatitude, validateLongitude } from "./validation-schema";
-
-// For backward compatibility: alias validateLatitude to validateCoordinate
-export function validateCoordinate(coord: string): boolean {
-  return validateLatitude(coord);
-}
 
 export interface CreateEventRequest {
   date: string;
@@ -43,7 +40,8 @@ export interface CreateEventRequest {
   title?: string | null;
   cost?: string | null;
   capacity?: number | string;
-  visible?: boolean;
+  visibility: string;
+  visible?: unknown;
 }
 
 export interface UpdateEventRequest {
@@ -58,7 +56,8 @@ export interface UpdateEventRequest {
   title?: string | null;
   cost?: string | null;
   capacity?: number | string;
-  visible?: boolean;
+  visibility?: string;
+  visible?: unknown;
 }
 
 export type { ValidationResult } from "./validation-context";
@@ -97,6 +96,19 @@ function validateOptionalEventText(
     ctx.addError(field, rule.typeError);
   } else if (!rule.isWithinLimit(value)) {
     ctx.addError(field, rule.lengthError);
+  }
+}
+
+export const LEGACY_VISIBLE_FIELD_ERROR =
+  "Bitte Seite neu laden: Das Formular ist veraltet und kann die Sichtbarkeitsstufe nicht übermitteln.";
+
+function validateVisibilityField(ctx: ValidationContext, request: CreateEventRequest | UpdateEventRequest, required: boolean): void {
+  if (request.visible !== undefined) {
+    ctx.addError("visibility", LEGACY_VISIBLE_FIELD_ERROR);
+  } else if (request.visibility === undefined) {
+    if (required) ctx.addError("visibility", "Sichtbarkeitsstufe ist erforderlich");
+  } else if (!parseVisibility(request.visibility)) {
+    ctx.addError("visibility", getVisibilityErrorMessage("Sichtbarkeitsstufe"));
   }
 }
 
@@ -143,15 +155,8 @@ export function validateCreateEventRequest(request: CreateEventRequest): Validat
     ctx.addError("timeTo", "Ungültiges Zeitformat für Uhrzeit bis");
   }
 
-  if (timeFrom && timeTo && validateTimeFormat(timeFrom) && validateTimeFormat(timeTo)) {
-    const [hoursFrom, minutesFrom] = timeFrom.split(":").map(Number);
-    const [hoursTo, minutesTo] = timeTo.split(":").map(Number);
-    const fromMinutes = hoursFrom * 60 + minutesFrom;
-    const toMinutes = hoursTo * 60 + minutesTo;
-
-    if (fromMinutes >= toMinutes) {
-      ctx.addError("timeTo", "Uhrzeit bis muss nach Uhrzeit von liegen");
-    }
+  if (timeFrom && timeTo && validateTimeFormat(timeFrom) && validateTimeFormat(timeTo) && !isTimeRangeValid(timeFrom, timeTo)) {
+    ctx.addError("timeTo", "Uhrzeit bis muss nach Uhrzeit von liegen");
   }
 
   if (!location || typeof location !== "string") {
@@ -187,9 +192,7 @@ export function validateCreateEventRequest(request: CreateEventRequest): Validat
     ctx.addError("capacity", EVENT_CAPACITY_ERROR);
   }
 
-  if (request.visible !== undefined && typeof request.visible !== "boolean") {
-    ctx.errors.push("Ungültiger Wert für Sichtbarkeit");
-  }
+  validateVisibilityField(ctx, request, true);
 
   return ctx.toResult();
 }
@@ -251,24 +254,33 @@ export function validateUpdateEventRequest(request: UpdateEventRequest): Validat
     ctx.addError("capacity", EVENT_CAPACITY_ERROR);
   }
 
-  if (request.visible !== undefined && typeof request.visible !== "boolean") {
-    ctx.errors.push("Ungültiger Wert für Sichtbarkeit");
-  }
+  validateVisibilityField(ctx, request, false);
 
   if (timeFrom !== undefined && timeTo !== undefined && timeFrom !== "" && timeTo !== "") {
-    if (validateTimeFormat(timeFrom) && validateTimeFormat(timeTo)) {
-      const [hoursFrom, minutesFrom] = timeFrom.split(":").map(Number);
-      const [hoursTo, minutesTo] = timeTo.split(":").map(Number);
-      const fromMinutes = hoursFrom * 60 + minutesFrom;
-      const toMinutes = hoursTo * 60 + minutesTo;
-
-      if (fromMinutes >= toMinutes) {
-        ctx.addError("timeTo", "Uhrzeit bis muss nach Uhrzeit von liegen");
-      }
+    if (validateTimeFormat(timeFrom) && validateTimeFormat(timeTo) && !isTimeRangeValid(timeFrom, timeTo)) {
+      ctx.addError("timeTo", "Uhrzeit bis muss nach Uhrzeit von liegen");
     }
   }
 
   return ctx.toResult();
+}
+
+/**
+ * Koordinaten aus dem Request-Body normalisieren. Der Unterschied liegt bei
+ * fehlendem Wert: Beim Anlegen ("create") wird `undefined` zu `null`
+ * (Koordinate leer speichern), beim Ändern ("update") bleibt `undefined`
+ * erhalten (Feld nicht anfassen).
+ */
+export function normalizeCoordinate(
+  value: string | number | null | undefined,
+  mode: "create" | "update"
+): number | null | undefined {
+  if (value === undefined) return mode === "create" ? null : undefined;
+  if (value === null) return null;
+  if (typeof value === "number") return value;
+  const trimmed = value.trim();
+  if (trimmed === "") return null;
+  return parseFloat(trimmed);
 }
 
 export function validateVote(vote: string): vote is VoteType {

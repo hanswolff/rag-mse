@@ -229,7 +229,7 @@ describe("LoginPage", () => {
 
       await waitFor(() => {
         expect(submitButton).toBeDisabled();
-        expect(submitButton).toHaveTextContent("Einloggen...");
+        expect(submitButton).toHaveTextContent("Einloggen…");
         expect(emailInput).toBeDisabled();
         expect(passwordInput).toBeDisabled();
       });

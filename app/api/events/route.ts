@@ -3,11 +3,12 @@ import { prisma } from "@/lib/prisma";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { canAccessAdminArea } from "@/lib/role-utils";
-import { withApiErrorHandling, getAuthNoCacheHeaders, getPublicCacheHeaders } from "@/lib/api-utils";
+import { withApiErrorHandling, getAuthNoCacheHeaders, getPublicCacheHeaders } from "@/lib/api-error-handler";
 import { formatDateForStorage, getStartOfToday } from "@/lib/date-picker-utils";
 import { VoteType } from "@prisma/client";
 import { createShootingRangeLookup, getEventLocationDisplay, getRangeNameFromLocation } from "@/lib/event-location";
-import { buildVisibilityFilter } from "@/lib/event-list-utils";
+import { countVotes } from "@/lib/event-list-utils";
+import { buildVisibilityFilter } from "@/lib/event-visibility";
 import { parsePageNumber, parsePageSize } from "@/lib/api-pagination";
 
 const BASE_EVENT_SELECT = {
@@ -23,7 +24,7 @@ const BASE_EVENT_SELECT = {
   type: true,
   cost: true,
   capacity: true,
-  visible: true,
+  visibility: true,
   createdAt: true,
   updatedAt: true,
 } as const;
@@ -64,21 +65,10 @@ type EventWithVotes = {
 } & Record<string, unknown>;
 
 function addVoteCountsToEvents(events: EventWithVotes[]) {
-  return events.map(({ votes, guestRegistrations, ...event }) => {
-    const voteCounts = votes.reduce(
-      (acc, { vote }) => ({ ...acc, [vote]: acc[vote] + 1 }),
-      { JA: 0, NEIN: 0, VIELLEICHT: 0 }
-    );
-
-    for (const guest of guestRegistrations ?? []) {
-      voteCounts[guest.vote] += 1;
-    }
-
-    return {
-      ...event,
-      voteCounts,
-    };
-  });
+  return events.map(({ votes, guestRegistrations, ...event }) => ({
+    ...event,
+    voteCounts: countVotes(votes, guestRegistrations),
+  }));
 }
 
 export const GET = withApiErrorHandling(async (request: NextRequest) => {

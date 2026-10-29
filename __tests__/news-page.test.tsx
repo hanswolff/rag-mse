@@ -7,14 +7,9 @@ jest.mock("next-auth", () => ({
   getServerSession: jest.fn(),
 }));
 
-jest.mock("@/lib/prisma", () => ({
-  prisma: {
-    news: {
-      findMany: jest.fn(),
-      count: jest.fn(),
-    },
-  },
-}));
+jest.mock("@/lib/prisma", () =>
+  jest.requireActual<typeof import("./helpers/prisma-mock")>("./helpers/prisma-mock").prismaModuleMock,
+);
 
 describe("NewsPage", () => {
   beforeEach(() => {

@@ -1,14 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireMember } from "@/lib/auth-utils";
-import {
-  parseJsonBody,
-  withApiErrorHandling,
-  validateCsrfHeaders,
-  getAuthNoCacheHeaders,
-} from "@/lib/api-utils";
+import { parseJsonBody, ValidationError } from "@/lib/request-body-parser";
+import { withApiErrorHandling, getAuthNoCacheHeaders } from "@/lib/api-error-handler";
+import { validateCsrfHeaders } from "@/lib/csrf-validator";
 import { validateVoteRequest } from "@/lib/poll-validation";
 import { logInfo, logResourceNotFound, logValidationFailure } from "@/lib/logger";
+
+const ROUTE = "/api/polls/[id]/vote";
 
 type RouteParams = { params: Promise<{ id: string }> };
 
@@ -29,7 +28,7 @@ export const POST = withApiErrorHandling(async (request: NextRequest, context: R
   });
 
   if (!poll) {
-    logResourceNotFound("poll", pollId, "/api/polls/[id]/vote", "POST");
+    logResourceNotFound("poll", pollId, ROUTE, "POST");
     return NextResponse.json({ error: "Umfrage nicht gefunden" }, { status: 404 });
   }
 
@@ -38,10 +37,10 @@ export const POST = withApiErrorHandling(async (request: NextRequest, context: R
   }
 
   const body = await parseJsonBody<VoteRequestBody>(request);
-  const validation = validateVoteRequest(body.optionIds, poll.multipleChoice);
+  const validation = validateVoteRequest(body?.optionIds, poll.multipleChoice);
   if (!validation.isValid) {
-    logValidationFailure("/api/polls/[id]/vote", "POST", validation.errors, { userId: user.id, pollId });
-    return NextResponse.json({ error: validation.errors.join(". ") }, { status: 400 });
+    logValidationFailure(ROUTE, "POST", validation.errors, { userId: user.id, pollId });
+    throw new ValidationError(validation.errors);
   }
 
   const validOptionIds = new Set(poll.options.map((o) => o.id));
@@ -71,7 +70,7 @@ export const POST = withApiErrorHandling(async (request: NextRequest, context: R
   });
 
   return NextResponse.json({ success: true, optionIds: body.optionIds }, { headers: getAuthNoCacheHeaders() });
-}, { route: "/api/polls/[id]/vote", method: "POST" });
+}, { route: ROUTE, method: "POST" });
 
 export const DELETE = withApiErrorHandling(async (request: NextRequest, context: RouteParams) => {
   validateCsrfHeaders(request);
@@ -84,7 +83,7 @@ export const DELETE = withApiErrorHandling(async (request: NextRequest, context:
   });
 
   if (!poll) {
-    logResourceNotFound("poll", pollId, "/api/polls/[id]/vote", "DELETE");
+    logResourceNotFound("poll", pollId, ROUTE, "DELETE");
     return NextResponse.json({ error: "Umfrage nicht gefunden" }, { status: 404 });
   }
 
@@ -99,4 +98,4 @@ export const DELETE = withApiErrorHandling(async (request: NextRequest, context:
   logInfo("poll_vote_withdrawn", "Poll vote withdrawn", { pollId, userId: user.id });
 
   return NextResponse.json({ success: true }, { headers: getAuthNoCacheHeaders() });
-}, { route: "/api/polls/[id]/vote", method: "DELETE" });
+}, { route: ROUTE, method: "DELETE" });

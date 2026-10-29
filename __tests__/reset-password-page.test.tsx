@@ -27,7 +27,7 @@ describe("ResetPasswordPage", () => {
 
       expect(screen.getByText("RAG Schießsport MSE")).toBeInTheDocument();
       expect(screen.getByText("Passwort zurücksetzen")).toBeInTheDocument();
-      expect(screen.getByText("Wird geladen...")).toBeInTheDocument();
+      expect(screen.getByText("Wird geladen…")).toBeInTheDocument();
     });
 
     it("should display error state for invalid token", async () => {
@@ -335,7 +335,7 @@ describe("ResetPasswordPage", () => {
       fireEvent.click(submitButton);
 
       expect(submitButton).toBeDisabled();
-      expect(submitButton).toHaveTextContent("Wird geändert...");
+      expect(submitButton).toHaveTextContent("Wird geändert…");
 
       resolveFetch!({
         ok: true,

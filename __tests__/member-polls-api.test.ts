@@ -1,49 +1,34 @@
 import { NextRequest } from "next/server";
+import { apiRequest, routeContext } from "./helpers/request";
+import { buildPoll } from "./helpers/factories";
 import { requireMember } from "@/lib/auth-utils";
 import { prisma } from "@/lib/prisma";
-import { validateCsrfHeaders } from "@/lib/api-utils";
+import { validateCsrfHeaders } from "@/lib/csrf-validator";
 import { validateVoteRequest } from "@/lib/poll-validation";
 
 jest.mock("@/lib/auth-utils", () => ({
   requireMember: jest.fn(),
 }));
 
-jest.mock("@/lib/prisma", () => ({
-  prisma: {
-    poll: {
-      findMany: jest.fn(),
-      findUnique: jest.fn(),
-      count: jest.fn(),
-    },
-    pollVote: {
-      deleteMany: jest.fn(),
-      create: jest.fn(),
-      createMany: jest.fn(),
-      findMany: jest.fn(),
-    },
-    $transaction: jest.fn(),
-  },
-}));
+jest.mock("@/lib/prisma", () =>
+  jest.requireActual<typeof import("./helpers/prisma-mock")>("./helpers/prisma-mock").prismaModuleMock,
+);
 
-jest.mock("@/lib/api-utils", () => ({
-  parseJsonBody: jest.fn(async (req) => req.json()),
-  validateCsrfHeaders: jest.fn(),
-  withApiErrorHandling: jest.fn((handler) => handler),
-  validateRequestBody: jest.fn().mockReturnValue({ isValid: true, errors: [] }),
-  getAuthNoCacheHeaders: jest.fn(() => ({})),
-}));
+jest.mock("@/lib/csrf-validator", () => {
+  const actual = jest.requireActual("@/lib/csrf-validator");
+  return {
+    ...actual,
+    validateCsrfHeaders: jest.fn(actual.validateCsrfHeaders),
+  };
+});
 
 jest.mock("@/lib/poll-validation", () => ({
   validateVoteRequest: jest.fn(),
 }));
 
-jest.mock("@/lib/logger", () => ({
-  logInfo: jest.fn(),
-  logError: jest.fn(),
-  logWarn: jest.fn(),
-  logResourceNotFound: jest.fn(),
-  logValidationFailure: jest.fn(),
-}));
+jest.mock("@/lib/logger", () =>
+  jest.requireActual<typeof import("./helpers/logger-mock")>("./helpers/logger-mock").mockLogger,
+);
 
 const mockRequireMember = requireMember as jest.Mock;
 const mockPollFindMany = prisma.poll.findMany as jest.Mock;
@@ -54,26 +39,10 @@ const mockPollVoteCreateMany = prisma.pollVote.createMany as jest.Mock;
 const mockValidateCsrf = validateCsrfHeaders as jest.Mock;
 const mockValidateVoteRequest = validateVoteRequest as jest.Mock;
 
-const BASE_URL = "http://localhost:3000";
 const TEST_USER = { id: "user-1", email: "test@example.com", role: "MEMBER" };
 
-function makePoll(overrides: Record<string, unknown> = {}) {
-  return {
-    id: "poll-1",
-    title: "Test Poll",
-    status: "LIVE",
-    type: "SONSTIGES",
-    multipleChoice: false,
-    createdAt: new Date("2024-01-01"),
-    options: [
-      { id: "opt-1", label: "Ja", position: 0, _count: { votes: 1 } },
-      { id: "opt-2", label: "Nein", position: 1, _count: { votes: 0 } },
-    ],
-    _count: { votes: 1 },
-    votes: [{ optionId: "opt-1" }],
-    event: null,
-    ...overrides,
-  };
+function makePoll(overrides: Parameters<typeof buildPoll>[0] = {}) {
+  return buildPoll({ votes: [{ optionId: "opt-1" }], ...overrides });
 }
 
 beforeEach(() => {
@@ -92,7 +61,7 @@ describe("GET /api/polls", () => {
     mockPollFindMany.mockResolvedValue([]);
     mockPollCount.mockResolvedValue(0);
 
-    await GET(new NextRequest(`${BASE_URL}/api/polls`));
+    await GET(apiRequest("GET", "/api/polls"));
 
     expect(mockRequireMember).toHaveBeenCalled();
   });
@@ -102,7 +71,7 @@ describe("GET /api/polls", () => {
     mockPollFindMany.mockResolvedValue([poll]);
     mockPollCount.mockResolvedValue(1);
 
-    const res = await GET(new NextRequest(`${BASE_URL}/api/polls`));
+    const res = await GET(apiRequest("GET", "/api/polls"));
     const data = await res.json();
 
     expect(res.status).toBe(200);
@@ -119,7 +88,7 @@ describe("GET /api/polls", () => {
     mockPollFindMany.mockResolvedValue([poll]);
     mockPollCount.mockResolvedValue(1);
 
-    const res = await GET(new NextRequest(`${BASE_URL}/api/polls`));
+    const res = await GET(apiRequest("GET", "/api/polls"));
     const data = await res.json();
 
     expect(data.polls[0].userVoteOptionIds).toEqual(["opt-1"]);
@@ -130,7 +99,7 @@ describe("GET /api/polls", () => {
     mockPollFindMany.mockResolvedValue([]);
     mockPollCount.mockResolvedValue(0);
 
-    await GET(new NextRequest(`${BASE_URL}/api/polls?type=TERMIN`));
+    await GET(apiRequest("GET", "/api/polls?type=TERMIN"));
 
     expect(mockPollFindMany).toHaveBeenCalledWith(
       expect.objectContaining({ where: { status: "LIVE", type: "TERMIN" } }),
@@ -141,7 +110,7 @@ describe("GET /api/polls", () => {
     mockPollFindMany.mockResolvedValue([]);
     mockPollCount.mockResolvedValue(0);
 
-    await GET(new NextRequest(`${BASE_URL}/api/polls?type=TERMIN&eventId=event-42`));
+    await GET(apiRequest("GET", "/api/polls?type=TERMIN&eventId=event-42"));
 
     expect(mockPollFindMany).toHaveBeenCalledWith(
       expect.objectContaining({ where: { status: "LIVE", type: "TERMIN", eventId: "event-42" } }),
@@ -152,7 +121,7 @@ describe("GET /api/polls", () => {
     mockPollFindMany.mockResolvedValue([]);
     mockPollCount.mockResolvedValue(0);
 
-    await GET(new NextRequest(`${BASE_URL}/api/polls?type=SONSTIGES`));
+    await GET(apiRequest("GET", "/api/polls?type=SONSTIGES"));
 
     expect(mockPollFindMany).toHaveBeenCalledWith(
       expect.objectContaining({ where: { status: "LIVE", type: "SONSTIGES" } }),
@@ -163,7 +132,7 @@ describe("GET /api/polls", () => {
     mockPollFindMany.mockResolvedValue([]);
     mockPollCount.mockResolvedValue(0);
 
-    await GET(new NextRequest(`${BASE_URL}/api/polls?type=INVALID`));
+    await GET(apiRequest("GET", "/api/polls?type=INVALID"));
 
     expect(mockPollFindMany).toHaveBeenCalledWith(
       expect.objectContaining({ where: { status: "LIVE" } }),
@@ -174,7 +143,7 @@ describe("GET /api/polls", () => {
     mockPollFindMany.mockResolvedValue([]);
     mockPollCount.mockResolvedValue(25);
 
-    const res = await GET(new NextRequest(`${BASE_URL}/api/polls?page=2&limit=10`));
+    const res = await GET(apiRequest("GET", "/api/polls?page=2&limit=10"));
     const data = await res.json();
 
     expect(mockPollFindMany).toHaveBeenCalledWith(
@@ -192,7 +161,7 @@ describe("GET /api/polls", () => {
     mockPollFindMany.mockResolvedValue([]);
     mockPollCount.mockResolvedValue(0);
 
-    const res = await GET(new NextRequest(`${BASE_URL}/api/polls`));
+    const res = await GET(apiRequest("GET", "/api/polls"));
     const data = await res.json();
 
     expect(mockPollFindMany).toHaveBeenCalledWith(
@@ -206,7 +175,7 @@ describe("GET /api/polls", () => {
     mockPollFindMany.mockResolvedValue([]);
     mockPollCount.mockResolvedValue(0);
 
-    await GET(new NextRequest(`${BASE_URL}/api/polls?status=LIVE,CLOSED`));
+    await GET(apiRequest("GET", "/api/polls?status=LIVE,CLOSED"));
 
     expect(mockPollFindMany).toHaveBeenCalledWith(
       expect.objectContaining({ where: { status: { in: ["LIVE", "CLOSED"] } } }),
@@ -217,7 +186,7 @@ describe("GET /api/polls", () => {
     mockPollFindMany.mockResolvedValue([]);
     mockPollCount.mockResolvedValue(0);
 
-    await GET(new NextRequest(`${BASE_URL}/api/polls?status=CLOSED`));
+    await GET(apiRequest("GET", "/api/polls?status=CLOSED"));
 
     expect(mockPollFindMany).toHaveBeenCalledWith(
       expect.objectContaining({ where: { status: "CLOSED" } }),
@@ -228,7 +197,7 @@ describe("GET /api/polls", () => {
     mockPollFindMany.mockResolvedValue([]);
     mockPollCount.mockResolvedValue(0);
 
-    await GET(new NextRequest(`${BASE_URL}/api/polls?status=DRAFT,INVALID`));
+    await GET(apiRequest("GET", "/api/polls?status=DRAFT,INVALID"));
 
     expect(mockPollFindMany).toHaveBeenCalledWith(
       expect.objectContaining({ where: { status: "LIVE" } }),
@@ -239,7 +208,7 @@ describe("GET /api/polls", () => {
     mockPollFindMany.mockResolvedValue([]);
     mockPollCount.mockResolvedValue(0);
 
-    await GET(new NextRequest(`${BASE_URL}/api/polls?after=2024-06-01T00:00:00.000Z`));
+    await GET(apiRequest("GET", "/api/polls?after=2024-06-01T00:00:00.000Z"));
 
     expect(mockPollFindMany).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -252,7 +221,7 @@ describe("GET /api/polls", () => {
     mockPollFindMany.mockResolvedValue([]);
     mockPollCount.mockResolvedValue(0);
 
-    await GET(new NextRequest(`${BASE_URL}/api/polls?before=2024-06-01T00:00:00.000Z`));
+    await GET(apiRequest("GET", "/api/polls?before=2024-06-01T00:00:00.000Z"));
 
     expect(mockPollFindMany).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -265,7 +234,7 @@ describe("GET /api/polls", () => {
     mockPollFindMany.mockResolvedValue([]);
     mockPollCount.mockResolvedValue(0);
 
-    await GET(new NextRequest(`${BASE_URL}/api/polls?after=2024-01-01T00:00:00.000Z&before=2024-07-01T00:00:00.000Z`));
+    await GET(apiRequest("GET", "/api/polls?after=2024-01-01T00:00:00.000Z&before=2024-07-01T00:00:00.000Z"));
 
     expect(mockPollFindMany).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -284,7 +253,7 @@ describe("GET /api/polls", () => {
     mockPollFindMany.mockResolvedValue([]);
     mockPollCount.mockResolvedValue(0);
 
-    await GET(new NextRequest(`${BASE_URL}/api/polls?after=not-a-date&before=also-invalid`));
+    await GET(apiRequest("GET", "/api/polls?after=not-a-date&before=also-invalid"));
 
     expect(mockPollFindMany).toHaveBeenCalledWith(
       expect.objectContaining({ where: { status: "LIVE" } }),
@@ -300,14 +269,14 @@ describe("GET /api/polls/[id]", () => {
   });
 
   function ctx(id = "poll-1") {
-    return { params: Promise.resolve({ id }) } as never;
+    return routeContext({ id }) as never;
   }
 
   it("returns poll detail with options, vote counts, and userVoteOptionIds", async () => {
     const poll = makePoll();
     mockPollFindUnique.mockResolvedValue(poll);
 
-    const res = await GET(new NextRequest(`${BASE_URL}/api/polls/poll-1`), ctx());
+    const res = await GET(apiRequest("GET", "/api/polls/poll-1"), ctx());
     const data = await res.json();
 
     expect(res.status).toBe(200);
@@ -322,7 +291,7 @@ describe("GET /api/polls/[id]", () => {
   it("returns 404 for non-existent poll", async () => {
     mockPollFindUnique.mockResolvedValue(null);
 
-    const res = await GET(new NextRequest(`${BASE_URL}/api/polls/nope`), ctx("nope"));
+    const res = await GET(apiRequest("GET", "/api/polls/nope"), ctx("nope"));
     const data = await res.json();
 
     expect(res.status).toBe(404);
@@ -333,7 +302,7 @@ describe("GET /api/polls/[id]", () => {
     const draft = makePoll({ status: "DRAFT" });
     mockPollFindUnique.mockResolvedValue(draft);
 
-    const res = await GET(new NextRequest(`${BASE_URL}/api/polls/poll-1`), ctx());
+    const res = await GET(apiRequest("GET", "/api/polls/poll-1"), ctx());
     const data = await res.json();
 
     expect(res.status).toBe(404);
@@ -344,7 +313,7 @@ describe("GET /api/polls/[id]", () => {
     const closed = makePoll({ status: "CLOSED" });
     mockPollFindUnique.mockResolvedValue(closed);
 
-    const res = await GET(new NextRequest(`${BASE_URL}/api/polls/poll-1`), ctx());
+    const res = await GET(apiRequest("GET", "/api/polls/poll-1"), ctx());
     const data = await res.json();
 
     expect(res.status).toBe(200);
@@ -360,15 +329,11 @@ describe("POST /api/polls/[id]/vote", () => {
   });
 
   function ctx(id = "poll-1") {
-    return { params: Promise.resolve({ id }) } as never;
+    return routeContext({ id }) as never;
   }
 
   function makeVoteRequest(body: unknown) {
-    return new NextRequest(`${BASE_URL}/api/polls/poll-1/vote`, {
-      method: "POST",
-      body: JSON.stringify(body),
-      headers: { "Content-Type": "application/json" },
-    });
+    return apiRequest("POST", "/api/polls/poll-1/vote", { body, browser: true });
   }
 
   it("validates CSRF headers", async () => {
@@ -523,13 +488,11 @@ describe("DELETE /api/polls/[id]/vote", () => {
   });
 
   function ctx(id = "poll-1") {
-    return { params: Promise.resolve({ id }) } as never;
+    return routeContext({ id }) as never;
   }
 
   function makeDeleteRequest() {
-    return new NextRequest(`${BASE_URL}/api/polls/poll-1/vote`, {
-      method: "DELETE",
-    });
+    return apiRequest("DELETE", "/api/polls/poll-1/vote", { browser: true });
   }
 
   it("validates CSRF headers", async () => {

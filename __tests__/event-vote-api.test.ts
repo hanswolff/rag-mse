@@ -1,20 +1,11 @@
 import { POST, DELETE } from "@/app/api/events/[id]/vote/route";
-import { NextRequest } from "next/server";
+import { apiRequest, routeContext } from "./helpers/request";
 import { prisma } from "@/lib/prisma";
 import { requireMember } from "@/lib/auth-utils";
 
-jest.mock("@/lib/prisma", () => ({
-  prisma: {
-    event: {
-      findUnique: jest.fn(),
-    },
-    vote: {
-      upsert: jest.fn(),
-      findUnique: jest.fn(),
-      delete: jest.fn(),
-    },
-  },
-}));
+jest.mock("@/lib/prisma", () =>
+  jest.requireActual<typeof import("./helpers/prisma-mock")>("./helpers/prisma-mock").prismaModuleMock,
+);
 
 jest.mock("@/lib/auth-utils", () => {
   const actual = jest.requireActual("@/lib/auth-utils");
@@ -24,34 +15,32 @@ jest.mock("@/lib/auth-utils", () => {
   };
 });
 
-jest.mock("@/lib/logger", () => ({
-  logInfo: jest.fn(),
-  logError: jest.fn(),
-  logWarn: jest.fn(),
-  logValidationFailure: jest.fn(),
-  logResourceNotFound: jest.fn(),
-}));
+jest.mock("@/lib/logger", () =>
+  jest.requireActual<typeof import("./helpers/logger-mock")>("./helpers/logger-mock").mockLogger,
+);
 
-jest.mock("@/lib/api-utils", () => {
-  const actual = jest.requireActual("@/lib/api-utils");
+jest.mock("@/lib/request-body-parser", () => {
+  const actual = jest.requireActual("@/lib/request-body-parser");
   return {
     ...actual,
     parseJsonBody: jest.fn(async (req: Request) => req.json()),
+  };
+});
+
+jest.mock("@/lib/csrf-validator", () => {
+  const actual = jest.requireActual("@/lib/csrf-validator");
+  return {
+    ...actual,
     validateCsrfHeaders: jest.fn(),
   };
 });
 
 function createMockRequest(body?: Record<string, unknown>) {
-  return {
-    json: jest.fn().mockResolvedValue(body ?? {}),
-    headers: {
-      get: jest.fn().mockReturnValue(null),
-    },
-  } as unknown as NextRequest;
+  return apiRequest("POST", "/api/events/event-1/vote", { body: body ?? {} });
 }
 
 function ctx(id: string) {
-  return { params: Promise.resolve({ id }) } as never;
+  return routeContext({ id }) as never;
 }
 
 const member = { id: "user-1", email: "member@example.com", role: "MEMBER", name: "Mitglied" };
@@ -69,7 +58,7 @@ describe("/api/events/[id]/vote", () => {
       (prisma.event.findUnique as jest.Mock).mockResolvedValue({
         id: "event-1",
         date: futureDate,
-        visible: true,
+        visibility: "PUBLIC",
         createdById: "admin-1",
       });
       (prisma.vote.upsert as jest.Mock).mockResolvedValue({
@@ -97,7 +86,7 @@ describe("/api/events/[id]/vote", () => {
       (prisma.event.findUnique as jest.Mock).mockResolvedValue({
         id: "event-1",
         date: futureDate,
-        visible: true,
+        visibility: "PUBLIC",
         createdById: "admin-1",
         capacity: 1,
       });
@@ -127,7 +116,7 @@ describe("/api/events/[id]/vote", () => {
       (prisma.event.findUnique as jest.Mock).mockResolvedValue({
         id: "event-1",
         date: pastDate,
-        visible: true,
+        visibility: "PUBLIC",
         createdById: "admin-1",
       });
 
@@ -141,7 +130,7 @@ describe("/api/events/[id]/vote", () => {
       (prisma.event.findUnique as jest.Mock).mockResolvedValue({
         id: "event-1",
         date: futureDate,
-        visible: false,
+        visibility: "HIDDEN",
         createdById: "admin-1",
       });
 
@@ -165,7 +154,7 @@ describe("/api/events/[id]/vote", () => {
       (prisma.event.findUnique as jest.Mock).mockResolvedValue({
         id: "event-1",
         date: futureDate,
-        visible: true,
+        visibility: "PUBLIC",
         createdById: "admin-1",
       });
       (prisma.vote.findUnique as jest.Mock).mockResolvedValue({ id: "vote-1" });
@@ -182,7 +171,7 @@ describe("/api/events/[id]/vote", () => {
       (prisma.event.findUnique as jest.Mock).mockResolvedValue({
         id: "event-1",
         date: futureDate,
-        visible: true,
+        visibility: "PUBLIC",
         createdById: "admin-1",
       });
       (prisma.vote.findUnique as jest.Mock).mockResolvedValue(null);
@@ -197,7 +186,7 @@ describe("/api/events/[id]/vote", () => {
       (prisma.event.findUnique as jest.Mock).mockResolvedValue({
         id: "event-1",
         date: pastDate,
-        visible: true,
+        visibility: "PUBLIC",
         createdById: "admin-1",
       });
 

@@ -1,13 +1,15 @@
 "use client";
 
 import { useSession } from "next-auth/react";
-import { isAdmin } from "@/lib/role-utils";
+import { canManageAdminArea } from "@/lib/role-utils";
 import { useEventManagement } from "@/lib/use-event-management";
 import { formatDate, formatTime } from "@/lib/date-utils";
 import { getEventDescriptionPreview } from "@/lib/event-description";
 import { pluralize } from "@/lib/pluralization";
 import { formatOccupancy, formatRegistrationCount, isOverbooked } from "@/lib/registration-count";
 import { EventTypeBadge } from "@/components/event-type-badge";
+import { VisibilityBadge } from "@/components/visibility-badge";
+import { Visibility } from "@/lib/visibility";
 import { EventFormModal } from "@/components/event-form-modal";
 import { LoadingButton } from "@/components/loading-button";
 import { LoadingScreen } from "@/components/loading-screen";
@@ -28,7 +30,7 @@ function EventList({
   events: Event[];
   onEdit: (e: Event) => void;
   onDelete: (id: string) => void;
-  onPublish: (id: string, published: boolean) => void;
+  onPublish: (id: string) => void;
   publishingEventId: string | null;
   canManage: boolean;
 }) {
@@ -69,16 +71,13 @@ function EventList({
           <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
             <div className="flex-1 min-w-0">
               <div className="flex flex-wrap items-center gap-2 mb-1">
-                <h3 className="font-medium text-gray-900">{event.locationDisplay || event.location}</h3>
+                <h3 className="font-medium text-gray-900">{event.title || event.locationDisplay || event.location}</h3>
                 <EventTypeBadge type={event.type} />
-                {!event.visible && (
-                  <span className="px-2 py-0.5 text-base font-medium rounded bg-amber-100 text-amber-800">
-                    Nicht sichtbar
-                  </span>
-                )}
+                <VisibilityBadge visibility={event.visibility} />
               </div>
               <p className="text-base text-gray-600 mt-1">
                 {formatDate(event.date)} {formatTime(event.timeFrom)} - {formatTime(event.timeTo)}
+                {event.title && `, ${event.locationDisplay || event.location}`}
               </p>
               <p className="text-base text-gray-500 mt-1">{getEventDescriptionPreview(event.description, 220)}</p>
               <p className="text-base text-gray-400 mt-2">
@@ -102,9 +101,9 @@ function EventList({
                 >
                   Bearbeiten
                 </button>
-                {!event.visible && (
+                {event.visibility === Visibility.HIDDEN && (
                   <LoadingButton
-                    onClick={() => onPublish(event.id, true)}
+                    onClick={() => onPublish(event.id)}
                     loading={publishingEventId === event.id}
                     loadingText="Veröffentlichen"
                     className="px-3 py-2 sm:py-1 text-base bg-green-100 text-green-700 rounded hover:bg-green-200 focus:outline-none focus:ring-2 focus:ring-green-500 touch-manipulation disabled:cursor-not-allowed disabled:opacity-60"
@@ -130,7 +129,7 @@ function EventList({
 export default function TerminePage() {
   const { data: session, status } = useSession();
   const eventManagement = useEventManagement();
-  const canManage = session ? isAdmin(session.user) : false;
+  const canManage = session ? canManageAdminArea(session.user) : false;
 
   if (status === "loading" || eventManagement.isLoading) {
     return <LoadingScreen />;
@@ -188,6 +187,7 @@ export default function TerminePage() {
             eventData={eventManagement.modalEventData}
             setEventData={eventManagement.setModalEventData}
             isEditing={!!eventManagement.editingEvent}
+            eventId={eventManagement.editingEvent?.id}
             errors={eventManagement.error ? { general: eventManagement.error } : {}}
             fieldErrors={eventManagement.fieldErrors}
             initialEventData={eventManagement.initialEventData}

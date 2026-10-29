@@ -2,13 +2,10 @@ import nodemailer from "nodemailer";
 import { promises as fs } from "fs";
 import path from "path";
 import { renderEmailTemplate } from "../lib/email-templates";
-import {
-  classifyEmailError,
-  getNextRetryTimeForTransientFailure,
-  processDueEmailOutboxBatch,
-  sendTemplateEmail,
-  stopEmailOutboxWorkerForTests,
-} from "../lib/email-sender";
+import { classifyEmailError } from "../lib/email/error-classification";
+import { getNextRetryTimeForTransientFailure } from "../lib/email/utils";
+import { processDueEmailOutboxBatch, stopEmailOutboxWorkerForTests } from "../lib/email/outbox-worker";
+import { sendTemplateEmail } from "../lib/email-sender";
 import { prisma } from "../lib/prisma";
 
 jest.mock("nodemailer");

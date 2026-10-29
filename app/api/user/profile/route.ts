@@ -1,11 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
-import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { isUniqueConstraintError } from "@/lib/prisma-errors";
 import { requireMember } from "@/lib/auth-utils";
 import { validateUpdateProfileRequest, type UpdateProfileRequest } from "@/lib/user-validation";
-import { parseJsonBody, validateRequestBody, validateCsrfHeaders, withApiErrorHandling } from "@/lib/api-utils";
+import { parseAndValidateBody, ValidationError } from "@/lib/request-body-parser";
+import { validateCsrfHeaders } from "@/lib/csrf-validator";
+import { withApiErrorHandling } from "@/lib/api-error-handler";
 import { logInfo, logValidationFailure, logResourceNotFound, maskEmail } from "@/lib/logger";
 import { formatDateInputValue } from "@/lib/date-picker-utils";
+
+const ROUTE = "/api/user/profile";
 
 const USER_SELECT_FIELDS = {
   id: true,
@@ -43,17 +47,12 @@ export const PUT = withApiErrorHandling(async (request: NextRequest) => {
   validateCsrfHeaders(request);
 
   const user = await requireMember();
-  const body = await parseJsonBody<UpdateProfileRequest>(request);
-
-  const bodyValidation = validateRequestBody(body, updateProfileSchema, { route: "/api/user/profile", method: "PUT" });
-  if (!bodyValidation.isValid) {
-    return NextResponse.json({ error: bodyValidation.errors.join(". ") }, { status: 400 });
-  }
+  const body = await parseAndValidateBody<UpdateProfileRequest>(request, updateProfileSchema, { route: ROUTE, method: "PUT" });
 
   const validation = validateUpdateProfileRequest(body);
   if (!validation.isValid) {
-    logValidationFailure("/api/user/profile", "PUT", validation.errors, { userId: user.id });
-    return NextResponse.json({ error: validation.errors.join(". "), fieldErrors: validation.fieldErrors }, { status: 400 });
+    logValidationFailure(ROUTE, "PUT", validation.errors, { userId: user.id });
+    throw new ValidationError(validation.errors, { fieldErrors: validation.fieldErrors });
   }
 
   const updateData: Record<string, unknown> = {};
@@ -61,8 +60,8 @@ export const PUT = withApiErrorHandling(async (request: NextRequest) => {
   if (body.address !== undefined) updateData.address = String(body.address).trim() || null;
   if (body.phone !== undefined) updateData.phone = String(body.phone).trim() || null;
   if (body.email !== undefined) updateData.email = String(body.email).trim().toLowerCase();
-  if (body.memberSince !== undefined) updateData.memberSince = body.memberSince.trim() ? new Date(body.memberSince) : null;
-  if (body.dateOfBirth !== undefined) updateData.dateOfBirth = body.dateOfBirth.trim() ? new Date(body.dateOfBirth) : null;
+  if (body.memberSince !== undefined) updateData.memberSince = body.memberSince.trim() ? new Date(body.memberSince.trim()) : null;
+  if (body.dateOfBirth !== undefined) updateData.dateOfBirth = body.dateOfBirth.trim() ? new Date(body.dateOfBirth.trim()) : null;
   if (body.rank !== undefined) updateData.rank = String(body.rank).trim() || null;
   if (body.pk !== undefined) updateData.pk = String(body.pk).trim() || null;
   if (body.reservistsAssociation !== undefined) updateData.reservistsAssociation = String(body.reservistsAssociation).trim() || null;
@@ -77,7 +76,7 @@ export const PUT = withApiErrorHandling(async (request: NextRequest) => {
       select: USER_SELECT_FIELDS,
     });
   } catch (error: unknown) {
-    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+    if (isUniqueConstraintError(error)) {
       return NextResponse.json({ error: "E-Mail-Adresse wird bereits verwendet" }, { status: 409 });
     }
     throw error;
@@ -95,7 +94,7 @@ export const PUT = withApiErrorHandling(async (request: NextRequest) => {
     memberSince: formatDateInputValue(updatedUser.memberSince),
     dateOfBirth: formatDateInputValue(updatedUser.dateOfBirth),
   });
-}, { route: "/api/user/profile", method: "PUT" });
+}, { route: ROUTE, method: "PUT" });
 
 export const GET = withApiErrorHandling(async () => {
   const user = await requireMember();
@@ -106,7 +105,7 @@ export const GET = withApiErrorHandling(async () => {
   });
 
   if (!userData) {
-    logResourceNotFound("user", user.id, "/api/user/profile", "GET");
+    logResourceNotFound("user", user.id, ROUTE, "GET");
     return NextResponse.json({ error: "Benutzer nicht gefunden" }, { status: 404 });
   }
 
@@ -120,4 +119,4 @@ export const GET = withApiErrorHandling(async () => {
     memberSince: formatDateInputValue(userData.memberSince),
     dateOfBirth: formatDateInputValue(userData.dateOfBirth),
   });
-}, { route: "/api/user/profile", method: "GET" });
+}, { route: ROUTE, method: "GET" });

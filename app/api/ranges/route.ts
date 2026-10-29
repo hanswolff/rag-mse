@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { withApiErrorHandling } from "@/lib/api-utils";
+import { withApiErrorHandling } from "@/lib/api-error-handler";
 
 export const GET = withApiErrorHandling(async () => {
   const ranges = await prisma.shootingRange.findMany({

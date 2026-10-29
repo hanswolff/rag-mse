@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireMember } from "@/lib/auth-utils";
-import { withApiErrorHandling, getAuthNoCacheHeaders } from "@/lib/api-utils";
+import { canAccessAdminArea } from "@/lib/role-utils";
+import { redactInvisibleEvent } from "@/lib/event-visibility";
+import { withApiErrorHandling, getAuthNoCacheHeaders } from "@/lib/api-error-handler";
 import { logResourceNotFound } from "@/lib/logger";
+
+const ROUTE = "/api/polls/[id]";
 
 type RouteParams = { params: Promise<{ id: string }> };
 
@@ -23,25 +27,26 @@ export const GET = withApiErrorHandling(async (_request: NextRequest, context: R
         select: { optionId: true },
       },
       event: {
-        select: { id: true, date: true, timeFrom: true, timeTo: true, location: true, description: true },
+        select: { id: true, date: true, timeFrom: true, timeTo: true, location: true, description: true, visibility: true, createdById: true },
       },
     },
   });
 
   if (!poll) {
-    logResourceNotFound("poll", id, "/api/polls/[id]", "GET");
+    logResourceNotFound("poll", id, ROUTE, "GET");
     return NextResponse.json({ error: "Umfrage nicht gefunden" }, { status: 404 });
   }
 
   if (poll.status === "DRAFT") {
-    logResourceNotFound("poll", id, "/api/polls/[id]", "GET");
+    logResourceNotFound("poll", id, ROUTE, "GET");
     return NextResponse.json({ error: "Umfrage nicht gefunden" }, { status: 404 });
   }
 
-  const { votes, ...rest } = poll;
+  const { votes, event, ...rest } = poll;
 
   return NextResponse.json({
     ...rest,
+    event: redactInvisibleEvent(event, { userId: user.id, canSeeAll: canAccessAdminArea(user) }),
     userVoteOptionIds: votes.map((v) => v.optionId),
   }, { headers: getAuthNoCacheHeaders() });
-}, { route: "/api/polls/[id]", method: "GET" });
+}, { route: ROUTE, method: "GET" });

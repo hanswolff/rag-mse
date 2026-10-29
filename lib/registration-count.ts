@@ -24,7 +24,7 @@ export function formatRegistrationCount(voteCounts: RegistrationVoteCounts): str
     return `${min} ${pluralize(min, "Anmeldung", "Anmeldungen")}`;
   }
 
-  return `${min}-${max} Anmeldungen`;
+  return `${min}–${max} Anmeldungen`;
 }
 
 // Belegt ist ein Platz nur durch eine Ja-Anmeldung; "Vielleicht" bleibt als

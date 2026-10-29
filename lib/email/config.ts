@@ -1,18 +1,20 @@
 import type { SmtpConfig } from "./types";
 import { DEFAULT_POLL_INTERVAL_MS, DEFAULT_BATCH_SIZE, DEFAULT_LOCK_MS } from "./types";
+import { envInt, envNonNegativeInt } from "@/lib/env";
 
 export function getWorkerConfig() {
   return {
-    pollIntervalMs: parseInt(process.env.EMAIL_OUTBOX_POLL_INTERVAL_MS || `${DEFAULT_POLL_INTERVAL_MS}`, 10),
-    batchSize: parseInt(process.env.EMAIL_OUTBOX_BATCH_SIZE || `${DEFAULT_BATCH_SIZE}`, 10),
-    lockMs: parseInt(process.env.EMAIL_OUTBOX_LOCK_MS || `${DEFAULT_LOCK_MS}`, 10),
+    pollIntervalMs: envInt("EMAIL_OUTBOX_POLL_INTERVAL_MS", DEFAULT_POLL_INTERVAL_MS),
+    // Batchgröße 0 ist gültig: Lauf ohne Verarbeitung (Tests nutzen das gezielt)
+    batchSize: envNonNegativeInt("EMAIL_OUTBOX_BATCH_SIZE", DEFAULT_BATCH_SIZE),
+    lockMs: envInt("EMAIL_OUTBOX_LOCK_MS", DEFAULT_LOCK_MS),
   };
 }
 
 export function getSmtpTimeouts() {
   return {
-    SMTP_TIMEOUT_MS: parseInt(process.env.SMTP_TIMEOUT_MS || "30000", 10),
-    SMTP_CONNECTION_TIMEOUT_MS: parseInt(process.env.SMTP_CONNECTION_TIMEOUT_MS || "10000", 10),
+    SMTP_TIMEOUT_MS: envInt("SMTP_TIMEOUT_MS", 30000),
+    SMTP_CONNECTION_TIMEOUT_MS: envInt("SMTP_CONNECTION_TIMEOUT_MS", 10000),
   };
 }
 
@@ -60,4 +62,20 @@ export function getSmtpConfig(): SmtpConfig {
     password: smtpPassword,
     from: formatFromHeader(smtpFrom),
   };
+}
+
+// Im Dev-Modus ist SMTP bewusst unkonfiguriert; gebraucht wird nur der Absender.
+export function getDevModeSmtpConfig(): SmtpConfig {
+  try {
+    return getSmtpConfig();
+  } catch {
+    return {
+      host: "",
+      port: 0,
+      secure: false,
+      user: "",
+      password: "",
+      from: formatFromHeader(process.env.SMTP_FROM || "noreply@localhost"),
+    };
+  }
 }

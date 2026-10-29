@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createImpersonationStartProof } from "@/lib/auth";
 import { requireAuth, ForbiddenError } from "@/lib/auth-utils";
-import { withApiErrorHandling, validateCsrfHeaders } from "@/lib/api-utils";
+import { withApiErrorHandling } from "@/lib/api-error-handler";
+import { validateCsrfHeaders } from "@/lib/csrf-validator";
 import { Permissions } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { logInfo, logResourceNotFound, logWarn } from "@/lib/logger";

@@ -70,9 +70,8 @@ Ein vom Administrator angelegtes Vereinsereignis auf dieser Webseite (Datum, Uhr
 von/bis, Ort, Kurzbeschreibung). Sichtbare Termine sind **öffentlich** einsehbar; die
 [[Teilnahmeanmeldung]] und deren Ergebnisse sind nur für eingeloggte Benutzer sichtbar.
 
-- Ein Termin kann vom Administrator **ausgeblendet** werden (_Code:_ Feld `visible`):
-  Ein ausgeblendeter Termin erscheint weder öffentlich noch für Mitglieder — nur im
-  Adminbereich.
+- Jeder Termin hat eine [[Sichtbarkeitsstufe]]. Öffnet ein nicht eingeloggter Besucher
+  einen Termin „Nur für Mitglieder“, wird er zum [[Login]] geleitet.
 - Jeder Termin hat eine [[Terminart]].
 - _Code:_ Prisma-Modell `Event`.
 - Abzugrenzen von der externen Veranstaltung einer [[Ausschreibung]]: Deren Wettbewerb
@@ -92,8 +91,7 @@ Die Terminart ist optional; ein Termin ohne Einordnung bleibt zulässig.
 - Abzugrenzen von der [[Ausschreibung]]: Beim Lehrgang bucht der Verein und die
   [[Teilnahmeanmeldung]] läuft über diese Webseite. Richtet ein Dritter aus und erfolgt
   die Anmeldung außerhalb dieser Webseite, ist es eine Ausschreibung.
-- _Code:_ Feld `Event.type` (nullbarer Freitext mit deutschen Werten,
-  zentral in `lib/event-types.ts`).
+- _Code:_ Feld `Event.type` (nullbarer Freitext mit deutschen Werten).
 
 ### Titel
 
@@ -133,7 +131,7 @@ ausgewiesen.
 
 - Die Belegung wird **berechnet, nicht gespeichert** — es gibt kein Zählerfeld.
 - Sie ist ein Ergebnis der Teilnahmeanmeldung und damit **nur für eingeloggte Benutzer**
-  sichtbar; die öffentliche Termin-API liefert sie nicht mit.
+  sichtbar; öffentlich wird sie nirgends ausgeliefert.
 - Sie sperrt nichts (siehe [[Plätze]]).
 
 ### Teilnahmeanmeldung
@@ -158,6 +156,54 @@ pro Termin höchstens eine Erinnerung.
   `eventReminderEnabled` / `eventReminderDaysBefore`.
 - Die Erinnerung zu einer [[Umfrage]] heißt **Umfrage-Benachrichtigung**
   (_Code:_ `PollNotificationDispatch`, Einstellung `pollNotificationEnabled`).
+
+## Kalender
+
+### Kalender
+
+Die gemeinsame Zeitansicht über [[Termin]]e, [[Fremdtermin]]e und [[Abwesenheit]]en.
+Jeder Betrachter sieht darin nur die Einträge, die er nach [[Sichtbarkeitsstufe]] bzw.
+[[Rolle]] sehen darf. Der Kalender ist selbst keine Entität, sondern eine Sicht.
+
+- _Vermeiden:_ „Terminkalender“, „Planer“.
+
+### Fremdtermin
+
+Ein von Administratoren eingetragenes Ereignis, das **ein Dritter ausrichtet** (z. B. eine
+Reservistendienstleistung oder eine Veranstaltung einer anderen
+Reservistenkameradschaft). Es dient der Orientierung, damit Kollisionen mit [[Termin]]en
+sofort auffallen. Ein Fremdtermin hat eine [[Sichtbarkeitsstufe]], optional eine
+[[Fremdtermin-Art]] und kann optional auf eine [[Ausschreibung]] verweisen.
+
+- Ein Fremdtermin ist **kein** [[Termin]] und hat keine [[Teilnahmeanmeldung]].
+- _Code:_ Prisma-Modell `ExternalEvent`.
+- _Vermeiden:_ „externer Termin“, „Fremdveranstaltung“.
+
+### Fremdtermin-Art
+
+Die optionale Einordnung eines [[Fremdtermin]]s: **RDL** (Reservistendienstleistung),
+**RK-Veranstaltung** (Veranstaltung einer anderen Reservistenkameradschaft),
+**Wettkampf** (externer Wettbewerb mit Wertung) oder **Sonstiges**.
+
+### Abwesenheit
+
+Ein von einem [[Benutzer]] selbst eingetragener Zeitraum, in dem er **nicht verfügbar**
+ist (Urlaub, Schicht, Wettkampf anderswo): mehrtägig möglich, ganztägig oder mit
+Uhrzeit, optional mit kurzem Grund. Sie dient Administratoren als Kollisionshinweis
+bei der Terminplanung und ist nur für den Ersteller sowie Administratoren und Prüfer
+sichtbar. 30 Tage nach ihrem Ende wird sie automatisch gelöscht.
+
+- Eine Abwesenheit ist **kein** [[Termin]] und hat keine [[Teilnahmeanmeldung]].
+- _Code:_ Prisma-Modell `Absence`.
+- _Vermeiden:_ „eigener Termin“, „privater Termin“, „Verhinderung“, „Urlaub“.
+
+### Kollision
+
+Ein [[Termin]], der **denselben Kalendertag berührt** wie ein anderer Termin, ein
+[[Fremdtermin]] oder eine [[Abwesenheit]] — unabhängig von den Uhrzeiten. Eine Kollision
+ist nur ein **Hinweis** für Administratoren und Prüfer; sie verhindert nichts.
+
+- _Vermeiden:_ „Konflikt“, „Überschneidung“, „Doppelbuchung“.
 
 ## Umfragen
 
@@ -266,17 +312,44 @@ Eine vom Administrator veröffentlichte Neuigkeit/Mitteilung auf der Webseite.
 
 ### Ausschreibung
 
-Eine öffentlich einsehbare Bekanntmachung eines externen Wettbewerbs oder einer
-Veranstaltung (z. B. eine Landesmeisterschaft), zu der sich Mitglieder oder Gäste
-**außerhalb dieser Webseite** anmelden. Die Webseite zeigt die Ausschreibung nur an
+Eine Bekanntmachung eines externen Wettbewerbs oder einer Veranstaltung (z. B. eine
+Landesmeisterschaft), zu der sich Mitglieder oder Gäste **außerhalb dieser Webseite**
+anmelden. Die Webseite zeigt die Ausschreibung nur an
 (typischerweise als PDF); sie wickelt die Anmeldung nicht ab.
 
-- Für **alle Besucher** sichtbar, auch ohne Login.
+- Im Regelfall für **alle Besucher** sichtbar, auch ohne Login — das ist der Default,
+  keine Wesenseigenschaft: die [[Sichtbarkeitsstufe]] kann sie einschränken.
 - Wird von Administratoren verwaltet.
 - Ist eine eigenständige Entität, technisch getrennt vom [[Dokument]].
 
 - _Code:_ Prisma-Modell `Ausschreibung` (siehe `docs/adr/0001-…md`); Feld `expiresAt` für
-  das [[Ablaufdatum]].
+  das [[Ablaufdatum]], Feld `visibility` für die [[Sichtbarkeitsstufe]].
+
+### Sichtbarkeitsstufe
+
+Die vom Administrator gesetzte Stufe, die bestimmt, wer eine [[Ausschreibung]], einen
+[[Termin]] oder einen [[Fremdtermin]] zu sehen bekommt. Bei der Ausschreibung ist sie
+**unabhängig** vom [[Ablaufdatum]]: eine [[Historische Ausschreibung (abgelaufen)]]
+lässt sich ebenso verbergen wie eine aktuelle.
+
+- **Öffentlich** — für alle Besucher sichtbar, auch ohne Login. Der Default bei
+  Ausschreibung und Termin.
+- **Nur für Mitglieder** — erscheint erst nach dem Login; z. B. für eine Ausschreibung,
+  die intern schon interessant, öffentlich aber noch nicht so weit ist, oder einen
+  internen Arbeitseinsatz. Der Default beim Fremdtermin.
+- **Verborgen** — erscheint ausschließlich im Adminbereich. Für den Rückzug (falsches
+  PDF, abgesagter Wettbewerb) oder einen noch nicht fertigen Termin, ohne den Datensatz
+  zu löschen.
+
+Die Stufe wirkt überall, wo der Eintrag nach außen tritt — bei der Ausschreibung auch
+auf den direkten Link zum PDF. Eine nicht sichtbare Ausschreibung ist unter ihrer
+Datei-Adresse nicht mehr abrufbar; Administratoren erreichen das PDF über den
+Adminbereich.
+
+- _Code:_ Enum `Visibility` (`PUBLIC` / `MEMBER` / `HIDDEN`), Feld `visibility` an
+  `Ausschreibung`, `Event` und `ExternalEvent` (siehe `docs/adr/0011-…md`; das gemeinsame Enum für Termin und Fremdtermin siehe `docs/adr/0013-…md`).
+- _Vermeiden:_ „unsichtbar“ als Sammelbegriff — gemeint ist entweder „nur für
+  Mitglieder“ oder „verborgen“; ebenso „ausgeblendet“, „versteckt“, „privat“.
 
 ### Aktuelle Ausschreibung
 

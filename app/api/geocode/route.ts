@@ -3,8 +3,10 @@ import { requireAdmin } from "@/lib/auth-utils";
 import { logWarn, logInfo } from "@/lib/logger";
 import { getClientIdentifier } from "@/lib/proxy-trust";
 import { checkGeocodeRateLimit } from "@/lib/rate-limiter";
-import { shouldFailOpenOnRateLimiterError } from "@/lib/rate-limit-policy";
-import { withApiErrorHandling } from "@/lib/api-utils";
+import { checkRateLimitWithPolicy } from "@/lib/api-utils";
+import { withApiErrorHandling } from "@/lib/api-error-handler";
+
+const ROUTE = "/api/geocode";
 
 const MIN_QUERY_LENGTH = 3;
 const NOMINATIM_API_URL = "https://nominatim.openstreetmap.org/search";
@@ -108,34 +110,26 @@ export const GET = withApiErrorHandling(async (request: NextRequest) => {
   await requireAdmin("write");
 
   const clientId = getClientIdentifier(request);
-  try {
-    const rateLimitResult = await checkGeocodeRateLimit(clientId, RATE_LIMIT_WINDOW_MS, RATE_LIMIT_MAX_REQUESTS);
-    if (!rateLimitResult.allowed) {
-      logWarn('rate_limit_exceeded', 'Geocode rate limit exceeded', {
-        clientId,
-        attemptCount: rateLimitResult.attemptCount,
-        route: "/api/geocode",
-        method: "GET",
-      });
-      return NextResponse.json({ error: "Zu viele Anfragen. Bitte später erneut versuchen." }, { status: 429 });
+  const rateLimitResult = await checkRateLimitWithPolicy(
+    () => checkGeocodeRateLimit(clientId, RATE_LIMIT_WINDOW_MS, RATE_LIMIT_MAX_REQUESTS),
+    {
+      unavailableAction: "rate_limit_unavailable",
+      routeLabel: "geocode",
+      failClosedLogLevel: "warn",
+      logContext: { clientId, route: ROUTE, method: "GET" },
     }
-  } catch (rateLimitError) {
-    if (!shouldFailOpenOnRateLimiterError()) {
-      logWarn("rate_limit_unavailable", "Rate limiter unavailable for geocode route, blocking request", {
-        clientId,
-        route: "/api/geocode",
-        method: "GET",
-        error: rateLimitError instanceof Error ? rateLimitError.message : String(rateLimitError),
-      });
-      return NextResponse.json({ error: "Dienst aktuell nicht verfügbar. Bitte später erneut versuchen." }, { status: 503 });
-    }
-
-    logWarn('rate_limit_unavailable', 'Rate limiter unavailable for geocode route, continuing due fail-open policy', {
+  );
+  if (rateLimitResult instanceof NextResponse) {
+    return rateLimitResult;
+  }
+  if (!rateLimitResult.allowed) {
+    logWarn('rate_limit_exceeded', 'Geocode rate limit exceeded', {
       clientId,
-      route: "/api/geocode",
+      attemptCount: rateLimitResult.attemptCount,
+      route: ROUTE,
       method: "GET",
-      error: rateLimitError instanceof Error ? rateLimitError.message : String(rateLimitError),
     });
+    return NextResponse.json({ error: "Zu viele Anfragen. Bitte später erneut versuchen." }, { status: 429 });
   }
 
   const { searchParams } = new URL(request.url);
@@ -172,4 +166,4 @@ export const GET = withApiErrorHandling(async (request: NextRequest) => {
     }
     throw error;
   }
-}, { route: "/api/geocode", method: "GET" });
+}, { route: ROUTE, method: "GET" });

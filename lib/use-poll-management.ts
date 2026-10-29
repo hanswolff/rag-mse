@@ -66,6 +66,7 @@ export function usePollManagement() {
   const [publishingPollId, setPublishingPollId] = useState<string | null>(null);
   const [closingPollId, setClosingPollId] = useState<string | null>(null);
   const [reopeningPollId, setReopeningPollId] = useState<string | null>(null);
+  const [notifyingPollId, setNotifyingPollId] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
   useSuccessTimer(success, setSuccess);
@@ -185,10 +186,35 @@ export function usePollManagement() {
       } else {
         setSuccess("Umfrage veröffentlicht");
       }
-      await fetchPolls();
     }
+    // Auch nach einem Fehler neu laden: Die Umfrage kann bereits LIVE sein und
+    // braucht dann „Benachrichtigungen nachsenden“ statt erneutem Veröffentlichen.
+    await fetchPolls();
     setPublishingPollId(null);
   }, [polls, confirm, createFetchHandler, fetchPolls]);
+
+  const handleResendNotifications = useCallback(async (pollId: string) => {
+    const poll = polls.find((p) => p.id === pollId);
+    if (!await confirm({
+      message: `Fehlende Benachrichtigungen für "${poll?.title}" nachsenden? Mitglieder, die bereits benachrichtigt wurden, erhalten keine weitere E-Mail.`,
+      confirmLabel: "Nachsenden",
+      variant: "warning",
+    })) return;
+
+    setNotifyingPollId(pollId);
+    const fetchHandler = createFetchHandler(`/api/admin/polls/${pollId}/notifications`, "POST", setError, setIsSubmitting);
+    const result = await fetchHandler();
+
+    if (result.success) {
+      const queuedCount = (result.data as { queuedCount?: number } | undefined)?.queuedCount ?? 0;
+      setSuccess(
+        queuedCount > 0
+          ? `${queuedCount} Benachrichtigung${queuedCount === 1 ? "" : "en"} nachgesendet`
+          : "Alle Mitglieder wurden bereits benachrichtigt"
+      );
+    }
+    setNotifyingPollId(null);
+  }, [polls, confirm, createFetchHandler]);
 
   const handleClose = useCallback(async (pollId: string) => {
     const poll = polls.find((p) => p.id === pollId);
@@ -244,6 +270,7 @@ export function usePollManagement() {
     publishingPollId,
     closingPollId,
     reopeningPollId,
+    notifyingPollId,
     session,
     status,
     openCreateModal,
@@ -252,6 +279,7 @@ export function usePollManagement() {
     handleSubmit,
     handleDelete,
     handlePublish,
+    handleResendNotifications,
     handleClose,
     handleReopen,
   };

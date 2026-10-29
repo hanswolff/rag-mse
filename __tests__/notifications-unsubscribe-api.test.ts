@@ -4,27 +4,18 @@ import { prisma } from "@/lib/prisma";
 import { checkTokenRateLimit, recordSuccessfulTokenUsage } from "@/lib/rate-limiter";
 import { logError } from "@/lib/logger";
 
-jest.mock("@/lib/prisma", () => ({
-  prisma: {
-    eventReminderDispatch: {
-      findUnique: jest.fn(),
-    },
-    user: {
-      update: jest.fn(),
-    },
-  },
-}));
+jest.mock("@/lib/prisma", () =>
+  jest.requireActual<typeof import("./helpers/prisma-mock")>("./helpers/prisma-mock").prismaModuleMock,
+);
 
 jest.mock("@/lib/rate-limiter", () => ({
   checkTokenRateLimit: jest.fn(),
   recordSuccessfulTokenUsage: jest.fn(),
 }));
 
-jest.mock("@/lib/logger", () => ({
-  logError: jest.fn(),
-  logWarn: jest.fn(),
-  maskToken: jest.fn((value: string) => `${value.slice(0, 3)}...`),
-}));
+jest.mock("@/lib/logger", () =>
+  jest.requireActual<typeof import("./helpers/logger-mock")>("./helpers/logger-mock").mockLogger,
+);
 
 describe("/api/notifications/unsubscribe/[token]", () => {
   beforeEach(() => {

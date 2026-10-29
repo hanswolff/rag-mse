@@ -1,8 +1,8 @@
 #!/bin/sh
-set -e
+set -eu
 
 echo "Starting application..."
-echo "Environment: ${NODE_ENV:-development}"
+echo "Environment: ${NODE_ENV:-production}"
 
 # Resolve database file path from DATABASE_URL (SQLite file URL expected)
 DB_URL="${DATABASE_URL:-file:./data/prod.db}"
@@ -58,13 +58,22 @@ mkdir -p "${DOCUMENTS_DIR:-/app/data/documents}" "${AUSSCHREIBUNGEN_DIR:-/app/da
 echo "Validating configuration..."
 node scripts-dist/scripts/validate-config.js
 
+# scripts-dist/ wird auf dem Host gebaut; `pnpm run build:scripts` legt dort
+# einen Build-Stamp ab. Fehlt er, wurde das Image vermutlich an deploy.sh
+# vorbei gebaut und scripts-dist kann veraltet sein. Nur warnen, nicht
+# abbrechen — ein harter Fehler würde funktionierende Deploys brechen.
+if [ ! -f scripts-dist/.build-stamp.json ]; then
+  echo "WARNING: scripts-dist/.build-stamp.json is missing - scripts-dist may be stale." >&2
+  echo "         Build the image via deploy.sh (or run 'pnpm run build:scripts' before building)." >&2
+fi
+
 # Run idempotent SQL migrations for existing databases
 echo "Running database migrations..."
 node scripts-dist/scripts/run-db-migrations.js
 
 if [ "$DB_WAS_MISSING" -eq 1 ]; then
   echo "Database initialized at $DB_FILE."
-  if [ "${ALLOW_DB_SEED}" = "true" ]; then
+  if [ "${ALLOW_DB_SEED:-}" = "true" ]; then
     echo "ALLOW_DB_SEED is set to true. Running database seed..."
     node scripts-dist/prisma/seed.js
     echo "Database seeded successfully"
@@ -73,6 +82,8 @@ if [ "$DB_WAS_MISSING" -eq 1 ]; then
   fi
 fi
 
-# Start the application with explicit NODE_ENV
-export NODE_ENV="${NODE_ENV:-development}"
+# Start the application with explicit NODE_ENV.
+# Fallback ist production: Dieses Image existiert nur für den Produktivbetrieb;
+# ein ohne compose-Env gestarteter Container darf nicht als development laufen.
+export NODE_ENV="${NODE_ENV:-production}"
 exec node server.js

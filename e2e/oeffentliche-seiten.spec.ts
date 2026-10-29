@@ -5,6 +5,7 @@ const SEITEN = [
   { pfad: "/termine", ueberschrift: /^Termine$/ },
   { pfad: "/ausschreibungen", ueberschrift: /^Ausschreibungen$/ },
   { pfad: "/news", ueberschrift: /News/ },
+  { pfad: "/kalender", ueberschrift: /^Kalender$/ },
 ] as const;
 
 test("Öffentliche Seiten rendern ohne Konsolen-Fehler", async ({ page }) => {

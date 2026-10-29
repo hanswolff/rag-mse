@@ -1,6 +1,6 @@
 import { timingSafeEqual } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
-import { getNoCacheHeaders, logApiError } from "@/lib/api-utils";
+import { getNoCacheHeaders, logApiError } from "@/lib/api-error-handler";
 import { logWarn } from "@/lib/logger";
 import { runSelfTest } from "@/lib/selftest/runner";
 

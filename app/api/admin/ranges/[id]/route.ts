@@ -1,14 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/auth-utils";
-import {
-  parseJsonBody,
-  withApiErrorHandling,
-  validateRequestBody,
-  validateCsrfHeaders,
-} from "@/lib/api-utils";
+import { parseAndValidateBody, ValidationError } from "@/lib/request-body-parser";
+import { withApiErrorHandling } from "@/lib/api-error-handler";
+import { validateCsrfHeaders } from "@/lib/csrf-validator";
 import { logInfo, logResourceNotFound, logValidationFailure } from "@/lib/logger";
 import { shootingRangeFormSchema } from "@/lib/validation-schema";
+
+const ROUTE = "/api/admin/ranges/[id]";
 
 const updateRangeSchema = {
   name: { type: "string" as const },
@@ -36,12 +35,7 @@ export const PUT = withApiErrorHandling(async (
   await requireAdmin("write");
 
   const { id } = await ctx.params;
-  const body = await parseJsonBody<UpdateRangeBody>(request);
-
-  const bodyValidation = validateRequestBody(body, updateRangeSchema, { route: "/api/admin/ranges/[id]", method: "PUT" });
-  if (!bodyValidation.isValid) {
-    return NextResponse.json({ error: bodyValidation.errors.join(". ") }, { status: 400 });
-  }
+  const body = await parseAndValidateBody<UpdateRangeBody>(request, updateRangeSchema, { route: ROUTE, method: "PUT" });
 
   const result = shootingRangeFormSchema.safeParse({
     name: body.name ?? "",
@@ -57,27 +51,21 @@ export const PUT = withApiErrorHandling(async (
     const fieldErrors = result.error.issues
       .filter((e) => e.path.length > 0)
       .map((e) => ({ field: String(e.path[0]), message: e.message }));
-    logValidationFailure("/api/admin/ranges/[id]", "PUT", errors, { rangeId: id });
-    return NextResponse.json({ error: errors.join(". "), fieldErrors }, { status: 400 });
+    logValidationFailure(ROUTE, "PUT", errors, { rangeId: id });
+    throw new ValidationError(errors, { fieldErrors });
   }
 
   const existing = await prisma.shootingRange.findUnique({ where: { id } });
   if (!existing) {
-    logResourceNotFound("shooting_range", id, "/api/admin/ranges/[id]", "PUT");
+    logResourceNotFound("shooting_range", id, ROUTE, "PUT");
     return NextResponse.json({ error: "Standort nicht gefunden" }, { status: 404 });
   }
 
   const { name, street, postalCode, city, latitude, longitude } = result.data;
 
+  // Das Koordinaten-Schema garantiert parseFloat-taugliche Werte im gültigen Bereich.
   const parsedLatitude = parseFloat(latitude);
   const parsedLongitude = parseFloat(longitude);
-  if (Number.isNaN(parsedLatitude) || Number.isNaN(parsedLongitude)) {
-    const fieldErrors = [
-      ...(Number.isNaN(parsedLatitude) ? [{ field: "latitude", message: "Ungültige Koordinaten" }] : []),
-      ...(Number.isNaN(parsedLongitude) ? [{ field: "longitude", message: "Ungültige Koordinaten" }] : []),
-    ];
-    return NextResponse.json({ error: "Ungültige Koordinaten", fieldErrors }, { status: 400 });
-  }
 
   if (name !== existing.name) {
     const duplicate = await prisma.shootingRange.findUnique({ where: { name } });
@@ -107,7 +95,7 @@ export const PUT = withApiErrorHandling(async (
   });
 
   return NextResponse.json(updated);
-}, { route: "/api/admin/ranges/[id]", method: "PUT" });
+}, { route: ROUTE, method: "PUT" });
 
 export const DELETE = withApiErrorHandling(async (
   request: NextRequest,
@@ -120,7 +108,7 @@ export const DELETE = withApiErrorHandling(async (
 
   const existing = await prisma.shootingRange.findUnique({ where: { id } });
   if (!existing) {
-    logResourceNotFound("shooting_range", id, "/api/admin/ranges/[id]", "DELETE");
+    logResourceNotFound("shooting_range", id, ROUTE, "DELETE");
     return NextResponse.json({ error: "Standort nicht gefunden" }, { status: 404 });
   }
 
@@ -132,4 +120,4 @@ export const DELETE = withApiErrorHandling(async (
   });
 
   return NextResponse.json({ success: true });
-}, { route: "/api/admin/ranges/[id]", method: "DELETE" });
+}, { route: ROUTE, method: "DELETE" });

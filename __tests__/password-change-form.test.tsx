@@ -48,7 +48,7 @@ describe("PasswordChangeForm", () => {
         />
       );
 
-      expect(screen.getByText("Wird geändert...")).toBeInTheDocument();
+      expect(screen.getByText("Wird geändert…")).toBeInTheDocument();
     });
 
     it("shows server error message", () => {
@@ -394,7 +394,7 @@ describe("PasswordChangeForm", () => {
         />
       );
 
-      const submitButton = screen.getByText("Wird geändert...");
+      const submitButton = screen.getByText("Wird geändert…");
       expect(submitButton).toBeDisabled();
     });
   });

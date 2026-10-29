@@ -11,7 +11,7 @@ const EVENT_TYPE_BADGE_CLASSES: Record<string, string> = {
 const NEUTRAL_BADGE_CLASSES = "bg-gray-100 text-gray-800";
 
 export const EVENT_TYPE_OPTIONS: { value: string; label: string }[] = [
-  { value: "", label: "Kein Typ" },
+  { value: "", label: "Keine Terminart" },
   ...EVENT_TYPES.map((type) => ({ value: type, label: type })),
 ];
 
@@ -25,4 +25,8 @@ export function getEventTypeBadgeClasses(type: string): string {
 
 export function describeAllowedEventTypes(): string {
   return `${EVENT_TYPES.join(", ")} oder leer`;
+}
+
+export function getTerminTitle(termin: { title: string | null; type: string | null }): string {
+  return termin.title || termin.type || "Termin";
 }

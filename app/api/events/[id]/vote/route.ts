@@ -4,9 +4,15 @@ import { requireMember } from "@/lib/auth-utils";
 import { VoteType } from "@prisma/client";
 import { validateVote } from "@/lib/event-validation";
 import { canAccessAdminArea } from "@/lib/role-utils";
-import { parseJsonBody, validateRequestBody, withApiErrorHandling, validateCsrfHeaders } from "@/lib/api-utils";
+import { parseAndValidateBody } from "@/lib/request-body-parser";
+import { withApiErrorHandling } from "@/lib/api-error-handler";
+import { validateCsrfHeaders } from "@/lib/csrf-validator";
 import { logInfo, logResourceNotFound, logValidationFailure } from "@/lib/logger";
+import { suppressCatchUpReminder } from "@/lib/reminders/event-reminder-worker";
+import { getEventAccess } from "@/lib/event-visibility";
 import { isEventInPast } from "@/lib/date-utils";
+
+const ROUTE = "/api/events/[id]/vote";
 
 type VoteRequest = { vote?: string };
 const voteSchema = {
@@ -21,20 +27,12 @@ export const POST = withApiErrorHandling(async (
 
   const user = await requireMember();
   const { id: eventId } = await ctx.params;
-  const body = await parseJsonBody<VoteRequest>(request);
-  const bodyValidation = validateRequestBody(
-    body,
-    voteSchema,
-    { route: "/api/events/[id]/vote", method: "POST" }
-  );
-  if (!bodyValidation.isValid) {
-    return NextResponse.json({ error: bodyValidation.errors.join(". ") }, { status: 400 });
-  }
+  const body = await parseAndValidateBody<VoteRequest>(request, voteSchema, { route: ROUTE, method: "POST" });
 
   const { vote } = body;
 
   if (!vote || !validateVote(vote)) {
-    logValidationFailure('/api/events/[id]/vote', 'POST', 'Ungültige Teilnahmeanmeldung. Erlaubt sind: JA, NEIN, VIELLEICHT', {
+    logValidationFailure(ROUTE, 'POST', 'Ungültige Teilnahmeanmeldung. Erlaubt sind: JA, NEIN, VIELLEICHT', {
       userId: user.id,
       eventId,
       vote,
@@ -50,7 +48,7 @@ export const POST = withApiErrorHandling(async (
     select: {
       id: true,
       date: true,
-      visible: true,
+      visibility: true,
       createdById: true,
     },
   });
@@ -62,8 +60,16 @@ export const POST = withApiErrorHandling(async (
     );
   }
 
+  const canSeeAll = canAccessAdminArea(user);
+  if (getEventAccess(event, { userId: user.id, canSeeAll }) !== "granted") {
+    return NextResponse.json(
+      { error: "Termin nicht gefunden" },
+      { status: 404 }
+    );
+  }
+
   if (isEventInPast(event.date)) {
-    logValidationFailure('/api/events/[id]/vote', 'POST', 'Teilnahmeanmeldung für vergangene Termine nicht möglich', {
+    logValidationFailure(ROUTE, 'POST', 'Teilnahmeanmeldung für vergangene Termine nicht möglich', {
       userId: user.id,
       eventId,
       eventDate: event.date,
@@ -71,14 +77,6 @@ export const POST = withApiErrorHandling(async (
     return NextResponse.json(
       { error: "Teilnahmeanmeldung für vergangene Termine nicht möglich" },
       { status: 409 }
-    );
-  }
-
-  const canSeeAll = canAccessAdminArea(user);
-  if (!event.visible && !canSeeAll && event.createdById !== user.id) {
-    return NextResponse.json(
-      { error: "Termin nicht gefunden" },
-      { status: 404 }
     );
   }
 
@@ -106,7 +104,7 @@ export const POST = withApiErrorHandling(async (
   });
 
   return NextResponse.json(savedVote);
-}, { route: "/api/events/[id]/vote", method: "POST" });
+}, { route: ROUTE, method: "POST" });
 
 export const DELETE = withApiErrorHandling(async (
   request: NextRequest,
@@ -122,13 +120,25 @@ export const DELETE = withApiErrorHandling(async (
     select: {
       id: true,
       date: true,
-      visible: true,
+      visibility: true,
       createdById: true,
     },
   });
 
   if (!event) {
-    logResourceNotFound('event', eventId, '/api/events/[id]/vote', 'DELETE', {
+    logResourceNotFound('event', eventId, ROUTE, 'DELETE', {
+      userId: user.id,
+    });
+    return NextResponse.json(
+      { error: "Termin nicht gefunden" },
+      { status: 404 }
+    );
+  }
+
+  const canSeeAll = canAccessAdminArea(user);
+  if (getEventAccess(event, { userId: user.id, canSeeAll }) !== "granted") {
+    logResourceNotFound('event', eventId, ROUTE, 'DELETE', {
+      reason: 'event not visible',
       userId: user.id,
     });
     return NextResponse.json(
@@ -138,7 +148,7 @@ export const DELETE = withApiErrorHandling(async (
   }
 
   if (isEventInPast(event.date)) {
-    logValidationFailure('/api/events/[id]/vote', 'DELETE', 'Teilnahmeanmeldung für vergangene Termine nicht änderbar', {
+    logValidationFailure(ROUTE, 'DELETE', 'Teilnahmeanmeldung für vergangene Termine nicht änderbar', {
       userId: user.id,
       eventId,
       eventDate: event.date,
@@ -146,18 +156,6 @@ export const DELETE = withApiErrorHandling(async (
     return NextResponse.json(
       { error: "Teilnahmeanmeldung für vergangene Termine nicht änderbar" },
       { status: 409 }
-    );
-  }
-
-  const canSeeAll = canAccessAdminArea(user);
-  if (!event.visible && !canSeeAll && event.createdById !== user.id) {
-    logResourceNotFound('event', eventId, '/api/events/[id]/vote', 'DELETE', {
-      reason: 'event not visible',
-      userId: user.id,
-    });
-    return NextResponse.json(
-      { error: "Termin nicht gefunden" },
-      { status: 404 }
     );
   }
 
@@ -171,7 +169,7 @@ export const DELETE = withApiErrorHandling(async (
   });
 
   if (!vote) {
-    logResourceNotFound('vote', `${user.id}-${eventId}`, '/api/events/[id]/vote', 'DELETE', {
+    logResourceNotFound('vote', `${user.id}-${eventId}`, ROUTE, 'DELETE', {
       userId: user.id,
       eventId,
     });
@@ -184,6 +182,7 @@ export const DELETE = withApiErrorHandling(async (
   await prisma.vote.delete({
     where: { id: vote.id },
   });
+  await suppressCatchUpReminder(user.id, eventId);
 
   logInfo('vote_deleted', 'Vote deleted', {
     userId: user.id,
@@ -191,4 +190,4 @@ export const DELETE = withApiErrorHandling(async (
   });
 
   return NextResponse.json({ success: true });
-}, { route: "/api/events/[id]/vote", method: "DELETE" });
+}, { route: ROUTE, method: "DELETE" });

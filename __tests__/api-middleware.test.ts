@@ -37,16 +37,16 @@ describe('addCorrelationIdHeaders', () => {
     });
   });
 
-  it('should preserve response body', () => {
+  it('should preserve response body', async () => {
     const testId = 'test-id-789';
-    withCorrelationId(testId, () => {
-      const testData = { message: 'test data', value: 42 };
+    const testData = { message: 'test data', value: 42 };
+    const body = await withCorrelationId(testId, () => {
       const response = NextResponse.json(testData);
       const modifiedResponse = addCorrelationIdHeaders(response);
 
-      const body = modifiedResponse.json();
-      expect(body).resolves.toEqual(testData);
+      return modifiedResponse.json();
     });
+    expect(body).toEqual(testData);
   });
 
   it('should overwrite existing X-Correlation-Id header', () => {

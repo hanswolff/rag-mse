@@ -4,29 +4,18 @@ import { prisma } from "@/lib/prisma";
 import { checkTokenRateLimit, recordSuccessfulTokenUsage } from "@/lib/rate-limiter";
 import { logWarn } from "@/lib/logger";
 
-jest.mock("@/lib/prisma", () => ({
-  prisma: {
-    eventReminderDispatch: {
-      findUnique: jest.fn(),
-    },
-    vote: {
-      findUnique: jest.fn(),
-      upsert: jest.fn(),
-    },
-  },
-}));
+jest.mock("@/lib/prisma", () =>
+  jest.requireActual<typeof import("./helpers/prisma-mock")>("./helpers/prisma-mock").prismaModuleMock,
+);
 
 jest.mock("@/lib/rate-limiter", () => ({
   checkTokenRateLimit: jest.fn(),
   recordSuccessfulTokenUsage: jest.fn(),
 }));
 
-jest.mock("@/lib/logger", () => ({
-  logResourceNotFound: jest.fn(),
-  logValidationFailure: jest.fn(),
-  logWarn: jest.fn(),
-  maskToken: jest.fn((value: string) => `${value.slice(0, 3)}...`),
-}));
+jest.mock("@/lib/logger", () =>
+  jest.requireActual<typeof import("./helpers/logger-mock")>("./helpers/logger-mock").mockLogger,
+);
 
 describe("/api/notifications/rsvp/[token]", () => {
   beforeEach(() => {
@@ -48,7 +37,7 @@ describe("/api/notifications/rsvp/[token]", () => {
         latitude: null,
         longitude: null,
         type: null,
-        visible: false,
+        visibility: "HIDDEN",
       },
       user: {
         id: "user-1",
@@ -79,7 +68,7 @@ describe("/api/notifications/rsvp/[token]", () => {
         latitude: null,
         longitude: null,
         type: null,
-        visible: true,
+        visibility: "PUBLIC",
       },
       user: {
         id: "user-1",
@@ -131,7 +120,7 @@ describe("/api/notifications/rsvp/[token]", () => {
         latitude: null,
         longitude: null,
         type: null,
-        visible: true,
+        visibility: "PUBLIC",
       },
       user: {
         id: "user-1",
@@ -174,7 +163,7 @@ describe("/api/notifications/rsvp/[token]", () => {
         latitude: null,
         longitude: null,
         type: null,
-        visible: true,
+        visibility: "PUBLIC",
       },
       user: {
         id: "user-1",
@@ -219,7 +208,7 @@ describe("/api/notifications/rsvp/[token]", () => {
         latitude: null,
         longitude: null,
         type: null,
-        visible: true,
+        visibility: "PUBLIC",
       },
       user: {
         id: "user-1",
@@ -235,7 +224,7 @@ describe("/api/notifications/rsvp/[token]", () => {
     expect(response.status).toBe(200);
     expect(logWarn).toHaveBeenCalledWith(
       "token_rate_limit_unavailable",
-      expect.stringContaining("continuing due fail-open policy"),
+      expect.stringContaining("continuing due to fail-open policy"),
       expect.any(Object)
     );
   });

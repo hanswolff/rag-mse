@@ -1,9 +1,8 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { isAdmin } from "@/lib/role-utils";
+import { canManageAdminArea } from "@/lib/role-utils";
+import { useImpersonation } from "@/lib/use-impersonation";
 import { useUserManagement } from "@/lib/use-user-management";
 import { formatDate } from "@/lib/date-utils";
 import { UserFormModal } from "@/components/user-form-modal";
@@ -58,7 +57,7 @@ function InviteForm({
         <LoadingButton
           type="submit"
           loading={isSubmitting}
-          loadingText="Wird versendet..."
+          loadingText="Wird versendet…"
           className="w-full btn-primary py-2.5 sm:py-2 text-base sm:text-base touch-manipulation"
         >
           Einladung senden
@@ -131,8 +130,8 @@ function UserList({
                     <button
                       onClick={() => void onImpersonate(user)}
                       disabled={impersonatingUserId !== null}
-                      aria-label={`Als Benutzer anmelden: ${user.name}`}
-                      title={`Als Benutzer anmelden: ${user.name}`}
+                      aria-label={`Als Benutzer einloggen: ${user.name}`}
+                      title={`Als Benutzer einloggen: ${user.name}`}
                       className={`inline-flex h-8 w-8 items-center justify-center rounded-md focus:outline-none focus:ring-2 focus:ring-brand-red-600/30 ${
                         impersonatingUserId === null
                           ? "bg-amber-100 text-amber-800 hover:bg-amber-200"
@@ -161,7 +160,7 @@ function UserList({
                     onClick={() => onEdit(user)}
                     disabled={!canEdit}
                     aria-label={`Benutzer bearbeiten: ${user.name}`}
-                    title={!canEdit ? "Der SiteAdministrator kann nur vom SiteAdministrator bearbeitet werden" : `Benutzer bearbeiten: ${user.name}`}
+                    title={!canEdit ? "Der Site-Administrator kann nur vom Site-Administrator bearbeitet werden" : `Benutzer bearbeiten: ${user.name}`}
                     className="btn-icon"
                   >
                     <PencilIcon className="h-4 w-4" />
@@ -191,13 +190,10 @@ function UserList({
 }
 
 export default function BenutzerverwaltungPage() {
-  const router = useRouter();
-  const { data: session, status, update } = useSession();
+  const { data: session, status } = useSession();
   const userManagement = useUserManagement();
-  const [impersonationError, setImpersonationError] = useState("");
-  const [impersonatingUserId, setImpersonatingUserId] = useState<string | null>(null);
-  const canManage = session ? isAdmin(session.user) : false;
-  const isSiteAdministrator = session ? Permissions.isSiteAdministrator(session.user) : false;
+  const { impersonationError, impersonatingUserId, canImpersonateUser, handleImpersonate } = useImpersonation();
+  const canManage = session ? canManageAdminArea(session.user) : false;
   const canEditSiteAdministrator = session ? Permissions.isSiteAdministrator(session.user) : false;
 
   if (status === "loading" || userManagement.isLoading) {
@@ -285,37 +281,8 @@ export default function BenutzerverwaltungPage() {
                 canDeleteUser={userManagement.canDeleteUser}
                 canManage={canManage}
                 canEditSiteAdministrator={canEditSiteAdministrator}
-                canImpersonateUser={(user) => isSiteAdministrator && session?.user?.id !== user.id}
-                onImpersonate={async (user) => {
-                  setImpersonationError("");
-                  setImpersonatingUserId(user.id);
-                  try {
-                    if (typeof update !== "function") {
-                      setImpersonationError("Impersonierung ist derzeit nicht verfügbar");
-                      return;
-                    }
-                    const response = await fetch(`/api/admin/users/${user.id}/impersonate`, {
-                      method: "POST",
-                      headers: { "Content-Type": "application/json" },
-                    });
-                    const data = await response.json();
-                    if (!response.ok || typeof data.proof !== "string") {
-                      setImpersonationError(data.error || "Impersonierung konnte nicht gestartet werden");
-                      return;
-                    }
-                    const updatedSession = await update({ impersonationStartProof: data.proof });
-                    if (!updatedSession?.user?.id || updatedSession.user.id !== user.id) {
-                      setImpersonationError("Impersonierung konnte nicht gestartet werden");
-                      return;
-                    }
-                    router.push("/profil");
-                    router.refresh();
-                  } catch {
-                    setImpersonationError("Impersonierung konnte nicht gestartet werden");
-                  } finally {
-                    setImpersonatingUserId(null);
-                  }
-                }}
+                canImpersonateUser={canImpersonateUser}
+                onImpersonate={handleImpersonate}
                 impersonatingUserId={impersonatingUserId}
                 onResendInvitation={userManagement.handleResendInvitation}
                 resendingInvitationEmail={userManagement.isResendingInvite}
@@ -334,7 +301,8 @@ export default function BenutzerverwaltungPage() {
             setUserData={userManagement.setModalUserData}
             isEditing={!!userManagement.editingUser}
             errors={userManagement.error ? { general: userManagement.error } : {}}
-            fieldErrors={userManagement.fieldErrors}            initialUserData={userManagement.initialUserData}
+            fieldErrors={userManagement.fieldErrors}
+            initialUserData={userManagement.initialUserData}
           />
         )}
       </div>

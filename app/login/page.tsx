@@ -8,6 +8,8 @@ import { sanitizeReturnUrl } from "@/lib/return-url";
 import { LoadingButton } from "@/components/loading-button";
 import { loginFormSchema } from "@/lib/validation-schema";
 import { getFieldErrors } from "@/lib/zod-form-errors";
+import { apiFetch, ApiError } from "@/lib/api-fetch";
+import { mapServerErrorToField, AUTH_FIELD_KEYWORDS } from "@/lib/server-error-mapper";
 import { pluralize } from "@/lib/pluralization";
 import {
   TargetIcon,
@@ -16,6 +18,7 @@ import {
   UserIcon,
 } from "@/components/icons";
 import { AlertBox } from "@/components/alert-box";
+import { AuthCardHeading } from "@/components/auth-card-shell";
 import { appName } from "@/lib/site-config";
 
 interface UseLoginFormResult {
@@ -102,32 +105,51 @@ function useLoginForm(): UseLoginFormResult {
 
     setIsLoading(true);
 
+    const applyServerError = (message: string) => {
+      const mapped = mapServerErrorToField(message, AUTH_FIELD_KEYWORDS);
+      if (mapped.email) {
+        setFieldErrors({ email: mapped.email });
+      } else if (mapped.password || mapped.confirmPassword) {
+        setFieldErrors({ password: mapped.password ?? mapped.confirmPassword });
+      } else {
+        setError(message);
+      }
+    };
+
     try {
-      const response = await fetch("/api/auth/login", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ email, password }),
-      });
-
-      const data: LoginPreflightResponse = await response.json();
-
-      if (response.status === 429) {
-        setError(
-          data.error ||
-            "Zu viele Login-Versuche. Bitte versuchen Sie es später erneut."
-        );
-      } else if (response.status === 503) {
-        setError(
-          data.error ||
-            "Login ist vorübergehend nicht verfügbar. Bitte versuchen Sie es erneut."
-        );
-      } else if (response.status === 401) {
-        setFieldErrors({
-          password: data.error || "Ungültige E-Mail oder Passwort",
+      let data: LoginPreflightResponse;
+      try {
+        data = await apiFetch<LoginPreflightResponse>("/api/auth/login", {
+          method: "POST",
+          body: { email, password },
         });
-      } else if (response.status === 200 && data.success) {
+      } catch (err) {
+        if (!(err instanceof ApiError)) throw err;
+
+        if (err.status === 429) {
+          setError(
+            err.serverMessage ||
+              "Zu viele Login-Versuche. Bitte versuchen Sie es später erneut."
+          );
+        } else if (err.status === 503) {
+          setError(
+            err.serverMessage ||
+              "Login ist vorübergehend nicht verfügbar. Bitte versuchen Sie es erneut."
+          );
+        } else if (err.status === 401) {
+          setFieldErrors({
+            password: err.serverMessage || "Ungültige E-Mail oder Passwort",
+          });
+        } else {
+          applyServerError(
+            err.serverMessage ||
+              "Ein Fehler ist aufgetreten. Bitte versuchen Sie es später erneut."
+          );
+        }
+        return;
+      }
+
+      if (data.success) {
         if (!data.loginProof) {
           setError(
             "Ein Fehler ist aufgetreten. Bitte versuchen Sie es später erneut."
@@ -167,16 +189,10 @@ function useLoginForm(): UseLoginFormResult {
           );
         }
       } else {
-        const message =
+        applyServerError(
           data.error ||
-          "Ein Fehler ist aufgetreten. Bitte versuchen Sie es später erneut.";
-        if (message.includes("E-Mail")) {
-          setFieldErrors({ email: message });
-        } else if (message.includes("Passwort")) {
-          setFieldErrors({ password: message });
-        } else {
-          setError(message);
-        }
+            "Ein Fehler ist aufgetreten. Bitte versuchen Sie es später erneut."
+        );
       }
     } catch {
       setError("Ein Fehler ist aufgetreten. Bitte versuchen Sie es erneut.");
@@ -255,12 +271,7 @@ export default function LoginPage() {
       <div className="flex flex-1 flex-col items-center justify-center p-4 sm:p-6">
         <div className="w-full max-w-md">
           <div className="card border border-white/70 shadow-2xl shadow-slate-200/70 backdrop-blur-sm">
-            <h1 className="text-2xl sm:text-3xl font-bold text-center mb-4 sm:mb-6 text-brand-blue-900">
-              {appName}
-            </h1>
-            <h2 className="text-lg sm:text-xl font-semibold text-center mb-4 sm:mb-6 text-brand-red-700">
-              Login
-            </h2>
+            <AuthCardHeading title="Login" />
 
             <AlertBox type="error" message={error} className="mb-4 text-base" />
 
@@ -322,7 +333,7 @@ export default function LoginPage() {
               <LoadingButton
                 type="submit"
                 loading={isLoading}
-                loadingText="Einloggen..."
+                loadingText="Einloggen…"
                 className="w-full btn-primary py-2.5 sm:py-2 text-base sm:text-base touch-manipulation"
               >
                 Einloggen

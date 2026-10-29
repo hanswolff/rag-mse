@@ -1,20 +1,16 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
-import { useSession } from "next-auth/react";
-import { BackLink } from "@/components/back-link";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Modal } from "@/components/modal";
-import { Pagination } from "@/components/pagination";
 import { SearchHighlight } from "@/components/search-highlight";
-import { SortableTableHeader } from "@/components/sortable-table-header";
 import { EyeIcon } from "@/components/icons";
 import { LoadingScreen } from "@/components/loading-screen";
 import { formatDate, formatTime } from "@/lib/date-utils";
-import { useTableSorting } from "@/lib/use-table-sorting";
-import { Permissions } from "@/lib/permissions";
+import { formatDateTime } from "@/lib/dates";
+import { Permissions, UserWithRole } from "@/lib/permissions";
 import { AlertBox } from "@/components/alert-box";
-import { appName } from "@/lib/site-config";
+import { usePaginatedAdminList } from "@/lib/use-paginated-admin-list";
+import { AdminListColumn, AdminListShell } from "@/components/admin-list-shell";
 
 type EventNotificationItem = {
   id: string;
@@ -57,6 +53,11 @@ type PollNotificationItem = {
 
 type NotificationItem = EventNotificationItem | PollNotificationItem;
 
+type NotificationPreview = {
+  subject: string;
+  body: string;
+};
+
 type NotificationsResponse = {
   notifications: NotificationItem[];
   pagination: {
@@ -67,120 +68,112 @@ type NotificationsResponse = {
   };
 };
 
-const PAGE_SIZE = 20;
 type NotificationSortField = "sentAt" | "status" | "userName" | "userEmail" | "eventDate" | "eventTime" | "location" | "pollTitle";
 const NOTIFICATION_DEFAULT_SORT_DIRECTIONS: Partial<Record<NotificationSortField, "asc" | "desc">> = {
   sentAt: "desc",
 };
 
-function formatSentAt(value: string): string {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return value;
-  }
-  return new Intl.DateTimeFormat("de-DE", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(date);
-}
+const NOTIFICATION_BASE_COLUMNS: AdminListColumn<NotificationSortField>[] = [
+  { label: "Aktionen", srOnly: true },
+  { label: "Versendet am", field: "sentAt" },
+  { label: "Status", field: "status" },
+  { label: "Name", field: "userName" },
+  { label: "E-Mail", field: "userEmail" },
+];
+
+const EVENT_NOTIFICATION_COLUMNS: AdminListColumn<NotificationSortField>[] = [
+  ...NOTIFICATION_BASE_COLUMNS,
+  { label: "Termin-Datum", field: "eventDate" },
+  { label: "Uhrzeit", field: "eventTime" },
+  { label: "Ort", field: "location" },
+];
+
+const POLL_NOTIFICATION_COLUMNS: AdminListColumn<NotificationSortField>[] = [
+  ...NOTIFICATION_BASE_COLUMNS,
+  { label: "Umfrage", field: "pollTitle" },
+];
+
+const extractNotifications = (data: NotificationsResponse) => data.notifications;
+const canAccessNotificationsAdmin = (user: UserWithRole) => Permissions.canReadNotificationsAdmin(user);
 
 export default function AdminNotificationsPage() {
-  const router = useRouter();
-  const { data: session, status } = useSession();
-
-  const [items, setItems] = useState<NotificationItem[]>([]);
-  const [page, setPage] = useState(1);
-  const [total, setTotal] = useState(0);
-  const [totalPages, setTotalPages] = useState(0);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [searchInput, setSearchInput] = useState("");
-  const [searchQuery, setSearchQuery] = useState("");
   const [viewingNotification, setViewingNotification] = useState<NotificationItem | null>(null);
+  const [preview, setPreview] = useState<NotificationPreview | null>(null);
+  const [previewError, setPreviewError] = useState<string | null>(null);
   const [notificationType, setNotificationType] = useState<"event" | "poll">("event");
-  const { sortBy, sortDir, handleSortChange } = useTableSorting<NotificationSortField>(
-    "sentAt",
-    "desc",
-    NOTIFICATION_DEFAULT_SORT_DIRECTIONS,
-  );
-  useEffect(() => {
-    if (status === "authenticated" && !Permissions.canReadNotificationsAdmin(session?.user)) {
-      router.push("/");
-    }
-  }, [status, session, router]);
 
-  const loadNotifications = useCallback(async (
-    targetPage: number,
-    query: string,
-    nextSortBy: NotificationSortField,
-    nextSortDir: "asc" | "desc",
-    type: "event" | "poll",
-  ) => {
-    setIsLoading(true);
-    setError(null);
-
-    try {
-      const params = new URLSearchParams({
-        page: String(targetPage),
-        limit: String(PAGE_SIZE),
-        sortBy: nextSortBy,
-        sortDir: nextSortDir,
-        type,
-      });
-
-      if (query.trim().length > 0) {
-        params.set("q", query.trim());
-      }
-
-      const response = await fetch(`/api/admin/notifications?${params.toString()}`);
-      if (!response.ok) {
-        const data = await response.json().catch(() => ({}));
-        throw new Error(typeof data.error === "string" ? data.error : "Benachrichtigungen konnten nicht geladen werden");
-      }
-
-      const data = (await response.json()) as NotificationsResponse;
-
-      setItems(data.notifications);
-      setPage(data.pagination.page);
-      setTotal(data.pagination.total);
-      setTotalPages(data.pagination.pages);
-    } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : "Benachrichtigungen konnten nicht geladen werden");
-      setItems([]);
-      setTotal(0);
-      setTotalPages(0);
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
+  const {
+    status,
+    items,
+    page,
+    setPage,
+    total,
+    totalPages,
+    isLoading,
+    error,
+    searchInput,
+    setSearchInput,
+    searchQuery,
+    setSearchQuery,
+    sortBy,
+    sortDir,
+    handleSubmitSearch,
+    handleTableSort,
+  } = usePaginatedAdminList<NotificationItem, NotificationSortField, NotificationsResponse>({
+    endpoint: "/api/admin/notifications",
+    extractItems: extractNotifications,
+    loadErrorMessage: "Benachrichtigungen konnten nicht geladen werden",
+    canAccess: canAccessNotificationsAdmin,
+    initialSortField: "sentAt",
+    initialSortDirection: "desc",
+    defaultSortDirections: NOTIFICATION_DEFAULT_SORT_DIRECTIONS,
+    extraParams: { type: notificationType },
+  });
 
   useEffect(() => {
-    if (status !== "authenticated" || !session || !Permissions.canReadNotificationsAdmin(session.user)) {
+    if (!viewingNotification) {
       return;
     }
-    void loadNotifications(page, searchQuery, sortBy, sortDir, notificationType);
-  }, [status, session, page, searchQuery, sortBy, sortDir, notificationType, loadNotifications]);
 
-  const handleSubmitSearch = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    setPage(1);
-    setSearchQuery(searchInput.trim());
-  };
+    let cancelled = false;
+    setPreview(null);
+    setPreviewError(null);
 
-  const handleTableSort = useCallback((field: NotificationSortField) => {
-    setPage(1);
-    handleSortChange(field);
-  }, [handleSortChange]);
+    const params = new URLSearchParams({
+      type: viewingNotification.type,
+      id: viewingNotification.id,
+    });
+
+    fetch(`/api/admin/notifications/preview?${params.toString()}`)
+      .then(async (response) => {
+        if (!response.ok) {
+          const data = await response.json().catch(() => ({}));
+          throw new Error(typeof data.error === "string" ? data.error : "Vorschau konnte nicht geladen werden");
+        }
+        return (await response.json()) as NotificationPreview;
+      })
+      .then((data) => {
+        if (!cancelled) {
+          setPreview(data);
+        }
+      })
+      .catch((previewLoadError) => {
+        if (!cancelled) {
+          setPreviewError(previewLoadError instanceof Error ? previewLoadError.message : "Vorschau konnte nicht geladen werden");
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [viewingNotification]);
 
   const handleTypeChange = useCallback((type: "event" | "poll") => {
     setPage(1);
     setSearchInput("");
     setSearchQuery("");
     setNotificationType(type);
-  }, []);
+  }, [setPage, setSearchInput, setSearchQuery]);
 
   const tableContent = useMemo(() => {
     if (items.length === 0) {
@@ -207,7 +200,7 @@ export default function AdminNotificationsPage() {
           </button>
         </td>
         <td className="px-4 py-3 text-sm text-gray-900 whitespace-nowrap">
-          {item.sentAt ? formatSentAt(item.sentAt) : formatSentAt(item.queuedAt)}
+          {item.sentAt ? formatDateTime(item.sentAt) : formatDateTime(item.queuedAt)}
         </td>
         <td className="px-4 py-3 text-sm whitespace-nowrap">
           <span className={item.status === "VERSENDET" ? "text-green-700 font-semibold" : "text-amber-700 font-semibold"}>
@@ -247,305 +240,167 @@ export default function AdminNotificationsPage() {
     return <LoadingScreen />;
   }
 
-  return (
-    <main className="flex-1 bg-gray-50">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
-        <div className="mb-8">
-          <BackLink href="/admin/dashboard" className="text-base">
-            Zurück zum Dashboard
-          </BackLink>
-          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mt-4">Benachrichtigungen</h1>
-          <p className="text-base text-gray-600 mt-2">Versendete Benachrichtigungen der letzten 30 Tage</p>
-        </div>
+  const typeTabs = (
+    <div className="flex gap-1 mb-6 border-b border-gray-200">
+      <button
+        type="button"
+        onClick={() => handleTypeChange("event")}
+        className={`px-4 py-2 text-sm font-medium transition-colors ${
+          notificationType === "event"
+            ? "border-b-2 border-brand-red-600 text-brand-red-600"
+            : "text-gray-500 hover:text-gray-700"
+        }`}
+      >
+        Termin-Erinnerungen
+      </button>
+      <button
+        type="button"
+        onClick={() => handleTypeChange("poll")}
+        className={`px-4 py-2 text-sm font-medium transition-colors ${
+          notificationType === "poll"
+            ? "border-b-2 border-brand-red-600 text-brand-red-600"
+            : "text-gray-500 hover:text-gray-700"
+        }`}
+      >
+        Umfrage-Benachrichtigungen
+      </button>
+    </div>
+  );
 
-        <div className="flex gap-1 mb-6 border-b border-gray-200">
-          <button
-            type="button"
-            onClick={() => handleTypeChange("event")}
-            className={`px-4 py-2 text-sm font-medium transition-colors ${
-              notificationType === "event"
-                ? "border-b-2 border-brand-red-600 text-brand-red-600"
-                : "text-gray-500 hover:text-gray-700"
-            }`}
-          >
-            Termin-Erinnerungen
-          </button>
-          <button
-            type="button"
-            onClick={() => handleTypeChange("poll")}
-            className={`px-4 py-2 text-sm font-medium transition-colors ${
-              notificationType === "poll"
-                ? "border-b-2 border-brand-red-600 text-brand-red-600"
-                : "text-gray-500 hover:text-gray-700"
-            }`}
-          >
-            Umfrage-Benachrichtigungen
-          </button>
-        </div>
-
-        <AlertBox type="error" message={error} className="mb-4" />
-
-        <section className="card-compact">
-          <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between mb-4">
-            <div>
-              <h2 className="text-lg sm:text-xl font-semibold text-gray-900">Versandverlauf</h2>
-              <p className="text-base text-gray-600 mt-1">{total} Einträge</p>
-            </div>
-            <form onSubmit={handleSubmitSearch} className="flex flex-col sm:flex-row w-full md:w-auto gap-2">
-              <input
-                type="text"
-                value={searchInput}
-                onChange={(event) => setSearchInput(event.target.value)}
-                placeholder="Suche nach Name oder E-Mail"
-                className="form-input w-full md:w-80"
-              />
-              <button type="submit" className="btn-primary px-4 py-2 text-base whitespace-nowrap w-full sm:w-auto">
-                Suchen
-              </button>
-            </form>
+  const mobileList = items.length === 0 ? (
+    <div className="border border-gray-200 rounded-md bg-white px-4 py-6 text-base text-gray-500 text-center">
+      Keine Benachrichtigungen in den letzten 30 Tagen gefunden.
+    </div>
+  ) : (
+    items.map((item) => (
+      <article key={item.id} className="border border-gray-200 rounded-md bg-white p-4 space-y-2">
+        <div className="flex items-start justify-between gap-2">
+          <div>
+            <p className="text-sm text-gray-500">{item.sentAt ? formatDateTime(item.sentAt) : formatDateTime(item.queuedAt)}</p>
+            <p className={item.status === "VERSENDET" ? "text-green-700 font-semibold" : "text-amber-700 font-semibold"}>
+              {item.status === "VERSENDET" ? "Versendet" : "Ausstehend"}
+            </p>
           </div>
+          <button
+            type="button"
+            onClick={() => setViewingNotification(item)}
+            className="p-1.5 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded transition-colors"
+            title="Inhalt anzeigen"
+            aria-label="Benachrichtigungsinhalt anzeigen"
+          >
+            <EyeIcon className="h-5 w-5" />
+          </button>
+        </div>
+        <p className="text-base text-gray-900">
+          <span className="font-semibold">Name:</span>{" "}
+          {item.user.name ? <SearchHighlight text={item.user.name} query={searchQuery} /> : "-"}
+        </p>
+        <p className="text-base text-gray-700 break-all">
+          <span className="font-semibold text-gray-900">E-Mail:</span>{" "}
+          <SearchHighlight text={item.user.email} query={searchQuery} />
+        </p>
+        {item.type === "event" ? (
+          <>
+            <p className="text-base text-gray-900">
+              <span className="font-semibold">Termin:</span> {formatDate(item.event.date)}
+            </p>
+            <p className="text-base text-gray-700">
+              <span className="font-semibold text-gray-900">Uhrzeit:</span>{" "}
+              {formatTime(item.event.timeFrom)} - {formatTime(item.event.timeTo)}
+            </p>
+            <p className="text-base text-gray-900 break-words">
+              <span className="font-semibold">Ort:</span> {item.event.location}
+            </p>
+          </>
+        ) : (
+          <p className="text-base text-gray-900 break-words">
+            <span className="font-semibold">Umfrage:</span> {item.poll.title}
+          </p>
+        )}
+      </article>
+    ))
+  );
 
-          <div className="space-y-3 md:hidden">
-            {items.length === 0 ? (
-              <div className="border border-gray-200 rounded-md bg-white px-4 py-6 text-base text-gray-500 text-center">
-                Keine Benachrichtigungen in den letzten 30 Tagen gefunden.
+  return (
+    <AdminListShell
+      title="Benachrichtigungen"
+      subtitle="Versendete Benachrichtigungen der letzten 30 Tage"
+      listTitle="Versandverlauf"
+      error={error}
+      aboveList={typeTabs}
+      total={total}
+      searchPlaceholder="Suche nach Name oder E-Mail"
+      searchInput={searchInput}
+      onSearchInputChange={setSearchInput}
+      onSubmitSearch={handleSubmitSearch}
+      columns={notificationType === "event" ? EVENT_NOTIFICATION_COLUMNS : POLL_NOTIFICATION_COLUMNS}
+      sortBy={sortBy}
+      sortDir={sortDir}
+      onSortChange={handleTableSort}
+      mobileList={mobileList}
+      tableBody={tableContent}
+      page={page}
+      totalPages={totalPages}
+      onPageChange={setPage}
+      isLoading={isLoading}
+    >
+      <Modal
+        isOpen={viewingNotification !== null}
+        onClose={() => setViewingNotification(null)}
+        title="Benachrichtigungsinhalt"
+        size="3xl"
+      >
+        {viewingNotification && (
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pb-4 border-b border-gray-200">
+              <div>
+                <p className="text-sm text-gray-500">Empfänger</p>
+                <p className="text-base font-medium text-gray-900">
+                  {viewingNotification.user.name || viewingNotification.user.email}
+                </p>
+                <p className="text-sm text-gray-600">{viewingNotification.user.email}</p>
               </div>
-            ) : (
-              items.map((item) => (
-                <article key={item.id} className="border border-gray-200 rounded-md bg-white p-4 space-y-2">
-                  <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <p className="text-sm text-gray-500">{item.sentAt ? formatSentAt(item.sentAt) : formatSentAt(item.queuedAt)}</p>
-                      <p className={item.status === "VERSENDET" ? "text-green-700 font-semibold" : "text-amber-700 font-semibold"}>
-                        {item.status === "VERSENDET" ? "Versendet" : "Ausstehend"}
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setViewingNotification(item)}
-                      className="p-1.5 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded transition-colors"
-                      title="Inhalt anzeigen"
-                      aria-label="Benachrichtigungsinhalt anzeigen"
-                    >
-                      <EyeIcon className="h-5 w-5" />
-                    </button>
+              <div>
+                <p className="text-sm text-gray-500">Status</p>
+                <p className={`text-base font-semibold ${viewingNotification.status === "VERSENDET" ? "text-green-700" : "text-amber-700"}`}>
+                  {viewingNotification.status === "VERSENDET" ? "Versendet" : "Ausstehend"}
+                </p>
+                <p className="text-sm text-gray-600">
+                  {viewingNotification.sentAt
+                    ? formatDateTime(viewingNotification.sentAt)
+                    : formatDateTime(viewingNotification.queuedAt)}
+                </p>
+              </div>
+            </div>
+
+            {previewError ? (
+              <AlertBox type="error" message={previewError} />
+            ) : preview ? (
+              <>
+                <div>
+                  <p className="text-sm text-gray-500 mb-1">Betreff</p>
+                  <p className="text-base font-medium text-gray-900">{preview.subject}</p>
+                </div>
+
+                <div>
+                  <p className="text-sm text-gray-500 mb-2">Nachricht</p>
+                  <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 text-base text-gray-800 whitespace-pre-wrap">
+                    {preview.body}
                   </div>
-                  <p className="text-base text-gray-900">
-                    <span className="font-semibold">Name:</span>{" "}
-                    {item.user.name ? <SearchHighlight text={item.user.name} query={searchQuery} /> : "-"}
-                  </p>
-                  <p className="text-base text-gray-700 break-all">
-                    <span className="font-semibold text-gray-900">E-Mail:</span>{" "}
-                    <SearchHighlight text={item.user.email} query={searchQuery} />
-                  </p>
-                  {item.type === "event" ? (
-                    <>
-                      <p className="text-base text-gray-900">
-                        <span className="font-semibold">Termin:</span> {formatDate(item.event.date)}
-                      </p>
-                      <p className="text-base text-gray-700">
-                        <span className="font-semibold text-gray-900">Uhrzeit:</span>{" "}
-                        {formatTime(item.event.timeFrom)} - {formatTime(item.event.timeTo)}
-                      </p>
-                      <p className="text-base text-gray-900 break-words">
-                        <span className="font-semibold">Ort:</span> {item.event.location}
-                      </p>
-                    </>
-                  ) : (
-                    <p className="text-base text-gray-900 break-words">
-                      <span className="font-semibold">Umfrage:</span> {item.poll.title}
-                    </p>
-                  )}
-                </article>
-              ))
+                </div>
+              </>
+            ) : (
+              <p className="text-base text-gray-500">Vorschau wird geladen …</p>
+            )}
+
+            {viewingNotification.type === "event" && (
+              <div className="pt-2 text-sm text-gray-500">
+                <p>Die Links in der E-Mail enthalten persönliche Tokens für den Empfänger und werden in der Vorschau durch Platzhalter ersetzt.</p>
+              </div>
             )}
           </div>
-
-          <div className="hidden md:block overflow-x-auto border border-gray-200 rounded-md bg-white">
-            <table className="min-w-full">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-2 py-3 text-left text-base font-semibold text-gray-700 w-10">
-                    <span className="sr-only">Aktionen</span>
-                  </th>
-                  <SortableTableHeader
-                    label="Versendet am"
-                    field="sentAt"
-                    activeField={sortBy}
-                    sortDir={sortDir}
-                    onSortChange={handleTableSort}
-                    className="px-4 py-3 text-left text-base font-semibold text-gray-700"
-                  />
-                  <SortableTableHeader
-                    label="Status"
-                    field="status"
-                    activeField={sortBy}
-                    sortDir={sortDir}
-                    onSortChange={handleTableSort}
-                    className="px-4 py-3 text-left text-base font-semibold text-gray-700"
-                  />
-                  <SortableTableHeader
-                    label="Name"
-                    field="userName"
-                    activeField={sortBy}
-                    sortDir={sortDir}
-                    onSortChange={handleTableSort}
-                    className="px-4 py-3 text-left text-base font-semibold text-gray-700"
-                  />
-                  <SortableTableHeader
-                    label="E-Mail"
-                    field="userEmail"
-                    activeField={sortBy}
-                    sortDir={sortDir}
-                    onSortChange={handleTableSort}
-                    className="px-4 py-3 text-left text-base font-semibold text-gray-700"
-                  />
-                  {notificationType === "event" ? (
-                    <>
-                      <SortableTableHeader
-                        label="Termin-Datum"
-                        field="eventDate"
-                        activeField={sortBy}
-                        sortDir={sortDir}
-                        onSortChange={handleTableSort}
-                        className="px-4 py-3 text-left text-base font-semibold text-gray-700"
-                      />
-                      <SortableTableHeader
-                        label="Uhrzeit"
-                        field="eventTime"
-                        activeField={sortBy}
-                        sortDir={sortDir}
-                        onSortChange={handleTableSort}
-                        className="px-4 py-3 text-left text-base font-semibold text-gray-700"
-                      />
-                      <SortableTableHeader
-                        label="Ort"
-                        field="location"
-                        activeField={sortBy}
-                        sortDir={sortDir}
-                        onSortChange={handleTableSort}
-                        className="px-4 py-3 text-left text-base font-semibold text-gray-700"
-                      />
-                    </>
-                  ) : (
-                    <SortableTableHeader
-                      label="Umfrage"
-                      field="pollTitle"
-                      activeField={sortBy}
-                      sortDir={sortDir}
-                      onSortChange={handleTableSort}
-                      className="px-4 py-3 text-left text-base font-semibold text-gray-700"
-                    />
-                  )}
-                </tr>
-              </thead>
-              <tbody>{tableContent}</tbody>
-            </table>
-          </div>
-
-          <Pagination
-            currentPage={page}
-            totalPages={totalPages}
-            onPageChange={setPage}
-            disabled={isLoading}
-          />
-        </section>
-
-        <Modal
-          isOpen={viewingNotification !== null}
-          onClose={() => setViewingNotification(null)}
-          title="Benachrichtigungsinhalt"
-          size="3xl"
-        >
-          {viewingNotification && (
-            <div className="space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pb-4 border-b border-gray-200">
-                <div>
-                  <p className="text-sm text-gray-500">Empfänger</p>
-                  <p className="text-base font-medium text-gray-900">
-                    {viewingNotification.user.name || viewingNotification.user.email}
-                  </p>
-                  <p className="text-sm text-gray-600">{viewingNotification.user.email}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-500">Status</p>
-                  <p className={`text-base font-semibold ${viewingNotification.status === "VERSENDET" ? "text-green-700" : "text-amber-700"}`}>
-                    {viewingNotification.status === "VERSENDET" ? "Versendet" : "Ausstehend"}
-                  </p>
-                  <p className="text-sm text-gray-600">
-                    {viewingNotification.sentAt
-                      ? formatSentAt(viewingNotification.sentAt)
-                      : formatSentAt(viewingNotification.queuedAt)}
-                  </p>
-                </div>
-              </div>
-
-              {viewingNotification.type === "event" ? (
-                <>
-                  <div>
-                    <p className="text-sm text-gray-500 mb-1">Betreff</p>
-                    <p className="text-base font-medium text-gray-900">
-                      Erinnerung: Bitte Teilnahme für Termin bestätigen
-                    </p>
-                  </div>
-
-                  <div>
-                    <p className="text-sm text-gray-500 mb-2">Nachricht</p>
-                    <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 text-base text-gray-800 whitespace-pre-wrap">
-                      {`Hallo,
-
-Für einen anstehenden Termin ist noch keine Teilnahme von Ihnen hinterlegt.
-
-Datum: ${formatDate(viewingNotification.event.date)}
-Uhrzeit: ${formatTime(viewingNotification.event.timeFrom)} - ${formatTime(viewingNotification.event.timeTo)}
-Ort: ${viewingNotification.event.location}
-
-Direkt zur Anmeldung (Ja/Nein/Vielleicht):
-[Link enthält persönlichen Anmelde-Token]
-
-Wenn Sie diese Erinnerung für zukünftige Termine nicht mehr erhalten möchten, können Sie sie mit einem Klick deaktivieren:
-[Link enthält persönlichen Abmelde-Token]
-
-Viele Grüße
-${appName}`}
-                    </div>
-                  </div>
-                </>
-              ) : (
-                <>
-                  <div>
-                    <p className="text-sm text-gray-500 mb-1">Betreff</p>
-                    <p className="text-base font-medium text-gray-900">
-                      Neue Umfrage: {viewingNotification.poll.title}
-                    </p>
-                  </div>
-
-                  <div>
-                    <p className="text-sm text-gray-500 mb-2">Nachricht</p>
-                    <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 text-base text-gray-800 whitespace-pre-wrap">
-                      {`Hallo ${viewingNotification.user.name || viewingNotification.user.email},
-
-es wurde eine neue Umfrage veröffentlicht: "${viewingNotification.poll.title}"
-
-${viewingNotification.poll.description || ""}
-
-Hier können Sie abstimmen:
-[Link enthält persönlichen Token]
-
-Viele Grüße,
-${appName}`}
-                    </div>
-                  </div>
-                </>
-              )}
-
-              <div className="pt-2 text-sm text-gray-500">
-                <p>Die Links in der E-Mail enthalten persönliche Tokens für den Empfänger.</p>
-              </div>
-            </div>
-          )}
-        </Modal>
-      </div>
-    </main>
+        )}
+      </Modal>
+    </AdminListShell>
   );
 }

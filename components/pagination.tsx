@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import Link from "next/link";
 
 type PaginationProps = {
@@ -39,6 +40,49 @@ function Ellipsis({ index }: { index: number }) {
   );
 }
 
+const ROOT_CLASSES = "mt-8 flex flex-col sm:flex-row justify-center items-center gap-2 sm:gap-2";
+const PAGES_CLASSES = "flex flex-wrap justify-center gap-1";
+const STEP_CLASSES = "px-3 sm:px-4 py-2 text-base rounded-md w-full sm:w-auto text-center";
+const PAGE_ACTIVE_CLASSES = "bg-brand-red-600 text-white";
+const PAGE_INACTIVE_CLASSES = "bg-white border border-brand-blue-200 hover:bg-brand-blue-50 text-brand-blue-900";
+
+// Gemeinsames Gerüst beider Zweige: Zurück-Steuerung, Seitenliste, Weiter-Steuerung.
+// Der Link-Zweig rendert eine <nav>, der Button-Zweig hält die Navigationsrolle
+// auf dem Seitenlisten-Container.
+function renderPageItems(pageNumbers: (number | string)[], renderPage: (pageNum: number) => ReactNode): ReactNode {
+  return pageNumbers.map((pageNum, index) =>
+    pageNum === "..." ? <Ellipsis key={`ellipsis-${index}`} index={index} /> : renderPage(pageNum as number)
+  );
+}
+
+function StepLink({ disabled, href, label }: { disabled: boolean; href: string; label: string }) {
+  if (disabled) {
+    return (
+      <span aria-disabled="true" className={`${STEP_CLASSES} pointer-events-none bg-gray-100 text-gray-400 border border-gray-200`}>
+        {label}
+      </span>
+    );
+  }
+  return (
+    <Link href={href} aria-label={label} className={`${STEP_CLASSES} bg-white border border-brand-blue-200 hover:bg-brand-blue-50`}>
+      {label}
+    </Link>
+  );
+}
+
+function StepButton({ disabled, onClick, label }: { disabled: boolean; onClick: () => void; label: string }) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      className="px-3 sm:px-4 py-2 text-base bg-white border border-brand-blue-200 rounded-md hover:bg-brand-blue-50 disabled:opacity-50 disabled:cursor-not-allowed w-full sm:w-auto"
+      aria-label={label}
+    >
+      {label}
+    </button>
+  );
+}
+
 export function Pagination(props: PaginationProps) {
   const { currentPage, totalPages } = props;
 
@@ -49,69 +93,30 @@ export function Pagination(props: PaginationProps) {
   const prevDisabled = normalizedCurrentPage === 1;
   const nextDisabled = normalizedCurrentPage === totalPages;
 
-  const activeClass = "bg-brand-red-600 text-white";
-  const inactiveClass = "bg-white border border-brand-blue-200 hover:bg-brand-blue-50 text-brand-blue-900";
-
   if ("basePath" in props && props.basePath != null) {
     const { basePath } = props;
-    const disabledLinkClass = "pointer-events-none bg-gray-100 text-gray-400 border border-gray-200";
-    const enabledLinkClass = "bg-white border border-brand-blue-200 hover:bg-brand-blue-50";
 
     return (
-      <nav className="mt-8 flex flex-col sm:flex-row justify-center items-center gap-2 sm:gap-2" aria-label="Seitennavigation">
-        {prevDisabled ? (
-          <span
-            aria-disabled="true"
-            className={`px-3 sm:px-4 py-2 text-base rounded-md w-full sm:w-auto text-center ${disabledLinkClass}`}
-          >
-            Zurück
-          </span>
-        ) : (
-          <Link
-            href={buildHref(basePath, normalizedCurrentPage - 1)}
-            aria-label="Zurück"
-            className={`px-3 sm:px-4 py-2 text-base rounded-md w-full sm:w-auto text-center ${enabledLinkClass}`}
-          >
-            Zurück
-          </Link>
-        )}
+      <nav className={ROOT_CLASSES} aria-label="Seitennavigation">
+        <StepLink disabled={prevDisabled} href={buildHref(basePath, normalizedCurrentPage - 1)} label="Zurück" />
 
-        <div className="flex flex-wrap justify-center gap-1">
-          {pageNumbers.map((pageNum, index) => {
-            if (pageNum === "...") return <Ellipsis key={`ellipsis-${index}`} index={index} />;
-
-            return (
-              <Link
-                key={pageNum as number}
-                href={buildHref(basePath, pageNum as number)}
-                aria-label={`Seite ${pageNum}`}
-                aria-current={normalizedCurrentPage === pageNum ? "page" : undefined}
-                className={`px-3 sm:px-4 py-2 text-base rounded-md min-w-[2.5rem] font-semibold text-center ${
-                  normalizedCurrentPage === pageNum ? activeClass : inactiveClass
-                }`}
-              >
-                {pageNum}
-              </Link>
-            );
-          })}
+        <div className={PAGES_CLASSES}>
+          {renderPageItems(pageNumbers, (pageNum) => (
+            <Link
+              key={pageNum}
+              href={buildHref(basePath, pageNum)}
+              aria-label={`Seite ${pageNum}`}
+              aria-current={normalizedCurrentPage === pageNum ? "page" : undefined}
+              className={`px-3 sm:px-4 py-2 text-base rounded-md min-w-[2.5rem] font-semibold text-center ${
+                normalizedCurrentPage === pageNum ? PAGE_ACTIVE_CLASSES : PAGE_INACTIVE_CLASSES
+              }`}
+            >
+              {pageNum}
+            </Link>
+          ))}
         </div>
 
-        {nextDisabled ? (
-          <span
-            aria-disabled="true"
-            className={`px-3 sm:px-4 py-2 text-base rounded-md w-full sm:w-auto text-center ${disabledLinkClass}`}
-          >
-            Weiter
-          </span>
-        ) : (
-          <Link
-            href={buildHref(basePath, normalizedCurrentPage + 1)}
-            aria-label="Weiter"
-            className={`px-3 sm:px-4 py-2 text-base rounded-md w-full sm:w-auto text-center ${enabledLinkClass}`}
-          >
-            Weiter
-          </Link>
-        )}
+        <StepLink disabled={nextDisabled} href={buildHref(basePath, normalizedCurrentPage + 1)} label="Weiter" />
       </nav>
     );
   }
@@ -119,47 +124,29 @@ export function Pagination(props: PaginationProps) {
   const { onPageChange, disabled = false } = props;
 
   return (
-    <div className="mt-8 flex flex-col sm:flex-row justify-center items-center gap-2 sm:gap-2">
-      <button
-        onClick={() => onPageChange(normalizedCurrentPage - 1)}
-        disabled={prevDisabled || disabled}
-        className="px-3 sm:px-4 py-2 text-base bg-white border border-brand-blue-200 rounded-md hover:bg-brand-blue-50 disabled:opacity-50 disabled:cursor-not-allowed w-full sm:w-auto"
-        aria-label="Zurück"
-      >
-        Zurück
-      </button>
+    <div className={ROOT_CLASSES}>
+      <StepButton disabled={prevDisabled || disabled} onClick={() => onPageChange(normalizedCurrentPage - 1)} label="Zurück" />
 
-      <div className="flex flex-wrap justify-center gap-1" role="navigation" aria-label="Seitennavigation">
-        {pageNumbers.map((pageNum, index) => {
-          if (pageNum === "...") return <Ellipsis key={`ellipsis-${index}`} index={index} />;
-
-          return (
-            <button
-              key={pageNum as number}
-              onClick={() => onPageChange(pageNum as number)}
-              disabled={disabled}
-              className={`px-3 sm:px-4 py-2 text-base rounded-md min-w-[2.5rem] font-semibold ${
-                normalizedCurrentPage === pageNum
-                  ? activeClass
-                  : `${inactiveClass} disabled:opacity-50`
-              }`}
-              aria-label={`Seite ${pageNum}`}
-              aria-current={normalizedCurrentPage === pageNum ? "page" : undefined}
-            >
-              {pageNum}
-            </button>
-          );
-        })}
+      <div className={PAGES_CLASSES} role="navigation" aria-label="Seitennavigation">
+        {renderPageItems(pageNumbers, (pageNum) => (
+          <button
+            key={pageNum}
+            onClick={() => onPageChange(pageNum)}
+            disabled={disabled}
+            className={`px-3 sm:px-4 py-2 text-base rounded-md min-w-[2.5rem] font-semibold ${
+              normalizedCurrentPage === pageNum
+                ? PAGE_ACTIVE_CLASSES
+                : `${PAGE_INACTIVE_CLASSES} disabled:opacity-50`
+            }`}
+            aria-label={`Seite ${pageNum}`}
+            aria-current={normalizedCurrentPage === pageNum ? "page" : undefined}
+          >
+            {pageNum}
+          </button>
+        ))}
       </div>
 
-      <button
-        onClick={() => onPageChange(normalizedCurrentPage + 1)}
-        disabled={nextDisabled || disabled}
-        className="px-3 sm:px-4 py-2 text-base bg-white border border-brand-blue-200 rounded-md hover:bg-brand-blue-50 disabled:opacity-50 disabled:cursor-not-allowed w-full sm:w-auto"
-        aria-label="Weiter"
-      >
-        Weiter
-      </button>
+      <StepButton disabled={nextDisabled || disabled} onClick={() => onPageChange(normalizedCurrentPage + 1)} label="Weiter" />
     </div>
   );
 }

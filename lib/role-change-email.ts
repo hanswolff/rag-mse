@@ -1,6 +1,6 @@
 import { sendTemplateEmail } from "./email-sender";
 import { logInfo } from "./logger";
-import { logApiError } from "./api-utils";
+import { logApiError } from "./api-error-handler";
 import { Permissions } from "./permissions";
 import { appName } from "./site-config";
 
@@ -15,7 +15,7 @@ function getRoleDescription(role: string): string {
     case "AUDITOR":
       return "Als Prüfer haben Sie Lesezugriff auf administrative Bereiche wie Benutzerverwaltung, Termine und Dokumente, können aber keine Änderungen vornehmen.";
     case "MEMBER":
-      return "Als Mitglied können Sie Ihre Termine einsehen, an Abstimmungen teilnehmen und Ihr Profil verwalten.";
+      return "Als Mitglied können Sie Termine einsehen, sich zu Terminen anmelden, an Umfragen teilnehmen und Ihr Profil verwalten.";
     default:
       return "Bitte wenden Sie sich an einen Administrator, um mehr über Ihre Berechtigungen zu erfahren.";
   }

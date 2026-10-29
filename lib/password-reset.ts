@@ -11,9 +11,7 @@ export function hashResetToken(token: string): string {
 }
 
 export function getResetExpiryDate(now = new Date()): Date {
-  const expiresAt = new Date(now);
-  expiresAt.setHours(expiresAt.getHours() + RESET_TOKEN_VALIDITY_HOURS);
-  return expiresAt;
+  return new Date(now.getTime() + RESET_TOKEN_VALIDITY_HOURS * 60 * 60 * 1000);
 }
 
 export function buildResetUrl(appUrl: string, token: string): string {

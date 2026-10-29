@@ -5,12 +5,9 @@ import { useRouter } from "next/navigation";
 import { BackLink } from "@/components/back-link";
 import { LoadingButton } from "@/components/loading-button";
 import { LoadingScreen } from "@/components/loading-screen";
-import { GermanDatePicker } from "@/components/german-date-picker";
-import { ValidatedFieldGroup } from "@/components/validated-field-group";
-import { useFormFieldValidation } from "@/lib/useFormFieldValidation";
+import { ProfileFieldsFieldset, useProfileFormFields } from "@/components/profile-fields-fieldset";
 import { API_ROUTES } from "@/lib/api-routes";
 import { mapServerErrorToField, PROFILE_FIELD_KEYWORDS } from "@/lib/server-error-mapper";
-import { profileValidationConfig } from "@/lib/validation-schema";
 import { buildLoginUrlWithReturnUrl, getCurrentPathWithSearch } from "@/lib/return-url";
 import { normalizeDateInputValue } from "@/lib/date-picker-utils";
 import { Permissions } from "@/lib/permissions";
@@ -40,7 +37,6 @@ function useProfile() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [profileError, setProfileError] = useState("");
-  const [serverFieldErrors, setServerFieldErrors] = useState<Record<string, string>>({});
   const [profileSuccess, setProfileSuccess] = useState("");
 
   const [formData, setFormData] = useState({
@@ -56,7 +52,14 @@ function useProfile() {
     hasPossessionCard: false,
   });
 
-  const { errors: validationErrors, validateField, validateAllFields, markFieldAsTouched, shouldShowError, isValidAndTouched } = useFormFieldValidation(profileValidationConfig);
+  const {
+    setServerFieldErrors,
+    setFieldValue,
+    handleFieldBlur,
+    getFieldError,
+    isFieldValidAndTouched,
+    validateAllFields,
+  } = useProfileFormFields(formData, setFormData);
 
   const fetchProfile = useCallback(async () => {
     try {
@@ -180,7 +183,7 @@ function useProfile() {
     } finally {
       setIsSaving(false);
     }
-  }, [formData, validateAllFields, update]);
+  }, [formData, validateAllFields, setServerFieldErrors, update]);
 
   return {
     profile,
@@ -191,13 +194,10 @@ function useProfile() {
     formData,
     setFormData,
     handleSave,
-    validationErrors,
-    validateField,
-    markFieldAsTouched,
-    shouldShowError,
-    isValidAndTouched,
-    serverFieldErrors,
-    setServerFieldErrors,
+    setFieldValue,
+    handleFieldBlur,
+    getFieldError,
+    isFieldValidAndTouched,
   };
 }
 
@@ -211,43 +211,15 @@ export default function ProfilePage() {
     formData,
     setFormData,
     handleSave,
-    validationErrors,
-    validateField,
-    markFieldAsTouched,
-    shouldShowError,
-    isValidAndTouched,
-    serverFieldErrors,
-    setServerFieldErrors,
+    setFieldValue,
+    handleFieldBlur,
+    getFieldError,
+    isFieldValidAndTouched,
   } = useProfile();
 
   if (isLoading) {
     return <LoadingScreen />;
   }
-
-  const handleInputChange = (fieldName: string, value: string) => {
-    setFormData({ ...formData, [fieldName]: value });
-    setServerFieldErrors((prev) => ({ ...prev, [fieldName]: "" }));
-
-    if (validationErrors[fieldName]) {
-      validateField(fieldName, value);
-    }
-  };
-
-  const handleBlur = (fieldName: string, value: string) => {
-    markFieldAsTouched(fieldName);
-    validateField(fieldName, value);
-  };
-
-  const getFieldError = (fieldName: string): string | undefined => {
-    if (serverFieldErrors[fieldName]) return serverFieldErrors[fieldName];
-    return shouldShowError(fieldName, formData[fieldName as keyof typeof formData] as string)
-      ? validationErrors[fieldName]
-      : undefined;
-  };
-
-  const isFieldValidAndTouched = (fieldName: string): boolean => {
-    return isValidAndTouched(fieldName, formData[fieldName as keyof typeof formData] as string);
-  };
 
   return (
     <main className="flex-1 bg-gray-50">
@@ -264,160 +236,38 @@ export default function ProfilePage() {
           <AlertBox type="success" message={profileSuccess} className="mb-4" />
 
           <form onSubmit={handleSave} className="space-y-4" noValidate>
-            <div>
-              <label htmlFor="email" className="form-label">
-                E-Mail
-              </label>
-              <input
-                id="email"
-                type="email"
-                value={formData.email}
-                disabled
-                className="form-input bg-gray-100"
-                placeholder="beispiel@email.de"
-              />
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <ValidatedFieldGroup
-                label="Name"
-                name="name"
-                type="text"
-                value={formData.name}
-                onChange={(e) => handleInputChange("name", e.target.value)}
-                onBlur={(e) => handleBlur("name", e.target.value)}
-                error={getFieldError("name")}
-                showSuccess={isFieldValidAndTouched("name")}
-                required
-                maxLength={100}
-                placeholder="Max Mustermann"
-                disabled={isSaving}
-                autoFocus
-              />
-
-              <ValidatedFieldGroup
-                label="Dienstgrad"
-                name="rank"
-                type="text"
-                value={formData.rank}
-                onChange={(e) => handleInputChange("rank", e.target.value)}
-                onBlur={(e) => handleBlur("rank", e.target.value)}
-                error={getFieldError("rank")}
-                showSuccess={isFieldValidAndTouched("rank")}
-                maxLength={30}
-                placeholder="z.B. Obergefreiter d.R."
-                disabled={isSaving}
-              />
-
-              <GermanDatePicker
-                id="dateOfBirth"
-                label="Geburtsdatum"
-                value={formData.dateOfBirth}
-                onChange={(date) => handleInputChange("dateOfBirth", date)}
-                onBlur={() => handleBlur("dateOfBirth", formData.dateOfBirth)}
-                disabled={isSaving}
-                error={getFieldError("dateOfBirth")}
-                showSuccess={isFieldValidAndTouched("dateOfBirth")}
-              />
-            </div>
-
-            <ValidatedFieldGroup
-              as="textarea"
-              label="Adresse"
-              name="address"
-              value={formData.address}
-              onChange={(e) => handleInputChange("address", e.target.value)}
-              onBlur={(e) => handleBlur("address", e.target.value)}
-              error={getFieldError("address")}
-              showSuccess={isFieldValidAndTouched("address")}
-              rows={3}
-              maxLength={200}
-              placeholder="Musterstraße 1&#10;12345 Musterstadt"
+            <ProfileFieldsFieldset
+              formData={formData}
               disabled={isSaving}
+              onFieldChange={setFieldValue}
+              onFieldBlur={handleFieldBlur}
+              onHasPossessionCardChange={(checked) =>
+                setFormData((current) => ({ ...current, hasPossessionCard: checked }))
+              }
+              getFieldError={getFieldError}
+              isValidAndTouched={isFieldValidAndTouched}
+              emailSlot={
+                <div>
+                  <label htmlFor="email" className="form-label">
+                    E-Mail
+                  </label>
+                  <input
+                    id="email"
+                    type="email"
+                    value={formData.email}
+                    disabled
+                    className="form-input bg-gray-100"
+                    placeholder="beispiel@email.de"
+                  />
+                </div>
+              }
             />
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <ValidatedFieldGroup
-                label="Telefon"
-                name="phone"
-                type="tel"
-                value={formData.phone}
-                onChange={(e) => handleInputChange("phone", e.target.value)}
-                onBlur={(e) => handleBlur("phone", e.target.value)}
-                error={getFieldError("phone")}
-                showSuccess={isFieldValidAndTouched("phone")}
-                maxLength={30}
-                placeholder="+49 123 456789"
-                disabled={isSaving}
-              />
-
-              <ValidatedFieldGroup
-                label="PK"
-                name="pk"
-                type="text"
-                value={formData.pk}
-                onChange={(e) => handleInputChange("pk", e.target.value)}
-                onBlur={(e) => handleBlur("pk", e.target.value)}
-                error={getFieldError("pk")}
-                showSuccess={isFieldValidAndTouched("pk")}
-                maxLength={20}
-                placeholder="z.B. 12345 A 67890"
-                disabled={isSaving}
-              />
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <ValidatedFieldGroup
-                label="Reservistenkameradschaft"
-                name="reservistsAssociation"
-                type="text"
-                value={formData.reservistsAssociation}
-                onChange={(e) => handleInputChange("reservistsAssociation", e.target.value)}
-                onBlur={(e) => handleBlur("reservistsAssociation", e.target.value)}
-                error={getFieldError("reservistsAssociation")}
-                showSuccess={isFieldValidAndTouched("reservistsAssociation")}
-                maxLength={30}
-                placeholder="z.B. RK MSE"
-                disabled={isSaving}
-              />
-
-              <ValidatedFieldGroup
-                label="Mitgliedsnummer im Verband"
-                name="associationMemberNumber"
-                type="text"
-                value={formData.associationMemberNumber}
-                onChange={(e) => handleInputChange("associationMemberNumber", e.target.value)}
-                onBlur={(e) => handleBlur("associationMemberNumber", e.target.value)}
-                error={getFieldError("associationMemberNumber")}
-                showSuccess={isFieldValidAndTouched("associationMemberNumber")}
-                maxLength={30}
-                placeholder="z.B. 1234567890"
-                disabled={isSaving}
-              />
-            </div>
-
-            <div>
-              <label className="form-label">Waffenbesitzkarte</label>
-              <div className="flex items-center gap-3">
-                <input
-                  id="hasPossessionCard"
-                  type="checkbox"
-                  checked={formData.hasPossessionCard}
-                  onChange={(e) => setFormData({ ...formData, hasPossessionCard: e.target.checked })}
-                  className="w-5 h-5 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
-                  disabled={isSaving}
-                />
-                <label htmlFor="hasPossessionCard" className="text-gray-700 cursor-pointer">
-                  Ich besitze eine eigene Waffenbesitzkarte
-                </label>
-              </div>
-            </div>
 
             <div>
               <LoadingButton
                 type="submit"
                 loading={isSaving}
-                loadingText="Speichern..."
+                loadingText="Speichern…"
                 className="btn-primary py-2.5 sm:py-2 text-base sm:text-base touch-manipulation w-auto"
               >
                 Speichern

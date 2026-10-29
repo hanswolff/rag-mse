@@ -6,7 +6,7 @@ interface LoadingScreenProps {
 }
 
 export function LoadingScreen({
-  message = "Laden...",
+  message = "Laden…",
   className = "flex flex-1 items-center justify-center",
 }: LoadingScreenProps) {
   return (

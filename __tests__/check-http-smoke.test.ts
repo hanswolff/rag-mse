@@ -34,11 +34,12 @@ interface SmokeScriptResult {
 
 // Bewusst asynchrones spawn: spawnSync würde den Event-Loop blockieren und
 // damit den im Testprozess laufenden HTTP-Server lahmlegen.
-function runSmokeScript(server: Server): Promise<SmokeScriptResult> {
+function runSmokeScript(server: Server, env: Record<string, string> = {}): Promise<SmokeScriptResult> {
   const { port } = server.address() as AddressInfo;
   return new Promise((resolve, reject) => {
     const child = spawn(process.execPath, [SCRIPT_PATH, `http://127.0.0.1:${port}`], {
       timeout: 60000,
+      env: { ...process.env, ...env },
     });
     let stdout = "";
     let stderr = "";
@@ -49,7 +50,7 @@ function runSmokeScript(server: Server): Promise<SmokeScriptResult> {
   });
 }
 
-const PUBLIC_PAGES = ["/", "/termine", "/login", "/ausschreibungen", "/news"];
+const PUBLIC_PAGES = ["/", "/termine", "/kalender", "/login", "/ausschreibungen", "/news"];
 const PROTECTED_APIS = ["/api/user/profile", "/api/admin/users"];
 
 function healthyAppHandler(req: IncomingMessage, res: ServerResponse): void {
@@ -253,7 +254,7 @@ describe("scripts/check-http-smoke.js", () => {
       healthyAppHandler(req, res);
     });
     try {
-      const result = await runSmokeScript(server);
+      const result = await runSmokeScript(server, { SMOKE_REQUEST_TIMEOUT_MS: "500" });
       expect(result.status).toBe(1);
       expect(`${result.stdout}${result.stderr}`).toMatch(/abort|timeout|failed/i);
     } finally {
@@ -325,7 +326,10 @@ describe("deploy.sh pre-switch HTTP smoke gate", () => {
   });
 
   it("hängt den Compose-Tag bei fehlgeschlagenem Smoke auf das vorherige Image zurück", () => {
-    expect(smokeFailureBlock).toContain('podman tag "$PREV_IMAGE_ID" "$PREV_IMAGE_NAME"');
+    expect(smokeFailureBlock).toContain("restore_previous_image_tag");
+    expect(deployScript).toMatch(
+      /restore_previous_image_tag\(\) \{[\s\S]*?podman tag "\$PREV_IMAGE_ID" "\$PREV_IMAGE_NAME"[\s\S]*?\n\}/
+    );
   });
 
   it("räumt den Wegwerf-Container über den EXIT-trap immer auf", () => {

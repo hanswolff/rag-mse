@@ -1,5 +1,4 @@
-import { appName } from "@/lib/site-config";
 export const metadata = {
-  title: `News bearbeiten - ${appName}`,
+  title: "News bearbeiten",
   description: "News bearbeiten",
 };

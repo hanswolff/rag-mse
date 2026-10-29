@@ -1,3 +1,5 @@
+import type { Visibility } from "@prisma/client";
+
 /**
  * Shared test factories for common mock objects.
  * Each factory returns a complete object with sensible defaults.
@@ -83,17 +85,21 @@ export interface MockEvent {
   timeFrom: string;
   timeTo: string;
   location: string;
+  title: string | null;
   description: string;
+  cost: string | null;
+  capacity: number | null;
   latitude: number | null;
   longitude: number | null;
   type: string | null;
-  visible: boolean;
+  visibility: Visibility;
   createdById: string | null;
   createdAt: Date;
   updatedAt: Date;
   _count?: { votes: number };
-  votes?: MockVote[];
-  guestRegistrations?: MockGuestRegistration[];
+  // Seiten selektieren Votes oft nur teilweise (z. B. { vote: "JA" })
+  votes?: Array<Partial<MockVote>>;
+  guestRegistrations?: Array<Partial<MockGuestRegistration>>;
 }
 
 export function buildEvent(overrides: Partial<MockEvent> = {}): MockEvent {
@@ -103,14 +109,63 @@ export function buildEvent(overrides: Partial<MockEvent> = {}): MockEvent {
     timeFrom: "18:00",
     timeTo: "20:00",
     location: "Schießstand A",
+    title: null,
     description: "Training",
+    cost: null,
+    capacity: null,
     latitude: 50.0,
     longitude: 10.0,
     type: "TRAINING",
-    visible: true,
+    visibility: "PUBLIC",
     createdById: "admin-1",
     createdAt: new Date("2026-01-01T00:00:00Z"),
     updatedAt: new Date("2026-01-01T00:00:00Z"),
+    ...overrides,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Event als API-Response (JSON-serialisiert, wie ihn /api/events/[id] liefert)
+// ---------------------------------------------------------------------------
+
+export interface MockEventResponse {
+  id: string;
+  date: string;
+  timeFrom: string;
+  timeTo: string;
+  location: string;
+  locationDisplay?: string;
+  title?: string | null;
+  cost?: string | null;
+  capacity?: number | null;
+  description: string;
+  type?: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  createdAt: string;
+  updatedAt: string;
+  votes: Array<{ id: string; vote: string; user: { id: string; name: string | null } }>;
+  voteCounts: { JA: number; NEIN: number; VIELLEICHT: number };
+  userVote?: string | null;
+  guestRegistrations?: MockGuestRegistration[];
+}
+
+export function buildEventResponse(
+  overrides: Partial<MockEventResponse> = {},
+): MockEventResponse {
+  return {
+    id: "1",
+    date: "2026-02-15T18:00:00.000Z",
+    timeFrom: "18:00",
+    timeTo: "20:00",
+    location: "Test Location",
+    description: "Test Description",
+    latitude: null,
+    longitude: null,
+    createdAt: "2026-01-31T10:00:00.000Z",
+    updatedAt: "2026-01-31T10:00:00.000Z",
+    votes: [],
+    voteCounts: { JA: 0, NEIN: 0, VIELLEICHT: 0 },
     ...overrides,
   };
 }
@@ -341,7 +396,8 @@ export interface MockPoll {
   createdById: string | null;
   createdAt: Date;
   updatedAt: Date;
-  options?: MockPollOption[];
+  // Tests überschreiben Optionen oft nur teilweise (z. B. { id: "opt-1" })
+  options?: Array<Partial<MockPollOption>>;
   votes?: Array<{ optionId: string }>;
   event?: { id: string; date: Date; description: string } | null;
   _count?: { votes: number };

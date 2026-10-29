@@ -1,33 +1,20 @@
 import { prisma } from "@/lib/prisma";
 import { runMaintenanceCleanup } from "@/lib/maintenance-worker";
 
-jest.mock("@/lib/prisma", () => ({
-  prisma: {
-    outgoingEmail: {
-      updateMany: jest.fn(),
-    },
-    passwordReset: {
-      deleteMany: jest.fn(),
-    },
-    invitation: {
-      deleteMany: jest.fn(),
-    },
-    eventReminderDispatch: {
-      deleteMany: jest.fn(),
-    },
-  },
-}));
+jest.mock("@/lib/prisma", () =>
+  jest.requireActual<typeof import("./helpers/prisma-mock")>("./helpers/prisma-mock").prismaModuleMock,
+);
 
-jest.mock("@/lib/logger", () => ({
-  logInfo: jest.fn(),
-  logError: jest.fn(),
-}));
+jest.mock("@/lib/logger", () =>
+  jest.requireActual<typeof import("./helpers/logger-mock")>("./helpers/logger-mock").mockLogger,
+);
 
 const mockedPrisma = prisma as unknown as {
   outgoingEmail: { updateMany: jest.Mock };
   passwordReset: { deleteMany: jest.Mock };
   invitation: { deleteMany: jest.Mock };
   eventReminderDispatch: { deleteMany: jest.Mock };
+  absence: { deleteMany: jest.Mock };
 };
 
 describe("runMaintenanceCleanup", () => {
@@ -39,6 +26,7 @@ describe("runMaintenanceCleanup", () => {
     mockedPrisma.passwordReset.deleteMany.mockResolvedValue({ count: 3 });
     mockedPrisma.invitation.deleteMany.mockResolvedValue({ count: 1 });
     mockedPrisma.eventReminderDispatch.deleteMany.mockResolvedValue({ count: 4 });
+    mockedPrisma.absence.deleteMany.mockResolvedValue({ count: 5 });
   });
 
   it("clears attachment blobs only for terminal emails older than 30 days", async () => {
@@ -93,14 +81,23 @@ describe("runMaintenanceCleanup", () => {
     });
   });
 
-  it("deletes reminder dispatches only when both tokens are long expired", async () => {
+  it("deletes reminder dispatches only when both tokens are long expired and the event is long past", async () => {
     await runMaintenanceCleanup(now);
 
     expect(mockedPrisma.eventReminderDispatch.deleteMany).toHaveBeenCalledWith({
       where: {
         rsvpTokenExpiresAt: { lt: new Date("2026-06-09T12:00:00.000Z") },
         unsubscribeTokenExpiresAt: { lt: new Date("2026-06-09T12:00:00.000Z") },
+        event: { date: { lt: new Date("2026-06-09T12:00:00.000Z") } },
       },
+    });
+  });
+
+  it("deletes absences that ended more than 30 Berlin calendar days ago", async () => {
+    await runMaintenanceCleanup(new Date("2026-07-09T23:30:00.000Z"));
+
+    expect(mockedPrisma.absence.deleteMany).toHaveBeenCalledWith({
+      where: { endDate: { lt: new Date(2026, 5, 10) } },
     });
   });
 
@@ -113,6 +110,7 @@ describe("runMaintenanceCleanup", () => {
       deletedPasswordResets: 3,
       deletedInvitations: 1,
       deletedReminderDispatches: 4,
+      deletedAbsences: 5,
     });
   });
 });

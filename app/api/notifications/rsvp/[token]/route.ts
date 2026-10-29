@@ -1,23 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { VoteType } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import {
-  getClientIp,
-  getNoCacheHeaders,
-  handleRateLimitBlocked,
-  parseJsonBody,
-  validateRequestBody,
-  withApiErrorHandling,
-  validateCsrfHeaders,
-  checkTokenRateLimitWithPolicy,
-  recordSuccessfulTokenUsageWithPolicy,
-} from "@/lib/api-utils";
-import { hashNotificationToken } from "@/lib/notifications";
+import { getNoCacheHeaders } from "@/lib/api-error-handler";
+import { parseAndValidateBody } from "@/lib/request-body-parser";
+import { recordSuccessfulTokenUsageWithPolicy, withTokenRateLimit } from "@/lib/api-utils";
+import { hashNotificationToken } from "@/lib/reminders/notifications";
 import { formatDateForStorage } from "@/lib/date-picker-utils";
 import { validateVote } from "@/lib/event-validation";
 import { isEventInPast } from "@/lib/date-utils";
 import { logResourceNotFound, logValidationFailure, maskToken } from "@/lib/logger";
 import { Permissions } from "@/lib/permissions";
+import { canView } from "@/lib/visibility";
+
+const ROUTE = "/api/notifications/rsvp/[token]";
 
 type VoteRequest = { vote?: string };
 const voteSchema = {
@@ -32,6 +27,7 @@ async function findValidDispatch(token: string) {
       event: {
         select: {
           id: true,
+          title: true,
           date: true,
           timeFrom: true,
           timeTo: true,
@@ -40,7 +36,7 @@ async function findValidDispatch(token: string) {
           latitude: true,
           longitude: true,
           type: true,
-          visible: true,
+          visibility: true,
         },
       },
       user: {
@@ -61,46 +57,26 @@ async function findValidDispatch(token: string) {
     return { dispatch: null, tokenHash, status: 410 };
   }
 
+  if (!canView(dispatch.event.visibility, true)) {
+    return { dispatch: null, tokenHash, status: 404 };
+  }
+
   return { dispatch, tokenHash, status: 200 };
 }
 
-export const GET = withApiErrorHandling(async (
-  request: NextRequest,
-  ctx: RouteContext<"/api/notifications/rsvp/[token]">
-) => {
-  const { token } = await ctx.params;
-  if (!token) {
-    return NextResponse.json({ error: "Ungültiger Link" }, { status: 400 });
-  }
-
-  const clientIp = getClientIp(request);
-  const tokenHash = hashNotificationToken(token);
-  const rateLimitResult = await checkTokenRateLimitWithPolicy(
-    "/api/notifications/rsvp/[token]",
-    "GET",
-    clientIp,
-    tokenHash,
-    maskToken(token)
-  );
-
-  if (!rateLimitResult.allowed) {
-    return handleRateLimitBlocked(
-      "notification_rsvp_get_rate_limited",
-      "/api/notifications/rsvp/[token]",
-      tokenHash,
-      clientIp,
-      rateLimitResult.blockedUntil,
-      rateLimitResult.attemptCount
-    );
-  }
-
+export const GET = withTokenRateLimit({
+  route: ROUTE,
+  method: "GET",
+  action: "notification_rsvp_get_rate_limited",
+  hashToken: hashNotificationToken,
+  invalidTokenMessage: "Ungültiger Link",
+}, async (_request: NextRequest, { token, tokenHash, clientIp }) => {
   const { dispatch, status } = await findValidDispatch(token);
-  if (!dispatch || !dispatch.event.visible) {
-    logResourceNotFound("event_reminder_dispatch", maskToken(token), "/api/notifications/rsvp/[token]", "GET");
-    const responseStatus = dispatch && !dispatch.event.visible ? 404 : status;
+  if (!dispatch) {
+    logResourceNotFound("event_reminder_dispatch", maskToken(token), ROUTE, "GET");
     return NextResponse.json(
       { error: "Link ist ungültig oder abgelaufen" },
-      { status: responseStatus, headers: getNoCacheHeaders() }
+      { status, headers: getNoCacheHeaders() }
     );
   }
 
@@ -118,7 +94,7 @@ export const GET = withApiErrorHandling(async (
   });
 
   await recordSuccessfulTokenUsageWithPolicy(
-    "/api/notifications/rsvp/[token]",
+    ROUTE,
     "GET",
     tokenHash,
     clientIp,
@@ -138,54 +114,22 @@ export const GET = withApiErrorHandling(async (
     },
     { headers: getNoCacheHeaders() }
   );
-}, { route: "/api/notifications/rsvp/[token]", method: "GET" });
+});
 
-export const POST = withApiErrorHandling(async (
-  request: NextRequest,
-  ctx: RouteContext<"/api/notifications/rsvp/[token]">
-) => {
-  validateCsrfHeaders(request);
-
-  const { token } = await ctx.params;
-  if (!token) {
-    return NextResponse.json({ error: "Ungültiger Link" }, { status: 400 });
-  }
-
-  const clientIp = getClientIp(request);
-  const tokenHash = hashNotificationToken(token);
-  const rateLimitResult = await checkTokenRateLimitWithPolicy(
-    "/api/notifications/rsvp/[token]",
-    "POST",
-    clientIp,
-    tokenHash,
-    maskToken(token)
-  );
-
-  if (!rateLimitResult.allowed) {
-    return handleRateLimitBlocked(
-      "notification_rsvp_post_rate_limited",
-      "/api/notifications/rsvp/[token]",
-      tokenHash,
-      clientIp,
-      rateLimitResult.blockedUntil,
-      rateLimitResult.attemptCount
-    );
-  }
-
-  const body = await parseJsonBody<VoteRequest>(request);
-  const bodyValidation = validateRequestBody(
-    body,
-    voteSchema,
-    { route: "/api/notifications/rsvp/[token]", method: "POST" }
-  );
-  if (!bodyValidation.isValid) {
-    return NextResponse.json({ error: bodyValidation.errors.join(". ") }, { status: 400 });
-  }
+export const POST = withTokenRateLimit({
+  route: ROUTE,
+  method: "POST",
+  action: "notification_rsvp_post_rate_limited",
+  hashToken: hashNotificationToken,
+  requireCsrf: true,
+  invalidTokenMessage: "Ungültiger Link",
+}, async (request: NextRequest, { token, tokenHash, clientIp }) => {
+  const body = await parseAndValidateBody<VoteRequest>(request, voteSchema, { route: ROUTE, method: "POST" });
   const { vote } = body;
 
   if (!vote || !validateVote(vote)) {
     logValidationFailure(
-      "/api/notifications/rsvp/[token]",
+      ROUTE,
       "POST",
       "Ungültige Teilnahmeanmeldung. Erlaubt sind: JA, NEIN, VIELLEICHT"
     );
@@ -196,11 +140,10 @@ export const POST = withApiErrorHandling(async (
   }
 
   const { dispatch, status } = await findValidDispatch(token);
-  if (!dispatch || !dispatch.event.visible) {
-    const responseStatus = dispatch && !dispatch.event.visible ? 404 : status;
+  if (!dispatch) {
     return NextResponse.json(
       { error: "Link ist ungültig oder abgelaufen" },
-      { status: responseStatus, headers: getNoCacheHeaders() }
+      { status, headers: getNoCacheHeaders() }
     );
   }
 
@@ -242,7 +185,7 @@ export const POST = withApiErrorHandling(async (
   });
 
   await recordSuccessfulTokenUsageWithPolicy(
-    "/api/notifications/rsvp/[token]",
+    ROUTE,
     "POST",
     tokenHash,
     clientIp,
@@ -250,4 +193,4 @@ export const POST = withApiErrorHandling(async (
   );
 
   return NextResponse.json(savedVote, { headers: getNoCacheHeaders() });
-}, { route: "/api/notifications/rsvp/[token]", method: "POST" });
+});

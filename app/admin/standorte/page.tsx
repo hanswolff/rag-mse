@@ -1,12 +1,14 @@
 "use client";
 
 import { useSession } from "next-auth/react";
+import { canManageAdminArea } from "@/lib/role-utils";
 import { useRangeManagement } from "@/lib/use-range-management";
 import { RangeFormModal } from "@/components/range-form-modal";
 import { BackLink } from "@/components/back-link";
 import { LoadingScreen } from "@/components/loading-screen";
 import type { ShootingRangeItem } from "@/types";
 import { AlertBox } from "@/components/alert-box";
+import { PencilIcon, TrashIcon } from "@/components/icons";
 
 function formatAddress(range: ShootingRangeItem): string {
   const line1 = range.street || "";
@@ -16,8 +18,9 @@ function formatAddress(range: ShootingRangeItem): string {
 }
 
 export default function StandortePage() {
-  const { status } = useSession();
+  const { data: session, status } = useSession();
   const rangeManagement = useRangeManagement();
+  const canManage = canManageAdminArea(session?.user);
 
   if (status === "loading" || rangeManagement.isLoading) {
     return <LoadingScreen />;
@@ -57,9 +60,11 @@ export default function StandortePage() {
               Verwalten Sie Standorte und deren Adressdaten.
             </p>
           </div>
-          <button onClick={openCreateModal} className="btn-primary whitespace-nowrap">
-            + Neuer Standort
-          </button>
+          {canManage && (
+            <button onClick={openCreateModal} className="btn-primary whitespace-nowrap">
+              + Neuer Standort
+            </button>
+          )}
         </div>
 
         <AlertBox type="success" message={success} className="mb-4" />
@@ -70,7 +75,7 @@ export default function StandortePage() {
 
         {ranges.length === 0 ? (
           <div className="card text-center text-gray-500 py-12">
-            Keine Standorte vorhanden. Erstellen Sie den ersten Standort.
+            Keine Standorte vorhanden.{canManage && " Erstellen Sie den ersten Standort."}
           </div>
         ) : (
           <div className="space-y-3">
@@ -88,22 +93,26 @@ export default function StandortePage() {
                     {range.latitude.toFixed(4)}, {range.longitude.toFixed(4)}
                   </p>
                 </div>
-                <div className="flex gap-2 shrink-0">
-                  <button
-                    onClick={() => startEditingRange(range)}
-                    className="btn-icon"
-                    title="Bearbeiten"
-                  >
-                    ✏️
-                  </button>
-                  <button
-                    onClick={() => handleDeleteRange(range.id)}
-                    className="btn-icon-danger"
-                    title="Löschen"
-                  >
-                    🗑️
-                  </button>
-                </div>
+                {canManage && (
+                  <div className="flex gap-2 shrink-0">
+                    <button
+                      onClick={() => startEditingRange(range)}
+                      className="btn-icon"
+                      aria-label={`Standort bearbeiten: ${range.name}`}
+                      title="Bearbeiten"
+                    >
+                      <PencilIcon className="h-4 w-4" />
+                    </button>
+                    <button
+                      onClick={() => handleDeleteRange(range.id)}
+                      className="btn-icon-danger"
+                      aria-label={`Standort löschen: ${range.name}`}
+                      title="Löschen"
+                    >
+                      <TrashIcon className="h-4 w-4" />
+                    </button>
+                  </div>
+                )}
               </div>
             ))}
           </div>

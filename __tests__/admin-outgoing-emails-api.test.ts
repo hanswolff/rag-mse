@@ -4,18 +4,11 @@ import { GET } from "@/app/api/admin/outgoing-emails/route";
 import { POST } from "@/app/api/admin/outgoing-emails/[id]/retry/route";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin, requireAuth } from "@/lib/auth-utils";
-import { processDueEmailOutboxBatch } from "@/lib/email-sender";
+import { processDueEmailOutboxBatch } from "@/lib/email/outbox-worker";
 
-jest.mock("@/lib/prisma", () => ({
-  prisma: {
-    outgoingEmail: {
-      findMany: jest.fn(),
-      count: jest.fn(),
-      findUnique: jest.fn(),
-      update: jest.fn(),
-    },
-  },
-}));
+jest.mock("@/lib/prisma", () =>
+  jest.requireActual<typeof import("./helpers/prisma-mock")>("./helpers/prisma-mock").prismaModuleMock,
+);
 
 jest.mock("@/lib/auth-utils", () => ({
   requireAdmin: jest.fn(),
@@ -28,7 +21,7 @@ jest.mock("@/lib/auth-utils", () => ({
   },
 }));
 
-jest.mock("@/lib/email-sender", () => ({
+jest.mock("@/lib/email/outbox-worker", () => ({
   processDueEmailOutboxBatch: jest.fn(),
 }));
 

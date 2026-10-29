@@ -39,6 +39,13 @@ der Policy steht, ignorieren Browser `'unsafe-inline'`. Die Seiten blieben sicht
 aber ohne Menü, ohne Formularinteraktion — genau der stille Totalausfall, wegen dem
 das Ticket auf `ready-for-human` stand.
 
+## Entscheidung (30.09.2026)
+
+**Wir bleiben beim Ist-Zustand (Option 3).** Report-Only mit Nonce läuft weiter, erzwungen bleibt
+`'unsafe-inline'`. Statische Seiten dynamisch zu machen, lohnt sich bei der geringen Risikolage nicht.
+Neu bewerten, falls einmal Nicht-Administratoren HTML verfassen dürfen oder Next Nonces für
+statische Seiten unterstützt. Die folgenden Abschnitte bleiben als Grundlage dafür stehen.
+
 ## Was vor dem Erzwingen zu klären ist
 
 1. **Statische Seiten dynamisch machen?** `export const dynamic = "force-dynamic"`

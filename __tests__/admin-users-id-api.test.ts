@@ -3,26 +3,16 @@ import { PATCH } from "@/app/api/admin/users/[id]/route";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/auth-utils";
 
-jest.mock("@/lib/prisma", () => ({
-  prisma: {
-    user: {
-      findUnique: jest.fn(),
-      update: jest.fn(),
-    },
-    $transaction: jest.fn(),
-  },
-}));
+jest.mock("@/lib/prisma", () =>
+  jest.requireActual<typeof import("./helpers/prisma-mock")>("./helpers/prisma-mock").prismaModuleMock,
+);
 
 jest.mock("@/lib/auth-utils", () => ({
   requireAdmin: jest.fn(),
 }));
 
-jest.mock("@/lib/api-utils", () => ({
-  parseJsonBody: jest.fn(async (req: NextRequest) => req.json()),
-  withApiErrorHandling: jest.fn((handler: unknown) => handler),
-  validateCsrfHeaders: jest.fn(),
-  validateRequestBody: jest.fn(() => ({ isValid: true, errors: [] })),
-}));
+// @/lib/api-utils läuft bewusst ungemockt: CSRF-Prüfung, Body-Validierung und
+// Error-Mapping der echten Route werden mitgetestet (Header siehe browserHeaders).
 
 jest.mock("@/lib/audit-log", () => ({
   logAdminAction: jest.fn(),
@@ -31,6 +21,13 @@ jest.mock("@/lib/audit-log", () => ({
 jest.mock("@/lib/role-change-email", () => ({
   sendRoleChangeEmail: jest.fn().mockResolvedValue(undefined),
 }));
+
+// Browser-typische Header, damit die echte CSRF-Prüfung durchlaufen wird
+const browserHeaders = {
+  "Content-Type": "application/json",
+  Origin: "http://localhost:3000",
+  "User-Agent": "Mozilla/5.0 (jest)",
+};
 
 describe("PATCH /api/admin/users/[id]", () => {
   beforeEach(() => {
@@ -47,7 +44,7 @@ describe("PATCH /api/admin/users/[id]", () => {
 
     const request = new NextRequest("http://localhost:3000/api/admin/users/site-admin-1", {
       method: "PATCH",
-      headers: { "Content-Type": "application/json" },
+      headers: browserHeaders,
       body: JSON.stringify({ name: "Neuer Name" }),
     });
 
@@ -64,7 +61,7 @@ describe("PATCH /api/admin/users/[id]", () => {
 
     const request = new NextRequest("http://localhost:3000/api/admin/users/missing", {
       method: "PATCH",
-      headers: { "Content-Type": "application/json" },
+      headers: browserHeaders,
       body: JSON.stringify({ name: "Egal" }),
     });
 
@@ -84,7 +81,7 @@ describe("PATCH /api/admin/users/[id]", () => {
 
     const request = new NextRequest("http://localhost:3000/api/admin/users/user-1", {
       method: "PATCH",
-      headers: { "Content-Type": "application/json" },
+      headers: browserHeaders,
       body: JSON.stringify({ email: "Belegt@Example.com" }),
     });
 
@@ -123,7 +120,7 @@ describe("PATCH /api/admin/users/[id]", () => {
 
     const request = new NextRequest("http://localhost:3000/api/admin/users/user-1", {
       method: "PATCH",
-      headers: { "Content-Type": "application/json" },
+      headers: browserHeaders,
       body: JSON.stringify({ email: "  Neu@Example.com ", name: "  Neuer Name  " }),
     });
 
@@ -159,7 +156,7 @@ describe("PATCH /api/admin/users/[id]", () => {
 
     const request = new NextRequest("http://localhost:3000/api/admin/users/admin-1", {
       method: "PATCH",
-      headers: { "Content-Type": "application/json" },
+      headers: browserHeaders,
       body: JSON.stringify({ role: "MEMBER" }),
     });
 
@@ -180,7 +177,7 @@ describe("PATCH /api/admin/users/[id]", () => {
 
     const request = new NextRequest("http://localhost:3000/api/admin/users/user-1", {
       method: "PATCH",
-      headers: { "Content-Type": "application/json" },
+      headers: browserHeaders,
       body: JSON.stringify({ role: "SITE_ADMINISTRATOR" }),
     });
 
@@ -188,7 +185,7 @@ describe("PATCH /api/admin/users/[id]", () => {
     const data = await response.json();
 
     expect(response.status).toBe(403);
-    expect(data.error).toBe("Die Rolle SiteAdministrator darf nicht vergeben werden");
+    expect(data.error).toBe("Die Rolle Site-Administrator darf nicht vergeben werden");
     expect(prisma.user.update).not.toHaveBeenCalled();
   });
 });

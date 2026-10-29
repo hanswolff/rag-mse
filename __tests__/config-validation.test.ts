@@ -4,7 +4,7 @@ import { validateProductionConfig } from "../lib/config-validation";
 // Prozessumgebung (deploy.sh exportiert zusätzlich die komplette .env), daher
 // muss jeder dieser Namen vor jedem Test entfernt werden: Sonst entscheidet die
 // Host-Konfiguration über das Ergebnis statt der Test-Setup-Code — ein gesetztes
-// SEED_ADMIN_NAME ließ z.B. die "alle oder keine"-Prüfung scheinbar bestehen.
+// SEED_ADMIN_NAME ließ z. B. die "alle oder keine"-Prüfung scheinbar bestehen.
 const VALIDIERTE_ENV_VARIABLEN = [
   "DEVELOPMENT_DEPLOYMENT",
   "NEXTAUTH_SECRET",
@@ -28,7 +28,7 @@ const VALIDIERTE_ENV_VARIABLEN = [
   "SEED_ADMIN_PASSWORD",
   "SEED_ADMIN_NAME",
   "ALLOW_DB_SEED",
-  "ALLOW_DB_PUSH",
+  "DATABASE_URL",
 ] as const;
 
 describe("Configuration Validation", () => {
@@ -46,6 +46,7 @@ describe("Configuration Validation", () => {
     process.env.SMTP_PASSWORD = "password";
     process.env.SMTP_FROM = "noreply@example.com";
     process.env.ADMIN_EMAILS = "admin@example.com";
+    process.env.DATABASE_URL = "file:/app/data/prod.db";
     Object.assign(process.env, overrides);
   };
 
@@ -230,13 +231,6 @@ describe("Configuration Validation", () => {
       expect(result.errors.some(e => e.includes("SEED_ADMIN_EMAIL") && e.includes("gültiges E-Mail-Format"))).toBe(true);
     });
 
-    it("should validate ALLOW_DB_PUSH flag format", () => {
-      setProductionEnv({ ALLOW_DB_PUSH: "invalid" });
-      const result = validateProductionConfig();
-      expect(result.isValid).toBe(true);
-      expect(result.warnings.some(w => w.includes("ALLOW_DB_PUSH") && w.includes("ungültigen Wert"))).toBe(true);
-    });
-
     it("should validate ALLOW_DB_SEED flag format", () => {
       setProductionEnv({ ALLOW_DB_SEED: "yes" });
       const result = validateProductionConfig();
@@ -244,11 +238,25 @@ describe("Configuration Validation", () => {
       expect(result.warnings.some(w => w.includes("ALLOW_DB_SEED") && w.includes("ungültigen Wert"))).toBe(true);
     });
 
-    it("should accept true/false values for ALLOW_DB_PUSH", () => {
-      setProductionEnv({ ALLOW_DB_PUSH: "true", ALLOW_DB_SEED: "false" });
+    it("should accept true/false values for ALLOW_DB_SEED", () => {
+      setProductionEnv({ ALLOW_DB_SEED: "false" });
       const result = validateProductionConfig();
       expect(result.isValid).toBe(true);
       expect(result.warnings).toHaveLength(0);
+    });
+
+    it("should require DATABASE_URL in production", () => {
+      setProductionEnv({ DATABASE_URL: "" });
+      const result = validateProductionConfig();
+      expect(result.isValid).toBe(false);
+      expect(result.errors.some(e => e.includes("DATABASE_URL") && e.includes("muss in Produktion gesetzt sein"))).toBe(true);
+    });
+
+    it.each(["postgres://db.example/rag", "file:"])("should reject non-SQLite DATABASE_URL %s", (databaseUrl) => {
+      setProductionEnv({ DATABASE_URL: databaseUrl });
+      const result = validateProductionConfig();
+      expect(result.isValid).toBe(false);
+      expect(result.errors.some(e => e.includes("DATABASE_URL") && e.includes("file:-URL"))).toBe(true);
     });
 
     it("should reject invalid APP_UID values", () => {

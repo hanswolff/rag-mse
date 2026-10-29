@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { appName } from "@/lib/site-config";
 import { prisma } from "@/lib/prisma";
+import { canView } from "@/lib/visibility";
 import { formatDate, formatTime } from "@/lib/date-utils";
 import { decodeHtmlEntities, stripEventDescriptionText } from "@/lib/event-description";
 
@@ -33,12 +34,12 @@ export async function generateMetadata({
       location: true,
       title: true,
       description: true,
-      visible: true,
+      visibility: true,
       updatedAt: true,
     },
   });
 
-  if (!event || !event.visible) {
+  if (!event || !canView(event.visibility, false)) {
     return {
       title: "Termin",
       robots: "noindex, nofollow",

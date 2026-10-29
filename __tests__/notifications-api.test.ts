@@ -3,14 +3,9 @@ import { GET, PUT } from "@/app/api/user/notifications/route";
 import { prisma } from "@/lib/prisma";
 import { requireMember } from "@/lib/auth-utils";
 
-jest.mock("@/lib/prisma", () => ({
-  prisma: {
-    user: {
-      findUnique: jest.fn(),
-      update: jest.fn(),
-    },
-  },
-}));
+jest.mock("@/lib/prisma", () =>
+  jest.requireActual<typeof import("./helpers/prisma-mock")>("./helpers/prisma-mock").prismaModuleMock,
+);
 
 jest.mock("@/lib/auth-utils", () => ({
   requireMember: jest.fn(),

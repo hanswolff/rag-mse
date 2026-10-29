@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireMember } from "@/lib/auth-utils";
 import { serveDocumentFile } from "@/lib/document-response";
-import { withApiErrorHandling } from "@/lib/api-utils";
+import { withApiErrorHandling } from "@/lib/api-error-handler";
 import { logResourceNotFound } from "@/lib/logger";
 import { DocumentArea } from "@prisma/client";
 

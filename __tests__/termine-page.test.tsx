@@ -1,5 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import TerminePage from "@/app/termine/page";
+import { buildEvent } from "./helpers/factories";
 import { getServerSession } from "next-auth";
 import { prisma } from "@/lib/prisma";
 
@@ -7,17 +8,9 @@ jest.mock("next-auth", () => ({
   getServerSession: jest.fn(),
 }));
 
-jest.mock("@/lib/prisma", () => ({
-  prisma: {
-    event: {
-      findMany: jest.fn(),
-      count: jest.fn(),
-    },
-    shootingRange: {
-      findMany: jest.fn(),
-    },
-  },
-}));
+jest.mock("@/lib/prisma", () =>
+  jest.requireActual<typeof import("./helpers/prisma-mock")>("./helpers/prisma-mock").prismaModuleMock,
+);
 
 describe("TerminePage", () => {
   beforeEach(() => {
@@ -45,16 +38,13 @@ describe("TerminePage", () => {
 
   it("renders events and pagination", async () => {
     (prisma.event.findMany as jest.Mock).mockResolvedValue([
-      {
+      buildEvent({
         id: "e1",
         date: new Date("2026-02-15T00:00:00.000Z"),
-        timeFrom: "18:00",
-        timeTo: "20:00",
         location: "Stand A",
         description: "Training",
         type: "Training",
-        visible: true,
-      },
+      }),
     ]);
     (prisma.event.count as jest.Mock).mockResolvedValue(21);
 
@@ -69,17 +59,14 @@ describe("TerminePage", () => {
 
   it("shows the title as heading and keeps date and time visible", async () => {
     (prisma.event.findMany as jest.Mock).mockResolvedValue([
-      {
+      buildEvent({
         id: "e1",
         date: new Date("2026-02-15T00:00:00.000Z"),
-        timeFrom: "18:00",
-        timeTo: "20:00",
         location: "Stand A",
         title: "Dynamisches Pistolenschießen Level 1",
         description: "Beschreibung",
         type: "Lehrgang",
-        visible: true,
-      },
+      }),
     ]);
     (prisma.event.count as jest.Mock).mockResolvedValue(1);
 
@@ -94,17 +81,13 @@ describe("TerminePage", () => {
 
   it("keeps the date as heading when no title is set", async () => {
     (prisma.event.findMany as jest.Mock).mockResolvedValue([
-      {
+      buildEvent({
         id: "e1",
         date: new Date("2026-02-15T00:00:00.000Z"),
-        timeFrom: "18:00",
-        timeTo: "20:00",
         location: "Stand A",
-        title: null,
         description: "Beschreibung",
         type: null,
-        visible: true,
-      },
+      }),
     ]);
     (prisma.event.count as jest.Mock).mockResolvedValue(1);
 
@@ -117,16 +100,15 @@ describe("TerminePage", () => {
 
   it("renders each Terminart with a visually distinct badge", async () => {
     (prisma.event.findMany as jest.Mock).mockResolvedValue(
-      ["Training", "Wettkampf", "Lehrgang"].map((type, index) => ({
-        id: `e${index}`,
-        date: new Date("2026-02-15T00:00:00.000Z"),
-        timeFrom: "18:00",
-        timeTo: "20:00",
-        location: "Stand A",
-        description: "Beschreibung",
-        type,
-        visible: true,
-      }))
+      ["Training", "Wettkampf", "Lehrgang"].map((type, index) =>
+        buildEvent({
+          id: `e${index}`,
+          date: new Date("2026-02-15T00:00:00.000Z"),
+          location: "Stand A",
+          description: "Beschreibung",
+          type,
+        })
+      )
     );
     (prisma.event.count as jest.Mock).mockResolvedValue(3);
 
@@ -141,20 +123,16 @@ describe("TerminePage", () => {
   });
 
   describe("Belegung", () => {
-    const eventWithCapacity = {
+    const eventWithCapacity = buildEvent({
       id: "e1",
       date: new Date("2026-02-15T00:00:00.000Z"),
-      timeFrom: "18:00",
-      timeTo: "20:00",
       location: "Stand A",
-      title: null,
       description: "Beschreibung",
       type: "Lehrgang",
-      visible: true,
       capacity: 12,
       votes: [{ vote: "JA" }, { vote: "JA" }, { vote: "VIELLEICHT" }],
       guestRegistrations: [{ vote: "JA" }],
-    };
+    });
 
     it("shows the occupancy to logged-in users, counting guests", async () => {
       (getServerSession as jest.Mock).mockResolvedValue({ user: { id: "m1", role: "MEMBER" } });
@@ -177,24 +155,20 @@ describe("TerminePage", () => {
       const view = await TerminePage({ searchParams: Promise.resolve({}) });
       render(view);
 
-      expect(screen.getByText("3-4 Anmeldungen")).toBeInTheDocument();
+      expect(screen.getByText("3–4 Anmeldungen")).toBeInTheDocument();
       expect(screen.queryByText(/belegt/)).not.toBeInTheDocument();
     });
 
     it("hides the occupancy from visitors without login", async () => {
       (getServerSession as jest.Mock).mockResolvedValue(null);
       (prisma.event.findMany as jest.Mock).mockResolvedValue([
-        {
+        buildEvent({
           id: "e1",
           date: new Date("2026-02-15T00:00:00.000Z"),
-          timeFrom: "18:00",
-          timeTo: "20:00",
           location: "Stand A",
-          title: null,
           description: "Beschreibung",
           type: "Lehrgang",
-          visible: true,
-        },
+        }),
       ]);
       (prisma.event.count as jest.Mock).mockResolvedValue(1);
 

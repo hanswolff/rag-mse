@@ -3,16 +3,15 @@ import { notFound } from "next/navigation";
 import { getServerSession } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import { formatDate } from "@/lib/date-utils";
-import { isAdmin } from "@/lib/role-utils";
+import { canManageAdminArea } from "@/lib/role-utils";
 import { authOptions } from "@/lib/auth";
 import { BackLink } from "@/components/back-link";
-import { appName } from "@/lib/site-config";
+import { appName, siteUrl } from "@/lib/site-config";
 import { serializeJsonLd } from "@/lib/json-ld";
 
 export { generateMetadata } from "./metadata";
 
 export const revalidate = 300;
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://rag-mse.de";
 
 export default async function NewsDetailPage({
   params,
@@ -65,7 +64,7 @@ export default async function NewsDetailPage({
           <BackLink href="/news" className="inline-flex items-center">
             Zurück zur News-Übersicht
           </BackLink>
-          {session && isAdmin(session.user) && (
+          {session && canManageAdminArea(session.user) && (
             <Link
               href={`/admin/news/${id}/edit`}
               className="btn-primary text-base w-full sm:w-auto"

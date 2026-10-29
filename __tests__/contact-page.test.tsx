@@ -213,7 +213,7 @@ describe("ContactPage", () => {
     await waitFor(() => {
       const button = screen.getByRole("button");
       expect(button).toBeDisabled();
-      expect(button).toHaveTextContent("Wird gesendet...");
+      expect(button).toHaveTextContent("Wird gesendet…");
       expect(nameInput).toBeDisabled();
       expect(emailInput).toBeDisabled();
       expect(messageInput).toBeDisabled();

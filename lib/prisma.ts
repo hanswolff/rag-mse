@@ -1,15 +1,20 @@
 import { PrismaClient } from "@prisma/client";
 import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
+import { serializedSqliteAdapter } from "@/lib/serialized-sqlite-adapter";
 
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;
   prismaPragmasApplied: boolean | undefined;
 };
 
-const databaseUrl = process.env.DATABASE_URL ?? "file:./data/prod.db";
+const databaseUrl = process.env.DATABASE_URL || "file:./data/prod.db";
 // timeout = better-sqlite3 busy_timeout in ms: Schreibkonflikte warten,
-// statt sofort mit SQLITE_BUSY zu scheitern
-const adapter = new PrismaBetterSqlite3({ url: databaseUrl, timeout: 10_000 });
+// statt sofort mit SQLITE_BUSY zu scheitern.
+// Serialisiert, weil der Adapter nur eine Verbindung hat: Abfragen außerhalb
+// einer Transaktion liefen sonst in deren offenes BEGIN (ADR 0012).
+const adapter = serializedSqliteAdapter(
+  new PrismaBetterSqlite3({ url: databaseUrl, timeout: 10_000 })
+);
 
 export const prisma =
   globalForPrisma.prisma ??

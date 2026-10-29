@@ -9,13 +9,13 @@ import {
 import { GET as getEvents } from "@/app/api/events/route";
 import { GET as getEvent } from "@/app/api/events/[id]/route";
 import { GET as getRsvp, POST as postRsvp } from "@/app/api/notifications/rsvp/[token]/route";
-import { processEventReminders } from "@/lib/event-reminder-worker";
+import { processEventReminders } from "@/lib/reminders/event-reminder-worker";
 import {
   EVENT_REMINDER_EMAIL_TEMPLATE,
   generateNotificationToken,
   getNotificationTokenExpiryDate,
   hashNotificationToken,
-} from "@/lib/notifications";
+} from "@/lib/reminders/notifications";
 import { parseSensitiveTokens } from "@/lib/email/redact";
 import { getRegistrationRange } from "@/lib/registration-count";
 import { apiRequest, routeContext } from "./helpers/api";
@@ -417,9 +417,8 @@ describe("Termin-Erinnerungs-Worker (processEventReminders)", () => {
       data: { userId: voted.id, eventId: event.id, vote: "NEIN" },
     });
 
-    const queued = await processEventReminders(reminderRunTime(eventDay, "10:00", 7));
+    await processEventReminders(reminderRunTime(eventDay, "10:00", 7));
 
-    expect(queued).toBe(1);
     expect(
       await prisma.eventReminderDispatch.count({ where: { eventId: event.id, userId: voted.id } })
     ).toBe(0);
@@ -445,12 +444,14 @@ describe("RSVP-Token-Link ohne Login (/api/notifications/rsvp/[token])", () => {
     const dispatch = await prisma.eventReminderDispatch.findUniqueOrThrow({
       where: { userId_eventId: { userId: user.id, eventId: event.id } },
     });
-    const email = await prisma.outgoingEmail.findFirstOrThrow({
+    // Nachgeholte Erinnerungen zu früher angelegten Terminen gehen an denselben
+    // Empfänger; die passende E-Mail wird über den Token-Hash gefunden.
+    const emails = await prisma.outgoingEmail.findMany({
       where: { template: EVENT_REMINDER_EMAIL_TEMPLATE, toRecipients: user.email },
     });
-    const rsvpToken = parseSensitiveTokens(email.sensitiveTokensJson).find(
-      (token) => hashNotificationToken(token) === dispatch.rsvpTokenHash
-    );
+    const rsvpToken = emails
+      .flatMap((email) => parseSensitiveTokens(email.sensitiveTokensJson))
+      .find((token) => hashNotificationToken(token) === dispatch.rsvpTokenHash);
     expect(rsvpToken).toBeDefined();
 
     logout();
@@ -515,9 +516,9 @@ describe("RSVP-Token-Link ohne Login (/api/notifications/rsvp/[token])", () => {
 // Sichtbarkeit
 // ---------------------------------------------------------------------------
 
-describe("Sichtbarkeit ausgeblendeter Termine (visible = false)", () => {
+describe("Sichtbarkeit verborgener Termine (HIDDEN)", () => {
   it("fehlt in der öffentlichen API (Liste und Detail)", async () => {
-    const hidden = await createEvent({ visible: false });
+    const hidden = await createEvent({ visibility: "HIDDEN" });
     logout();
 
     const listResponse = await getEvents(apiRequest("GET", "/api/events?limit=50"));
@@ -533,7 +534,7 @@ describe("Sichtbarkeit ausgeblendeter Termine (visible = false)", () => {
   });
 
   it("bleibt für eingeloggte Mitglieder unsichtbar (Liste, Detail, Vote)", async () => {
-    const hidden = await createEvent({ visible: false });
+    const hidden = await createEvent({ visibility: "HIDDEN" });
     const member = await createUser();
     loginAs(member);
 
@@ -557,7 +558,7 @@ describe("Sichtbarkeit ausgeblendeter Termine (visible = false)", () => {
   });
 
   it("bleibt im Adminbereich sichtbar (Anmeldungen abrufbar)", async () => {
-    const hidden = await createEvent({ visible: false });
+    const hidden = await createEvent({ visibility: "HIDDEN" });
     await prisma.guestRegistration.create({
       data: { eventId: hidden.id, name: "Gast Ausgeblendet", vote: "JA" },
     });

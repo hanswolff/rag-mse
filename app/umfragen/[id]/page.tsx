@@ -8,40 +8,20 @@ import { LoadingScreen } from "@/components/loading-screen";
 import { useProtectedPage } from "@/lib/use-protected-page";
 import { AlertBox } from "@/components/alert-box";
 import { CopyLinkButton } from "@/components/copy-link-button";
-import { fetchWithTimeout } from "@/lib/fetch-with-timeout";
+import { apiFetch, ApiError, DEFAULT_API_TIMEOUT_MS } from "@/lib/api-fetch";
 import { formatDate } from "@/lib/date-utils";
+import { PollBadge, PollStatusBadge } from "@/components/poll-status-badge";
+import { siteUrl } from "@/lib/site-config";
+import type { Poll } from "@/types";
 
 // Event to notify navigation to refresh poll badge
 const POLL_VOTE_CHANGED_EVENT = "poll-vote-changed";
-
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "";
-
-interface PollOption {
-  id: string;
-  text: string;
-  position: number;
-  _count: { votes: number };
-}
-
-interface PollDetail {
-  id: string;
-  title: string;
-  description: string | null;
-  type: "TERMIN" | "SONSTIGES";
-  status: "LIVE" | "CLOSED";
-  multipleChoice: boolean;
-  shortCode: string | null;
-  options: PollOption[];
-  _count: { votes: number };
-  userVoteOptionIds: string[];
-  event?: { id: string; date: string; timeFrom: string; timeTo: string; location: string; description: string } | null;
-}
 
 export default function PollDetailPage() {
   const router = useRouter();
   const { id } = useParams<{ id: string }>();
   const { status } = useProtectedPage();
-  const [poll, setPoll] = useState<PollDetail | null>(null);
+  const [poll, setPoll] = useState<Poll | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
   const [selectedOptions, setSelectedOptions] = useState<Set<string>>(new Set());
@@ -51,19 +31,17 @@ export default function PollDetailPage() {
 
   const fetchPoll = useCallback(async () => {
     try {
-      const response = await fetchWithTimeout(`/api/polls/${id}`);
-      if (!response.ok) {
-        if (response.status === 404) {
-          router.push("/umfragen");
-          return;
-        }
-        const data = await response.json();
-        throw new Error(data.error || "Fehler beim Laden");
-      }
-      const data = await response.json();
+      const data = await apiFetch<Poll>(`/api/polls/${id}`, {
+        timeoutMs: DEFAULT_API_TIMEOUT_MS,
+        fallbackError: "Fehler beim Laden",
+      });
       setPoll(data);
       setSelectedOptions(new Set(data.userVoteOptionIds));
     } catch (err) {
+      if (err instanceof ApiError && err.status === 404) {
+        router.push("/umfragen");
+        return;
+      }
       setError(err instanceof Error ? err.message : "Ein Fehler ist aufgetreten");
     } finally {
       setIsLoading(false);
@@ -102,16 +80,12 @@ export default function PollDetailPage() {
     setVoteSuccess("");
 
     try {
-      const response = await fetchWithTimeout(`/api/polls/${id}/vote`, {
+      await apiFetch(`/api/polls/${id}/vote`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ optionIds: Array.from(selectedOptions) }),
+        body: { optionIds: Array.from(selectedOptions) },
+        timeoutMs: DEFAULT_API_TIMEOUT_MS,
+        fallbackError: "Fehler beim Abstimmen",
       });
-
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || "Fehler beim Abstimmen");
-      }
 
       setVoteSuccess("Ihre Stimme wurde gespeichert");
       window.dispatchEvent(new CustomEvent(POLL_VOTE_CHANGED_EVENT));
@@ -131,15 +105,12 @@ export default function PollDetailPage() {
     setVoteSuccess("");
 
     try {
-      const response = await fetchWithTimeout(`/api/polls/${id}/vote`, {
+      await apiFetch(`/api/polls/${id}/vote`, {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
+        timeoutMs: DEFAULT_API_TIMEOUT_MS,
+        fallbackError: "Fehler beim Zurückziehen",
       });
-
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || "Fehler beim Zurückziehen");
-      }
 
       setVoteSuccess("Ihre Stimme wurde zurückgezogen");
       setSelectedOptions(new Set());
@@ -197,15 +168,9 @@ export default function PollDetailPage() {
             </Link>
           )}
           <div className="flex items-center gap-2 mt-3 flex-wrap">
-            {poll.status === "CLOSED" && (
-              <span className="px-2 py-0.5 text-sm font-medium rounded bg-red-100 text-red-800">
-                Geschlossen
-              </span>
-            )}
+            {poll.status === "CLOSED" && <PollStatusBadge status={poll.status} />}
             {poll.multipleChoice && (
-              <span className="px-2 py-0.5 text-sm font-medium rounded bg-purple-50 text-purple-800">
-                Mehrfachauswahl möglich
-              </span>
+              <PollBadge color="bg-purple-50 text-purple-800">Mehrfachauswahl möglich</PollBadge>
             )}
             <span className="text-sm text-gray-500">
               {totalVotes} {totalVotes === 1 ? "Stimme" : "Stimmen"} abgegeben
@@ -285,7 +250,7 @@ export default function PollDetailPage() {
                 type="button"
                 onClick={() => void handleVote()}
                 loading={isVoting}
-                loadingText="Wird gespeichert..."
+                loadingText="Wird gespeichert…"
                 disabled={selectedOptions.size === 0 || !hasSelectionChanged || isVoting || isWithdrawing}
                 className="btn-primary"
               >
@@ -297,7 +262,7 @@ export default function PollDetailPage() {
                   onClick={() => void handleWithdraw()}
                   loading={isWithdrawing}
                   disabled={isVoting || isWithdrawing}
-                  loadingText="Wird zurückgezogen..."
+                  loadingText="Wird zurückgezogen…"
                   className="btn-outline border-red-300 text-red-700 hover:bg-red-50"
                 >
                   Stimme zurückziehen

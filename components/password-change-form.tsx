@@ -1,7 +1,7 @@
 "use client";
 
-import { useFormFieldValidation } from "@/lib/useFormFieldValidation";
-import { useCrossFieldValidation } from "@/lib/useCrossFieldValidation";
+import { useFormFieldValidation } from "@/lib/use-form-field-validation";
+import { useCrossFieldValidation } from "@/lib/use-cross-field-validation";
 import { passwordChangeValidationConfig, passwordChangeFormSchema } from "@/lib/validation-schema";
 import { LoadingButton } from "./loading-button";
 import { PasswordRequirements } from "./password-requirements";
@@ -139,7 +139,7 @@ export function PasswordChangeForm({
         <LoadingButton
           type="submit"
           loading={isChangingPassword}
-          loadingText="Wird geändert..."
+          loadingText="Wird geändert…"
           className="btn-primary py-2.5 sm:py-2 text-base sm:text-base touch-manipulation"
         >
           Passwort ändern

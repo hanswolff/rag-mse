@@ -24,6 +24,9 @@
 - Ausschreibungen (public PDF announcements: `/ausschreibungen`; admin: `/admin/ausschreibungen`)
 - Mitglieder-Dokumente (read access for members: `/mitglieder-dokumente`; admin: `/admin/mitglied-dokumente`)
 - Standorte (admin-only shooting range management: `/admin/standorte`)
+- Fremdtermine (admin-managed events of third parties, `ExternalEvent`: `/admin/fremdtermine`)
+- Abwesenheiten (self-entered unavailability periods of any logged-in user, `Absence`: API `/api/abwesenheiten`; only own records writable, foreign ⇒ 404 even for admins; deleted 30 days after their end and with the user)
+- Kalender (public view of Termine, Fremdtermine and Abwesenheiten per viewer: `/kalender`, FullCalendar 6.1.22 pinned; read API `/api/kalender?von&bis`, max. 100 days; anonymous responses cacheable, authenticated `no-store`; members never receive foreign Abwesenheiten; Kollisionen only for ADMIN/AUDITOR: `kollisionen` field in the calendar API and `/api/admin/kollisionen?datum&ohneTermin`, pure logic in `lib/collisions.ts`, never blocks saving; public iCal-Abo `/kalender.ics` with only *Öffentlich* Termine and Fremdtermine, −90 days to +1 year, never Abwesenheiten)
 - Benachrichtigungen (member reminder settings: `/benachrichtigungen`; admin history: `/admin/benachrichtigungen`)
 - Kontakt (email form to admins)
 - Rechtliches: Impressum + Datenschutzerklaerung (and cookie banner only if cookies are used)
@@ -35,14 +38,20 @@ Four roles, consistent with `CONTEXT.md` and `lib/permissions.ts`:
 - `SITE_ADMINISTRATOR` (system-internal, not assignable via UI):
   - All ADMIN rights plus impersonation and editing of SITE_ADMINISTRATOR accounts
 - `ADMIN`:
-  - Full admin-area write access: users, events, news, documents, polls (Umfragen), Ausschreibungen, Standorte, invitations
+  - Full admin-area write access: users, events, news, documents, polls (Umfragen), Ausschreibungen, Fremdtermine, Standorte, invitations
   - Can submit a Teilnahmeanmeldung (Ja/Nein/Vielleicht) and vote in Umfragen
+  - Sees all Abwesenheiten (name, period, reason only); edits only own
+  - Sees all Termine and Fremdtermine incl. *Verborgen* and Kollisionen in the Kalender
 - `AUDITOR` (read-only):
-  - Read access to the admin area (except outgoing emails and admin notifications), no write operations
-  - Member-level functions (profile, Teilnahmeanmeldung, Umfrage vote) available
+  - Read access to the admin area (except outgoing emails and admin notifications), including Fremdtermine; no write operations
+  - Sees all Termine and Fremdtermine incl. *Verborgen* (admin area and Kalender) and Kollisionen
+  - Sees all Abwesenheiten (name, period, reason only)
+  - Member-level functions (profile, Teilnahmeanmeldung, Umfrage vote, own Abwesenheiten) available
 - `MEMBER`:
   - Manage own data (name, address, phone, email)
   - Submit a Teilnahmeanmeldung (Ja/Nein/Vielleicht), vote in Umfragen, read Mitglieder-Dokumente
+  - Manage own Abwesenheiten (sees only own)
+  - Sees *Öffentlich* and *Nur für Mitglieder* Termine/Fremdtermine; anonymous visitors see only *Öffentlich*
 - No public registration; accounts are admin-provisioned (Einladung).
 
 ## Termine und Teilnahmeanmeldung
@@ -51,7 +60,7 @@ Four roles, consistent with `CONTEXT.md` and `lib/permissions.ts`:
 
 - Only admins create Termine.
 - Termine-Seiten (/termine) und öffentliche Events-API (/api/events) sind öffentlich zugänglich.
-- Alle Termine (Liste + Detail) müssen ohne Login zugänglich sein.
+- Jeder Termin hat eine Sichtbarkeitsstufe (`Event.visibility`, siehe `CONTEXT.md`): *Öffentlich*-Termine (Liste + Detail) müssen ohne Login zugänglich sein; *Nur für Mitglieder* sehen nur eingeloggte Benutzer (anonymer Detailaufruf → Login mit `returnUrl`); *Verborgen* sehen nur Administratoren, Prüfer und der Ersteller (sonst 404).
 - Teilnahmeanmeldungen und deren Ergebnisse dürfen nur für eingeloggte Benutzer sichtbar sein.
 - Eingeloggte Mitglieder müssen ihre eigene Teilnahmeanmeldung sehen und zurückziehen können.
 - Event fields: date, time from/to, location, short description.
@@ -108,6 +117,13 @@ Two Jest projects with deliberately different rules (see ADR 0010):
 New business logic involving DB constraints, tokens, state machines, or date logic
 gets its test in the integration layer; pure logic and UI stay in the unit layer.
 All test scripts run with `TZ=Europe/Berlin` to match the container.
+
+Unit tests must never replace `@/lib/api-utils` wholesale. Always spread
+`jest.requireActual("@/lib/api-utils")` and stub only the individual functions a
+test really needs (pattern: `__tests__/contact-api.test.ts`). A wholesale mock
+switches off CSRF validation, body validation, and error mapping — the test then
+exercises a route that does not exist in production; instead, build requests with
+proper `Origin`, `User-Agent`, and `Content-Type` headers so the real checks run.
 
 Additionally there is a small **E2E layer** (`e2e/`, Playwright, Chromium only):
 `pnpm test:e2e` runs 5–8 core click paths against a self-started production build

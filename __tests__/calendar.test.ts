@@ -1,6 +1,22 @@
 import { buildCalendarEvent } from "@/lib/calendar";
 
 describe("calendar", () => {
+  it("folds long lines and normalizes bare carriage returns in the attachment", () => {
+    const ics = buildCalendarEvent({
+      uid: "event-2@rag-mse",
+      title: "Lehrgang",
+      description: "Zeile 1\rZeile 2",
+      location: "Schießsportanlage Neubrandenburg, Am Schießstand 12, 17033 Neubrandenburg, Eingang Nord",
+      start: new Date(2026, 1, 20, 18, 0, 0),
+      end: new Date(2026, 1, 20, 20, 0, 0),
+    });
+
+    const lines = ics.split("\r\n");
+    expect(lines.every((line) => Buffer.byteLength(line, "utf8") <= 75)).toBe(true);
+    expect(ics.replace(/\r\n /g, "")).toContain("Eingang Nord");
+    expect(ics).toContain("DESCRIPTION:Zeile 1\\nZeile 2");
+  });
+
   it("builds a valid ICS event payload", () => {
     const start = new Date(2026, 1, 20, 18, 0, 0);
     const end = new Date(2026, 1, 20, 20, 0, 0);

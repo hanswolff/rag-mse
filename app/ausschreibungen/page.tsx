@@ -2,6 +2,8 @@ export { metadata } from "./metadata";
 
 import { prisma } from "@/lib/prisma";
 import { splitAndSortAusschreibungen } from "@/lib/ausschreibung-validation";
+import { getVisibilityFilter } from "@/lib/visibility";
+import { getCurrentUser } from "@/lib/auth-utils";
 import { PageHeader } from "@/components/page-header";
 import { AusschreibungenList } from "@/components/ausschreibungen-list";
 import { appName } from "@/lib/site-config";
@@ -10,7 +12,12 @@ import { appName } from "@/lib/site-config";
 export const dynamic = "force-dynamic";
 
 export default async function AusschreibungenPage() {
+  // Nur für Mitglieder freigegebene Ausschreibungen erscheinen erst nach dem Login,
+  // verborgene nirgends außerhalb des Adminbereichs (ADR-0011).
+  const user = await getCurrentUser();
+
   const ausschreibungen = await prisma.ausschreibung.findMany({
+    where: getVisibilityFilter(Boolean(user)),
     orderBy: { expiresAt: "desc" },
     select: {
       id: true,
@@ -20,6 +27,7 @@ export default async function AusschreibungenPage() {
       originalFileName: true,
       mimeType: true,
       sizeBytes: true,
+      visibility: true,
       createdAt: true,
     },
   });

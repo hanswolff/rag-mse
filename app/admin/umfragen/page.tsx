@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { isAdmin } from "@/lib/role-utils";
+import { canManageAdminArea } from "@/lib/role-utils";
 import { usePollManagement } from "@/lib/use-poll-management";
 import { LoadingScreen } from "@/components/loading-screen";
 import { PollFormModal } from "@/components/poll-form-modal";
@@ -9,8 +9,8 @@ import { getPollStatusLabel, getPollTypeLabel } from "@/lib/poll-labels";
 import { AlertBox } from "@/components/alert-box";
 import { CopyLinkButton } from "@/components/copy-link-button";
 import { EyeIcon, TrashIcon } from "@/components/icons";
-
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "";
+import { PollBadge } from "@/components/poll-status-badge";
+import { siteUrl } from "@/lib/site-config";
 
 function StatusBadge({ status }: { status: string }) {
   const colorMap: Record<string, string> = {
@@ -19,9 +19,9 @@ function StatusBadge({ status }: { status: string }) {
     CLOSED: "bg-red-100 text-red-800",
   };
   return (
-    <span className={`px-2 py-0.5 text-sm font-medium rounded ${colorMap[status] || "bg-gray-100 text-gray-800"}`}>
+    <PollBadge color={colorMap[status] || "bg-gray-100 text-gray-800"}>
       {getPollStatusLabel(status)}
-    </span>
+    </PollBadge>
   );
 }
 
@@ -40,6 +40,7 @@ export default function AdminPollsPage() {
     publishingPollId,
     closingPollId,
     reopeningPollId,
+    notifyingPollId,
     session,
     status,
     openCreateModal,
@@ -48,13 +49,14 @@ export default function AdminPollsPage() {
     handleSubmit,
     handleDelete,
     handlePublish,
+    handleResendNotifications,
     handleClose,
     handleReopen,
     setError,
     setSuccess,
   } = usePollManagement();
 
-  const canManage = isAdmin(session?.user);
+  const canManage = canManageAdminArea(session?.user);
 
   if (status === "loading" || isLoading) {
     return <LoadingScreen />;
@@ -123,6 +125,7 @@ export default function AdminPollsPage() {
                         href={`/umfragen/${poll.id}`}
                         className="inline-flex items-center justify-center w-9 h-9 rounded bg-brand-blue-50 text-brand-blue-800 hover:bg-brand-blue-100 transition-colors"
                         title="Ansehen"
+                        aria-label={`Umfrage ansehen: ${poll.title}`}
                       >
                         <EyeIcon className="w-5 h-5" />
                       </Link>
@@ -141,19 +144,29 @@ export default function AdminPollsPage() {
                             disabled={publishingPollId === poll.id}
                             className="btn-primary text-sm"
                           >
-                            {publishingPollId === poll.id ? "Wird veröffentlicht..." : "Veröffentlichen"}
+                            {publishingPollId === poll.id ? "Wird veröffentlicht…" : "Veröffentlichen"}
                           </button>
                         </>
                       )}
                       {poll.status === "LIVE" && (
-                        <button
-                          type="button"
-                          onClick={() => void handleClose(poll.id)}
-                          disabled={closingPollId === poll.id}
-                          className="btn-outline text-sm border-red-300 text-red-700 hover:bg-red-50"
-                        >
-                          {closingPollId === poll.id ? "Wird geschlossen..." : "Schließen"}
-                        </button>
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => void handleResendNotifications(poll.id)}
+                            disabled={notifyingPollId === poll.id}
+                            className="btn-outline text-sm"
+                          >
+                            {notifyingPollId === poll.id ? "Wird nachgesendet…" : "Benachrichtigungen nachsenden"}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => void handleClose(poll.id)}
+                            disabled={closingPollId === poll.id}
+                            className="btn-outline text-sm border-red-300 text-red-700 hover:bg-red-50"
+                          >
+                            {closingPollId === poll.id ? "Wird geschlossen…" : "Schließen"}
+                          </button>
+                        </>
                       )}
                       {poll.status === "CLOSED" && (
                         <button
@@ -162,7 +175,7 @@ export default function AdminPollsPage() {
                           disabled={reopeningPollId === poll.id}
                           className="btn-outline text-sm border-green-300 text-green-700 hover:bg-green-50"
                         >
-                          {reopeningPollId === poll.id ? "Wird geöffnet..." : "Wieder öffnen"}
+                          {reopeningPollId === poll.id ? "Wird geöffnet…" : "Wieder öffnen"}
                         </button>
                       )}
                       <button
@@ -170,6 +183,7 @@ export default function AdminPollsPage() {
                         onClick={() => void handleDelete(poll.id)}
                         className="inline-flex items-center justify-center w-9 h-9 rounded bg-red-600 text-white hover:bg-red-700 transition-colors"
                         title="Löschen"
+                        aria-label={`Umfrage löschen: ${poll.title}`}
                       >
                         <TrashIcon className="w-5 h-5" />
                       </button>

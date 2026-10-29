@@ -1,7 +1,7 @@
 import { POST } from "@/app/api/auth/login/route";
-import { NextRequest } from "next/server";
+import { apiRequest } from "./helpers/request";
 import { logError } from "@/lib/logger";
-import { authorizeCredentials } from "@/lib/auth";
+import { authorizeCredentials, createLoginProof } from "@/lib/auth";
 import { RateLimitError } from "@/lib/errors";
 
 jest.mock("@/lib/auth", () => ({
@@ -9,31 +9,28 @@ jest.mock("@/lib/auth", () => ({
   createLoginProof: jest.fn(() => "proof-token"),
 }));
 
-jest.mock("@/lib/logger", () => ({
-  logError: jest.fn(),
-  logValidationFailure: jest.fn(),
-  maskEmail: jest.fn((email: string) => `masked-${email}`),
-}));
+jest.mock("@/lib/logger", () =>
+  jest.requireActual<typeof import("./helpers/logger-mock")>("./helpers/logger-mock").mockLogger,
+);
+
+jest.mock("@/lib/csrf-validator", () => {
+  const actual = jest.requireActual("@/lib/csrf-validator");
+  return {
+    ...actual,
+    validateCsrfHeaders: jest.fn(),
+  };
+});
 
 jest.mock("@/lib/api-utils", () => {
   const actual = jest.requireActual("@/lib/api-utils");
   return {
     ...actual,
-    parseJsonBody: jest.fn(async (req: Request) => req.json()),
-    validateRequestBody: jest.fn().mockReturnValue({ isValid: true, errors: [] }),
-    validateCsrfHeaders: jest.fn(),
     getClientIp: jest.fn(() => "127.0.0.1"),
   };
 });
 
 function createMockRequest(body: Record<string, unknown>, headers: Record<string, string> = {}) {
-  const request = {
-    json: jest.fn().mockResolvedValue(body),
-    headers: {
-      get: jest.fn((name: string) => headers[name] || null),
-    },
-  } as unknown as NextRequest;
-  return request;
+  return apiRequest("POST", "/api/auth/login", { body, headers });
 }
 
 describe("/api/auth/login/route", () => {
@@ -47,8 +44,18 @@ describe("/api/auth/login/route", () => {
     });
   });
 
-  it("returns 400 when email or password is missing", async () => {
+  it("returns 400 when a required field is missing from the body", async () => {
     const request = createMockRequest({ email: "test@example.com" });
+
+    const response = await POST(request);
+    const data = await response.json();
+
+    expect(response.status).toBe(400);
+    expect(data.error).toBe("Pflichtfeld fehlt: password");
+  });
+
+  it("returns 400 when email or password is empty", async () => {
+    const request = createMockRequest({ email: "", password: "" });
 
     const response = await POST(request);
     const data = await response.json();
@@ -111,6 +118,22 @@ describe("/api/auth/login/route", () => {
     expect(response.status).toBe(200);
     expect(data.success).toBe(true);
     expect(data.loginProof).toBe("proof-token");
+  });
+
+  it("passes the original spelling to authorize so legacy mixed-case accounts are found", async () => {
+    const request = createMockRequest({
+      email: "  Test.User@Example.com ",
+      password: "correctpassword",
+    });
+
+    const response = await POST(request);
+
+    expect(response.status).toBe(200);
+    expect(authorizeCredentials).toHaveBeenCalledWith(
+      { email: "Test.User@Example.com", password: "correctpassword" },
+      request
+    );
+    expect(createLoginProof).toHaveBeenCalledWith("test.user@example.com", "127.0.0.1", "correctpassword");
   });
 
   describe("correlation ID headers", () => {

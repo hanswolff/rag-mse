@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { getNaechsteAktuelleAusschreibung } from "@/lib/ausschreibung-query";
+import { Visibility } from "@/lib/visibility";
 import { parseIsoDateOnlyToUtcDate } from "@/lib/date-picker-utils";
 
 // Die Startseite blendet die Ausschreibungen-Karte allein anhand dieser Abfrage ein.
@@ -17,7 +18,11 @@ const NAECHSTE_WOCHE = "2026-08-16";
 
 let laufendeNummer = 0;
 
-async function createAusschreibung(title: string, ablaufdatum: string) {
+async function createAusschreibung(
+  title: string,
+  ablaufdatum: string,
+  visibility: Visibility = Visibility.PUBLIC
+) {
   laufendeNummer += 1;
   return prisma.ausschreibung.create({
     data: {
@@ -27,9 +32,13 @@ async function createAusschreibung(title: string, ablaufdatum: string) {
       storedFileName: `ausschreibung-${laufendeNummer}.pdf`,
       mimeType: "application/pdf",
       sizeBytes: 4096,
+      visibility,
     },
   });
 }
+
+const ANONYM = false;
+const EINGELOGGT = true;
 
 describe("Nächste aktuelle Ausschreibung", () => {
   beforeEach(async () => {
@@ -39,7 +48,7 @@ describe("Nächste aktuelle Ausschreibung", () => {
   it("findet eine Ausschreibung, die heute abläuft", async () => {
     await createAusschreibung("Läuft heute ab", HEUTE);
 
-    const gefunden = await getNaechsteAktuelleAusschreibung(REFERENZZEITPUNKT);
+    const gefunden = await getNaechsteAktuelleAusschreibung(ANONYM, REFERENZZEITPUNKT);
 
     expect(gefunden?.title).toBe("Läuft heute ab");
     expect(gefunden?.expiresAt.toISOString()).toBe("2026-08-09T00:00:00.000Z");
@@ -48,14 +57,14 @@ describe("Nächste aktuelle Ausschreibung", () => {
   it("ignoriert eine gestern abgelaufene Ausschreibung", async () => {
     await createAusschreibung("Gestern abgelaufen", GESTERN);
 
-    expect(await getNaechsteAktuelleAusschreibung(REFERENZZEITPUNKT)).toBeNull();
+    expect(await getNaechsteAktuelleAusschreibung(ANONYM, REFERENZZEITPUNKT)).toBeNull();
   });
 
   it("liefert von mehreren aktuellen die mit dem frühesten Ablaufdatum", async () => {
     await createAusschreibung("Später", NAECHSTE_WOCHE);
     await createAusschreibung("Früher", MORGEN);
 
-    const gefunden = await getNaechsteAktuelleAusschreibung(REFERENZZEITPUNKT);
+    const gefunden = await getNaechsteAktuelleAusschreibung(ANONYM, REFERENZZEITPUNKT);
 
     expect(gefunden?.title).toBe("Früher");
   });
@@ -64,12 +73,34 @@ describe("Nächste aktuelle Ausschreibung", () => {
     await createAusschreibung("Historisch", GESTERN);
     await createAusschreibung("Aktuell", MORGEN);
 
-    const gefunden = await getNaechsteAktuelleAusschreibung(REFERENZZEITPUNKT);
+    const gefunden = await getNaechsteAktuelleAusschreibung(ANONYM, REFERENZZEITPUNKT);
 
     expect(gefunden?.title).toBe("Aktuell");
   });
 
   it("liefert null, wenn es keine Ausschreibung gibt", async () => {
-    expect(await getNaechsteAktuelleAusschreibung(REFERENZZEITPUNKT)).toBeNull();
+    expect(await getNaechsteAktuelleAusschreibung(ANONYM, REFERENZZEITPUNKT)).toBeNull();
+  });
+
+  it("kündigt eine nur für Mitglieder freigegebene Ausschreibung anonym nicht an", async () => {
+    await createAusschreibung("Intern", MORGEN, Visibility.MEMBER);
+
+    expect(await getNaechsteAktuelleAusschreibung(ANONYM, REFERENZZEITPUNKT)).toBeNull();
+    expect((await getNaechsteAktuelleAusschreibung(EINGELOGGT, REFERENZZEITPUNKT))?.title).toBe("Intern");
+  });
+
+  it("blendet eine verborgene Ausschreibung auch eingeloggt aus", async () => {
+    await createAusschreibung("Zurückgezogen", MORGEN, Visibility.HIDDEN);
+
+    expect(await getNaechsteAktuelleAusschreibung(ANONYM, REFERENZZEITPUNKT)).toBeNull();
+    expect(await getNaechsteAktuelleAusschreibung(EINGELOGGT, REFERENZZEITPUNKT)).toBeNull();
+  });
+
+  it("überspringt eine frühere interne Ausschreibung und meldet anonym die nächste öffentliche", async () => {
+    await createAusschreibung("Intern früher", MORGEN, Visibility.MEMBER);
+    await createAusschreibung("Öffentlich später", NAECHSTE_WOCHE);
+
+    expect((await getNaechsteAktuelleAusschreibung(ANONYM, REFERENZZEITPUNKT))?.title).toBe("Öffentlich später");
+    expect((await getNaechsteAktuelleAusschreibung(EINGELOGGT, REFERENZZEITPUNKT))?.title).toBe("Intern früher");
   });
 });

@@ -8,9 +8,10 @@ interface CopyLinkButtonProps {
   label?: string;
   className?: string;
   compact?: boolean;
+  subject?: string;
 }
 
-export function CopyLinkButton({ url, label, className = "", compact = false }: CopyLinkButtonProps) {
+export function CopyLinkButton({ url, label, className = "", compact = false, subject = "Kurzlink" }: CopyLinkButtonProps) {
   const [copied, setCopied] = useState(false);
   const timeoutRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
@@ -60,11 +61,14 @@ export function CopyLinkButton({ url, label, className = "", compact = false }: 
         type="button"
         onClick={(e) => void handleCopy(e)}
         className={buttonClassName}
-        title={copied ? "Kopiert!" : "Kurzlink kopieren"}
-        aria-label={copied ? "Kurzlink kopiert" : `Kurzlink kopieren: ${url}`}
+        title={copied ? "Kopiert!" : `${subject} kopieren`}
+        aria-label={copied ? `${subject} kopiert` : `${subject} kopieren: ${url}`}
       >
         {copied ? <LuCheck className="h-4 w-4" aria-hidden="true" /> : <LuCopy className="h-4 w-4" aria-hidden="true" />}
       </button>
+      <span className="sr-only" aria-live="polite">
+        {copied ? `${subject} kopiert` : ""}
+      </span>
     </div>
   );
 }

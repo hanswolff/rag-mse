@@ -1,7 +1,11 @@
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { screen, fireEvent, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom";
 import { NewsFormModal, NewNews } from "../components/news-form-modal";
+import {
+  createModalRenderer,
+  includeSharedFormModalTests,
+} from "./helpers/modal";
 
 describe("NewsFormModal", () => {
   const mockOnClose = jest.fn();
@@ -21,6 +25,17 @@ describe("NewsFormModal", () => {
     published: false,
   };
 
+  const { renderModal, modalElement } = createModalRenderer(NewsFormModal, () => ({
+    isOpen: true,
+    onClose: mockOnClose,
+    onSubmit: mockOnSubmit,
+    isSubmitting: false,
+    newsData: defaultNewsData,
+    setNewsData: jest.fn(),
+    isEditing: false,
+    initialNewsData: undefined,
+  }));
+
   beforeEach(() => {
     mockOnClose.mockClear();
     mockOnSubmit.mockClear();
@@ -28,53 +43,17 @@ describe("NewsFormModal", () => {
 
   describe("Create Mode", () => {
     it("should render create modal with correct title", () => {
-      render(
-        <NewsFormModal
-          isOpen={true}
-          onClose={mockOnClose}
-          onSubmit={mockOnSubmit}
-          isSubmitting={false}
-          newsData={defaultNewsData}
-          setNewsData={jest.fn()}
-          isEditing={false}
-          initialNewsData={undefined}
-        />
-      );
-
+      renderModal();
       expect(screen.getByText("Neue News erstellen")).toBeInTheDocument();
     });
 
     it("should show 'Erstellen' button in create mode", () => {
-      render(
-        <NewsFormModal
-          isOpen={true}
-          onClose={mockOnClose}
-          onSubmit={mockOnSubmit}
-          isSubmitting={false}
-          newsData={defaultNewsData}
-          setNewsData={jest.fn()}
-          isEditing={false}
-          initialNewsData={undefined}
-        />
-      );
-
+      renderModal();
       expect(screen.getByRole("button", { name: "Erstellen" })).toBeInTheDocument();
     });
 
     it("should have title input with autoFocus in create mode", async () => {
-      render(
-        <NewsFormModal
-          isOpen={true}
-          onClose={mockOnClose}
-          onSubmit={mockOnSubmit}
-          isSubmitting={false}
-          newsData={defaultNewsData}
-          setNewsData={jest.fn()}
-          isEditing={false}
-          initialNewsData={undefined}
-        />
-      );
-
+      renderModal();
       const titleInput = screen.getByLabelText(/Titel/);
       await waitFor(() => {
         expect(titleInput).toHaveFocus();
@@ -84,55 +63,19 @@ describe("NewsFormModal", () => {
 
   describe("Edit Mode", () => {
     it("should render edit modal with correct title", () => {
-      render(
-        <NewsFormModal
-          isOpen={true}
-          onClose={mockOnClose}
-          onSubmit={mockOnSubmit}
-          isSubmitting={false}
-          newsData={defaultNewsData}
-          setNewsData={jest.fn()}
-          isEditing={true}
-          initialNewsData={initialNewsData}
-        />
-      );
-
+      renderModal({ isEditing: true, initialNewsData });
       expect(screen.getByText("News bearbeiten")).toBeInTheDocument();
     });
 
     it("should show 'Aktualisieren' button in edit mode", () => {
-      render(
-        <NewsFormModal
-          isOpen={true}
-          onClose={mockOnClose}
-          onSubmit={mockOnSubmit}
-          isSubmitting={false}
-          newsData={defaultNewsData}
-          setNewsData={jest.fn()}
-          isEditing={true}
-          initialNewsData={initialNewsData}
-        />
-      );
-
+      renderModal({ isEditing: true, initialNewsData });
       expect(screen.getByRole("button", { name: "Aktualisieren" })).toBeInTheDocument();
     });
   });
 
   describe("Form Fields", () => {
     it("should render all required fields with labels", () => {
-      render(
-        <NewsFormModal
-          isOpen={true}
-          onClose={mockOnClose}
-          onSubmit={mockOnSubmit}
-          isSubmitting={false}
-          newsData={defaultNewsData}
-          setNewsData={jest.fn()}
-          isEditing={false}
-          initialNewsData={undefined}
-        />
-      );
-
+      renderModal();
       expect(screen.getByLabelText(/Titel \*/)).toBeInTheDocument();
       expect(screen.getByLabelText(/Inhalt \*/)).toBeInTheDocument();
       expect(screen.getByLabelText(/Datum \*/)).toBeInTheDocument();
@@ -140,19 +83,7 @@ describe("NewsFormModal", () => {
     });
 
     it("should render title input with correct type and attributes", () => {
-      render(
-        <NewsFormModal
-          isOpen={true}
-          onClose={mockOnClose}
-          onSubmit={mockOnSubmit}
-          isSubmitting={false}
-          newsData={defaultNewsData}
-          setNewsData={jest.fn()}
-          isEditing={false}
-          initialNewsData={undefined}
-        />
-      );
-
+      renderModal();
       const titleInput = screen.getByLabelText(/Titel/);
       expect(titleInput).toHaveAttribute("type", "text");
       expect(titleInput).toHaveAttribute("required");
@@ -160,19 +91,7 @@ describe("NewsFormModal", () => {
     });
 
     it("should render content textarea with correct attributes", () => {
-      render(
-        <NewsFormModal
-          isOpen={true}
-          onClose={mockOnClose}
-          onSubmit={mockOnSubmit}
-          isSubmitting={false}
-          newsData={defaultNewsData}
-          setNewsData={jest.fn()}
-          isEditing={false}
-          initialNewsData={undefined}
-        />
-      );
-
+      renderModal();
       const contentInput = screen.getByLabelText(/Inhalt/);
       expect(contentInput).toHaveAttribute("required");
       expect(contentInput).toHaveAttribute("maxLength", "10000");
@@ -180,19 +99,7 @@ describe("NewsFormModal", () => {
     });
 
     it("should render published checkbox", () => {
-      render(
-        <NewsFormModal
-          isOpen={true}
-          onClose={mockOnClose}
-          onSubmit={mockOnSubmit}
-          isSubmitting={false}
-          newsData={defaultNewsData}
-          setNewsData={jest.fn()}
-          isEditing={false}
-          initialNewsData={undefined}
-        />
-      );
-
+      renderModal();
       const checkbox = screen.getByLabelText(/Veröffentlichen/);
       expect(checkbox).toBeInTheDocument();
       expect(checkbox).toBeChecked();
@@ -201,24 +108,10 @@ describe("NewsFormModal", () => {
 
   describe("Validation Errors", () => {
     it("should display title error when title is empty on blur", async () => {
-      const setNewsData = jest.fn();
       const user = userEvent.setup();
+      renderModal({ newsData: { ...defaultNewsData, title: "" } });
 
-      render(
-        <NewsFormModal
-          isOpen={true}
-          onClose={mockOnClose}
-          onSubmit={mockOnSubmit}
-          isSubmitting={false}
-          newsData={{ ...defaultNewsData, title: "" }}
-          setNewsData={setNewsData}
-          isEditing={false}
-          initialNewsData={undefined}
-        />
-      );
-
-      const titleInput = screen.getByLabelText(/Titel/);
-      await user.click(titleInput);
+      await user.click(screen.getByLabelText(/Titel/));
       await user.tab();
 
       await waitFor(() => {
@@ -227,24 +120,10 @@ describe("NewsFormModal", () => {
     });
 
     it("should display content error when content is empty on blur", async () => {
-      const setNewsData = jest.fn();
       const user = userEvent.setup();
+      renderModal({ newsData: { ...defaultNewsData, content: "" } });
 
-      render(
-        <NewsFormModal
-          isOpen={true}
-          onClose={mockOnClose}
-          onSubmit={mockOnSubmit}
-          isSubmitting={false}
-          newsData={{ ...defaultNewsData, content: "" }}
-          setNewsData={setNewsData}
-          isEditing={false}
-          initialNewsData={undefined}
-        />
-      );
-
-      const contentInput = screen.getByLabelText(/Inhalt/);
-      await user.click(contentInput);
+      await user.click(screen.getByLabelText(/Inhalt/));
       await user.tab();
 
       await waitFor(() => {
@@ -253,25 +132,10 @@ describe("NewsFormModal", () => {
     });
 
     it("should display title error when title exceeds max length on blur", async () => {
-      const setNewsData = jest.fn();
       const user = userEvent.setup();
-      const longTitle = "A".repeat(201);
+      renderModal({ newsData: { ...defaultNewsData, title: "A".repeat(201) } });
 
-      render(
-        <NewsFormModal
-          isOpen={true}
-          onClose={mockOnClose}
-          onSubmit={mockOnSubmit}
-          isSubmitting={false}
-          newsData={{ ...defaultNewsData, title: longTitle }}
-          setNewsData={setNewsData}
-          isEditing={false}
-          initialNewsData={undefined}
-        />
-      );
-
-      const titleInput = screen.getByLabelText(/Titel/);
-      await user.click(titleInput);
+      await user.click(screen.getByLabelText(/Titel/));
       await user.tab();
 
       await waitFor(() => {
@@ -280,25 +144,10 @@ describe("NewsFormModal", () => {
     });
 
     it("should display content error when content exceeds max length on blur", async () => {
-      const setNewsData = jest.fn();
       const user = userEvent.setup();
-      const longContent = "A".repeat(10001);
+      renderModal({ newsData: { ...defaultNewsData, content: "A".repeat(10001) } });
 
-      render(
-        <NewsFormModal
-          isOpen={true}
-          onClose={mockOnClose}
-          onSubmit={mockOnSubmit}
-          isSubmitting={false}
-          newsData={{ ...defaultNewsData, content: longContent }}
-          setNewsData={setNewsData}
-          isEditing={false}
-          initialNewsData={undefined}
-        />
-      );
-
-      const contentInput = screen.getByLabelText(/Inhalt/);
-      await user.click(contentInput);
+      await user.click(screen.getByLabelText(/Inhalt/));
       await user.tab();
 
       await waitFor(() => {
@@ -308,67 +157,21 @@ describe("NewsFormModal", () => {
 
     it("should clear validation state when modal is reopened", async () => {
       const user = userEvent.setup();
-      const { rerender } = render(
-        <NewsFormModal
-          isOpen={true}
-          onClose={mockOnClose}
-          onSubmit={mockOnSubmit}
-          isSubmitting={false}
-          newsData={{ ...defaultNewsData, title: "" }}
-          setNewsData={jest.fn()}
-          isEditing={false}
-          initialNewsData={undefined}
-        />
-      );
+      const newsData = { ...defaultNewsData, title: "" };
+      const { rerender } = renderModal({ newsData });
 
       await user.click(screen.getByRole("button", { name: "Erstellen" }));
       expect(screen.getByText("Titel ist erforderlich")).toBeInTheDocument();
 
-      rerender(
-        <NewsFormModal
-          isOpen={false}
-          onClose={mockOnClose}
-          onSubmit={mockOnSubmit}
-          isSubmitting={false}
-          newsData={{ ...defaultNewsData, title: "" }}
-          setNewsData={jest.fn()}
-          isEditing={false}
-          initialNewsData={undefined}
-        />
-      );
-
-      rerender(
-        <NewsFormModal
-          isOpen={true}
-          onClose={mockOnClose}
-          onSubmit={mockOnSubmit}
-          isSubmitting={false}
-          newsData={{ ...defaultNewsData, title: "" }}
-          setNewsData={jest.fn()}
-          isEditing={false}
-          initialNewsData={undefined}
-        />
-      );
+      rerender(modalElement({ newsData, isOpen: false }));
+      rerender(modalElement({ newsData, isOpen: true }));
 
       expect(screen.queryByText("Titel ist erforderlich")).not.toBeInTheDocument();
     });
 
     it("should apply error styling to invalid inputs", async () => {
-      const setNewsData = jest.fn();
       const user = userEvent.setup();
-
-      render(
-        <NewsFormModal
-          isOpen={true}
-          onClose={mockOnClose}
-          onSubmit={mockOnSubmit}
-          isSubmitting={false}
-          newsData={{ ...defaultNewsData, title: "" }}
-          setNewsData={setNewsData}
-          isEditing={false}
-          initialNewsData={undefined}
-        />
-      );
+      renderModal({ newsData: { ...defaultNewsData, title: "" } });
 
       const titleInput = screen.getByLabelText(/Titel/);
       await user.click(titleInput);
@@ -380,138 +183,26 @@ describe("NewsFormModal", () => {
     });
 
     it("should display server errors when errors prop is provided", () => {
-      const serverErrors = { title: "Titel bereits vorhanden" };
-
-      render(
-        <NewsFormModal
-          isOpen={true}
-          onClose={mockOnClose}
-          onSubmit={mockOnSubmit}
-          isSubmitting={false}
-          newsData={defaultNewsData}
-          setNewsData={jest.fn()}
-          isEditing={false}
-          initialNewsData={undefined}
-          errors={serverErrors}
-        />
-      );
-
+      renderModal({ errors: { title: "Titel bereits vorhanden" } });
       expect(screen.getByText("Titel bereits vorhanden")).toBeInTheDocument();
-    });
-  });
-
-  describe("Unsaved Changes Confirmation", () => {
-    it("should show confirmation dialog when closing with unsaved changes", () => {
-      render(
-        <NewsFormModal
-          isOpen={true}
-          onClose={mockOnClose}
-          onSubmit={mockOnSubmit}
-          isSubmitting={false}
-          newsData={{ ...defaultNewsData, title: "Changed Title" }}
-          setNewsData={jest.fn()}
-          isEditing={true}
-          initialNewsData={initialNewsData}
-        />
-      );
-
-      const cancelButton = screen.getByRole("button", { name: "Abbrechen" });
-      fireEvent.click(cancelButton);
-
-      expect(
-        screen.getByText("Sie haben ungespeicherte Änderungen. Wirklich schließen?")
-      ).toBeInTheDocument();
-    });
-
-    it("should close modal without confirmation when no unsaved changes", () => {
-      render(
-        <NewsFormModal
-          isOpen={true}
-          onClose={mockOnClose}
-          onSubmit={mockOnSubmit}
-          isSubmitting={false}
-          newsData={defaultNewsData}
-          setNewsData={jest.fn()}
-          isEditing={true}
-          initialNewsData={defaultNewsData}
-        />
-      );
-
-      const cancelButton = screen.getByRole("button", { name: "Abbrechen" });
-      fireEvent.click(cancelButton);
-
-      expect(
-        screen.queryByText("Sie haben ungespeicherte Änderungen. Wirklich schließen?")
-      ).not.toBeInTheDocument();
-      expect(mockOnClose).toHaveBeenCalledTimes(1);
-    });
-
-    it("should not close when user cancels confirmation dialog", () => {
-      render(
-        <NewsFormModal
-          isOpen={true}
-          onClose={mockOnClose}
-          onSubmit={mockOnSubmit}
-          isSubmitting={false}
-          newsData={{ ...defaultNewsData, title: "Changed Title" }}
-          setNewsData={jest.fn()}
-          isEditing={true}
-          initialNewsData={initialNewsData}
-        />
-      );
-
-      const cancelButton = screen.getByRole("button", { name: "Abbrechen" });
-      fireEvent.click(cancelButton);
-
-      // ConfirmCloseModal is shown; click its "Abbrechen" to dismiss
-      const abortButtons = screen.getAllByRole("button", { name: "Abbrechen" });
-      fireEvent.click(abortButtons[abortButtons.length - 1]);
-
-      expect(mockOnClose).not.toHaveBeenCalled();
     });
   });
 
   describe("User Input", () => {
     it("should call setNewsData when title is changed", async () => {
       const setNewsData = jest.fn();
+      renderModal({ setNewsData });
 
-      render(
-        <NewsFormModal
-          isOpen={true}
-          onClose={mockOnClose}
-          onSubmit={mockOnSubmit}
-          isSubmitting={false}
-          newsData={defaultNewsData}
-          setNewsData={setNewsData}
-          isEditing={false}
-          initialNewsData={undefined}
-        />
-      );
-
-      const titleInput = screen.getByLabelText(/Titel/);
-      fireEvent.change(titleInput, { target: { value: "New Title" } });
+      fireEvent.change(screen.getByLabelText(/Titel/), { target: { value: "New Title" } });
 
       expect(setNewsData).toHaveBeenCalled();
     });
 
     it("should call setNewsData when content is changed", async () => {
       const setNewsData = jest.fn();
+      renderModal({ setNewsData });
 
-      render(
-        <NewsFormModal
-          isOpen={true}
-          onClose={mockOnClose}
-          onSubmit={mockOnSubmit}
-          isSubmitting={false}
-          newsData={defaultNewsData}
-          setNewsData={setNewsData}
-          isEditing={false}
-          initialNewsData={undefined}
-        />
-      );
-
-      const contentInput = screen.getByLabelText(/Inhalt/);
-      fireEvent.change(contentInput, { target: { value: "New content" } });
+      fireEvent.change(screen.getByLabelText(/Inhalt/), { target: { value: "New content" } });
 
       expect(setNewsData).toHaveBeenCalled();
     });
@@ -519,22 +210,9 @@ describe("NewsFormModal", () => {
     it("should call setNewsData when published checkbox is toggled", async () => {
       const setNewsData = jest.fn();
       const user = userEvent.setup();
+      renderModal({ setNewsData });
 
-      render(
-        <NewsFormModal
-          isOpen={true}
-          onClose={mockOnClose}
-          onSubmit={mockOnSubmit}
-          isSubmitting={false}
-          newsData={defaultNewsData}
-          setNewsData={setNewsData}
-          isEditing={false}
-          initialNewsData={undefined}
-        />
-      );
-
-      const checkbox = screen.getByLabelText(/Veröffentlichen/);
-      await user.click(checkbox);
+      await user.click(screen.getByLabelText(/Veröffentlichen/));
 
       expect(setNewsData).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -546,242 +224,51 @@ describe("NewsFormModal", () => {
 
   describe("Form Submission", () => {
     it("should render submit button with correct text for create mode", () => {
-      render(
-        <NewsFormModal
-          isOpen={true}
-          onClose={mockOnClose}
-          onSubmit={mockOnSubmit}
-          isSubmitting={false}
-          newsData={defaultNewsData}
-          setNewsData={jest.fn()}
-          isEditing={false}
-          initialNewsData={undefined}
-        />
-      );
-
-      const submitButton = screen.getByRole("button", { name: "Erstellen" });
-      expect(submitButton).toBeInTheDocument();
+      renderModal();
+      expect(screen.getByRole("button", { name: "Erstellen" })).toBeInTheDocument();
     });
 
     it("should render submit button with correct text for edit mode", () => {
-      render(
-        <NewsFormModal
-          isOpen={true}
-          onClose={mockOnClose}
-          onSubmit={mockOnSubmit}
-          isSubmitting={false}
-          newsData={defaultNewsData}
-          setNewsData={jest.fn()}
-          isEditing={true}
-          initialNewsData={initialNewsData}
-        />
-      );
-
-      const submitButton = screen.getByRole("button", { name: "Aktualisieren" });
-      expect(submitButton).toBeInTheDocument();
+      renderModal({ isEditing: true, initialNewsData });
+      expect(screen.getByRole("button", { name: "Aktualisieren" })).toBeInTheDocument();
     });
 
     it("should call onSubmit when form is submitted with valid data", async () => {
       const user = userEvent.setup();
+      renderModal();
 
-      render(
-        <NewsFormModal
-          isOpen={true}
-          onClose={mockOnClose}
-          onSubmit={mockOnSubmit}
-          isSubmitting={false}
-          newsData={defaultNewsData}
-          setNewsData={jest.fn()}
-          isEditing={false}
-          initialNewsData={undefined}
-        />
-      );
-
-      const submitButton = screen.getByRole("button", { name: "Erstellen" });
-      await user.click(submitButton);
+      await user.click(screen.getByRole("button", { name: "Erstellen" }));
 
       expect(mockOnSubmit).toHaveBeenCalledTimes(1);
     });
 
     it("should not call onSubmit when form has validation errors", async () => {
-      const setNewsData = jest.fn();
       const user = userEvent.setup();
+      renderModal({ newsData: { ...defaultNewsData, title: "" } });
 
-      render(
-        <NewsFormModal
-          isOpen={true}
-          onClose={mockOnClose}
-          onSubmit={mockOnSubmit}
-          isSubmitting={false}
-          newsData={{ ...defaultNewsData, title: "" }}
-          setNewsData={setNewsData}
-          isEditing={false}
-          initialNewsData={undefined}
-        />
-      );
-
-      const submitButton = screen.getByRole("button", { name: "Erstellen" });
-      await user.click(submitButton);
+      await user.click(screen.getByRole("button", { name: "Erstellen" }));
 
       expect(mockOnSubmit).not.toHaveBeenCalled();
       expect(mockOnClose).not.toHaveBeenCalled();
       expect(screen.getByText("Titel ist erforderlich")).toBeInTheDocument();
     });
-
-    it("should not call onSubmit when cancel button is clicked", () => {
-      render(
-        <NewsFormModal
-          isOpen={true}
-          onClose={mockOnClose}
-          onSubmit={mockOnSubmit}
-          isSubmitting={false}
-          newsData={defaultNewsData}
-          setNewsData={jest.fn()}
-          isEditing={false}
-          initialNewsData={defaultNewsData}
-        />
-      );
-
-      const cancelButton = screen.getByRole("button", { name: "Abbrechen" });
-      fireEvent.click(cancelButton);
-
-      expect(mockOnSubmit).not.toHaveBeenCalled();
-      expect(mockOnClose).toHaveBeenCalledTimes(1);
-    });
   });
 
-  describe("Disabled State", () => {
-    it("should disable all inputs when isSubmitting is true", () => {
-      render(
-        <NewsFormModal
-          isOpen={true}
-          onClose={mockOnClose}
-          onSubmit={mockOnSubmit}
-          isSubmitting={true}
-          newsData={defaultNewsData}
-          setNewsData={jest.fn()}
-          isEditing={false}
-          initialNewsData={undefined}
-        />
-      );
-
-      const titleInput = screen.getByLabelText(/Titel/);
-      const contentInput = screen.getByLabelText(/Inhalt/);
-      const checkbox = screen.getByLabelText(/Veröffentlichen/);
-
-      expect(titleInput).toBeDisabled();
-      expect(contentInput).toBeDisabled();
-      expect(checkbox).toBeDisabled();
-    });
-
-    it("should show 'Wird gespeichert...' text when isSubmitting is true", () => {
-      render(
-        <NewsFormModal
-          isOpen={true}
-          onClose={mockOnClose}
-          onSubmit={mockOnSubmit}
-          isSubmitting={true}
-          newsData={defaultNewsData}
-          setNewsData={jest.fn()}
-          isEditing={false}
-          initialNewsData={undefined}
-        />
-      );
-
-      expect(screen.getByText("Wird gespeichert...")).toBeInTheDocument();
-    });
-
-    it("should disable submit button when isSubmitting is true", () => {
-      render(
-        <NewsFormModal
-          isOpen={true}
-          onClose={mockOnClose}
-          onSubmit={mockOnSubmit}
-          isSubmitting={true}
-          newsData={defaultNewsData}
-          setNewsData={jest.fn()}
-          isEditing={false}
-          initialNewsData={undefined}
-        />
-      );
-
-      const submitButton = screen.getByRole("button", { name: "Wird gespeichert..." });
-      expect(submitButton).toBeDisabled();
-    });
-
-    it("should disable cancel button when isSubmitting is true", () => {
-      render(
-        <NewsFormModal
-          isOpen={true}
-          onClose={mockOnClose}
-          onSubmit={mockOnSubmit}
-          isSubmitting={true}
-          newsData={defaultNewsData}
-          setNewsData={jest.fn()}
-          isEditing={false}
-          initialNewsData={undefined}
-        />
-      );
-
-      const cancelButton = screen.getByRole("button", { name: "Abbrechen" });
-      expect(cancelButton).toBeDisabled();
-    });
-  });
-
-  describe("General Errors", () => {
-    it("should display general error when errors.general is provided", () => {
-      render(
-        <NewsFormModal
-          isOpen={true}
-          onClose={mockOnClose}
-          onSubmit={mockOnSubmit}
-          isSubmitting={false}
-          newsData={defaultNewsData}
-          setNewsData={jest.fn()}
-          isEditing={false}
-          initialNewsData={undefined}
-          errors={{ general: "Ein allgemeiner Fehler ist aufgetreten" }}
-        />
-      );
-
-      expect(screen.getByText("Ein allgemeiner Fehler ist aufgetreten")).toBeInTheDocument();
-    });
-
-    it("should not display general error when errors.general is not provided", () => {
-      render(
-        <NewsFormModal
-          isOpen={true}
-          onClose={mockOnClose}
-          onSubmit={mockOnSubmit}
-          isSubmitting={false}
-          newsData={defaultNewsData}
-          setNewsData={jest.fn()}
-          isEditing={false}
-          initialNewsData={undefined}
-          errors={{}}
-        />
-      );
-
-      expect(screen.queryByRole("alert")).not.toBeInTheDocument();
-    });
-  });
-
-  describe("Not Rendered When Closed", () => {
-    it("should not render when isOpen is false", () => {
-      render(
-        <NewsFormModal
-          isOpen={false}
-          onClose={mockOnClose}
-          onSubmit={mockOnSubmit}
-          isSubmitting={false}
-          newsData={defaultNewsData}
-          setNewsData={jest.fn()}
-          isEditing={false}
-          initialNewsData={undefined}
-        />
-      );
-
-      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-    });
+  includeSharedFormModalTests({
+    renderModal,
+    onClose: mockOnClose,
+    onSubmit: mockOnSubmit,
+    dirtyEditProps: {
+      newsData: { ...defaultNewsData, title: "Changed Title" },
+      isEditing: true,
+      initialNewsData,
+    },
+    cleanEditProps: {
+      newsData: defaultNewsData,
+      isEditing: true,
+      initialNewsData: defaultNewsData,
+    },
+    disabledWhenSubmitting: [/Titel/, /Inhalt/, /Veröffentlichen/],
+    generalErrorAbsenceQuery: "alert-role",
   });
 });

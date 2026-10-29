@@ -14,6 +14,22 @@ const contentSecurityPolicy = buildContentSecurityPolicy({
 
 const nextConfig = {
   output: 'standalone',
+  // Dynamische process.cwd()-Pfade lassen das File-Tracing den ganzen Projektbaum
+  // aufnehmen; nichts davon darf ins Image (Prod-DB, Secrets, Git-Historie).
+  // Die .env kopiert Next unabhängig davon — deploy.sh entfernt sie nach dem Build.
+  outputFileTracingExcludes: {
+    '*': [
+      'data/**',
+      'backups/**',
+      '.git/**',
+      '.env*',
+      'coverage/**',
+      '.scratch/**',
+      '__tests__/**',
+      'docs/**',
+      'e2e/**',
+    ],
+  },
   turbopack: {
     root: __dirname,
   },

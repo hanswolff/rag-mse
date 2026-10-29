@@ -3,9 +3,10 @@ import {
   validateTimeString,
   validateLocation,
   validateDescription,
-  validateCoordinate,
+  validateLatitude,
   validateLongitude,
   validateCreateEventRequest,
+  LEGACY_VISIBLE_FIELD_ERROR,
   validateUpdateEventRequest,
   validateVote,
   type CreateEventRequest,
@@ -114,36 +115,36 @@ describe("event-validation", () => {
     });
   });
 
-  describe("validateCoordinate", () => {
+  describe("validateLatitude", () => {
     it("returns true for valid latitude values", () => {
-      expect(validateCoordinate("0")).toBe(true);
-      expect(validateCoordinate("45")).toBe(true);
-      expect(validateCoordinate("90")).toBe(true);
-      expect(validateCoordinate("-90")).toBe(true);
-      expect(validateCoordinate("52.5200")).toBe(true);
+      expect(validateLatitude("0")).toBe(true);
+      expect(validateLatitude("45")).toBe(true);
+      expect(validateLatitude("90")).toBe(true);
+      expect(validateLatitude("-90")).toBe(true);
+      expect(validateLatitude("52.5200")).toBe(true);
     });
 
     it("returns true for empty string", () => {
-      expect(validateCoordinate("")).toBe(true);
+      expect(validateLatitude("")).toBe(true);
     });
 
     it("returns true for whitespace-only string", () => {
-      expect(validateCoordinate("   ")).toBe(true);
+      expect(validateLatitude("   ")).toBe(true);
     });
 
     it("returns false for invalid latitude > 90", () => {
-      expect(validateCoordinate("90.1")).toBe(false);
-      expect(validateCoordinate("100")).toBe(false);
+      expect(validateLatitude("90.1")).toBe(false);
+      expect(validateLatitude("100")).toBe(false);
     });
 
     it("returns false for invalid latitude < -90", () => {
-      expect(validateCoordinate("-90.1")).toBe(false);
-      expect(validateCoordinate("-100")).toBe(false);
+      expect(validateLatitude("-90.1")).toBe(false);
+      expect(validateLatitude("-100")).toBe(false);
     });
 
     it("returns false for non-numeric values", () => {
-      expect(validateCoordinate("invalid")).toBe(false);
-      expect(validateCoordinate("abc")).toBe(false);
+      expect(validateLatitude("invalid")).toBe(false);
+      expect(validateLatitude("abc")).toBe(false);
     });
   });
 
@@ -187,6 +188,7 @@ describe("event-validation", () => {
       timeTo: "16:00",
       location: "Vereinsheim",
       description: "Jahreshauptversammlung",
+      visibility: "PUBLIC",
     };
 
     it("returns valid for correct request", () => {
@@ -307,6 +309,7 @@ describe("event-validation", () => {
         timeTo: "14:00",
         location: "",
         description: "",
+        visibility: "PUBLIC",
       };
       const result = validateCreateEventRequest(request);
       expect(result.isValid).toBe(false);
@@ -530,9 +533,28 @@ describe("event-validation", () => {
       expect(result.isValid).toBe(false);
       expect(result.errors).toContain("Ungültiger Typ (muss Training, Wettkampf, Lehrgang oder leer sein)");
     });
+
+    it("requires a Sichtbarkeitsstufe", () => {
+      const { visibility: _omitted, ...request } = validRequest;
+      const result = validateCreateEventRequest(request as CreateEventRequest);
+      expect(result.isValid).toBe(false);
+      expect(result.errors).toContain("Sichtbarkeitsstufe ist erforderlich");
+    });
+
+    it("rejects the legacy visible field from an outdated form", () => {
+      const result = validateCreateEventRequest({ ...validRequest, visible: false });
+      expect(result.isValid).toBe(false);
+      expect(result.errors).toContain(LEGACY_VISIBLE_FIELD_ERROR);
+    });
   });
 
   describe("validateUpdateEventRequest", () => {
+    it("rejects the legacy visible field from an outdated form", () => {
+      const result = validateUpdateEventRequest({ visible: true });
+      expect(result.isValid).toBe(false);
+      expect(result.fieldErrors).toEqual([{ field: "visibility", message: LEGACY_VISIBLE_FIELD_ERROR }]);
+    });
+
     it("returns valid for empty request", () => {
       const request: UpdateEventRequest = {};
       const result = validateUpdateEventRequest(request);

@@ -1,12 +1,8 @@
 import { generatePollId, generateUniquePollId, getPollTypeLabel, getPollStatusLabel } from "@/lib/poll-utils";
 
-jest.mock("@/lib/prisma", () => ({
-  prisma: {
-    poll: {
-      findUnique: jest.fn(),
-    },
-  },
-}));
+jest.mock("@/lib/prisma", () =>
+  jest.requireActual<typeof import("./helpers/prisma-mock")>("./helpers/prisma-mock").prismaModuleMock,
+);
 
 import { prisma } from "@/lib/prisma";
 

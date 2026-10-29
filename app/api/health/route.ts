@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { logApiError } from "@/lib/api-utils";
+import { logApiError } from "@/lib/api-error-handler";
 import { prisma } from "@/lib/prisma";
 
 export const runtime = "nodejs";

@@ -1,5 +1,5 @@
 import { POST } from "@/app/api/contact/route";
-import { NextRequest } from "next/server";
+import { apiRequest } from "./helpers/request";
 import { sendTemplateEmail } from "@/lib/email-sender";
 import { logError } from "@/lib/logger";
 import * as rateLimiter from "@/lib/rate-limiter";
@@ -8,15 +8,12 @@ jest.mock("@/lib/email-sender", () => ({
   sendTemplateEmail: jest.fn(),
 }));
 
-jest.mock("@/lib/logger", () => ({
-  logInfo: jest.fn(),
-  logError: jest.fn(),
-  logWarn: jest.fn(),
-  logValidationFailure: jest.fn(),
-}));
+jest.mock("@/lib/logger", () =>
+  jest.requireActual<typeof import("./helpers/logger-mock")>("./helpers/logger-mock").mockLogger,
+);
 
-jest.mock("@/lib/api-utils", () => {
-  const actualModule = jest.requireActual("@/lib/api-utils");
+jest.mock("@/lib/csrf-validator", () => {
+  const actualModule = jest.requireActual("@/lib/csrf-validator");
   return {
     ...actualModule,
     validateCsrfHeaders: jest.fn(),
@@ -38,18 +35,10 @@ afterAll(() => {
 
 // Helper function to create a mock NextRequest with json() method
 function createMockRequest(body: Record<string, unknown>, headers: Record<string, string> = {}, ip: string = "192.168.1.1") {
-  const request = {
-    json: jest.fn().mockResolvedValue(body),
-    ip: "127.0.0.1",
-    headers: {
-      get: jest.fn((name: string) => {
-        if (name === "x-forwarded-for") return headers["x-forwarded-for"] || ip;
-        if (name === "x-real-ip") return headers["x-real-ip"] || "127.0.0.1";
-        return headers[name] || null;
-      }),
-    },
-  } as unknown as NextRequest;
-  return request;
+  return apiRequest("POST", "/api/contact", {
+    body,
+    headers: { "x-forwarded-for": ip, "x-real-ip": "127.0.0.1", ...headers },
+  });
 }
 
 describe("/api/contact/route", () => {

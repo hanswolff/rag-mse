@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/auth-utils";
 import { deleteAusschreibungFile, readAusschreibungFile, restoreAusschreibungFile, writeAusschreibungFile } from "@/lib/ausschreibung-storage";
+import { checkUploadContentLength, deleteStoredFileWithRetry, deleteWithFileBackup, readAndSniffUploadedFile, validateUploadFileEntry } from "@/lib/file-storage";
 import {
   getMaxAusschreibungUploadSizeLabel,
   isPdfContent,
@@ -11,8 +12,14 @@ import {
   parseAndValidateUpdateAusschreibungRequest,
   parseAusschreibungExpiresAt,
 } from "@/lib/ausschreibung-validation";
-import { validateCsrfHeaders, withApiErrorHandling } from "@/lib/api-utils";
+import type { Visibility } from "@/lib/visibility";
+import { ValidationError } from "@/lib/request-body-parser";
+import { validateCsrfHeaders } from "@/lib/csrf-validator";
+import { withApiErrorHandling } from "@/lib/api-error-handler";
 import { logInfo, logResourceNotFound, logValidationFailure, logWarn } from "@/lib/logger";
+import { serializeAusschreibung } from "@/lib/ausschreibung-response";
+
+const ROUTE = "/api/admin/ausschreibungen/[id]";
 
 export const PATCH = withApiErrorHandling(async (request: NextRequest, ctx: RouteContext<"/api/admin/ausschreibungen/[id]">) => {
   validateCsrfHeaders(request);
@@ -22,20 +29,31 @@ export const PATCH = withApiErrorHandling(async (request: NextRequest, ctx: Rout
 
   const existingAusschreibung = await prisma.ausschreibung.findUnique({ where: { id } });
   if (!existingAusschreibung) {
-    logResourceNotFound("ausschreibung", id, "/api/admin/ausschreibungen/[id]", "PATCH");
+    logResourceNotFound("ausschreibung", id, ROUTE, "PATCH");
     return NextResponse.json({ error: "Ausschreibung nicht gefunden" }, { status: 404 });
+  }
+
+  const uploadLimits = {
+    maxBytes: MAX_AUSSCHREIBUNG_UPLOAD_BYTES,
+    maxSizeLabel: getMaxAusschreibungUploadSizeLabel(),
+  };
+  const contentLengthResponse = checkUploadContentLength(request, uploadLimits);
+  if (contentLengthResponse) {
+    return contentLengthResponse;
   }
 
   const formData = await request.formData();
   const titleRaw = formData.get("title");
   const descriptionRaw = formData.get("description");
   const expiresAtRaw = formData.get("expiresAt");
+  const visibilityRaw = formData.get("visibility");
   const maybeFile = formData.get("file");
 
   const metadataInput = {
     ...(typeof titleRaw === "string" ? { title: titleRaw } : {}),
     ...(typeof descriptionRaw === "string" ? { description: descriptionRaw } : {}),
     ...(typeof expiresAtRaw === "string" ? { expiresAt: expiresAtRaw } : {}),
+    ...(typeof visibilityRaw === "string" ? { visibility: visibilityRaw } : {}),
   };
   const hasMetadataInput = Object.keys(metadataInput).length > 0;
 
@@ -43,13 +61,18 @@ export const PATCH = withApiErrorHandling(async (request: NextRequest, ctx: Rout
     return NextResponse.json({ error: "Mindestens ein Feld oder eine Datei muss angegeben werden" }, { status: 400 });
   }
 
-  let body: { title?: string; description?: string | null; expiresAt?: string } = {};
+  let body: {
+    title?: string;
+    description?: string | null;
+    expiresAt?: string;
+    visibility?: Visibility;
+  } = {};
 
   if (hasMetadataInput) {
     const bodyValidation = parseAndValidateUpdateAusschreibungRequest(metadataInput);
     if (!bodyValidation.isValid) {
-      logValidationFailure("/api/admin/ausschreibungen/[id]", "PATCH", bodyValidation.errors, { ausschreibungId: id });
-      return NextResponse.json({ error: bodyValidation.errors.join(". "), fieldErrors: bodyValidation.fieldErrors }, { status: 400 });
+      logValidationFailure(ROUTE, "PATCH", bodyValidation.errors, { ausschreibungId: id });
+      throw new ValidationError(bodyValidation.errors, { fieldErrors: bodyValidation.fieldErrors });
     }
     body = bodyValidation.data;
   }
@@ -57,24 +80,20 @@ export const PATCH = withApiErrorHandling(async (request: NextRequest, ctx: Rout
   let newFile: { storedFileName: string; originalFileName: string; sizeBytes: number } | null = null;
 
   if (maybeFile instanceof File) {
-    if (maybeFile.size <= 0) {
-      return NextResponse.json({ error: "Datei ist leer" }, { status: 400 });
-    }
-    if (maybeFile.size > MAX_AUSSCHREIBUNG_UPLOAD_BYTES) {
-      return NextResponse.json(
-        { error: `Datei ist zu groß. Maximal erlaubt: ${getMaxAusschreibungUploadSizeLabel()}` },
-        { status: 413 },
-      );
+    const sizeResponse = validateUploadFileEntry(maybeFile, uploadLimits);
+    if (sizeResponse) {
+      return sizeResponse;
     }
 
-    const arrayBuffer = await maybeFile.arrayBuffer();
-    const fileContent = new Uint8Array(arrayBuffer);
-
-    if (!isPdfContent(fileContent)) {
-      return NextResponse.json({ error: "Nur PDF-Dateien sind erlaubt" }, { status: 400 });
+    const sniffed = await readAndSniffUploadedFile(maybeFile, {
+      detectMimeType: (content) => (isPdfContent(content) ? "application/pdf" : null),
+      unsupportedContentMessage: "Nur PDF-Dateien sind erlaubt",
+    });
+    if (!sniffed.ok) {
+      return sniffed.response;
     }
 
-    const { storedFileName } = await writeAusschreibungFile({ content: fileContent });
+    const { storedFileName } = await writeAusschreibungFile({ content: sniffed.content });
     newFile = { storedFileName, originalFileName: maybeFile.name, sizeBytes: maybeFile.size };
   }
 
@@ -82,6 +101,7 @@ export const PATCH = withApiErrorHandling(async (request: NextRequest, ctx: Rout
     title?: string;
     description?: string | null;
     expiresAt?: Date;
+    visibility?: Visibility;
     originalFileName?: string;
     storedFileName?: string;
     sizeBytes?: number;
@@ -95,6 +115,9 @@ export const PATCH = withApiErrorHandling(async (request: NextRequest, ctx: Rout
   }
   if (body.expiresAt !== undefined) {
     updateData.expiresAt = parseAusschreibungExpiresAt(body.expiresAt);
+  }
+  if (body.visibility !== undefined) {
+    updateData.visibility = body.visibility;
   }
   if (newFile) {
     updateData.originalFileName = newFile.originalFileName;
@@ -130,21 +153,12 @@ export const PATCH = withApiErrorHandling(async (request: NextRequest, ctx: Rout
           replacedStoredFileName: previousStoredFileName,
         });
       }
-      let cleanupError: unknown = null;
-      for (let attempt = 1; attempt <= 2; attempt++) {
-        try {
-          await deleteAusschreibungFile(previousStoredFileName);
-          cleanupError = null;
-          break;
-        } catch (error: unknown) {
-          cleanupError = error;
-        }
-      }
-      if (cleanupError) {
+      const cleanup = await deleteStoredFileWithRetry(deleteAusschreibungFile, previousStoredFileName);
+      if (!cleanup.ok) {
         logWarn("ausschreibung_old_file_cleanup_failed", "Failed to delete replaced file after retry", {
           ausschreibungId: id,
           storedFileName: previousStoredFileName,
-          error: cleanupError instanceof Error ? cleanupError.message : String(cleanupError),
+          error: cleanup.error instanceof Error ? cleanup.error.message : String(cleanup.error),
         });
       }
     }
@@ -153,12 +167,7 @@ export const PATCH = withApiErrorHandling(async (request: NextRequest, ctx: Rout
       ausschreibungId: updatedAusschreibung.id,
     });
 
-    return NextResponse.json({
-      ...updatedAusschreibung,
-      expiresAt: updatedAusschreibung.expiresAt.toISOString(),
-      createdAt: updatedAusschreibung.createdAt.toISOString(),
-      updatedAt: updatedAusschreibung.updatedAt.toISOString(),
-    });
+    return NextResponse.json(serializeAusschreibung(updatedAusschreibung));
   } catch (error: unknown) {
     if (newFile) {
       try {
@@ -173,7 +182,7 @@ export const PATCH = withApiErrorHandling(async (request: NextRequest, ctx: Rout
     }
     throw error;
   }
-}, { route: "/api/admin/ausschreibungen/[id]", method: "PATCH" });
+}, { route: ROUTE, method: "PATCH" });
 
 export const DELETE = withApiErrorHandling(async (request: NextRequest, ctx: RouteContext<"/api/admin/ausschreibungen/[id]">) => {
   validateCsrfHeaders(request);
@@ -183,35 +192,23 @@ export const DELETE = withApiErrorHandling(async (request: NextRequest, ctx: Rou
 
   const existingAusschreibung = await prisma.ausschreibung.findUnique({ where: { id } });
   if (!existingAusschreibung) {
-    logResourceNotFound("ausschreibung", id, "/api/admin/ausschreibungen/[id]", "DELETE");
+    logResourceNotFound("ausschreibung", id, ROUTE, "DELETE");
     return NextResponse.json({ error: "Ausschreibung nicht gefunden" }, { status: 404 });
   }
 
-  let backupContent: Buffer | null = null;
-  try {
-    backupContent = await readAusschreibungFile(existingAusschreibung.storedFileName);
-  } catch {
-    backupContent = null;
-  }
-
-  await deleteAusschreibungFile(existingAusschreibung.storedFileName);
-
-  try {
-    await prisma.ausschreibung.delete({ where: { id } });
-  } catch (error: unknown) {
-    if (backupContent) {
-      try {
-        await restoreAusschreibungFile(existingAusschreibung.storedFileName, new Uint8Array(backupContent));
-      } catch (restoreError: unknown) {
-        logWarn("ausschreibung_restore_failed", "Failed to restore file after DB delete error", {
-          ausschreibungId: existingAusschreibung.id,
-          storedFileName: existingAusschreibung.storedFileName,
-          error: restoreError instanceof Error ? restoreError.message : String(restoreError),
-        });
-      }
-    }
-    throw error;
-  }
+  await deleteWithFileBackup({
+    storedFileName: existingAusschreibung.storedFileName,
+    readFile: readAusschreibungFile,
+    deleteFile: deleteAusschreibungFile,
+    restoreFile: restoreAusschreibungFile,
+    deleteRecord: async () => {
+      await prisma.ausschreibung.delete({ where: { id } });
+    },
+    restoreFailedLog: {
+      action: "ausschreibung_restore_failed",
+      context: { ausschreibungId: existingAusschreibung.id },
+    },
+  });
 
   logInfo("ausschreibung_deleted", "Ausschreibung deleted", {
     ausschreibungId: existingAusschreibung.id,
@@ -219,4 +216,4 @@ export const DELETE = withApiErrorHandling(async (request: NextRequest, ctx: Rou
   });
 
   return NextResponse.json({ success: true });
-}, { route: "/api/admin/ausschreibungen/[id]", method: "DELETE" });
+}, { route: ROUTE, method: "DELETE" });

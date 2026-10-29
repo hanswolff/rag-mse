@@ -1,6 +1,8 @@
 import { getGermanDateString, parseIsoDateOnlyToUtcDate } from "@/lib/date-picker-utils";
 import { validateDateString } from "@/lib/validation-schema";
 import { detectAllowedMimeTypeFromContent } from "@/lib/document-mime-detection";
+import { parseUploadLimitMb } from "@/lib/env";
+import { Visibility, getVisibilityErrorMessage, parseVisibility } from "@/lib/visibility";
 import type { FieldError } from "./server-error-mapper";
 import type { ValidationResult } from "./validation-context";
 
@@ -8,15 +10,10 @@ export type { ValidationResult } from "./validation-context";
 
 const DEFAULT_MAX_AUSSCHREIBUNG_UPLOAD_MB = 15;
 
-function parseMaxAusschreibungUploadMb(value: string | undefined): number {
-  const parsed = Number.parseInt(value || "", 10);
-  if (!Number.isFinite(parsed) || parsed <= 0) {
-    return DEFAULT_MAX_AUSSCHREIBUNG_UPLOAD_MB;
-  }
-  return parsed;
-}
-
-export const MAX_AUSSCHREIBUNG_UPLOAD_MB = parseMaxAusschreibungUploadMb(process.env.AUSSCHREIBUNG_UPLOAD_MAX_MB);
+export const MAX_AUSSCHREIBUNG_UPLOAD_MB = parseUploadLimitMb(
+  "AUSSCHREIBUNG_UPLOAD_MAX_MB",
+  DEFAULT_MAX_AUSSCHREIBUNG_UPLOAD_MB,
+);
 
 export const MAX_AUSSCHREIBUNG_UPLOAD_BYTES = MAX_AUSSCHREIBUNG_UPLOAD_MB * 1024 * 1024;
 
@@ -29,12 +26,14 @@ export type CreateAusschreibungMetadata = {
   title?: string;
   description?: string | null;
   expiresAt?: string;
+  visibility?: string;
 };
 
 export type UpdateAusschreibungRequest = {
   title?: string;
   description?: string | null;
   expiresAt?: string;
+  visibility?: Visibility;
 };
 
 export type ParsedUpdateAusschreibungRequest =
@@ -130,6 +129,20 @@ function validateExpiresAt(expiresAt: string | undefined, errors: string[], fiel
   }
 }
 
+// Fehlt die Angabe, greift der Default PUBLIC aus dem Schema — Ausschreibungen sind
+// im Regelfall öffentlich, das Zurückziehen ist die Ausnahme (ADR-0011).
+function validateVisibility(visibility: string | undefined, errors: string[], fieldErrors?: FieldError[]): void {
+  if (visibility === undefined) {
+    return;
+  }
+
+  if (!parseVisibility(visibility)) {
+    const msg = getVisibilityErrorMessage("Sichtbarkeitsstufe");
+    errors.push(msg);
+    fieldErrors?.push({ field: "visibility", message: msg });
+  }
+}
+
 export function validateCreateAusschreibungMetadata(data: CreateAusschreibungMetadata): ValidationResult {
   const errors: string[] = [];
   const fieldErrors: FieldError[] = [];
@@ -144,6 +157,7 @@ export function validateCreateAusschreibungMetadata(data: CreateAusschreibungMet
 
   validateDescriptionField(data.description, errors, fieldErrors);
   validateExpiresAt(data.expiresAt, errors, fieldErrors, true);
+  validateVisibility(data.visibility, errors, fieldErrors);
 
   return {
     isValid: errors.length === 0,
@@ -159,7 +173,7 @@ export function parseAndValidateUpdateAusschreibungRequest(input: unknown): Pars
 
   const body = input as Record<string, unknown>;
   const errors: string[] = [];
-  const allowedKeys = new Set(["title", "description", "expiresAt"]);
+  const allowedKeys = new Set(["title", "description", "expiresAt", "visibility"]);
 
   for (const key of Object.keys(body)) {
     if (!allowedKeys.has(key)) {
@@ -176,12 +190,20 @@ export function parseAndValidateUpdateAusschreibungRequest(input: unknown): Pars
   if (body.expiresAt !== undefined && typeof body.expiresAt !== "string") {
     errors.push("expiresAt muss ein String sein");
   }
+  if (body.visibility !== undefined && typeof body.visibility !== "string") {
+    errors.push("visibility muss ein String sein");
+  }
 
   if (errors.length > 0) {
     return { isValid: false, errors };
   }
 
-  if (body.title === undefined && body.description === undefined && body.expiresAt === undefined) {
+  if (
+    body.title === undefined &&
+    body.description === undefined &&
+    body.expiresAt === undefined &&
+    body.visibility === undefined
+  ) {
     return { isValid: false, errors: ["Mindestens ein Feld muss gesetzt sein"] };
   }
 
@@ -189,6 +211,7 @@ export function parseAndValidateUpdateAusschreibungRequest(input: unknown): Pars
   validateTitle(body.title as string | undefined, errors, fieldErrors);
   validateDescriptionField(body.description as string | null | undefined, errors, fieldErrors);
   validateExpiresAt(body.expiresAt as string | undefined, errors, fieldErrors, false);
+  validateVisibility(body.visibility as string | undefined, errors, fieldErrors);
 
   if (errors.length > 0) {
     return { isValid: false, errors, fieldErrors };
@@ -203,6 +226,9 @@ export function parseAndValidateUpdateAusschreibungRequest(input: unknown): Pars
   }
   if (body.expiresAt !== undefined) {
     data.expiresAt = (body.expiresAt as string).trim();
+  }
+  if (body.visibility !== undefined) {
+    data.visibility = parseVisibility(body.visibility);
   }
 
   return { isValid: true, data, errors: [] };

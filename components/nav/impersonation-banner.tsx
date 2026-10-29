@@ -20,7 +20,7 @@ export function ImpersonationBanner({
       <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-8 py-2 sm:py-2.5 flex flex-col sm:flex-row gap-2 sm:items-center sm:justify-between">
         <p className="text-base text-amber-900">
           Impersonierung aktiv: Sie agieren als <strong>{userName || "Benutzer"}</strong>.
-          {impersonatedByName ? ` Angemeldet durch ${impersonatedByName}.` : ""}
+          {impersonatedByName ? ` Gestartet durch ${impersonatedByName}.` : ""}
         </p>
         <button
           type="button"
@@ -32,7 +32,7 @@ export function ImpersonationBanner({
               : "bg-amber-700 text-white hover:bg-amber-800"
           }`}
         >
-          {isStopping ? "Beenden..." : "Impersonierung beenden"}
+          {isStopping ? "Beenden…" : "Impersonierung beenden"}
         </button>
       </div>
       {error && (

@@ -1,23 +1,14 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import dynamic from "next/dynamic";
 import { Modal } from "@/components/modal";
-import { LoadingIndicator } from "@/components/loading-indicator";
+import { PdfViewerLazy } from "@/components/pdf-viewer-lazy";
 import { DownloadDocumentIcon, ChevronDownIcon } from "@/components/icons";
-import { formatDateUtc, formatFileSize } from "@/lib/document-utils";
+import { formatFileSize } from "@/lib/document-utils";
+import { formatDateUtc } from "@/lib/dates";
 import { API_ROUTES } from "@/lib/api-routes";
+import { VisibilityBadge } from "@/components/visibility-badge";
 import type { AusschreibungItem } from "@/types";
-
-const PdfViewer = dynamic(() => import("@/components/pdf-viewer").then((m) => m.PdfViewer), {
-  ssr: false,
-  loading: () => (
-    <div className="flex items-center justify-center gap-2 p-8 text-gray-500">
-      <LoadingIndicator size="md" className="text-gray-400" />
-      <span>PDF wird geladen…</span>
-    </div>
-  ),
-});
 
 function getFileUrl(id: string, download: boolean): string {
   const suffix = download ? "?download=true" : "";
@@ -34,7 +25,13 @@ function AusschreibungCard({
   return (
     <article className="card-compact">
       <div className="p-4 sm:p-6">
-        <h2 className="text-base sm:text-xl font-semibold text-gray-900">{ausschreibung.title}</h2>
+        <div className="flex flex-wrap items-center gap-2">
+          <h2 className="text-base sm:text-xl font-semibold text-gray-900">{ausschreibung.title}</h2>
+          {/* Diese Liste zeigt nur, was der Betrachter sehen darf — eine interne
+              Ausschreibung erreicht sie also erst nach dem Login. Der Hinweis sagt
+              dem Mitglied, dass es sie nicht weitergeben sollte (ADR-0011). */}
+          <VisibilityBadge visibility={ausschreibung.visibility} />
+        </div>
         <p className="text-base sm:text-base text-gray-500 mt-1">
           Datum: {formatDateUtc(ausschreibung.expiresAt)}
         </p>
@@ -125,7 +122,7 @@ export function AusschreibungenList({
         title={viewing ? viewing.title : "Ausschreibung ansehen"}
         size="full"
       >
-        {viewerSource && <PdfViewer source={viewerSource} />}
+        {viewerSource && <PdfViewerLazy source={viewerSource} />}
       </Modal>
     </div>
   );

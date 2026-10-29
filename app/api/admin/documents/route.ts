@@ -23,9 +23,15 @@ import {
   parseSortDirection,
 } from "@/lib/document-query";
 import { deleteDocumentFile, writeDocumentFile } from "@/lib/document-storage";
-import { withApiErrorHandling, validateCsrfHeaders } from "@/lib/api-utils";
+import { createWithFileRollback, readAndSniffUploadedFile, validateUploadedFile } from "@/lib/file-storage";
+import { ValidationError } from "@/lib/request-body-parser";
+import { withApiErrorHandling } from "@/lib/api-error-handler";
+import { validateCsrfHeaders } from "@/lib/csrf-validator";
 import { logInfo, logValidationFailure, logWarn, maskEmail } from "@/lib/logger";
 import { DocumentArea } from "@prisma/client";
+import { serializeDocument } from "@/lib/document-response";
+
+const ROUTE = "/api/admin/documents";
 
 export const GET = withApiErrorHandling(async (request: NextRequest) => {
   await requireAdmin("read");
@@ -96,12 +102,7 @@ export const GET = withApiErrorHandling(async (request: NextRequest) => {
   });
 
   return NextResponse.json({
-    documents: documents.map((document) => ({
-      ...document,
-      documentDate: document.documentDate.toISOString(),
-      createdAt: document.createdAt.toISOString(),
-      updatedAt: document.updatedAt.toISOString(),
-    })),
+    documents: documents.map(serializeDocument),
     pagination: {
       total,
       page,
@@ -114,43 +115,20 @@ export const GET = withApiErrorHandling(async (request: NextRequest) => {
       allowedMimeTypes: [...ALLOWED_DOCUMENT_MIME_TYPES],
     },
   });
-}, { route: "/api/admin/documents", method: "GET" });
+}, { route: ROUTE, method: "GET" });
 
 export const POST = withApiErrorHandling(async (request: NextRequest) => {
   validateCsrfHeaders(request);
   const user = await requireAdmin("write");
 
-  const contentLength = request.headers.get("content-length");
-  if (contentLength) {
-    const parsedContentLength = Number.parseInt(contentLength, 10);
-    const multipartOverheadBytes = 1024 * 1024;
-    if (Number.isFinite(parsedContentLength) && parsedContentLength > MAX_DOCUMENT_UPLOAD_BYTES + multipartOverheadBytes) {
-      return NextResponse.json(
-        { error: `Datei ist zu groß. Maximal erlaubt: ${getMaxDocumentUploadSizeLabel()}` },
-        { status: 413 },
-      );
-    }
+  const upload = await validateUploadedFile(request, {
+    maxBytes: MAX_DOCUMENT_UPLOAD_BYTES,
+    maxSizeLabel: getMaxDocumentUploadSizeLabel(),
+  });
+  if (!upload.ok) {
+    return upload.response;
   }
-
-  const formData = await request.formData();
-  const maybeFile = formData.get("file");
-
-  if (!(maybeFile instanceof File)) {
-    return NextResponse.json({ error: "Datei ist erforderlich" }, { status: 400 });
-  }
-
-  const file = maybeFile;
-
-  if (file.size <= 0) {
-    return NextResponse.json({ error: "Datei ist leer" }, { status: 400 });
-  }
-
-  if (file.size > MAX_DOCUMENT_UPLOAD_BYTES) {
-    return NextResponse.json(
-      { error: `Datei ist zu groß. Maximal erlaubt: ${getMaxDocumentUploadSizeLabel()}` },
-      { status: 413 },
-    );
-  }
+  const { formData, file } = upload;
 
   const displayNameRaw = String(formData.get("displayName") || "");
   const documentDateRaw = String(formData.get("documentDate") || "");
@@ -174,8 +152,8 @@ export const POST = withApiErrorHandling(async (request: NextRequest) => {
   });
 
   if (!validation.isValid) {
-    logValidationFailure("/api/admin/documents", "POST", validation.errors);
-    return NextResponse.json({ error: validation.errors.join(". "), ...(validation.fieldErrors?.length ? { fieldErrors: validation.fieldErrors } : {}) }, { status: 400 });
+    logValidationFailure(ROUTE, "POST", validation.errors);
+    throw new ValidationError(validation.errors, { fieldErrors: validation.fieldErrors?.length ? validation.fieldErrors : undefined });
   }
 
   const displayName = normalizeDocumentDisplayName(
@@ -196,16 +174,17 @@ export const POST = withApiErrorHandling(async (request: NextRequest) => {
     }
   }
 
-  const arrayBuffer = await file.arrayBuffer();
-  const fileContent = new Uint8Array(arrayBuffer);
-  const sniffedMimeType = detectAllowedMimeTypeFromContent(fileContent);
-
-  if (!sniffedMimeType || !isAllowedDocumentMimeType(sniffedMimeType)) {
-    return NextResponse.json(
-      { error: `Dateiinhalt wird nicht unterstützt. Erlaubt: ${getAllowedDocumentMimeTypesLabel()}` },
-      { status: 400 },
-    );
+  const sniffed = await readAndSniffUploadedFile(file, {
+    detectMimeType: (content) => {
+      const mimeType = detectAllowedMimeTypeFromContent(content);
+      return mimeType && isAllowedDocumentMimeType(mimeType) ? mimeType : null;
+    },
+    unsupportedContentMessage: `Dateiinhalt wird nicht unterstützt. Erlaubt: ${getAllowedDocumentMimeTypesLabel()}`,
+  });
+  if (!sniffed.ok) {
+    return sniffed.response;
   }
+  const { content: fileContent, mimeType: sniffedMimeType } = sniffed;
 
   const { storedFileName } = await writeDocumentFile({
     originalFileName: file.name,
@@ -214,33 +193,39 @@ export const POST = withApiErrorHandling(async (request: NextRequest) => {
   });
 
   try {
-    const document = await prisma.document.create({
-      data: {
-        displayName,
-        originalFileName: file.name,
-        storedFileName,
-        mimeType: sniffedMimeType,
-        sizeBytes: file.size,
-        documentDate,
-        area,
-        directoryId: normalizedDirectoryId,
-        uploadedById: user.id,
-      },
-      include: {
-        directory: {
-          select: {
-            id: true,
-            name: true,
+    const document = await createWithFileRollback({
+      storedFileName,
+      deleteFile: deleteDocumentFile,
+      cleanupFailedLog: { action: "document_upload_cleanup_failed" },
+      create: () =>
+        prisma.document.create({
+          data: {
+            displayName,
+            originalFileName: file.name,
+            storedFileName,
+            mimeType: sniffedMimeType,
+            sizeBytes: file.size,
+            documentDate,
+            area,
+            directoryId: normalizedDirectoryId,
+            uploadedById: user.id,
           },
-        },
-        uploadedBy: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
+          include: {
+            directory: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
+            uploadedBy: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+              },
+            },
           },
-        },
-      },
+        }),
     });
 
     logInfo("document_uploaded", "Document uploaded", {
@@ -251,24 +236,10 @@ export const POST = withApiErrorHandling(async (request: NextRequest) => {
     });
 
     return NextResponse.json(
-      {
-        ...document,
-        documentDate: document.documentDate.toISOString(),
-        createdAt: document.createdAt.toISOString(),
-        updatedAt: document.updatedAt.toISOString(),
-      },
+      serializeDocument(document),
       { status: 201 },
     );
   } catch (error: unknown) {
-    try {
-      await deleteDocumentFile(storedFileName);
-    } catch (cleanupError: unknown) {
-      logWarn("document_upload_cleanup_failed", "Failed to clean up file after metadata error", {
-        storedFileName,
-        error: cleanupError instanceof Error ? cleanupError.message : String(cleanupError),
-      });
-    }
-
     if (
       error
       && typeof error === "object"
@@ -288,4 +259,4 @@ export const POST = withApiErrorHandling(async (request: NextRequest) => {
     });
     throw error;
   }
-}, { route: "/api/admin/documents", method: "POST" });
+}, { route: ROUTE, method: "POST" });

@@ -19,10 +19,10 @@ export default function SicherheitsbelehrungPage() {
               Alle Mitglieder einer RAG-Schießsport sind laut Geschäftsordnung (§ 4 Abs. 3 d) verpflichtet:
             </p>
             <blockquote className="border-l-4 border-brand-red-600 pl-4 my-4 italic text-gray-600">
-              &ldquo;mindestens einmal jährlich an einer Sicherheitsbelehrung teilzunehmen&rdquo;
+              &bdquo;mindestens einmal jährlich an einer Sicherheitsbelehrung teilzunehmen&ldquo;
             </blockquote>
             <p>
-              Diese Belehrung kann von allen geprüften Schießleitern vorgenommen werden und wird durch einen Eintrag im Schießbuch <strong>&ldquo;Sicherheitsbelehrung&rdquo;</strong> (inkl. Datum und Unterschrift) beglaubigt.
+              Diese Belehrung kann von allen geprüften Schießleitern vorgenommen werden und wird durch einen Eintrag im Schießbuch <strong>&bdquo;Sicherheitsbelehrung&ldquo;</strong> (inkl. Datum und Unterschrift) beglaubigt.
             </p>
 
             <hr className="my-6 border-gray-300" />

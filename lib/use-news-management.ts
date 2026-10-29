@@ -1,14 +1,9 @@
-import { useState, useCallback, useEffect, useMemo } from "react";
+import { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { useAdminAuth } from "./use-admin-auth";
 import { useAdminCrud } from "./use-admin-crud";
-import { useSuccessTimer } from "./use-success-timer";
+import { useAdminEntityManagement } from "./use-admin-entity-management";
+import { EMPTY_NEWS_FORM } from "./news-form-defaults";
 import type { News, NewNews } from "@/types";
-import { getLocalDateString } from "./date-picker-utils";
-import type { FieldError } from "@/lib/server-error-mapper";
-
-function getTodayDateString() {
-  return getLocalDateString();
-}
 
 const PUBLISH_MESSAGES = {
   news: {
@@ -18,32 +13,36 @@ const PUBLISH_MESSAGES = {
   },
 } as const;
 
-const initialNewNews: NewNews = {
-  newsDate: getTodayDateString(),
-  title: "",
-  content: "",
-  published: true,
-};
-
 export function useNewsManagement() {
   const { status } = useAdminAuth();
-  const { createFetchHandler, createDeleteHandler, createFetchDataHandler, createPublishHandler } = useAdminCrud();
+  const { createFetchDataHandler, createPublishHandler } = useAdminCrud();
 
   const [news, setNews] = useState<News[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [isCreatingNews, setIsCreatingNews] = useState(false);
-  const [isDeletingNews, setIsDeletingNews] = useState(false);
-  const [isEditingNews, setIsEditingNews] = useState(false);
   const [publishingNewsId, setPublishingNewsId] = useState<string | null>(null);
-  const [error, setError] = useState("");
-  const [fieldErrors, setFieldErrors] = useState<FieldError[]>([]);
-  const [success, setSuccess] = useState("");
-  const [editingNews, setEditingNews] = useState<News | null>(null);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [modalNewsData, setModalNewsData] = useState<NewNews>(initialNewNews);
-  const [initialNewsData, setInitialNewsData] = useState<NewNews | undefined>(undefined);
 
-  useSuccessTimer(success, setSuccess);
+  // refetch wird an den generischen Hook übergeben, bevor fetchNews existiert
+  // (fetchNews braucht dessen setError) — daher spät gebunden über eine Ref.
+  const fetchNewsRef = useRef<() => Promise<void> | void>(() => {});
+
+  const management = useAdminEntityManagement<News, NewNews>({
+    endpoint: "/api/admin/news",
+    emptyForm: EMPTY_NEWS_FORM,
+    itemToForm: (newsItem) => ({
+      newsDate: newsItem.newsDate.split("T")[0],
+      title: newsItem.title,
+      content: newsItem.content,
+      published: newsItem.published,
+    }),
+    messages: {
+      created: "News wurde erfolgreich erstellt",
+      updated: "News wurde erfolgreich aktualisiert",
+      deleted: "News wurde erfolgreich gelöscht",
+    },
+    refetch: () => fetchNewsRef.current(),
+  });
+
+  const { setError, setSuccess } = management;
 
   const fetchNews = useMemo(
     () =>
@@ -55,114 +54,18 @@ export function useNewsManagement() {
         undefined,
         "news"
       ),
-    [createFetchDataHandler]
+    [createFetchDataHandler, setError]
   );
+
+  useEffect(() => {
+    fetchNewsRef.current = fetchNews;
+  }, [fetchNews]);
 
   useEffect(() => {
     if (status === "authenticated") {
       fetchNews();
     }
   }, [status, fetchNews]);
-
-  const createNews = createFetchHandler<NewNews>(
-    "/api/admin/news",
-    "POST",
-    setError,
-    setIsCreatingNews,
-    modalNewsData
-  );
-
-  const updateNews = createFetchHandler<NewNews>(
-    "/api/admin/news",
-    "PUT",
-    setError,
-    setIsEditingNews,
-    modalNewsData
-  );
-
-  const deleteNews = createFetchHandler(
-    "/api/admin/news",
-    "DELETE",
-    setError,
-    setIsDeletingNews
-  );
-
-  const handleCreateNews = useCallback(async (e: React.FormEvent) => {
-    if (e) e.preventDefault();
-
-    setFieldErrors([]);
-    const result = await createNews();
-    if (result.success) {
-      setSuccess("News wurde erfolgreich erstellt");
-      setIsModalOpen(false);
-      setModalNewsData(initialNewNews);
-      setEditingNews(null);
-      await fetchNews();
-    } else if (result.fieldErrors) {
-      setFieldErrors(result.fieldErrors);
-    }
-  }, [createNews, fetchNews]);
-
-  const handleUpdateNews = useCallback(async (e: React.FormEvent) => {
-    if (!editingNews) return;
-    if (e) e.preventDefault();
-
-    setFieldErrors([]);
-    const result = await updateNews(editingNews.id);
-    if (result.success) {
-      setSuccess("News wurde erfolgreich aktualisiert");
-      setIsModalOpen(false);
-      setModalNewsData(initialNewNews);
-      setEditingNews(null);
-      await fetchNews();
-    } else if (result.fieldErrors) {
-      setFieldErrors(result.fieldErrors);
-    }
-  }, [editingNews, updateNews, fetchNews]);
-
-  const handleDeleteNews = createDeleteHandler(
-    deleteNews,
-    setSuccess,
-    "News wurde erfolgreich gelöscht",
-    fetchNews
-  );
-
-  const startEditingNews = useCallback((newsItem: News) => {
-    setEditingNews(newsItem);
-    const newsData = {
-      newsDate: newsItem.newsDate.split("T")[0],
-      title: newsItem.title,
-      content: newsItem.content,
-      published: newsItem.published,
-    };
-    setModalNewsData(newsData);
-    setInitialNewsData(newsData);
-    setError("");
-    setFieldErrors([]);
-    setIsModalOpen(true);
-  }, []);
-
-  const openCreateModal = useCallback(() => {
-    setModalNewsData(initialNewNews);
-    setEditingNews(null);
-    setInitialNewsData(undefined);
-    setError("");
-    setFieldErrors([]);
-    setIsModalOpen(true);
-  }, []);
-
-  const closeModal = useCallback(() => {
-    setIsModalOpen(false);
-    setModalNewsData(initialNewNews);
-    setInitialNewsData(undefined);
-    setEditingNews(null);
-    setError("");
-    setFieldErrors([]);
-  }, []);
-
-  const cancelEditingNews = useCallback(() => {
-    closeModal();
-  }, [closeModal]);
 
   const handlePublishNews = useCallback(async (newsId: string, published: boolean) => {
     const publish = createPublishHandler(setSuccess, setError, fetchNews);
@@ -179,31 +82,31 @@ export function useNewsManagement() {
     } finally {
       setPublishingNewsId(null);
     }
-  }, [createPublishHandler, fetchNews]);
+  }, [createPublishHandler, fetchNews, setError, setSuccess]);
 
   return {
     news,
     isLoading,
-    isCreatingNews,
-    isDeletingNews,
-    isEditingNews,
+    isCreatingNews: management.isCreating,
+    isDeletingNews: management.isDeleting,
+    isEditingNews: management.isUpdating,
     publishingNewsId,
-    error,
-    fieldErrors,
-    success,
-    modalNewsData,
-    setModalNewsData,
-    initialNewsData,
-    isModalOpen,
-    editingNews,
-    handleCreateNews,
-    handleUpdateNews,
-    handleDeleteNews,
-    startEditingNews,
-    cancelEditingNews,
+    error: management.error,
+    fieldErrors: management.fieldErrors,
+    success: management.success,
+    modalNewsData: management.modalData,
+    setModalNewsData: management.setModalData,
+    initialNewsData: management.initialData,
+    isModalOpen: management.isModalOpen,
+    editingNews: management.editingItem,
+    handleCreateNews: management.handleCreate,
+    handleUpdateNews: management.handleUpdate,
+    handleDeleteNews: management.handleDelete,
+    startEditingNews: management.startEditing,
+    cancelEditingNews: management.closeModal,
     handlePublishNews,
-    openCreateModal,
-    closeModal,
+    openCreateModal: management.openCreateModal,
+    closeModal: management.closeModal,
   };
 }
 

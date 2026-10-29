@@ -1,7 +1,7 @@
 import { getEventTypeBadgeClasses } from "@/lib/event-types";
 
 const SIZE_CLASSES = {
-  compact: "px-2 py-0.5",
+  compact: "",
   large: "px-3 py-1",
 } as const;
 
@@ -15,7 +15,7 @@ export function EventTypeBadge({ type, size = "compact" }: EventTypeBadgeProps) 
 
   return (
     <span
-      className={`${SIZE_CLASSES[size]} text-base font-medium rounded ${getEventTypeBadgeClasses(type)}`}
+      className={`badge ${SIZE_CLASSES[size]} ${getEventTypeBadgeClasses(type)}`}
     >
       {type}
     </span>

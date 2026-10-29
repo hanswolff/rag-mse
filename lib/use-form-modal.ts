@@ -1,7 +1,7 @@
 "use client";
 
 import { type FormEvent, useEffect, useMemo, useState } from "react";
-import { useFormFieldValidation, type ValidationConfig } from "@/lib/useFormFieldValidation";
+import { useFormFieldValidation, type ValidationConfig } from "@/lib/use-form-field-validation";
 import { mapServerErrorToField } from "@/lib/server-error-mapper";
 import type { FieldError } from "@/lib/server-error-mapper";
 
@@ -59,6 +59,21 @@ export function useFormModal<T extends object>({
     return mapServerErrorToField(serverErrors.general || "", fieldKeywords, fieldErrors);
   }, [serverErrors.general, fieldKeywords, fieldErrors]);
 
+  const [serverErrorSnapshot, setServerErrorSnapshot] = useState({ errors: generalErrors, data: formData });
+  if (serverErrorSnapshot.errors !== generalErrors) {
+    setServerErrorSnapshot({ errors: generalErrors, data: formData });
+  }
+
+  const activeGeneralErrors = useMemo(
+    () =>
+      Object.fromEntries(
+        Object.entries(generalErrors).filter(
+          ([field]) => formData[field as keyof T] === serverErrorSnapshot.data[field as keyof T]
+        )
+      ),
+    [generalErrors, formData, serverErrorSnapshot]
+  );
+
   const hasUnsavedChanges = useMemo(() => {
     const base = initialData ?? defaultData;
     if (!base) return false;
@@ -68,8 +83,8 @@ export function useFormModal<T extends object>({
   }, [formData, initialData, defaultData]);
 
   const combinedErrors = useMemo(() => {
-    return { ...validationErrors, ...generalErrors, ...serverErrors };
-  }, [validationErrors, generalErrors, serverErrors]);
+    return { ...validationErrors, ...activeGeneralErrors, ...serverErrors };
+  }, [validationErrors, activeGeneralErrors, serverErrors]);
 
   const handleChange = (name: string, value: string | boolean) => {
     setFormData({ ...formData, [name]: value } as T);
@@ -85,6 +100,7 @@ export function useFormModal<T extends object>({
 
   const getFieldError = (fieldName: string): string | undefined => {
     if (serverErrors[fieldName]) return serverErrors[fieldName];
+    if (activeGeneralErrors[fieldName]) return activeGeneralErrors[fieldName];
     if (
       combinedErrors[fieldName] &&
       shouldShowError(fieldName, formData[fieldName as keyof T] as string)

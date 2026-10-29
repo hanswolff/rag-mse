@@ -1,5 +1,10 @@
 # Ausschreibungen als eigenes Modell mit öffentlichem Datei-Auslieferungspfad
 
+> **Ergänzt durch [ADR 0011](./0011-sichtbarkeitsstufen-der-ausschreibung.md):** „für alle
+> Besucher sichtbar“ ist seitdem nur noch der Default; der öffentliche Datei-Endpunkt
+> liefert nur noch für den Betrachter sichtbare Ausschreibungen aus (anonym `PUBLIC`,
+> eingeloggt zusätzlich `MEMBER`, `HIDDEN` nie).
+
 Ausschreibungen müssen für alle Besucher ohne Login sichtbar sein und ein
 Ablauf-/Historie-Konzept haben — beides gibt es beim bestehenden `Document`-Modell
 nicht, das jede Datei ausschließlich hinter Login ausliefert und weder öffentliche

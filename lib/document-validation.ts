@@ -3,21 +3,25 @@ import { validateDateString } from "@/lib/validation-schema";
 import { DocumentArea } from "@prisma/client";
 import type { FieldError } from "./server-error-mapper";
 import type { ValidationResult } from "./validation-context";
+import {
+  ALLOWED_DOCUMENT_MIME_TYPES,
+  DOCUMENT_UPLOAD_FORMATS_LABEL,
+} from "./document-mime-detection";
+import { parseUploadLimitMb } from "./env";
 
-export { detectAllowedMimeTypeFromContent } from "./document-mime-detection";
+export {
+  ALLOWED_DOCUMENT_EXTENSIONS,
+  ALLOWED_DOCUMENT_MIME_TYPES,
+  DOCUMENT_FORMATS,
+  DOCUMENT_UPLOAD_ACCEPT,
+  DOCUMENT_UPLOAD_FORMATS_LABEL,
+  detectAllowedMimeTypeFromContent,
+} from "./document-mime-detection";
 export type { ValidationResult } from "./validation-context";
 
 const DEFAULT_MAX_DOCUMENT_UPLOAD_MB = 15;
 
-function parseMaxDocumentUploadMb(value: string | undefined): number {
-  const parsed = Number.parseInt(value || "", 10);
-  if (!Number.isFinite(parsed) || parsed <= 0) {
-    return DEFAULT_MAX_DOCUMENT_UPLOAD_MB;
-  }
-  return parsed;
-}
-
-export const MAX_DOCUMENT_UPLOAD_MB = parseMaxDocumentUploadMb(process.env.DOCUMENT_UPLOAD_MAX_MB);
+export const MAX_DOCUMENT_UPLOAD_MB = parseUploadLimitMb("DOCUMENT_UPLOAD_MAX_MB", DEFAULT_MAX_DOCUMENT_UPLOAD_MB);
 
 export const MAX_DOCUMENT_UPLOAD_BYTES = MAX_DOCUMENT_UPLOAD_MB * 1024 * 1024;
 
@@ -27,20 +31,7 @@ export function parseDocumentArea(value: string | null): DocumentArea | undefine
   return undefined;
 }
 
-export const ALLOWED_DOCUMENT_MIME_TYPES = [
-  "application/pdf",
-  "image/jpeg",
-  "image/png",
-  "image/webp",
-  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-  "application/vnd.oasis.opendocument.text",
-  "application/vnd.oasis.opendocument.spreadsheet",
-] as const;
-
 const ALLOWED_MIME_TYPE_SET = new Set<string>(ALLOWED_DOCUMENT_MIME_TYPES);
-
-export const ALLOWED_DOCUMENT_EXTENSIONS = ["pdf", "jpg", "jpeg", "png", "webp", "docx", "xlsx", "odt", "ods"] as const;
 
 const DOCUMENT_NAME_MAX_LENGTH = 200;
 const DIRECTORY_NAME_MAX_LENGTH = 120;
@@ -84,7 +75,7 @@ export function isAllowedDocumentMimeType(mimeType: string): boolean {
 }
 
 export function getAllowedDocumentMimeTypesLabel(): string {
-  return "PDF, JPG, JPEG, PNG, WEBP, DOCX, XLSX, ODT, ODS";
+  return DOCUMENT_UPLOAD_FORMATS_LABEL;
 }
 
 export function getMaxDocumentUploadSizeLabel(): string {

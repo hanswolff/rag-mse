@@ -5,10 +5,12 @@ import { useRouter } from "next/navigation";
 import { resetPasswordFormSchema } from "@/lib/validation-schema";
 import { LoadingButton } from "@/components/loading-button";
 import { getFieldErrors } from "@/lib/zod-form-errors";
+import { apiFetch, ApiError } from "@/lib/api-fetch";
+import { mapServerErrorToField, AUTH_FIELD_KEYWORDS } from "@/lib/server-error-mapper";
 import { PasswordRequirements } from "@/components/password-requirements";
 import { ValidatedInput } from "@/components/validated-input";
 import { AlertBox } from "@/components/alert-box";
-import { appName } from "@/lib/site-config";
+import { AuthCardShell } from "@/components/auth-card-shell";
 
 interface UseResetPasswordFormResult {
   password: string;
@@ -40,16 +42,10 @@ function useResetPasswordForm(token: string): UseResetPasswordFormResult {
   useEffect(() => {
     async function validateToken() {
       try {
-        const response = await fetch(`/api/auth/reset-password/${token}`);
-        const data = await response.json();
-
-        if (!response.ok) {
-          setTokenError(data.error || "Ungültiger Link");
-        } else {
-          setIsValidToken(true);
-        }
-      } catch {
-        setTokenError("Ein Fehler ist aufgetreten");
+        await apiFetch(`/api/auth/reset-password/${token}`, { fallbackError: "Ungültiger Link" });
+        setIsValidToken(true);
+      } catch (err) {
+        setTokenError(err instanceof ApiError ? err.message : "Ein Fehler ist aufgetreten");
       }
     }
 
@@ -95,34 +91,29 @@ function useResetPasswordForm(token: string): UseResetPasswordFormResult {
     }
 
     try {
-      const response = await fetch(`/api/auth/reset-password/${token}`, {
+      const data = await apiFetch<{ message?: string }>(`/api/auth/reset-password/${token}`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ password }),
+        body: { password },
       });
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        const message = data.error || "Ein Fehler ist aufgetreten";
-        if (message.includes("Passwörter") || message.includes("bestätigung")) {
-          setFieldErrors({ confirmPassword: message });
-        } else if (message.includes("Passwort")) {
-          setFieldErrors({ password: message });
+      setMessage(data.message || "Passwort wurde erfolgreich geändert");
+      setIsChanged(true);
+      setTimeout(() => {
+        router.push("/login");
+      }, 3000);
+    } catch (err) {
+      if (err instanceof ApiError) {
+        const mapped = mapServerErrorToField(err.message, AUTH_FIELD_KEYWORDS);
+        if (mapped.confirmPassword) {
+          setFieldErrors({ confirmPassword: mapped.confirmPassword });
+        } else if (mapped.password) {
+          setFieldErrors({ password: mapped.password });
         } else {
-          setError(message);
+          setError(err.message);
         }
       } else {
-        setMessage(data.message || "Passwort wurde erfolgreich geändert");
-        setIsChanged(true);
-        setTimeout(() => {
-          router.push("/login");
-        }, 3000);
+        setError("Ein Fehler ist aufgetreten. Bitte versuchen Sie es erneut.");
       }
-    } catch {
-      setError("Ein Fehler ist aufgetreten. Bitte versuchen Sie es erneut.");
     } finally {
       setIsLoading(false);
     }
@@ -163,140 +154,96 @@ export default function ResetPasswordPage({ params }: { params: Promise<{ token:
 
   if (tokenError) {
     return (
-      <main className="flex flex-1 flex-col items-center justify-center p-4 sm:p-6">
-        <div className="w-full max-w-md">
-          <div className="card">
-            <h1 className="text-2xl sm:text-3xl font-bold text-center mb-4 sm:mb-6 text-brand-blue-900">
-              {appName}
-            </h1>
-            <h2 className="text-lg sm:text-xl font-semibold text-center mb-4 sm:mb-6 text-brand-red-700">
-              Passwort zurücksetzen
-            </h2>
+      <AuthCardShell title="Passwort zurücksetzen">
+        <AlertBox type="error" message={tokenError} className="mb-4 text-base" />
 
-            <AlertBox type="error" message={tokenError} className="mb-4 text-base" />
-
-            <div className="mt-6 text-center text-base text-gray-600">
-              <a href="/passwort-vergessen" className="link-primary">
-                Neuen Link anfordern
-              </a>
-              {" · "}
-              <a href="/login" className="link-primary">
-                Zum Login
-              </a>
-            </div>
-          </div>
+        <div className="mt-6 text-center text-base text-gray-600">
+          <a href="/passwort-vergessen" className="link-primary">
+            Neuen Link anfordern
+          </a>
+          {" · "}
+          <a href="/login" className="link-primary">
+            Zum Login
+          </a>
         </div>
-      </main>
+      </AuthCardShell>
     );
   }
 
   if (!isValidToken && !tokenError) {
     return (
-      <main className="flex flex-1 flex-col items-center justify-center p-4 sm:p-6">
-        <div className="w-full max-w-md">
-          <div className="card">
-            <h1 className="text-2xl sm:text-3xl font-bold text-center mb-4 sm:mb-6 text-brand-blue-900">
-              {appName}
-            </h1>
-            <h2 className="text-lg sm:text-xl font-semibold text-center mb-4 sm:mb-6 text-brand-red-700">
-              Passwort zurücksetzen
-            </h2>
-
-            <div className="text-center text-gray-700">Wird geladen...</div>
-          </div>
-        </div>
-      </main>
+      <AuthCardShell title="Passwort zurücksetzen">
+        <div className="text-center text-gray-700">Wird geladen…</div>
+      </AuthCardShell>
     );
   }
 
   if (isChanged) {
     return (
-      <main className="flex flex-1 flex-col items-center justify-center p-4 sm:p-6">
-        <div className="w-full max-w-md">
-          <div className="card">
-            <h1 className="text-2xl sm:text-3xl font-bold text-center mb-4 sm:mb-6 text-brand-blue-900">
-              {appName}
-            </h1>
-            <h2 className="text-lg sm:text-xl font-semibold text-center mb-4 sm:mb-6 text-brand-red-700">
-              Passwort zurücksetzen
-            </h2>
+      <AuthCardShell title="Passwort zurücksetzen">
+        <AlertBox type="success" message={message} className="mb-4 text-base" />
 
-            <AlertBox type="success" message={message} className="mb-4 text-base" />
-
-            <div className="mt-6 text-center text-base text-gray-600">
-              Sie werden automatisch zum Login weitergeleitet...
-            </div>
-          </div>
+        <div className="mt-6 text-center text-base text-gray-600">
+          Sie werden automatisch zum Login weitergeleitet…
         </div>
-      </main>
+      </AuthCardShell>
     );
   }
 
   return (
-    <main className="flex flex-1 flex-col items-center justify-center p-4 sm:p-6">
-      <div className="w-full max-w-md">
-        <div className="card">
-          <h1 className="text-2xl sm:text-3xl font-bold text-center mb-4 sm:mb-6 text-brand-blue-900">
-            {appName}
-          </h1>
-          <h2 className="text-lg sm:text-xl font-semibold text-center mb-4 sm:mb-6 text-brand-red-700">
-            Passwort zurücksetzen
-          </h2>
+    <AuthCardShell title="Passwort zurücksetzen">
+      <AlertBox type="error" message={error} className="mb-4 text-base" />
 
-          <AlertBox type="error" message={error} className="mb-4 text-base" />
+      <form onSubmit={handleSubmit} className="space-y-4" noValidate>
+        <ValidatedInput
+          id="password"
+          name="password"
+          type="password"
+          label="Neues Passwort"
+          value={password}
+          onChange={setPassword}
+          error={fieldErrors.password}
+          required
+          maxLength={72}
+          placeholder="Neues Passwort"
+          disabled={isLoading}
+          autoFocus
+        />
 
-          <form onSubmit={handleSubmit} className="space-y-4" noValidate>
-            <ValidatedInput
-              id="password"
-              name="password"
-              type="password"
-              label="Neues Passwort"
-              value={password}
-              onChange={setPassword}
-              error={fieldErrors.password}
-              required
-              maxLength={72}
-              placeholder="Neues Passwort"
-              disabled={isLoading}
-              autoFocus
-            />
+        <ValidatedInput
+          id="confirmPassword"
+          name="confirmPassword"
+          type="password"
+          label="Passwort bestätigen"
+          value={confirmPassword}
+          onChange={setConfirmPassword}
+          error={fieldErrors.confirmPassword}
+          required
+          maxLength={72}
+          placeholder="Passwort bestätigen"
+          disabled={isLoading}
+        />
 
-            <ValidatedInput
-              id="confirmPassword"
-              name="confirmPassword"
-              type="password"
-              label="Passwort bestätigen"
-              value={confirmPassword}
-              onChange={setConfirmPassword}
-              error={fieldErrors.confirmPassword}
-              required
-              maxLength={72}
-              placeholder="Passwort bestätigen"
-              disabled={isLoading}
-            />
+        <LoadingButton
+          type="submit"
+          loading={isLoading}
+          loadingText="Wird geändert…"
+          className="w-full btn-primary py-2.5 sm:py-2 text-base sm:text-base touch-manipulation"
+        >
+          Passwort ändern
+        </LoadingButton>
+      </form>
 
-            <LoadingButton
-              type="submit"
-              loading={isLoading}
-              loadingText="Wird geändert..."
-              className="w-full btn-primary py-2.5 sm:py-2 text-base sm:text-base touch-manipulation"
-            >
-              Passwort ändern
-            </LoadingButton>
-          </form>
-
-          <div className="mt-6 text-base text-gray-600">
-            <p className="font-medium mb-2">Passwort-Anforderungen:</p>
-            <PasswordRequirements password={password} />
-          </div>
-
-          <div className="mt-6 text-center text-base text-gray-600">
-            <a href="/login" className="link-primary">
-              Abbrechen und zum Login
-            </a>
-          </div>
-        </div>
+      <div className="mt-6 text-base text-gray-600">
+        <p className="font-medium mb-2">Passwort-Anforderungen:</p>
+        <PasswordRequirements password={password} />
       </div>
-    </main>
+
+      <div className="mt-6 text-center text-base text-gray-600">
+        <a href="/login" className="link-primary">
+          Abbrechen und zum Login
+        </a>
+      </div>
+    </AuthCardShell>
   );
 }

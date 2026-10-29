@@ -1,6 +1,7 @@
 export { metadata } from "./metadata";
 
 import { BackLink } from "@/components/back-link";
+import { PostalAddress } from "@/components/postal-address";
 import { appName } from "@/lib/site-config";
 
 export default function ImpressumPage() {
@@ -19,14 +20,7 @@ export default function ImpressumPage() {
             >
               <p className="font-semibold text-gray-900" itemProp="name">Verband der Reservisten der Deutschen Bundeswehr e. V.</p>
               <p itemProp="department">Bundesgeschäftsstelle</p>
-              <div itemProp="address" itemScope itemType="https://schema.org/PostalAddress" className="space-y-0.5">
-                <p itemProp="streetAddress">Zeppelinstraße 7 A</p>
-                <p>
-                  <span itemProp="postalCode">53177</span>{" "}
-                  <span itemProp="addressLocality">Bonn</span>
-                </p>
-                <p itemProp="addressCountry">Deutschland</p>
-              </div>
+              <PostalAddress street="Zeppelinstraße 7 A" postalCode="53177" locality="Bonn" country="Deutschland" />
             </address>
           </section>
 
@@ -47,13 +41,7 @@ export default function ImpressumPage() {
               itemType="https://schema.org/Person"
             >
               <p className="font-medium text-gray-900" itemProp="name">Hans Wolff</p>
-              <div itemProp="address" itemScope itemType="https://schema.org/PostalAddress" className="space-y-0.5">
-                <p itemProp="streetAddress">Wieseneck 32</p>
-                <p>
-                  <span itemProp="postalCode">17192</span>{" "}
-                  <span itemProp="addressLocality">Waren (Müritz)</span>
-                </p>
-              </div>
+              <PostalAddress street="Wieseneck 32" postalCode="17192" locality="Waren (Müritz)" />
             </address>
           </section>
 
@@ -68,13 +56,7 @@ export default function ImpressumPage() {
                 itemType="https://schema.org/Person"
               >
                 <p className="font-medium text-gray-900" itemProp="name">Hans Wolff</p>
-                <div itemProp="address" itemScope itemType="https://schema.org/PostalAddress" className="space-y-0.5">
-                  <p itemProp="streetAddress">Wieseneck 32</p>
-                  <p>
-                    <span itemProp="postalCode">17192</span>{" "}
-                    <span itemProp="addressLocality">Waren (Müritz)</span>
-                  </p>
-                </div>
+                <PostalAddress street="Wieseneck 32" postalCode="17192" locality="Waren (Müritz)" />
               </address>
               <div>
                 {/* Using <img> for tiny SVG email obfuscation (385 bytes) - next/image optimizations not applicable */}
@@ -109,14 +91,7 @@ export default function ImpressumPage() {
               itemType="https://schema.org/Organization"
             >
               <p><strong className="text-gray-900">Hosting-Anbieter:</strong> <span itemProp="name">dedimax solutions GmbH</span></p>
-              <div itemProp="address" itemScope itemType="https://schema.org/PostalAddress" className="space-y-0.5">
-                <p><strong>Adresse:</strong></p>
-                <p itemProp="streetAddress">Wieseneck 32</p>
-                <p>
-                  <span itemProp="postalCode">17192</span>{" "}
-                  <span itemProp="addressLocality">Waren (Müritz)</span>
-                </p>
-              </div>
+              <PostalAddress label="Adresse:" street="Wieseneck 32" postalCode="17192" locality="Waren (Müritz)" />
             </address>
             <p className="mt-2 text-base sm:text-base text-gray-800">
               <strong>Website:</strong>{" "}
@@ -136,7 +111,7 @@ export default function ImpressumPage() {
           <section>
             <h2 className="text-lg sm:text-xl font-semibold mb-3 sm:mb-4 text-gray-900">Haftung für Inhalte</h2>
             <p className="mb-4 text-base sm:text-base text-gray-800">
-              Als Diensteanbieter sind wir gemäß § 7 Abs.1 DDG für eigene Inhalte
+              Als Diensteanbieter sind wir gemäß § 7 Abs. 1 DDG für eigene Inhalte
               auf diesen Seiten nach den allgemeinen Gesetzen verantwortlich. Nach
               §§ 8 bis 10 DDG sind wir als Diensteanbieter jedoch nicht verpflichtet,
               übermittelte oder gespeicherte fremde Informationen zu überwachen oder

@@ -13,16 +13,19 @@ const transform: Config["transform"] = {
 
 const moduleNameMapper: Config["moduleNameMapper"] = {
   "^@/(.*)$": "<rootDir>/$1",
-  "react-datepicker/dist/react-datepicker.css": "<rootDir>/__mocks__/react-datepicker.css",
-  "react-pdf/dist/Page/AnnotationLayer.css": "<rootDir>/__mocks__/react-datepicker.css",
-  "react-pdf/dist/Page/TextLayer.css": "<rootDir>/__mocks__/react-datepicker.css",
+  "react-datepicker/dist/react-datepicker.css": "<rootDir>/__mocks__/style-mock.css",
+  "react-pdf/dist/Page/AnnotationLayer.css": "<rootDir>/__mocks__/style-mock.css",
+  "react-pdf/dist/Page/TextLayer.css": "<rootDir>/__mocks__/style-mock.css",
 };
 
 const sharedProjectConfig = {
   transform,
   moduleNameMapper,
   modulePathIgnorePatterns: ["<rootDir>/.next/"],
-  transformIgnorePatterns: ["node_modules/(?!(@prisma/client)/)"],
+  // sanitize-html lädt htmlparser2 ab v12 als reines ESM; Jest kann kein require(esm).
+  transformIgnorePatterns: [
+    "node_modules/(?!(\\.pnpm/)?(@prisma/client|htmlparser2|domhandler|domutils|domelementtype|dom-serializer|entities)[@/])",
+  ],
 } as const;
 
 // Zwei Schichten mit bewusst unterschiedlichen Regeln (ADR 0010):

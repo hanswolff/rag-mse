@@ -5,9 +5,21 @@ import {
   checkForgotPasswordRateLimit,
   recordSuccessfulLogin,
   recordSuccessfulTokenUsage,
-  getRateLimitStats,
   resetRateLimitForTesting,
 } from "@/lib/rate-limiter";
+import { getRateLimitStore } from "@/lib/rate-limit-store";
+
+// Beobachtet den Store direkt über die Schlüsselpräfixe des Rate-Limiters —
+// die Produktions-API selbst bietet bewusst keine Statistik-Funktion an.
+async function getRateLimitStats() {
+  const store = getRateLimitStore();
+  return {
+    loginAttemptsCount: store.keys("ratelimit:login:*").length,
+    ipAttemptsCount: store.keys("ratelimit:ip:*").length,
+    tokenAttemptsCount: store.keys("ratelimit:token:*").length,
+    forgotPasswordAttemptsCount: store.keys("ratelimit:forgot:*").length,
+  };
+}
 
 describe("Rate Limiter", () => {
   beforeEach(async () => {
@@ -32,6 +44,38 @@ describe("Rate Limiter", () => {
       expect(attemptResult.attemptCount).toBe(1);
     });
 
+    it("does not count towards the IP limit", async () => {
+      const ip = "192.168.9.40";
+      for (let i = 0; i < 40; i++) {
+        const readResult = await checkTokenReadRateLimit(ip, `token-hash-ip-${i}`);
+        expect(readResult.allowed).toBe(true);
+      }
+
+      const loginResult = await checkLoginRateLimit(ip);
+      expect(loginResult).toMatchObject({ allowed: true, attemptCount: 1 });
+    });
+
+    it("limits reads of ever new tokens per IP with its own budget", async () => {
+      jest.useFakeTimers({ now: new Date("2026-09-30T10:00:00+02:00") });
+      try {
+        const ip = "192.168.9.41";
+        for (let i = 0; i < 100; i++) {
+          expect((await checkTokenReadRateLimit(ip, `token-hash-enum-${i}`)).allowed).toBe(true);
+        }
+
+        jest.advanceTimersByTime(5 * 60 * 1000);
+        const blocked = await checkTokenReadRateLimit(ip, "token-hash-enum-extra");
+        expect(blocked.allowed).toBe(false);
+        expect(blocked.blockedUntil! - Date.now()).toBe(10 * 60 * 1000);
+        expect(getRateLimitStore().get("ratelimit:token-read:token-hash-enum-extra")).toBeNull();
+
+        expect((await checkTokenReadRateLimit("192.168.9.42", "token-hash-enum-extra")).allowed).toBe(true);
+        expect((await checkLoginRateLimit(ip)).allowed).toBe(true);
+      } finally {
+        jest.useRealTimers();
+      }
+    });
+
     it("still blocks excessive reads of the same token", async () => {
       let result = { allowed: true, attemptCount: 0 } as Awaited<ReturnType<typeof checkTokenReadRateLimit>>;
       for (let i = 0; i < 31; i++) {
@@ -49,6 +93,194 @@ describe("Rate Limiter", () => {
       const readResult = await checkTokenReadRateLimit("192.168.9.30", "token-hash-clear");
       expect(readResult.allowed).toBe(true);
       expect(readResult.attemptCount).toBe(1);
+    });
+  });
+
+  describe("Staffel (Sperre nur beim Erreichen einer Stufe)", () => {
+    const MINUTE = 60 * 1000;
+
+    beforeEach(() => {
+      jest.useFakeTimers({ now: new Date("2026-09-30T10:00:00+02:00") });
+    });
+
+    afterEach(() => {
+      jest.useRealTimers();
+    });
+
+    async function attemptLogin(times: number, ip: string, email: string) {
+      let result = await checkLoginRateLimit(ip, email);
+      for (let i = 1; i < times; i++) {
+        result = await checkLoginRateLimit(ip, email);
+      }
+      return result;
+    }
+
+    it("erlaubt nach Ablauf der ersten Stufe wieder Versuche", async () => {
+      const ip = "192.168.20.1";
+      const email = "staffel@example.com";
+
+      const blocked = await attemptLogin(6, ip, email);
+      expect(blocked.allowed).toBe(false);
+      expect(blocked.blockedUntil! - Date.now()).toBe(1 * MINUTE);
+
+      jest.advanceTimersByTime(1 * MINUTE);
+
+      const afterBlock = await checkLoginRateLimit(ip, email);
+      expect(afterBlock.allowed).toBe(true);
+      expect(afterBlock.attemptCount).toBe(7);
+    });
+
+    it("meldet während einer Sperre die tatsächliche Restzeit, ohne weiter zu zählen", async () => {
+      const ip = "192.168.20.2";
+      const email = "restzeit@example.com";
+
+      const blocked = await attemptLogin(6, ip, email);
+      jest.advanceTimersByTime(20 * 1000);
+
+      const stillBlocked = await checkLoginRateLimit(ip, email);
+      expect(stillBlocked.allowed).toBe(false);
+      expect(stillBlocked.blockedUntil).toBe(blocked.blockedUntil);
+      expect(stillBlocked.blockedUntil! - Date.now()).toBe(40 * 1000);
+      expect(stillBlocked.attemptCount).toBe(6);
+    });
+
+    it("erreicht die Login-Stufen 11, 16 und 21 mit 5, 15 und 60 Minuten", async () => {
+      const ip = "192.168.20.3";
+      const email = "stufen@example.com";
+
+      expect((await attemptLogin(6, ip, email)).blockedUntil! - Date.now()).toBe(1 * MINUTE);
+      jest.advanceTimersByTime(1 * MINUTE);
+
+      const stage2 = await attemptLogin(5, ip, email);
+      expect(stage2).toMatchObject({ allowed: false, attemptCount: 11 });
+      expect(stage2.blockedUntil! - Date.now()).toBe(5 * MINUTE);
+      jest.advanceTimersByTime(5 * MINUTE);
+
+      const stage3 = await attemptLogin(5, ip, email);
+      expect(stage3).toMatchObject({ allowed: false, attemptCount: 16 });
+      expect(stage3.blockedUntil! - Date.now()).toBe(15 * MINUTE);
+      jest.advanceTimersByTime(15 * MINUTE);
+
+      const stage4 = await attemptLogin(5, ip, email);
+      expect(stage4).toMatchObject({ allowed: false, attemptCount: 21 });
+      expect(stage4.blockedUntil! - Date.now()).toBe(60 * MINUTE);
+      jest.advanceTimersByTime(60 * MINUTE);
+
+      const afterLastStage = await checkLoginRateLimit(ip, email);
+      expect(afterLastStage).toMatchObject({ allowed: false, attemptCount: 22 });
+      expect(afterLastStage.blockedUntil! - Date.now()).toBe(60 * MINUTE);
+    });
+
+    it("sperrt nach der letzten Stufe jeden weiteren Versuch erneut für die Maximaldauer", async () => {
+      const ip = "192.168.20.8";
+      const email = "maximal@example.com";
+
+      await attemptLogin(6, ip, email);
+      jest.advanceTimersByTime(1 * MINUTE);
+      await attemptLogin(5, ip, email);
+      jest.advanceTimersByTime(5 * MINUTE);
+      await attemptLogin(5, ip, email);
+      jest.advanceTimersByTime(15 * MINUTE);
+      expect(await attemptLogin(5, ip, email)).toMatchObject({ allowed: false, attemptCount: 21 });
+
+      for (let round = 22; round <= 24; round++) {
+        jest.advanceTimersByTime(60 * MINUTE);
+        const blocked = await checkLoginRateLimit(ip, email);
+        expect(blocked).toMatchObject({ allowed: false, attemptCount: round });
+        expect(blocked.blockedUntil! - Date.now()).toBe(60 * MINUTE);
+      }
+
+      await recordSuccessfulLogin(ip, email);
+      expect(await checkLoginRateLimit(ip, email)).toMatchObject({ allowed: true, attemptCount: 1 });
+    });
+
+    it("setzt die Staffel nach erfolgreichem Login zurück", async () => {
+      const ip = "192.168.20.9";
+      const email = "erfolg@example.com";
+
+      await attemptLogin(6, ip, email);
+      jest.advanceTimersByTime(1 * MINUTE);
+      expect((await checkLoginRateLimit(ip, email)).attemptCount).toBe(7);
+
+      await recordSuccessfulLogin(ip, email);
+      const afterSuccess = await attemptLogin(5, ip, email);
+      expect(afterSuccess).toMatchObject({ allowed: true, attemptCount: 5 });
+    });
+
+    it("setzt die Staffel erst ein volles Fenster nach Ende der Sperre zurück", async () => {
+      const ip = "192.168.20.4";
+      const email = "fenster@example.com";
+
+      await attemptLogin(6, ip, email);
+      jest.advanceTimersByTime(1 * MINUTE + 15 * MINUTE - 1000);
+      expect((await checkLoginRateLimit(ip, email)).attemptCount).toBe(7);
+
+      await resetRateLimitForTesting();
+      await attemptLogin(6, ip, email);
+      jest.advanceTimersByTime(1 * MINUTE + 15 * MINUTE);
+      expect((await checkLoginRateLimit(ip, email)).attemptCount).toBe(1);
+    });
+
+    it("staffelt Token-Einlöseversuche 5 → 15 → 60 Minuten", async () => {
+      const ip = "192.168.20.5";
+      const tokenHash = "token-staffel";
+      const attempt = async (times: number) => {
+        let result = await checkTokenRateLimit(ip, tokenHash);
+        for (let i = 1; i < times; i++) {
+          result = await checkTokenRateLimit(ip, tokenHash);
+        }
+        return result;
+      };
+
+      expect((await attempt(4)).blockedUntil! - Date.now()).toBe(5 * MINUTE);
+      jest.advanceTimersByTime(5 * MINUTE);
+      expect((await checkTokenRateLimit(ip, tokenHash)).allowed).toBe(true);
+
+      const stage2 = await attempt(2);
+      expect(stage2).toMatchObject({ allowed: false, attemptCount: 7 });
+      expect(stage2.blockedUntil! - Date.now()).toBe(15 * MINUTE);
+      jest.advanceTimersByTime(15 * MINUTE);
+
+      const stage3 = await attempt(3);
+      expect(stage3).toMatchObject({ allowed: false, attemptCount: 10 });
+      expect(stage3.blockedUntil! - Date.now()).toBe(60 * MINUTE);
+    });
+
+    it("staffelt „Passwort vergessen“ 15 → 60 Minuten → 24 Stunden", async () => {
+      const ip = "192.168.20.6";
+      const email = "vergessen@example.com";
+      const attempt = async (times: number) => {
+        let result = await checkForgotPasswordRateLimit(ip, email);
+        for (let i = 1; i < times; i++) {
+          result = await checkForgotPasswordRateLimit(ip, email);
+        }
+        return result;
+      };
+
+      expect((await attempt(3)).blockedUntil! - Date.now()).toBe(15 * MINUTE);
+      jest.advanceTimersByTime(15 * MINUTE);
+
+      const stage2 = await attempt(3);
+      expect(stage2).toMatchObject({ allowed: false, attemptCount: 6 });
+      expect(stage2.blockedUntil! - Date.now()).toBe(60 * MINUTE);
+      jest.advanceTimersByTime(60 * MINUTE);
+
+      const stage3 = await attempt(4);
+      expect(stage3).toMatchObject({ allowed: false, attemptCount: 10 });
+      expect(stage3.blockedUntil! - Date.now()).toBe(24 * 60 * MINUTE);
+    });
+
+    it("meldet beim IP-Limit das Ende des IP-Fensters als Restzeit", async () => {
+      const ip = "192.168.20.7";
+
+      for (let i = 0; i < 25; i++) {
+        await checkLoginRateLimit(ip, `ip${i}@example.com`);
+      }
+      jest.advanceTimersByTime(5 * MINUTE);
+
+      const blocked = await checkLoginRateLimit(ip, "ip-extra@example.com");
+      expect(blocked.allowed).toBe(false);
+      expect(blocked.blockedUntil! - Date.now()).toBe(10 * MINUTE);
     });
   });
 
@@ -155,7 +387,7 @@ describe("Rate Limiter", () => {
       let result = await checkLoginRateLimit(ip, email);
       expect(result.allowed).toBe(false);
 
-      jest.advanceTimersByTime(originalWindow + 1000);
+      jest.advanceTimersByTime(1 * 60 * 1000 + originalWindow + 1000);
 
       result = await checkLoginRateLimit(ip, email);
       expect(result.allowed).toBe(true);
@@ -288,7 +520,7 @@ describe("Rate Limiter", () => {
       let result = await checkTokenRateLimit(ip, tokenHash);
       expect(result.allowed).toBe(false);
 
-      jest.advanceTimersByTime(TOKEN_WINDOW_MS + 1000);
+      jest.advanceTimersByTime(5 * 60 * 1000 + TOKEN_WINDOW_MS + 1000);
 
       result = await checkTokenRateLimit(ip, tokenHash);
       expect(result.allowed).toBe(true);
@@ -510,7 +742,7 @@ describe("Rate Limiter", () => {
       let result = await checkForgotPasswordRateLimit(ip, email);
       expect(result.allowed).toBe(false);
 
-      jest.advanceTimersByTime(FORGOT_PASSWORD_WINDOW_MS + 1000);
+      jest.advanceTimersByTime(15 * 60 * 1000 + FORGOT_PASSWORD_WINDOW_MS + 1000);
 
       result = await checkForgotPasswordRateLimit(ip, email);
       expect(result.allowed).toBe(true);

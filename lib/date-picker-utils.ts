@@ -45,6 +45,12 @@ export function formatDateForStorage(date: Date): string {
   return format(date, 'yyyy-MM-dd');
 }
 
+export function parseStrictIsoDate(value: string | null | undefined): Date | null {
+  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+  const date = parseISODate(value);
+  return date && formatDateForStorage(date) === value ? date : null;
+}
+
 export function getLocalDateString(date: Date = new Date()): string {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, "0");

@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import dynamic from "next/dynamic";
 import { useSession } from "next-auth/react";
 import { Permissions } from "@/lib/permissions";
 import { Modal } from "@/components/modal";
@@ -10,20 +9,17 @@ import { useConfirmDialog } from "@/components/confirm-dialog";
 import { GermanDatePicker } from "@/components/german-date-picker";
 import { LoadingScreen } from "@/components/loading-screen";
 import { LoadingIndicator } from "@/components/loading-indicator";
-import { formatDateUtc, formatFileSize } from "@/lib/document-utils";
+import { PdfViewerLazy } from "@/components/pdf-viewer-lazy";
+import { VisibilityBadge } from "@/components/visibility-badge";
+import { VisibilitySelect } from "@/components/visibility-select";
+import { useFormModal } from "@/lib/use-form-modal";
+import { apiFetch } from "@/lib/api-fetch";
+import { formatFileSize } from "@/lib/document-utils";
+import { formatDateUtc } from "@/lib/dates";
 import { API_ROUTES } from "@/lib/api-routes";
 import { isAusschreibungCurrent } from "@/lib/ausschreibung-validation";
-import type { AusschreibungItem } from "@/types";
-
-const PdfViewer = dynamic(() => import("@/components/pdf-viewer").then((m) => m.PdfViewer), {
-  ssr: false,
-  loading: () => (
-    <div className="flex items-center justify-center gap-2 p-8 text-gray-500">
-      <LoadingIndicator size="md" className="text-gray-400" />
-      <span>PDF wird geladen…</span>
-    </div>
-  ),
-});
+import { Visibility } from "@/lib/visibility";
+import type { AusschreibungItem, NewAusschreibungInput } from "@/types";
 
 const ADMIN_API = API_ROUTES.ADMIN.AUSSCHREIBUNGEN;
 
@@ -31,23 +27,215 @@ function isCurrent(expiresAt: string): boolean {
   return isAusschreibungCurrent(new Date(expiresAt));
 }
 
-async function readErrorMessage(response: Response, fallback: string): Promise<string> {
-  try {
-    const data = await response.json();
-    return typeof data?.error === "string" ? data.error : fallback;
-  } catch {
-    return fallback;
+const EMPTY_FORM: NewAusschreibungInput = {
+  title: "",
+  description: "",
+  expiresAt: "",
+  visibility: Visibility.PUBLIC,
+  file: null,
+};
+
+function toFormData(form: NewAusschreibungInput): FormData {
+  const formData = new FormData();
+  formData.set("title", form.title);
+  formData.set("description", form.description);
+  formData.set("expiresAt", form.expiresAt);
+  formData.set("visibility", form.visibility);
+  if (form.file) {
+    formData.set("file", form.file);
   }
+  return formData;
 }
 
-interface FormState {
-  title: string;
-  description: string;
-  expiresAt: string;
-  file: File | null;
+// Gemeinsame Formularfelder für Anlage und Bearbeitung einer Ausschreibung.
+function AusschreibungFormFields({
+  variant,
+  form,
+  setForm,
+  disabled,
+  fileInputRef,
+}: {
+  variant: "create" | "edit";
+  form: NewAusschreibungInput;
+  setForm: (updater: (prev: NewAusschreibungInput) => NewAusschreibungInput) => void;
+  disabled: boolean;
+  fileInputRef?: React.RefObject<HTMLInputElement | null>;
+}) {
+  const idPrefix = variant === "edit" ? "edit-ausschreibung" : "ausschreibung";
+
+  const dateField = (
+    <div>
+      <GermanDatePicker
+        id={`${idPrefix}-expires-at`}
+        value={form.expiresAt || null}
+        onChange={(date) => setForm((prev) => ({ ...prev, expiresAt: date }))}
+        label="Ablaufdatum (Anzeigen bis)"
+        required
+        disabled={disabled}
+      />
+      <p className="form-help">Vorschlag: das Veranstaltungsdatum. Frei wählbar.</p>
+    </div>
+  );
+
+  const visibilityField = (
+    <VisibilitySelect
+      id={`${idPrefix}-visibility`}
+      value={form.visibility}
+      onChange={(visibility) => setForm((prev) => ({ ...prev, visibility }))}
+      disabled={disabled}
+      help="Verborgene Ausschreibungen sind auch über den direkten Link zum PDF nicht mehr abrufbar."
+    />
+  );
+
+  const fileField = (
+    <div>
+      <label htmlFor={`${idPrefix}-file`} className="form-label">
+        {variant === "edit" ? "PDF ersetzen (optional)" : "PDF-Datei"}
+      </label>
+      <input
+        id={`${idPrefix}-file`}
+        ref={fileInputRef}
+        type="file"
+        accept="application/pdf"
+        className="form-input"
+        onChange={(event) => setForm((prev) => ({ ...prev, file: event.target.files?.[0] || null }))}
+        disabled={disabled}
+      />
+    </div>
+  );
+
+  return (
+    <>
+      <div>
+        <label htmlFor={`${idPrefix}-title`} className="form-label">Titel</label>
+        <input
+          id={`${idPrefix}-title`}
+          type="text"
+          className="form-input"
+          value={form.title}
+          onChange={(event) => setForm((prev) => ({ ...prev, title: event.target.value }))}
+          maxLength={200}
+          required
+          disabled={disabled}
+        />
+      </div>
+
+      <div>
+        <label htmlFor={`${idPrefix}-description`} className="form-label">Beschreibung (optional)</label>
+        <textarea
+          id={`${idPrefix}-description`}
+          className="form-input"
+          rows={3}
+          value={form.description}
+          onChange={(event) => setForm((prev) => ({ ...prev, description: event.target.value }))}
+          disabled={disabled}
+        />
+      </div>
+
+      {variant === "create" ? (
+        <>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {dateField}
+            {fileField}
+          </div>
+          {visibilityField}
+        </>
+      ) : (
+        <>
+          {dateField}
+          {visibilityField}
+          {fileField}
+        </>
+      )}
+    </>
+  );
 }
 
-const EMPTY_FORM: FormState = { title: "", description: "", expiresAt: "", file: null };
+// Bearbeiten-Modal mit Dirty-/Close-Logik aus useFormModal statt Handbau.
+function AusschreibungEditModal({
+  ausschreibung,
+  form,
+  setForm,
+  isSaving,
+  error,
+  onClose,
+  onSubmit,
+}: {
+  ausschreibung: AusschreibungItem | null;
+  form: NewAusschreibungInput;
+  setForm: React.Dispatch<React.SetStateAction<NewAusschreibungInput>>;
+  isSaving: boolean;
+  error: string;
+  onClose: () => void;
+  onSubmit: (e: React.FormEvent) => void;
+}) {
+  const initialData = useMemo<NewAusschreibungInput | undefined>(
+    () =>
+      ausschreibung
+        ? {
+            title: ausschreibung.title,
+            description: ausschreibung.description || "",
+            expiresAt: ausschreibung.expiresAt.slice(0, 10),
+            visibility: ausschreibung.visibility,
+            file: null,
+          }
+        : undefined,
+    [ausschreibung]
+  );
+
+  const {
+    handleClose,
+    handleSubmit,
+    showCloseConfirm,
+    handleConfirmClose,
+    cancelClose,
+  } = useFormModal<NewAusschreibungInput>({
+    validationConfig: {},
+    formData: form,
+    setFormData: setForm,
+    initialData,
+    isOpen: ausschreibung !== null,
+    isSubmitting: isSaving,
+    onClose,
+    onSubmit,
+  });
+
+  return (
+    <>
+      <Modal
+        isOpen={ausschreibung !== null}
+        onClose={handleClose}
+        title="Ausschreibung bearbeiten"
+        size="lg"
+        closeOnOutsideClick={false}
+        closeOnEscape={false}
+      >
+        {ausschreibung && (
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <AusschreibungFormFields variant="edit" form={form} setForm={setForm} disabled={isSaving} />
+
+            {error && <p className="text-red-600 text-sm">{error}</p>}
+
+            <div className="flex justify-end gap-3">
+              <button type="button" className="btn-outline" onClick={handleClose} disabled={isSaving}>
+                Abbrechen
+              </button>
+              <button type="submit" className="btn-primary" disabled={isSaving}>
+                {isSaving ? "Wird gespeichert…" : "Speichern"}
+              </button>
+            </div>
+          </form>
+        )}
+      </Modal>
+
+      <ConfirmCloseModal
+        isOpen={showCloseConfirm}
+        onConfirm={handleConfirmClose}
+        onCancel={cancelClose}
+      />
+    </>
+  );
+}
 
 export function AdminAusschreibungManager() {
   const { data: session, status } = useSession();
@@ -57,14 +245,13 @@ export function AdminAusschreibungManager() {
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
 
-  const [uploadForm, setUploadForm] = useState<FormState>(EMPTY_FORM);
+  const [uploadForm, setUploadForm] = useState<NewAusschreibungInput>(EMPTY_FORM);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState("");
   const uploadFileInputRef = useRef<HTMLInputElement>(null);
 
   const [editing, setEditing] = useState<AusschreibungItem | null>(null);
-  const [editForm, setEditForm] = useState<FormState>(EMPTY_FORM);
-  const [showEditCloseConfirm, setShowEditCloseConfirm] = useState(false);
+  const [editForm, setEditForm] = useState<NewAusschreibungInput>(EMPTY_FORM);
   const [isSaving, setIsSaving] = useState(false);
   const [editError, setEditError] = useState("");
 
@@ -76,11 +263,9 @@ export function AdminAusschreibungManager() {
     setIsLoading(true);
     setLoadError("");
     try {
-      const response = await fetch(ADMIN_API);
-      if (!response.ok) {
-        throw new Error(await readErrorMessage(response, "Ausschreibungen konnten nicht geladen werden"));
-      }
-      const data = await response.json();
+      const data = await apiFetch<{ ausschreibungen: AusschreibungItem[] }>(ADMIN_API, {
+        fallbackError: "Ausschreibungen konnten nicht geladen werden",
+      });
       setAusschreibungen(data.ausschreibungen);
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : "Ausschreibungen konnten nicht geladen werden");
@@ -111,17 +296,11 @@ export function AdminAusschreibungManager() {
 
     setIsUploading(true);
     try {
-      const formData = new FormData();
-      formData.set("title", uploadForm.title);
-      formData.set("description", uploadForm.description);
-      formData.set("expiresAt", uploadForm.expiresAt);
-      formData.set("file", uploadForm.file);
-
-      const response = await fetch(ADMIN_API, { method: "POST", body: formData });
-      if (!response.ok) {
-        throw new Error(await readErrorMessage(response, "Ausschreibung konnte nicht angelegt werden"));
-      }
-      const created: AusschreibungItem = await response.json();
+      const created = await apiFetch<AusschreibungItem>(ADMIN_API, {
+        method: "POST",
+        body: toFormData(uploadForm),
+        fallbackError: "Ausschreibung konnte nicht angelegt werden",
+      });
 
       setUploadForm(EMPTY_FORM);
       // Das File-Input ist unkontrolliert — ohne Reset zeigt die nächste Anlage
@@ -143,53 +322,28 @@ export function AdminAusschreibungManager() {
       title: ausschreibung.title,
       description: ausschreibung.description || "",
       expiresAt: ausschreibung.expiresAt.slice(0, 10),
+      visibility: ausschreibung.visibility,
       file: null,
     });
     setEditError("");
   }
 
-  const isEditDirty = editing !== null && (
-    editForm.title !== editing.title
-    || editForm.description !== (editing.description || "")
-    || editForm.expiresAt !== editing.expiresAt.slice(0, 10)
-    || editForm.file !== null
-  );
-
-  // Ungespeicherte Änderungen nur nach Rückfrage verwerfen
-  function requestCloseEdit() {
-    if (isSaving) return;
-    if (isEditDirty) {
-      setShowEditCloseConfirm(true);
-      return;
-    }
-    closeEdit();
-  }
-
   function closeEdit() {
-    setShowEditCloseConfirm(false);
     setEditing(null);
   }
 
-  async function handleSaveEdit(event: React.FormEvent<HTMLFormElement>) {
+  async function handleSaveEdit(event: React.FormEvent) {
     event.preventDefault();
     if (!editing) return;
 
     setIsSaving(true);
     setEditError("");
     try {
-      const formData = new FormData();
-      formData.set("title", editForm.title);
-      formData.set("description", editForm.description);
-      formData.set("expiresAt", editForm.expiresAt);
-      if (editForm.file) {
-        formData.set("file", editForm.file);
-      }
-
-      const response = await fetch(`${ADMIN_API}/${editing.id}`, { method: "PATCH", body: formData });
-      if (!response.ok) {
-        throw new Error(await readErrorMessage(response, "Ausschreibung konnte nicht gespeichert werden"));
-      }
-      const updated: AusschreibungItem = await response.json();
+      const updated = await apiFetch<AusschreibungItem>(`${ADMIN_API}/${editing.id}`, {
+        method: "PATCH",
+        body: toFormData(editForm),
+        fallbackError: "Ausschreibung konnte nicht gespeichert werden",
+      });
 
       setEditing(null);
       setAusschreibungen((prev) => prev.map((item) => (item.id === updated.id ? updated : item)));
@@ -210,10 +364,10 @@ export function AdminAusschreibungManager() {
     if (!confirmed) return;
 
     try {
-      const response = await fetch(`${ADMIN_API}/${ausschreibung.id}`, { method: "DELETE" });
-      if (!response.ok) {
-        throw new Error(await readErrorMessage(response, "Ausschreibung konnte nicht gelöscht werden"));
-      }
+      await apiFetch(`${ADMIN_API}/${ausschreibung.id}`, {
+        method: "DELETE",
+        fallbackError: "Ausschreibung konnte nicht gelöscht werden",
+      });
       setAusschreibungen((prev) => prev.filter((item) => item.id !== ausschreibung.id));
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : "Ausschreibung konnte nicht gelöscht werden");
@@ -230,7 +384,7 @@ export function AdminAusschreibungManager() {
         <div className="mb-6">
           <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Ausschreibungen verwalten</h1>
           <p className="text-base text-gray-600 mt-2">
-            Öffentliche Bekanntmachungen externer Wettbewerbe und Veranstaltungen anlegen, bearbeiten und löschen.
+            Bekanntmachungen externer Wettbewerbe und Veranstaltungen anlegen, bearbeiten und löschen.
           </p>
         </div>
 
@@ -238,63 +392,18 @@ export function AdminAusschreibungManager() {
           <section className="card-compact mb-6">
             <h2 className="text-lg sm:text-xl font-semibold text-gray-900 mb-4">Neue Ausschreibung anlegen</h2>
             <form onSubmit={handleUpload} className="space-y-4">
-              <div>
-                <label htmlFor="ausschreibung-title" className="form-label">Titel</label>
-                <input
-                  id="ausschreibung-title"
-                  type="text"
-                  className="form-input"
-                  value={uploadForm.title}
-                  onChange={(event) => setUploadForm((prev) => ({ ...prev, title: event.target.value }))}
-                  maxLength={200}
-                  required
-                  disabled={isUploading}
-                />
-              </div>
-
-              <div>
-                <label htmlFor="ausschreibung-description" className="form-label">Beschreibung (optional)</label>
-                <textarea
-                  id="ausschreibung-description"
-                  className="form-input"
-                  rows={3}
-                  value={uploadForm.description}
-                  onChange={(event) => setUploadForm((prev) => ({ ...prev, description: event.target.value }))}
-                  disabled={isUploading}
-                />
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <GermanDatePicker
-                    id="ausschreibung-expires-at"
-                    value={uploadForm.expiresAt || null}
-                    onChange={(date) => setUploadForm((prev) => ({ ...prev, expiresAt: date }))}
-                    label="Ablaufdatum (Anzeigen bis)"
-                    required
-                    disabled={isUploading}
-                  />
-                  <p className="form-help">Vorschlag: das Veranstaltungsdatum. Frei wählbar.</p>
-                </div>
-
-                <div>
-                  <label htmlFor="ausschreibung-file" className="form-label">PDF-Datei</label>
-                  <input
-                    id="ausschreibung-file"
-                    ref={uploadFileInputRef}
-                    type="file"
-                    accept="application/pdf"
-                    className="form-input"
-                    onChange={(event) => setUploadForm((prev) => ({ ...prev, file: event.target.files?.[0] || null }))}
-                    disabled={isUploading}
-                  />
-                </div>
-              </div>
+              <AusschreibungFormFields
+                variant="create"
+                form={uploadForm}
+                setForm={setUploadForm}
+                disabled={isUploading}
+                fileInputRef={uploadFileInputRef}
+              />
 
               {uploadError && <p className="text-red-600 text-sm">{uploadError}</p>}
 
               <button type="submit" className="btn-primary px-4 py-2 text-base" disabled={isUploading}>
-                {isUploading ? "Wird hochgeladen..." : "Ausschreibung anlegen"}
+                {isUploading ? "Wird hochgeladen…" : "Ausschreibung anlegen"}
               </button>
             </form>
           </section>
@@ -318,6 +427,7 @@ export function AdminAusschreibungManager() {
                     <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${isCurrent(ausschreibung.expiresAt) ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-800"}`}>
                       {isCurrent(ausschreibung.expiresAt) ? "Aktuell" : "Historisch"}
                     </span>
+                    <VisibilityBadge visibility={ausschreibung.visibility} showPublic />
                   </div>
                   <p className="text-sm text-gray-500 mt-1">
                     Anzeigen bis {formatDateUtc(ausschreibung.expiresAt)} · {formatFileSize(ausschreibung.sizeBytes)}
@@ -350,87 +460,17 @@ export function AdminAusschreibungManager() {
         title={viewing ? viewing.title : "Ausschreibung ansehen"}
         size="full"
       >
-        {viewing && <PdfViewer source={`${API_ROUTES.AUSSCHREIBUNGEN}/${viewing.id}/file`} />}
+        {viewing && <PdfViewerLazy source={`${ADMIN_API}/${viewing.id}/file`} />}
       </Modal>
 
-      <Modal
-        isOpen={editing !== null}
-        onClose={requestCloseEdit}
-        title="Ausschreibung bearbeiten"
-        size="lg"
-        closeOnOutsideClick={false}
-        closeOnEscape={false}
-      >
-        {editing && (
-          <form onSubmit={handleSaveEdit} className="space-y-4">
-            <div>
-              <label htmlFor="edit-ausschreibung-title" className="form-label">Titel</label>
-              <input
-                id="edit-ausschreibung-title"
-                type="text"
-                className="form-input"
-                value={editForm.title}
-                onChange={(event) => setEditForm((prev) => ({ ...prev, title: event.target.value }))}
-                maxLength={200}
-                required
-                disabled={isSaving}
-              />
-            </div>
-
-            <div>
-              <label htmlFor="edit-ausschreibung-description" className="form-label">Beschreibung (optional)</label>
-              <textarea
-                id="edit-ausschreibung-description"
-                className="form-input"
-                rows={3}
-                value={editForm.description}
-                onChange={(event) => setEditForm((prev) => ({ ...prev, description: event.target.value }))}
-                disabled={isSaving}
-              />
-            </div>
-
-            <div>
-              <GermanDatePicker
-                id="edit-ausschreibung-expires-at"
-                value={editForm.expiresAt || null}
-                onChange={(date) => setEditForm((prev) => ({ ...prev, expiresAt: date }))}
-                label="Ablaufdatum (Anzeigen bis)"
-                required
-                disabled={isSaving}
-              />
-              <p className="form-help">Vorschlag: das Veranstaltungsdatum. Frei wählbar.</p>
-            </div>
-
-            <div>
-              <label htmlFor="edit-ausschreibung-file" className="form-label">PDF ersetzen (optional)</label>
-              <input
-                id="edit-ausschreibung-file"
-                type="file"
-                accept="application/pdf"
-                className="form-input"
-                onChange={(event) => setEditForm((prev) => ({ ...prev, file: event.target.files?.[0] || null }))}
-                disabled={isSaving}
-              />
-            </div>
-
-            {editError && <p className="text-red-600 text-sm">{editError}</p>}
-
-            <div className="flex justify-end gap-3">
-              <button type="button" className="btn-outline" onClick={requestCloseEdit} disabled={isSaving}>
-                Abbrechen
-              </button>
-              <button type="submit" className="btn-primary" disabled={isSaving}>
-                {isSaving ? "Wird gespeichert..." : "Speichern"}
-              </button>
-            </div>
-          </form>
-        )}
-      </Modal>
-
-      <ConfirmCloseModal
-        isOpen={showEditCloseConfirm}
-        onConfirm={closeEdit}
-        onCancel={() => setShowEditCloseConfirm(false)}
+      <AusschreibungEditModal
+        ausschreibung={editing}
+        form={editForm}
+        setForm={setEditForm}
+        isSaving={isSaving}
+        error={editError}
+        onClose={closeEdit}
+        onSubmit={handleSaveEdit}
       />
     </main>
   );

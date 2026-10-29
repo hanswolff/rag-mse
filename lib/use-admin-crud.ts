@@ -2,16 +2,13 @@ import { useCallback, useRef } from "react";
 import { buildLoginUrlWithReturnUrl, getCurrentPathWithSearch } from "@/lib/return-url";
 import { useConfirmDialog } from "@/components/confirm-dialog";
 import type { FieldError } from "@/lib/server-error-mapper";
+import { GENERIC_API_ERROR_MESSAGE, toDisplayErrorMessage } from "@/lib/api-fetch";
 
 interface CrudResult {
   success: boolean;
   data?: unknown;
   fieldErrors?: FieldError[];
 }
-
-const GENERIC_ERROR_MESSAGE = "Ein Fehler ist aufgetreten";
-const NETWORK_ERROR_MESSAGE =
-  "Netzwerkfehler: Der Server ist nicht erreichbar. Bitte versuchen Sie es erneut.";
 
 // 204- oder Nicht-JSON-Antworten dürfen keinen "Unexpected end of JSON input"-Fehler auslösen
 async function parseJsonBody(response: Response): Promise<Record<string, unknown>> {
@@ -20,17 +17,6 @@ async function parseJsonBody(response: Response): Promise<Record<string, unknown
   } catch {
     return {};
   }
-}
-
-// fetch wirft bei Netzwerkfehlern TypeError mit englischer Browser-Meldung ("Failed to fetch")
-function toDisplayErrorMessage(err: unknown, fallback: string = GENERIC_ERROR_MESSAGE): string {
-  if (err instanceof TypeError) {
-    return NETWORK_ERROR_MESSAGE;
-  }
-  if (err instanceof SyntaxError) {
-    return fallback;
-  }
-  return err instanceof Error && err.message ? err.message : fallback;
 }
 
 export function useAdminCrud() {
@@ -61,7 +47,7 @@ export function useAdminCrud() {
 
         if (!response.ok) {
           setError(
-            (typeof responseData.error === "string" && responseData.error) || GENERIC_ERROR_MESSAGE
+            (typeof responseData.error === "string" && responseData.error) || GENERIC_API_ERROR_MESSAGE
           );
           return { success: false, fieldErrors: responseData.fieldErrors as FieldError[] | undefined };
         }
@@ -172,7 +158,7 @@ export function useAdminCrud() {
   ) => {
     return async (
       url: string,
-      body: Record<string, boolean>,
+      body: Record<string, boolean | string>,
       messages: { success: string; error: string }
     ): Promise<void> => {
       setError("");

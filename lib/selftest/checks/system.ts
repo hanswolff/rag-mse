@@ -2,7 +2,7 @@ import { statfs } from "node:fs/promises";
 import { validateProductionConfig } from "@/lib/config-validation";
 import { getDocumentsDirectory } from "@/lib/document-storage";
 import { isEmailOutboxWorkerRunning } from "@/lib/email/outbox-worker";
-import { isEventReminderWorkerRunning } from "@/lib/event-reminder-worker";
+import { isEventReminderWorkerRunning } from "@/lib/reminders/event-reminder-worker";
 import type { CheckVerdict, RegisteredCheck } from "../types";
 
 const WORKER_COMPONENT = "Hintergrund-Worker";

@@ -1,20 +1,13 @@
 import { GET } from "@/app/api/events/route";
-import { NextRequest } from "next/server";
+import { apiRequest } from "./helpers/request";
+import { buildEvent } from "./helpers/factories";
 import { prisma } from "@/lib/prisma";
 import { getStartOfToday } from "@/lib/date-picker-utils";
 import { getServerSession } from "next-auth";
 
-jest.mock("@/lib/prisma", () => ({
-  prisma: {
-    event: {
-      findMany: jest.fn(),
-      count: jest.fn(),
-    },
-    shootingRange: {
-      findMany: jest.fn(),
-    },
-  },
-}));
+jest.mock("@/lib/prisma", () =>
+  jest.requireActual<typeof import("./helpers/prisma-mock")>("./helpers/prisma-mock").prismaModuleMock,
+);
 
 jest.mock("next-auth", () => ({
   getServerSession: jest.fn(),
@@ -28,39 +21,30 @@ describe("/api/events/route", () => {
   describe("GET", () => {
     it("returns paginated upcoming and past events", async () => {
       const mockEvents = [
-        {
+        buildEvent({
           id: "1",
           date: new Date("2026-02-10"),
-          timeFrom: "18:00",
-          timeTo: "20:00",
           location: "Test Location",
           description: "Test Description",
-          latitude: 50.0,
-          longitude: 10.0,
-          type: "TRAINING",
-          visible: true,
           createdAt: new Date("2026-01-01"),
           updatedAt: new Date("2026-01-01"),
           _count: { votes: 3 },
-        },
+        }),
       ];
 
       const mockPastEvents = [
-        {
+        buildEvent({
           id: "2",
           date: new Date("2026-01-15"),
-          timeFrom: "18:00",
-          timeTo: "20:00",
           location: "Past Location",
           description: "Past Description",
           latitude: null,
           longitude: null,
           type: "COMPETITION",
-          visible: true,
           createdAt: new Date("2026-01-01"),
           updatedAt: new Date("2026-01-01"),
           _count: { votes: 5 },
-        },
+        }),
       ];
 
       (prisma.event.findMany as jest.Mock)
@@ -80,7 +64,7 @@ describe("/api/events/route", () => {
 
       (getServerSession as jest.Mock).mockResolvedValue(null);
 
-      const request = new NextRequest("http://localhost:3000/api/events?page=1&limit=20");
+      const request = apiRequest("GET", "/api/events?page=1&limit=20");
       const response = await GET(request);
       const data = await response.json();
 
@@ -102,7 +86,7 @@ describe("/api/events/route", () => {
       (prisma.shootingRange.findMany as jest.Mock).mockResolvedValue([]);
       (getServerSession as jest.Mock).mockResolvedValue(null);
 
-      const request = new NextRequest("http://localhost:3000/api/events");
+      const request = apiRequest("GET", "/api/events");
       await GET(request);
 
       expect(prisma.event.findMany).toHaveBeenCalledTimes(2);
@@ -119,11 +103,11 @@ describe("/api/events/route", () => {
       (prisma.shootingRange.findMany as jest.Mock).mockResolvedValue([]);
       (getServerSession as jest.Mock).mockResolvedValue(null);
 
-      const request = new NextRequest("http://localhost:3000/api/events");
+      const request = apiRequest("GET", "/api/events");
       await GET(request);
 
       const firstCall = (prisma.event.findMany as jest.Mock).mock.calls[0][0];
-      expect(firstCall.where).toHaveProperty("visible", true);
+      expect(firstCall.where).toHaveProperty("visibility", { in: ["PUBLIC"] });
       expect(firstCall.select).not.toHaveProperty("_count");
       expect(firstCall.select).not.toHaveProperty("votes");
       expect(firstCall.select).not.toHaveProperty("guestRegistrations");
@@ -131,29 +115,24 @@ describe("/api/events/route", () => {
 
     it("delivers no Belegung to unauthenticated visitors", async () => {
       (prisma.event.findMany as jest.Mock).mockResolvedValue([
-        {
+        buildEvent({
           id: "1",
           date: new Date("2026-02-10"),
-          timeFrom: "18:00",
-          timeTo: "20:00",
           location: "Test Location",
-          title: null,
           description: "Test Description",
           latitude: null,
           longitude: null,
           type: "Lehrgang",
-          cost: null,
           capacity: 12,
-          visible: true,
           createdAt: new Date("2026-01-01"),
           updatedAt: new Date("2026-01-01"),
-        },
+        }),
       ]);
       (prisma.event.count as jest.Mock).mockResolvedValue(1);
       (prisma.shootingRange.findMany as jest.Mock).mockResolvedValue([]);
       (getServerSession as jest.Mock).mockResolvedValue(null);
 
-      const request = new NextRequest("http://localhost:3000/api/events");
+      const request = apiRequest("GET", "/api/events");
       const response = await GET(request);
       const json = await response.json();
 
@@ -169,12 +148,12 @@ describe("/api/events/route", () => {
         user: { id: "user-123", email: "test@example.com", role: "MEMBER" },
       });
 
-      const request = new NextRequest("http://localhost:3000/api/events");
+      const request = apiRequest("GET", "/api/events");
       await GET(request);
 
       const firstCall = (prisma.event.findMany as jest.Mock).mock.calls[0][0];
       expect(firstCall.where.OR).toEqual([
-        { visible: true },
+        { visibility: { in: ["PUBLIC", "MEMBER"] } },
         { createdById: "user-123" },
       ]);
       expect(firstCall.select).toHaveProperty("_count");
@@ -189,11 +168,11 @@ describe("/api/events/route", () => {
         user: { id: "admin-123", email: "admin@example.com", role: "ADMIN" },
       });
 
-      const request = new NextRequest("http://localhost:3000/api/events");
+      const request = apiRequest("GET", "/api/events");
       await GET(request);
 
       const firstCall = (prisma.event.findMany as jest.Mock).mock.calls[0][0];
-      expect(firstCall.where).not.toHaveProperty("visible");
+      expect(firstCall.where).not.toHaveProperty("visibility");
       expect(firstCall.where).not.toHaveProperty("OR");
       expect(firstCall.select).toHaveProperty("_count");
       expect(firstCall.select).toHaveProperty("votes");
@@ -205,7 +184,7 @@ describe("/api/events/route", () => {
       (prisma.shootingRange.findMany as jest.Mock).mockResolvedValue([]);
       (getServerSession as jest.Mock).mockResolvedValue(null);
 
-      const request = new NextRequest("http://localhost:3000/api/events?page=2&limit=10");
+      const request = apiRequest("GET", "/api/events?page=2&limit=10");
       await GET(request);
 
       const firstCall = (prisma.event.findMany as jest.Mock).mock.calls[0][0];
@@ -223,7 +202,7 @@ describe("/api/events/route", () => {
       (prisma.shootingRange.findMany as jest.Mock).mockResolvedValue([]);
       (getServerSession as jest.Mock).mockResolvedValue(null);
 
-      const request = new NextRequest("http://localhost:3000/api/events?pastPage=3&limit=20");
+      const request = apiRequest("GET", "/api/events?pastPage=3&limit=20");
       await GET(request);
 
       const secondCall = (prisma.event.findMany as jest.Mock).mock.calls[1][0];
@@ -237,7 +216,7 @@ describe("/api/events/route", () => {
       (prisma.shootingRange.findMany as jest.Mock).mockResolvedValue([]);
       (getServerSession as jest.Mock).mockResolvedValue(null);
 
-      const request = new NextRequest("http://localhost:3000/api/events?limit=100");
+      const request = apiRequest("GET", "/api/events?limit=100");
       await GET(request);
 
       const firstCall = (prisma.event.findMany as jest.Mock).mock.calls[0][0];
@@ -249,7 +228,7 @@ describe("/api/events/route", () => {
       (prisma.shootingRange.findMany as jest.Mock).mockResolvedValue([]);
       (getServerSession as jest.Mock).mockResolvedValue(null);
 
-      const request = new NextRequest("http://localhost:3000/api/events");
+      const request = apiRequest("GET", "/api/events");
       const response = await GET(request);
       const data = await response.json();
 
@@ -265,7 +244,7 @@ describe("/api/events/route", () => {
       (prisma.shootingRange.findMany as jest.Mock).mockResolvedValue([]);
       (getServerSession as jest.Mock).mockResolvedValue(null);
 
-      const request = new NextRequest("http://localhost:3000/api/events?limit=10");
+      const request = apiRequest("GET", "/api/events?limit=10");
       const response = await GET(request);
       const data = await response.json();
 
@@ -282,7 +261,7 @@ describe("/api/events/route", () => {
       (prisma.shootingRange.findMany as jest.Mock).mockResolvedValue([]);
       (getServerSession as jest.Mock).mockResolvedValue(null);
 
-      const request = new NextRequest("http://localhost:3000/api/events");
+      const request = apiRequest("GET", "/api/events");
       const response = await GET(request);
 
       expect(response.headers.get("Cache-Control")).toBe("public, max-age=60, s-maxage=300, stale-while-revalidate=300");
@@ -297,7 +276,7 @@ describe("/api/events/route", () => {
       (prisma.shootingRange.findMany as jest.Mock).mockResolvedValue([]);
       (getServerSession as jest.Mock).mockResolvedValue(null);
 
-      const request = new NextRequest("http://localhost:3000/api/events");
+      const request = apiRequest("GET", "/api/events");
       await GET(request);
 
       const firstCall = (prisma.event.findMany as jest.Mock).mock.calls[0][0];
@@ -310,7 +289,7 @@ describe("/api/events/route", () => {
       (prisma.shootingRange.findMany as jest.Mock).mockResolvedValue([]);
       (getServerSession as jest.Mock).mockResolvedValue(null);
 
-      const request = new NextRequest("http://localhost:3000/api/events?limit=invalid");
+      const request = apiRequest("GET", "/api/events?limit=invalid");
       await GET(request);
 
       const firstCall = (prisma.event.findMany as jest.Mock).mock.calls[0][0];
@@ -323,7 +302,7 @@ describe("/api/events/route", () => {
       (prisma.shootingRange.findMany as jest.Mock).mockResolvedValue([]);
       (getServerSession as jest.Mock).mockResolvedValue(null);
 
-      const request = new NextRequest("http://localhost:3000/api/events?limit=-5");
+      const request = apiRequest("GET", "/api/events?limit=-5");
       await GET(request);
 
       const firstCall = (prisma.event.findMany as jest.Mock).mock.calls[0][0];
@@ -338,7 +317,7 @@ describe("/api/events/route", () => {
       (prisma.shootingRange.findMany as jest.Mock).mockResolvedValue([]);
       (getServerSession as jest.Mock).mockResolvedValue(null);
 
-      const request = new NextRequest("http://localhost:3000/api/events");
+      const request = apiRequest("GET", "/api/events");
       await GET(request);
 
       const firstCall = (prisma.event.findMany as jest.Mock).mock.calls[0][0];
@@ -351,7 +330,7 @@ describe("/api/events/route", () => {
       (prisma.shootingRange.findMany as jest.Mock).mockResolvedValue([]);
       (getServerSession as jest.Mock).mockResolvedValue(null);
 
-      const request = new NextRequest("http://localhost:3000/api/events?page=invalid");
+      const request = apiRequest("GET", "/api/events?page=invalid");
       await GET(request);
 
       const firstCall = (prisma.event.findMany as jest.Mock).mock.calls[0][0];
@@ -363,7 +342,7 @@ describe("/api/events/route", () => {
       (prisma.event.count as jest.Mock).mockResolvedValue(0);
       (getServerSession as jest.Mock).mockResolvedValue(null);
 
-      const request = new NextRequest("http://localhost:3000/api/events?page=-2");
+      const request = apiRequest("GET", "/api/events?page=-2");
       await GET(request);
 
       const firstCall = (prisma.event.findMany as jest.Mock).mock.calls[0][0];

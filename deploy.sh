@@ -7,6 +7,40 @@ trap 'echo "Deployment failed." >&2' ERR
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$PROJECT_DIR"
 
+# Argument-Verarbeitung. --first-deploy erlaubt eine Erstinstallation ohne
+# vorhandene Datenbankdatei (siehe Pre-Deploy-Backup-Gate in den Preflights).
+FIRST_DEPLOY=0
+usage() {
+  cat <<'USAGE'
+Verwendung: ./deploy.sh [--first-deploy]
+
+Optionen:
+  --first-deploy  Erstinstallation: Deploy zulassen, obwohl die in DATABASE_URL
+                  konfigurierte Datenbankdatei (Default: file:/app/data/prod.db)
+                  noch nicht existiert (es gibt dann nichts zu sichern). Ohne
+                  dieses Flag bricht das Deployment ab, wenn die aufgelöste
+                  Datei fehlt — Schutz vor einem Container-Wechsel ohne
+                  Pre-Deploy-Backup.
+  -h, --help      Diese Hilfe anzeigen.
+USAGE
+}
+for DEPLOY_ARG in "$@"; do
+  case "$DEPLOY_ARG" in
+    --first-deploy)
+      FIRST_DEPLOY=1
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    *)
+      echo "Unknown argument: $DEPLOY_ARG" >&2
+      usage >&2
+      exit 1
+      ;;
+  esac
+done
+
 if [ -f "$PROJECT_DIR/.env" ]; then
   HAS_DEV_DEPLOYMENT_OVERRIDE=0
   OVERRIDE_DEVELOPMENT_DEPLOYMENT=""
@@ -50,10 +84,47 @@ echo "Using NODE_ENV=production for build and runtime compatibility."
 
 echo "Running deployment preflight checks..."
 
+# Übersetzt eine SQLite-file:-URL aus DATABASE_URL in den Host-Pfad der
+# Datenbankdatei. Container-Pfade unter /app/ und relative Pfade werden auf das
+# Projektverzeichnis abgebildet; für Nicht-file:-URLs schlägt die Auflösung fehl.
+# (Drift-Wächter zu den Schwester-Implementierungen in entrypoint.sh und
+# scripts/run-db-migrations.ts: __tests__/sqlite-path-parity.test.ts)
+resolve_host_sqlite_path() {
+  local database_url="$1"
+  local raw_path=""
+
+  if [ -z "$database_url" ] || [[ "$database_url" != file:* ]]; then
+    return 1
+  fi
+
+  raw_path="${database_url#file:}"
+  if [ -z "$raw_path" ]; then
+    return 1
+  fi
+
+  if [[ "$raw_path" = /app/* ]]; then
+    printf '%s\n' "$PROJECT_DIR/${raw_path#/app/}"
+    return 0
+  fi
+
+  if [[ "$raw_path" = /* ]]; then
+    printf '%s\n' "$raw_path"
+    return 0
+  fi
+
+  printf '%s\n' "$PROJECT_DIR/${raw_path#./}"
+}
+
+# Derselbe Default wie in compose.yaml: Ohne DATABASE_URL in .env läuft der
+# Container gegen file:/app/data/prod.db — Backup-Gate und Pre-Deploy-Backup
+# müssen genau diese Datei meinen. Bewusst ohne export: podman-compose setzt
+# den Default selbst, und die Test-Gates sollen den Wert nicht erben.
+DATABASE_URL="${DATABASE_URL:-file:/app/data/prod.db}"
+
 # Die Produktions-DB heißt prod.db; eine dev.db-URL aus einer veralteten .env
 # würde die einmalige Umbenennung im Entrypoint stillschweigend überspringen
 # und das nächtliche Backup (zielt fest auf prod.db) dauerhaft fehlschlagen lassen.
-if [ "$(basename "${DATABASE_URL:-file:./data/prod.db}")" = "dev.db" ]; then
+if [ "$(basename "$DATABASE_URL")" = "dev.db" ]; then
   echo "Deployment failed: DATABASE_URL points to dev.db ('${DATABASE_URL}')." >&2
   echo "The production database is prod.db. Update DATABASE_URL in .env (see .env.example)." >&2
   exit 1
@@ -73,6 +144,28 @@ if [ -f "$HOST_DATA_DIR/prod.db" ] && [ -f "$HOST_DATA_DIR/dev.db" ]; then
   echo "  sqlite3 $HOST_DATA_DIR/dev.db 'select count(*) from sqlite_master;'" >&2
   echo "Then archive the obsolete one out of the data directory, e.g.:" >&2
   echo "  mv $HOST_DATA_DIR/dev.db $PROJECT_DIR/backups/stale-dev.db-\$(date +%Y%m%d)" >&2
+  exit 1
+fi
+
+# Pre-Deploy-Backup-Gate: Ohne existierende Datenbankdatei gäbe es kein Backup,
+# und der Rollback-Modus "with-db-restore" hätte nach einer fehlgeschlagenen
+# Migration kein Sicherheitsnetz für die Produktions-DB. Deshalb hart abbrechen,
+# wenn die aus DATABASE_URL aufgelöste Datei fehlt — und zwar hier
+# in den Preflights, damit der Fehler nicht erst nach allen Gates und dem
+# Image-Build auffällt. Das eigentliche Backup läuft später, unmittelbar vor
+# dem Container-Wechsel.
+PREDEPLOY_DB_FILE=""
+PREDEPLOY_BACKUP=0
+if PREDEPLOY_DB_FILE="$(resolve_host_sqlite_path "$DATABASE_URL")" && [ -f "$PREDEPLOY_DB_FILE" ]; then
+  PREDEPLOY_BACKUP=1
+elif [ "$FIRST_DEPLOY" -eq 1 ]; then
+  echo "First deploy (--first-deploy): no database file at '${PREDEPLOY_DB_FILE:-$DATABASE_URL}' yet - pre-deploy backup will be skipped."
+else
+  echo "Deployment failed: the database file for DATABASE_URL ('$DATABASE_URL') does not exist" >&2
+  echo "  (resolved host path: '${PREDEPLOY_DB_FILE:-not a resolvable file: URL}')." >&2
+  echo "Either DATABASE_URL in .env is wrong (see .env.example) - fix it before deploying -" >&2
+  echo "or this is a first-time install without any data to back up yet. In that case run:" >&2
+  echo "  ./deploy.sh --first-deploy" >&2
   exit 1
 fi
 
@@ -173,32 +266,6 @@ trap cleanup EXIT
 # Bash führt den EXIT-Trap bei SIGINT (Ctrl-C) nicht aus; über den exit-Pfad
 # läuft cleanup() trotzdem — sonst blieben Smoke-Container und Temp-Dateien liegen.
 trap 'exit 130' INT
-
-resolve_host_sqlite_path() {
-  local database_url="$1"
-  local raw_path=""
-
-  if [ -z "$database_url" ] || [[ "$database_url" != file:* ]]; then
-    return 1
-  fi
-
-  raw_path="${database_url#file:}"
-  if [ -z "$raw_path" ]; then
-    return 1
-  fi
-
-  if [[ "$raw_path" = /app/* ]]; then
-    printf '%s\n' "$PROJECT_DIR/${raw_path#/app/}"
-    return 0
-  fi
-
-  if [[ "$raw_path" = /* ]]; then
-    printf '%s\n' "$raw_path"
-    return 0
-  fi
-
-  printf '%s\n' "$PROJECT_DIR/${raw_path#./}"
-}
 
 wait_for_service_health() {
   local service_name="$1"
@@ -358,8 +425,9 @@ run_post_deploy_selftest() {
 
 echo "Installing dependencies on host..."
 corepack enable
-corepack prepare pnpm@10.0.0 --activate
-pnpm install --frozen-lockfile --force
+# Version kommt aus dem packageManager-Pin in package.json
+corepack prepare --activate
+pnpm install --frozen-lockfile
 
 echo "Rebuilding native modules for current Node runtime..."
 pnpm rebuild better-sqlite3
@@ -380,7 +448,7 @@ pnpm exec tsx scripts/generate-version.ts
 pnpm exec next typegen
 pnpm exec tsc --noEmit
 
-echo "Running quality gate: tests (with coverage thresholds)..."
+echo "Running quality gate: tests (without coverage; thresholds via pnpm run test:coverage)..."
 # Die oben mit `set -a` geladene .env darf den Testlauf nicht steuern: Ihre Werte
 # landen sonst über process.env in den Tests und entscheiden dort über Zusicherungen
 # (SEED_ADMIN_NAME aus der Produktions-.env ließ die "alle oder keine"-Prüfung in
@@ -419,6 +487,21 @@ node scripts/bundle-script-deps.mjs
 
 echo "Running quality gate: container script dependencies..."
 node scripts/check-script-deps.mjs
+
+# Next kopiert .env/.env.production unabhängig vom File-Tracing ins Standalone.
+# Env kommt im Container ausschließlich aus compose.yaml.
+rm -f "$PROJECT_DIR/.next/standalone/.env" "$PROJECT_DIR/.next/standalone/.env.production"
+
+# Standalone-Gate: .next/standalone wird 1:1 ins Image kopiert. Prod-DB,
+# Backups, Secrets oder Git-Historie darin landeten in jedem Image-Layer.
+echo "Running quality gate: standalone contents..."
+STANDALONE_LEAKS="$(find "$PROJECT_DIR/.next/standalone" -maxdepth 1 \( -name data -o -name backups -o -name '.env*' -o -name .git \) -print)"
+if [ -n "$STANDALONE_LEAKS" ]; then
+  echo "❌ .next/standalone contains files that must not ship in the image:" >&2
+  echo "$STANDALONE_LEAKS" >&2
+  echo "   Check outputFileTracingExcludes in next.config.mjs and dynamic process.cwd() paths." >&2
+  exit 1
+fi
 
 PREV_APP_CONTAINER_ID="$(podman-compose ps -q | head -n 1)"
 PREV_IMAGE_ID=""
@@ -497,6 +580,11 @@ run_pre_switch_http_smoke() {
     -e EMAIL_DEV_MODE="${EMAIL_DEV_MODE:-false}" \
     -e EMAIL_DEV_LOG_METHOD="${EMAIL_DEV_LOG_METHOD:-logger}" \
     -e EMAIL_DEV_LOG_DIR="${EMAIL_DEV_LOG_DIR:-/app/data/logs/emails}" \
+    -e EMAIL_OUTBOX_POLL_INTERVAL_MS="${EMAIL_OUTBOX_POLL_INTERVAL_MS:-10000}" \
+    -e EMAIL_OUTBOX_BATCH_SIZE="${EMAIL_OUTBOX_BATCH_SIZE:-10}" \
+    -e EMAIL_OUTBOX_LOCK_MS="${EMAIL_OUTBOX_LOCK_MS:-300000}" \
+    -e SMTP_TIMEOUT_MS="${SMTP_TIMEOUT_MS:-30000}" \
+    -e SMTP_CONNECTION_TIMEOUT_MS="${SMTP_CONNECTION_TIMEOUT_MS:-10000}" \
     -e DOCUMENTS_DIR="${DOCUMENTS_DIR:-/app/data/documents}" \
     -e DOCUMENT_UPLOAD_MAX_MB="${DOCUMENT_UPLOAD_MAX_MB:-15}" \
     -e AUSSCHREIBUNGEN_DIR="${AUSSCHREIBUNGEN_DIR:-/app/data/ausschreibungen}" \
@@ -557,16 +645,20 @@ run_pre_switch_http_smoke() {
   return 0
 }
 
-echo "Running pre-switch HTTP smoke check against the freshly built image..."
-if ! run_pre_switch_http_smoke; then
-  cleanup_smoke_container
-  # podman-compose build hat den Compose-Tag bereits auf das durchgefallene
-  # Image umgehängt: zurücktaggen, damit ein späteres manuelles
-  # `podman-compose up -d` nicht das ungetestete Image startet.
+# podman-compose build hat den Compose-Tag bereits auf das neue Image umgehängt:
+# zurücktaggen, damit ein späteres manuelles `podman-compose up -d` nicht das
+# durchgefallene Image startet.
+restore_previous_image_tag() {
   if [ -n "${PREV_IMAGE_ID:-}" ] && [ -n "${PREV_IMAGE_NAME:-}" ]; then
     echo "Restoring previous app image tag ($PREV_IMAGE_NAME -> $PREV_IMAGE_ID)..." >&2
     podman tag "$PREV_IMAGE_ID" "$PREV_IMAGE_NAME" || true
   fi
+}
+
+echo "Running pre-switch HTTP smoke check against the freshly built image..."
+if ! run_pre_switch_http_smoke; then
+  cleanup_smoke_container
+  restore_previous_image_tag
   echo "Deployment failed during pre-switch HTTP smoke check. The running production container was not touched." >&2
   exit 1
 fi
@@ -574,20 +666,19 @@ fi
 # Backup unmittelbar VOR dem Container-Neustart (nicht vor dem Build):
 # So enthält es alle Benutzer-Schreibzugriffe aus dem Build-Zeitfenster, und ein
 # Restore nach fehlgeschlagener Migration verwirft keine Benutzerdaten.
-echo "Creating pre-deploy database backup..."
-DB_FILE=""
-if DB_FILE="$(resolve_host_sqlite_path "${DATABASE_URL:-}")" && [ -f "$DB_FILE" ]; then
+# Ob ein Backup möglich ist, hat das Pre-Deploy-Backup-Gate in den Preflights
+# entschieden (harter Abbruch, wenn die aus DATABASE_URL aufgelöste Datei
+# fehlt — außer bei --first-deploy).
+if [ "$PREDEPLOY_BACKUP" -eq 1 ]; then
+  echo "Creating pre-deploy database backup..."
+  DB_FILE="$PREDEPLOY_DB_FILE"
   BACKUP_DIR="./data/backups"
   BACKUP_FILE="$BACKUP_DIR/pre-deploy-$(date +%Y%m%d_%H%M%S).db"
   mkdir -p "$BACKUP_DIR"
-  if command -v sqlite3 >/dev/null 2>&1; then
-    sqlite3 "$DB_FILE" ".timeout 5000" ".backup '$BACKUP_FILE'"
-  else
-    # Ohne sqlite3 kein konsistenter Online-Backup-Befehl: Das WAL muss mitkopiert
-    # werden, sonst fehlen committete, noch nicht zurückgeschriebene Änderungen.
-    cp "$DB_FILE" "$BACKUP_FILE"
-    if [ -f "$DB_FILE-wal" ]; then cp "$DB_FILE-wal" "$BACKUP_FILE-wal"; fi
-  fi
+  # Konsistentes SQLite-Online-Backup (inkl. cp-Fallback ohne sqlite3) liegt
+  # zentral in scripts/backup-sqlite.sh — eine Implementierung für den
+  # systemd-Timer und dieses Deploy. Schlägt das Backup fehl, bricht set -e ab.
+  "$PROJECT_DIR/scripts/backup-sqlite.sh" --single "$DB_FILE" "$BACKUP_FILE"
   echo "✅ Pre-deploy backup: $BACKUP_FILE"
 
   # Aufbewahrungsgrenze: nur die letzten 10 Pre-Deploy-Backups behalten
@@ -597,7 +688,8 @@ if DB_FILE="$(resolve_host_sqlite_path "${DATABASE_URL:-}")" && [ -f "$DB_FILE" 
     rm -f "$OLD_BACKUP" "$OLD_BACKUP-wal"
   done
 else
-  echo "⚠️  No database file found at '${DB_FILE:-<DATABASE_URL not set>}' on host, skipping backup."
+  echo "⚠️  Skipping pre-deploy database backup (no database file - see preflight output above)."
+  echo "   Rollback mode 'with-db-restore' will have no backup to restore."
 fi
 
 echo "Recreating app container with latest image..."
@@ -606,8 +698,19 @@ podman-compose up -d --no-deps --force-recreate app 2>&1 | tee -a "$LOG_FILE"
 status=${PIPESTATUS[0]}
 set -e
 
+# Ein gescheitertes Recreate kann den alten Container schon entfernt haben —
+# dann ist die Seite offline und der Tag zeigt aufs neue Image. Läuft der alte
+# Container noch, genügt es, den Tag zurückzusetzen; sonst voller Rollback.
+# Der neue Container war nie healthy, daher ist der DB-Restore gerechtfertigt.
 if [ "$status" -ne 0 ]; then
-  echo "Deployment failed during app container recreate. Existing running containers were not intentionally stopped." >&2
+  echo "Deployment failed during app container recreate." >&2
+  if [ -n "${PREV_APP_CONTAINER_ID:-}" ] &&
+     [ "$(podman inspect --format '{{.State.Running}}' "$PREV_APP_CONTAINER_ID" 2>/dev/null || true)" = "true" ]; then
+    echo "Previous app container is still running; only resetting the image tag." >&2
+    restore_previous_image_tag
+  else
+    rollback_deployment "with-db-restore"
+  fi
   exit "$status"
 fi
 
@@ -616,11 +719,13 @@ APP_CONTAINER_ID="$(podman-compose ps -q | head -n 1)"
 if [ -z "${APP_CONTAINER_ID:-}" ]; then
   echo "Deployment failed: app container for service 'app' not found." >&2
   podman-compose ps >&2 || true
+  rollback_deployment "with-db-restore"
   exit 1
 fi
 
 if [ -n "${PREV_APP_CONTAINER_ID:-}" ] && [ "$APP_CONTAINER_ID" = "$PREV_APP_CONTAINER_ID" ]; then
   echo "Deployment failed: app container was not recreated (container ID unchanged)." >&2
+  restore_previous_image_tag
   exit 1
 fi
 
@@ -650,8 +755,9 @@ if ! run_post_deploy_selftest; then
   exit 1
 fi
 
-echo "Cleaning up unused Podman images..."
-podman image prune -f >/dev/null
-
 DEPLOY_SUCCEEDED=1
+
+echo "Cleaning up unused Podman images..."
+podman image prune -f >/dev/null || echo "Warning: podman image prune failed." >&2
+
 echo "Deployment completed successfully!"

@@ -1,4 +1,4 @@
-import { formatDate, formatTime, formatDateTimeRange, isEventInPast } from "@/lib/date-utils";
+import { formatDate, formatTime, isEventInPast } from "@/lib/date-utils";
 import {
   getStartOfToday,
   formatDateForStorage,
@@ -71,35 +71,18 @@ describe("date-utils", () => {
     });
   });
 
-  describe("formatDateTimeRange", () => {
-    it("formats date with time range", () => {
-      const date = "2024-01-15";
-      const timeFrom = "14:00";
-      const timeTo = "16:00";
-      const formatted = formatDateTimeRange(date, timeFrom, timeTo);
-      expect(formatted).toContain("14:00");
-      expect(formatted).toContain("16:00");
-      expect(formatted).toContain("2024");
-    });
-
-    it("formats date with single time", () => {
-      const date = "2024-01-15";
-      const timeFrom = "14:00";
-      const formatted = formatDateTimeRange(date, timeFrom);
-      expect(formatted).toContain("14:00");
-      expect(formatted).toContain("2024");
-    });
-
-    it("handles undefined timeTo", () => {
-      const date = "2024-01-15";
-      const timeFrom = "14:00";
-      const formatted = formatDateTimeRange(date, timeFrom, undefined);
-      expect(formatted).toContain("14:00");
-      expect(formatted).not.toContain("-");
-    });
-  });
 
   describe("isEventInPast", () => {
+    // Feste Systemzeit: Die Fälle mit literalen Daten ("2026-12-31", "2027-01-01")
+    // wären sonst Zeitbomben, die "gestern/heute"-Fälle um Mitternacht flaky.
+    beforeEach(() => {
+      jest.useFakeTimers({ now: new Date("2026-06-15T12:00:00+02:00") });
+    });
+
+    afterEach(() => {
+      jest.useRealTimers();
+    });
+
     it("returns true for event date in the past (yesterday)", () => {
       const yesterday = new Date();
       yesterday.setDate(yesterday.getDate() - 1);
@@ -123,7 +106,7 @@ describe("date-utils", () => {
     });
 
     it("returns false for event date far in the future", () => {
-      const futureDate = "2026-12-31";
+      const futureDate = "2999-12-31";
       expect(isEventInPast(futureDate)).toBe(false);
     });
 
@@ -171,7 +154,7 @@ describe("date-utils", () => {
       const leapDay = "2024-02-29";
       expect(isEventInPast(leapDay)).toBe(true);
 
-      const futureLeapDay = "2028-02-29";
+      const futureLeapDay = "2996-02-29";
       expect(isEventInPast(futureLeapDay)).toBe(false);
     });
 
@@ -187,13 +170,21 @@ describe("date-utils", () => {
 
     it("handles year boundaries", () => {
       expect(isEventInPast("2023-12-31")).toBe(true);
-      expect(isEventInPast("2027-01-01")).toBe(false);
+      expect(isEventInPast("2999-01-01")).toBe(false);
     });
   });
 });
 
 describe("date-picker-utils", () => {
   describe("getStartOfToday", () => {
+    beforeEach(() => {
+      jest.useFakeTimers({ now: new Date("2026-06-15T00:00:00.500+02:00") });
+    });
+
+    afterEach(() => {
+      jest.useRealTimers();
+    });
+
     it("returns start of current day", () => {
       const result = getStartOfToday();
       expect(result).toBeInstanceOf(Date);

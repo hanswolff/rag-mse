@@ -4,6 +4,7 @@ interface AuditActor {
   id: string;
   email?: string | null;
   role?: string;
+  impersonatedBy?: { id: string } | null;
 }
 
 export function logAdminAction(
@@ -15,6 +16,7 @@ export function logAdminAction(
     adminId: actor.id,
     adminEmail: actor.email ? maskEmail(actor.email) : undefined,
     adminRole: actor.role,
+    impersonatedById: actor.impersonatedBy?.id,
     ...details,
   });
 }

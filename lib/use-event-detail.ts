@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback, Dispatch, SetStateAction } from "react";
+import { useRouter } from "next/navigation";
 import { VoteType } from "@prisma/client";
 import { formatDate, isEventInPast } from "@/lib/date-utils";
-import { buildLoginUrlWithReturnUrl } from "@/lib/return-url";
+import { buildLoginUrlWithReturnUrl, getCurrentPathWithSearch } from "@/lib/return-url";
 import type { Vote, VoteCounts } from "@/components/voting-results";
 import type { Event } from "@/types";
 import { appName } from "@/lib/site-config";
@@ -31,6 +32,8 @@ export function useEventDetail(id: string): UseEventDetailReturn {
   const [event, setEvent] = useState<EventWithVotes | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
+  const [requiresLogin, setRequiresLogin] = useState(false);
+  const router = useRouter();
 
   const loginUrl = typeof window !== "undefined"
     ? buildLoginUrlWithReturnUrl(window.location.pathname)
@@ -42,6 +45,11 @@ export function useEventDetail(id: string): UseEventDetailReturn {
 
     try {
       const response = await fetch(`/api/events/${eventId}`, { cache: "no-store" });
+
+      if (response.status === 401) {
+        setRequiresLogin(true);
+        return;
+      }
 
       if (!response.ok) {
         if (response.status === 404) {
@@ -64,6 +72,12 @@ export function useEventDetail(id: string): UseEventDetailReturn {
   useEffect(() => {
     fetchEvent(id);
   }, [id, fetchEvent]);
+
+  useEffect(() => {
+    if (requiresLogin) {
+      router.replace(buildLoginUrlWithReturnUrl(getCurrentPathWithSearch()));
+    }
+  }, [requiresLogin, router]);
 
   const isPast = event ? isEventInPast(event.date) : false;
 
@@ -92,7 +106,7 @@ export function useEventDetail(id: string): UseEventDetailReturn {
   return {
     event,
     setEvent,
-    isLoading,
+    isLoading: isLoading || requiresLogin,
     error,
     fetchEvent,
     isPast,

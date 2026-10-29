@@ -10,12 +10,12 @@ Tabelle `_AppMigration`.
 2. Migrationsskript ausführen:
 
 ```bash
-pnpm run db:migrate
+DATABASE_URL=file:/tmp/rag-mse-dev.db pnpm run db:migrate
 ```
 
 Das Skript initialisiert bei einer frischen Datenbank zuerst die Baseline aus
-`create_admin.sql` und wendet anschließend alle fehlenden Migrationen aus
-`prisma/migrations` an. `create_admin.sql` ist eine interne Bootstrap-Baseline
+`prisma/baseline.sql` und wendet anschließend alle fehlenden Migrationen aus
+`prisma/migrations` an. `prisma/baseline.sql` ist eine interne Bootstrap-Baseline
 und muss im Regelfall nicht manuell ausgeführt werden.
 
 ## Schema ändern (Entwicklung)
@@ -25,7 +25,7 @@ und muss im Regelfall nicht manuell ausgeführt werden.
 3. Migration anwenden:
 
 ```bash
-pnpm run db:migrate
+DATABASE_URL=file:/tmp/rag-mse-dev.db pnpm run db:migrate
 ```
 
 4. Optional lokale Entwicklungs-DB direkt mit Prisma synchronisieren:
@@ -50,6 +50,88 @@ pnpm run db:push
   brechen mit Fehler ab, um Dateninkonsistenzen zu verhindern.
 
 ## Migrationshistorie
+
+### 20261023_news_vereinskalender_text
+
+Reine Datenmigration: korrigiert in der Release-News `news-vereinskalender-1-8-0` den Satz
+„Diese Einträge sehen nur ihr selbst und der Vorstand.“ zu „… sowie die Administratoren und
+Prüfer des Vereins.“ (vom Product Owner freigegeben, 19.10.2026) und setzt `updatedAt` auf den
+Zeitpunkt des Laufs. Die Migration `20261022_news_vereinskalender` bleibt wegen der
+Prüfsumme in `_AppMigration` unverändert.
+
+**Backfill:** Keiner. Das `UPDATE` greift nur, wenn `content` noch exakt dem Originaltext
+entspricht; eine im Adminbereich bearbeitete oder gelöschte News bleibt unverändert.
+
+### 20261022_news_vereinskalender
+
+Reine Datenmigration (Release 1.8.0): legt per `INSERT OR IGNORE` die veröffentlichte
+News „Neu: Der Vereinskalender“ mit fester ID `news-vereinskalender-1-8-0` an
+(Klartext, `published = 1`). `newsDate`, `createdAt` und `updatedAt` sind der Zeitpunkt
+des Migrationslaufs (Deployment), per `strftime('%Y-%m-%dT%H:%M:%S.000+00:00', 'now')` im
+Format des Prisma-SQLite-Adapters (ISO 8601 in UTC).
+
+**Zweck:** Mitglieder und Besucher über Kalender, Fremdtermine, iCal-Abo und
+Abwesenheiten informieren.
+
+**Backfill:** Keiner. Feste ID und `INSERT OR IGNORE` verhindern nur Duplikate. Dass eine
+im Adminbereich bearbeitete oder gelöschte News nicht wiederkommt, liegt am Eintrag in
+`_AppMigration` (die Migration läuft nur einmal); wird dieser Eintrag entfernt, legt ein
+erneuter Lauf eine gelöschte News wieder an.
+
+### 20261021_add_absence
+
+Legt die Tabelle `Absence` (Abwesenheit) mit Indizes auf `userId`, `startDate` und
+`endDate` an. Felder: `userId` (`ON DELETE CASCADE`), Zeitraum `startDate`/`endDate`
+(lokales Datum wie beim Fremdtermin), `allDay` (Default `true`), `timeFrom`/`timeTo`
+(`HH:MM`, nur ohne `allDay`), `reason` (optional, max. 200 Zeichen, in der API geprüft).
+
+**Zweck:** Benutzer tragen eigene Nichtverfügbarkeit ein; Kollisionshinweis für die
+Terminplanung — siehe `docs/adr/0013-fremdtermin-und-abwesenheit-als-eigene-modelle.md`.
+Der Maintenance-Worker löscht Abwesenheiten 30 Tage nach `endDate`.
+
+**Backfill:** Keiner (neue Tabelle).
+
+### 20261020_add_external_event
+
+Legt die Tabelle `ExternalEvent` (Fremdtermin) mit Indizes auf `startDate` und `endDate`
+an. Felder: `title`, Zeitraum `startDate`/`endDate` (lokales Datum wie beim Termin),
+`allDay` (Default `true`), `timeFrom`/`timeTo` (`HH:MM`, nur ohne `allDay`), `location`,
+`description`, `url`, `kind` (`RDL` | `RK_EVENT` | `COMPETITION` | `OTHER`, optional),
+`visibility` (Default `MEMBER`), `ausschreibungId` und `createdById` (beide
+`ON DELETE SET NULL`).
+
+**Zweck:** Termine Dritter im Adminbereich pflegen und im Kalender anzeigen — siehe
+`docs/adr/0013-fremdtermin-und-abwesenheit-als-eigene-modelle.md`.
+
+**Backfill:** Keiner (neue Tabelle).
+
+### 20261019_event_visibility
+
+Ersetzt das Feld `visible Boolean` der Tabelle `Event` durch `visibility`
+(`PUBLIC` | `MEMBER` | `HIDDEN`, Default `PUBLIC`) und entfernt die Spalte `visible`.
+Das Prisma-Enum `AusschreibungVisibility` heißt jetzt gemeinsam `Visibility`; da SQLite
+Enums als Text speichert, ändert sich an der Tabelle `Ausschreibung` nichts.
+
+**Zweck:** Sichtbarkeitsstufe des Termins (öffentlich / nur für Mitglieder / verborgen),
+wie bei der Ausschreibung — siehe `docs/adr/0011-sichtbarkeitsstufen-der-ausschreibung.md`.
+
+**Backfill:** `visible = 0` wird `HIDDEN`, alle übrigen Termine werden `PUBLIC`.
+
+**Hinweis:** Wurde eine Datenbank per `db push` bereits auf `visibility` gebracht, kann der
+Runner das `DROP COLUMN` nicht als erfüllt erkennen und bricht ab. Dann den Eintrag
+`20261019_event_visibility` samt Prüfsumme (SHA-256 der `migration.sql`) manuell in
+`_AppMigration` einfügen.
+
+### 20260829_add_ausschreibung_visibility
+
+Fügt das Feld `visibility` (`PUBLIC` | `MEMBER` | `HIDDEN`, Default `PUBLIC`) zur
+Tabelle `Ausschreibung` hinzu.
+
+**Zweck:** Sichtbarkeitsstufen der Ausschreibung (öffentlich / nur für Mitglieder /
+verborgen) — siehe `docs/adr/0011-sichtbarkeitsstufen-der-ausschreibung.md`.
+
+**Backfill:** Über den Spalten-Default — alle Bestands-Ausschreibungen waren
+öffentlich und werden `PUBLIC`.
 
 ### 20260804_add_event_capacity
 

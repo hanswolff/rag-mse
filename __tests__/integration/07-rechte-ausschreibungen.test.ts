@@ -18,6 +18,7 @@ import { GET as getAdminNotifications } from "@/app/api/admin/notifications/rout
 import { POST as postImpersonate } from "@/app/api/admin/users/[id]/impersonate/route";
 import { GET as getPublicAusschreibungen } from "@/app/api/ausschreibungen/route";
 import { isAusschreibungCurrent, splitAndSortAusschreibungen } from "@/lib/ausschreibung-validation";
+import { Visibility } from "@/lib/visibility";
 import { getGermanDateString, parseIsoDateOnlyToUtcDate } from "@/lib/date-picker-utils";
 import { apiRequest, routeContext } from "./helpers/api";
 import { loginAs } from "./helpers/auth";
@@ -47,7 +48,11 @@ function formDataRequest(method: string, path: string, fields: Record<string, st
 
 // Legt eine Ausschreibung direkt in der DB an — für die Listen-Route und die
 // PATCH-Rechteprüfung ist keine echte PDF-Datei nötig.
-async function createAusschreibungRecord(expiresAt: Date, title?: string) {
+async function createAusschreibungRecord(
+  expiresAt: Date,
+  title?: string,
+  visibility: Visibility = Visibility.PUBLIC
+) {
   const seq = nächsteNummer();
   return prisma.ausschreibung.create({
     data: {
@@ -57,6 +62,7 @@ async function createAusschreibungRecord(expiresAt: Date, title?: string) {
       storedFileName: `stored-${seq}-${Date.now()}.pdf`,
       mimeType: "application/pdf",
       sizeBytes: 1024,
+      visibility,
     },
   });
 }
@@ -157,7 +163,7 @@ const schreibGruppen: SchreibGruppe[] = [
             location: `Matrix-Schießstand ${nächsteNummer()}`,
             description: "<p>Matrix-Termin für die Rollenprüfung</p>",
             // unsichtbar anlegen, damit kein Erinnerungs-Versand angestoßen wird
-            visible: false,
+            visibility: "HIDDEN",
           },
         })
       ),
@@ -532,5 +538,88 @@ describe("Ausschreibungs-Datumsgrenze in Europe/Berlin", () => {
       // aktuelle Liste ist nach nächstem Meldeschluss zuerst sortiert
       expect(aktuelleIds.indexOf(stichtagHeute.id)).toBeLessThan(aktuelleIds.indexOf(läuftNoch.id));
     });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Teil C: Sichtbarkeitsstufen der Ausschreibung (ADR-0011)
+// ---------------------------------------------------------------------------
+
+describe("Sichtbarkeitsstufen über die öffentliche Route GET /api/ausschreibungen", () => {
+  async function sichtbareIds(): Promise<string[]> {
+    const response = await getPublicAusschreibungen();
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as {
+      current: { id: string }[];
+      historical: { id: string }[];
+    };
+    return [...body.current, ...body.historical].map((eintrag) => eintrag.id);
+  }
+
+  it("trennt öffentlich, nur für Mitglieder und verborgen nach Betrachter", async () => {
+    const morgen = new Date(heuteUtcMitternacht().getTime() + TAG_IN_MS);
+    const öffentlich = await createAusschreibungRecord(morgen, "Sichtbarkeit öffentlich");
+    const intern = await createAusschreibungRecord(morgen, "Sichtbarkeit intern", Visibility.MEMBER);
+    const verborgen = await createAusschreibungRecord(morgen, "Sichtbarkeit verborgen", Visibility.HIDDEN);
+
+    const anonym = await sichtbareIds();
+    expect(anonym).toContain(öffentlich.id);
+    expect(anonym).not.toContain(intern.id);
+    expect(anonym).not.toContain(verborgen.id);
+
+    loginAs(member);
+    const alsMitglied = await sichtbareIds();
+    expect(alsMitglied).toContain(öffentlich.id);
+    expect(alsMitglied).toContain(intern.id);
+    // Verborgen heißt verborgen — auch für Administratoren außerhalb des Adminbereichs.
+    expect(alsMitglied).not.toContain(verborgen.id);
+
+    loginAs(admin);
+    expect(await sichtbareIds()).not.toContain(verborgen.id);
+  });
+
+  it("führt eine verborgene Ausschreibung weiterhin in der Adminliste", async () => {
+    const morgen = new Date(heuteUtcMitternacht().getTime() + TAG_IN_MS);
+    const verborgen = await createAusschreibungRecord(morgen, "Nur im Adminbereich", Visibility.HIDDEN);
+
+    loginAs(admin);
+    const response = await getAdminAusschreibungen();
+
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as { ausschreibungen: { id: string; visibility: string }[] };
+    const eintrag = body.ausschreibungen.find((item) => item.id === verborgen.id);
+
+    expect(eintrag?.visibility).toBe(Visibility.HIDDEN);
+  });
+
+  it("schaltet die Sichtbarkeit über PATCH um und wirkt sofort auf die öffentliche Liste", async () => {
+    const morgen = new Date(heuteUtcMitternacht().getTime() + TAG_IN_MS);
+    const ausschreibung = await createAusschreibungRecord(morgen, "Wird zurückgezogen");
+
+    expect(await sichtbareIds()).toContain(ausschreibung.id);
+
+    loginAs(admin);
+    const response = await patchAdminAusschreibung(
+      formDataRequest("PATCH", `/api/admin/ausschreibungen/${ausschreibung.id}`, {
+        visibility: Visibility.HIDDEN,
+      }),
+      routeContext({ id: ausschreibung.id })
+    );
+
+    expect(response.status).toBe(200);
+    expect(await sichtbareIds()).not.toContain(ausschreibung.id);
+  });
+
+  it("weist eine unbekannte Sichtbarkeitsstufe zurück", async () => {
+    loginAs(admin);
+
+    const response = await patchAdminAusschreibung(
+      formDataRequest("PATCH", `/api/admin/ausschreibungen/${matrixAusschreibungId}`, {
+        visibility: "VIELLEICHT",
+      }),
+      routeContext({ id: matrixAusschreibungId })
+    );
+
+    expect(response.status).toBe(400);
   });
 });

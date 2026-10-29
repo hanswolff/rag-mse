@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createImpersonationStopProof } from "@/lib/auth";
 import { requireAuth } from "@/lib/auth-utils";
-import { withApiErrorHandling, validateCsrfHeaders } from "@/lib/api-utils";
+import { withApiErrorHandling } from "@/lib/api-error-handler";
+import { validateCsrfHeaders } from "@/lib/csrf-validator";
 import { logInfo, logWarn } from "@/lib/logger";
 import { logAdminAction } from "@/lib/audit-log";
 

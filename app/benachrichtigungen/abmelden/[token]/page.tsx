@@ -38,7 +38,7 @@ export default function NotificationUnsubscribePage({ params }: { params: Promis
       <div className="max-w-3xl mx-auto px-4 py-6 sm:py-8 lg:py-10">
         <div className="card text-center">
           <h1 className="text-2xl font-bold text-gray-900 mb-4">Benachrichtigungen</h1>
-          {isLoading && <p className="text-gray-600">Einstellungen werden aktualisiert...</p>}
+          {isLoading && <p className="text-gray-600">Einstellungen werden aktualisiert…</p>}
           {!isLoading && success && <p className="text-green-700">{success}</p>}
           {!isLoading && error && <p className="text-red-700">{error}</p>}
         </div>

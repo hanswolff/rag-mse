@@ -3,13 +3,14 @@ jest.mock("@/lib/selftest/runner", () => ({
 }));
 
 import { NextRequest } from "next/server";
+import { apiRequest } from "./helpers/request";
 import { GET } from "@/app/api/selftest/route";
 import { runSelfTest } from "@/lib/selftest/runner";
 
 const mockRunSelfTest = runSelfTest as jest.Mock;
 
 function buildRequest(headers: Record<string, string> = {}): NextRequest {
-  return new NextRequest("http://localhost:3000/api/selftest", { headers });
+  return apiRequest("GET", "/api/selftest", { headers });
 }
 
 function okReport(overrides: Record<string, unknown> = {}) {

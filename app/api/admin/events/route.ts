@@ -1,31 +1,24 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/auth-utils";
-import { validateCreateEventRequest, type CreateEventRequest } from "@/lib/event-validation";
-import {
-  parseJsonBody,
-  withApiErrorHandling,
-  validateCsrfHeaders,
-  MAX_REQUEST_BODY_SIZE,
-} from "@/lib/api-utils";
+import { normalizeCoordinate, validateCreateEventRequest, type CreateEventRequest } from "@/lib/event-validation";
+import { parseJsonBody, ValidationError, MAX_REQUEST_BODY_SIZE } from "@/lib/request-body-parser";
+import { withApiErrorHandling } from "@/lib/api-error-handler";
+import { validateCsrfHeaders } from "@/lib/csrf-validator";
 import { logInfo, logValidationFailure, maskEmail, logError } from "@/lib/logger";
 import { logAdminAction } from "@/lib/audit-log";
-import { triggerImmediateEventReminders } from "@/lib/event-reminder-worker";
+import { triggerImmediateEventReminders } from "@/lib/reminders/event-reminder-worker";
+import { canView, parseVisibility } from "@/lib/visibility";
 import { formatDateForStorage, parseDateAndTime } from "@/lib/date-picker-utils";
 import { hasEventDescriptionContent, sanitizeEventDescriptionHtml } from "@/lib/event-description";
 import { normalizeCapacity, normalizeOptionalText } from "@/lib/event-fields";
 import { VoteType } from "@prisma/client";
+import { countVotes } from "@/lib/event-list-utils";
 import { parsePageNumber, parsePageSize } from "@/lib/api-pagination";
 
-const EVENT_REQUEST_BODY_SIZE = MAX_REQUEST_BODY_SIZE + 128 * 1024;
+const ROUTE = "/api/admin/events";
 
-function normalizeCoordinate(value?: string | number | null): number | null {
-  if (value === undefined || value === null) return null;
-  if (typeof value === "number") return value;
-  const trimmed = value.trim();
-  if (trimmed === "") return null;
-  return parseFloat(trimmed);
-}
+const EVENT_REQUEST_BODY_SIZE = MAX_REQUEST_BODY_SIZE + 128 * 1024;
 
 export const GET = withApiErrorHandling(async (request: NextRequest) => {
   await requireAdmin("read");
@@ -55,22 +48,11 @@ export const GET = withApiErrorHandling(async (request: NextRequest) => {
     prisma.event.count(),
   ]);
 
-  const formattedEvents = events.map(({ votes, guestRegistrations, ...event }: (typeof events)[number] & { votes: { vote: VoteType }[]; guestRegistrations?: { vote: VoteType }[] }) => {
-    const voteCounts = votes.reduce(
-      (acc, { vote }) => ({ ...acc, [vote]: acc[vote] + 1 }),
-      { JA: 0, NEIN: 0, VIELLEICHT: 0 }
-    );
-
-    for (const guest of guestRegistrations ?? []) {
-      voteCounts[guest.vote] += 1;
-    }
-
-    return {
-      ...event,
-      date: formatDateForStorage(event.date),
-      voteCounts,
-    };
-  });
+  const formattedEvents = events.map(({ votes, guestRegistrations, ...event }: (typeof events)[number] & { votes: { vote: VoteType }[]; guestRegistrations?: { vote: VoteType }[] }) => ({
+    ...event,
+    date: formatDateForStorage(event.date),
+    voteCounts: countVotes(votes, guestRegistrations),
+  }));
 
   return NextResponse.json({
     events: formattedEvents,
@@ -81,7 +63,7 @@ export const GET = withApiErrorHandling(async (request: NextRequest) => {
       pages: Math.ceil(total / limit),
     },
   });
-}, { route: "/api/admin/events", method: "GET" });
+}, { route: ROUTE, method: "GET" });
 
 export const POST = withApiErrorHandling(async (request: NextRequest) => {
   validateCsrfHeaders(request);
@@ -92,22 +74,22 @@ export const POST = withApiErrorHandling(async (request: NextRequest) => {
   const validation = validateCreateEventRequest(body);
 
   if (!validation.isValid) {
-    logValidationFailure('/api/admin/events', 'POST', validation.errors);
-    return NextResponse.json({ error: validation.errors.join(". "), fieldErrors: validation.fieldErrors }, { status: 400 });
+    logValidationFailure(ROUTE, 'POST', validation.errors);
+    throw new ValidationError(validation.errors, { fieldErrors: validation.fieldErrors });
   }
 
-  const { date, timeFrom, timeTo, location, description, latitude, longitude, type, title, cost, capacity, visible } = body;
+  const { date, timeFrom, timeTo, location, description, latitude, longitude, type, title, cost, capacity, visibility } = body;
   const sanitizedDescription = sanitizeEventDescriptionHtml(description);
 
   if (!hasEventDescriptionContent(sanitizedDescription)) {
-    logValidationFailure('/api/admin/events', 'POST', ["Beschreibung darf nicht leer sein"]);
-    return NextResponse.json({ error: "Beschreibung darf nicht leer sein", fieldErrors: [{ field: "description", message: "Beschreibung darf nicht leer sein" }] }, { status: 400 });
+    logValidationFailure(ROUTE, 'POST', ["Beschreibung darf nicht leer sein"]);
+    throw new ValidationError(["Beschreibung darf nicht leer sein"], { fieldErrors: [{ field: "description", message: "Beschreibung darf nicht leer sein" }] });
   }
 
   const eventDate = parseDateAndTime(date, timeFrom);
 
-  const parsedLatitude = normalizeCoordinate(latitude ?? null);
-  const parsedLongitude = normalizeCoordinate(longitude ?? null);
+  const parsedLatitude = normalizeCoordinate(latitude, "create");
+  const parsedLongitude = normalizeCoordinate(longitude, "create");
 
   const newEvent = await prisma.event.create({
     data: {
@@ -122,7 +104,7 @@ export const POST = withApiErrorHandling(async (request: NextRequest) => {
       type: type || null,
       cost: normalizeOptionalText(cost),
       capacity: normalizeCapacity(capacity),
-      visible: visible ?? true,
+      visibility: parseVisibility(visibility),
       createdById: user.id,
     },
   });
@@ -140,7 +122,7 @@ export const POST = withApiErrorHandling(async (request: NextRequest) => {
     location,
   });
 
-  if (newEvent.visible) {
+  if (canView(newEvent.visibility, true)) {
     void triggerImmediateEventReminders(newEvent.id).catch((err: unknown) =>
       logError("event_created_reminder_failed", "Failed to trigger immediate reminders", {
         eventId: newEvent.id,
@@ -153,4 +135,4 @@ export const POST = withApiErrorHandling(async (request: NextRequest) => {
     ...newEvent,
     date: formatDateForStorage(newEvent.date),
   }, { status: 201 });
-}, { route: "/api/admin/events", method: "POST" });
+}, { route: ROUTE, method: "POST" });

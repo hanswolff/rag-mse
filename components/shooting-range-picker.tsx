@@ -4,18 +4,12 @@ import { useEffect, useMemo, useState } from "react";
 import { Modal } from "./modal";
 import { AlertBox } from "./alert-box";
 import { API_ROUTES } from "@/lib/api-routes";
+import type { ShootingRangeItem } from "@/types";
 
 const COMPACT_MODAL_MAX_HEIGHT = "67.5vh";
 
-export interface ShootingRange {
-  id: string;
-  name: string;
-  street: string | null;
-  postalCode: string | null;
-  city: string | null;
-  latitude: number;
-  longitude: number;
-}
+// Die öffentliche Ranges-API liefert die Standort-Stammdaten ohne Zeitstempel.
+export type ShootingRange = Omit<ShootingRangeItem, "createdAt" | "updatedAt">;
 
 interface ShootingRangePickerProps {
   disabled?: boolean;
@@ -102,7 +96,7 @@ export function ShootingRangePicker({ disabled, onSelect }: ShootingRangePickerP
       >
         <div className="space-y-4">
           <AlertBox type="error" message={error} />
-          {isLoading && <p className="text-gray-600">Standorte werden geladen...</p>}
+          {isLoading && <p className="text-gray-600">Standorte werden geladen…</p>}
           {!isLoading && !error && sortedRanges.length === 0 && (
             <p className="text-gray-500">Keine Standorte verfügbar.</p>
           )}

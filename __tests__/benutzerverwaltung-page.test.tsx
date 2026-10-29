@@ -348,13 +348,13 @@ describe("BenutzerverwaltungPage", () => {
     it("shows impersonation button only for site administrators", () => {
       mockUseSessionState.data = { user: { id: "site-1", role: "SITE_ADMINISTRATOR" } };
       render(<BenutzerverwaltungPage />);
-      expect(screen.getAllByRole("button", { name: /Als Benutzer anmelden:/ }).length).toBeGreaterThan(0);
+      expect(screen.getAllByRole("button", { name: /Als Benutzer einloggen:/ }).length).toBeGreaterThan(0);
     });
 
     it("hides impersonation button for normal administrators", () => {
       mockUseSessionState.data = { user: { id: "admin-1", role: "ADMIN" } };
       render(<BenutzerverwaltungPage />);
-      expect(screen.queryByRole("button", { name: /Als Benutzer anmelden:/ })).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: /Als Benutzer einloggen:/ })).not.toBeInTheDocument();
     });
   });
 
@@ -504,7 +504,7 @@ describe("BenutzerverwaltungPage", () => {
 
       render(<BenutzerverwaltungPage />);
 
-      // Check for skeleton elements instead of "Laden..." text
+      // Check for skeleton elements instead of "Laden…" text
       expect(screen.getAllByRole("generic").some(function(el) {
         return el.className.includes("animate-pulse");
       })).toBe(true);
@@ -520,7 +520,7 @@ describe("BenutzerverwaltungPage", () => {
 
       render(<BenutzerverwaltungPage />);
 
-      expect(screen.getByText("Wird gespeichert...")).toBeInTheDocument();
+      expect(screen.getByText("Wird gespeichert…")).toBeInTheDocument();
     });
 
     it("should show submitting text when isUpdatingUser is true", () => {
@@ -551,7 +551,7 @@ describe("BenutzerverwaltungPage", () => {
 
       render(<BenutzerverwaltungPage />);
 
-      expect(screen.getByText("Wird gespeichert...")).toBeInTheDocument();
+      expect(screen.getByText("Wird gespeichert…")).toBeInTheDocument();
     });
   });
 });

@@ -1,7 +1,7 @@
 "use client";
 
 import { useSession } from "next-auth/react";
-import { isAdmin } from "@/lib/role-utils";
+import { canManageAdminArea } from "@/lib/role-utils";
 import { useNewsManagement } from "@/lib/use-news-management";
 import { formatDate } from "@/lib/date-utils";
 import { NewsFormModal } from "@/components/news-form-modal";
@@ -82,7 +82,7 @@ function NewsList({
 export default function NewsPage() {
   const { data: session, status } = useSession();
   const newsManagement = useNewsManagement();
-  const canManage = session ? isAdmin(session.user) : false;
+  const canManage = session ? canManageAdminArea(session.user) : false;
 
   if (status === "loading" || newsManagement.isLoading) {
     return <LoadingScreen />;
@@ -136,7 +136,8 @@ export default function NewsPage() {
             setNewsData={newsManagement.setModalNewsData}
             isEditing={!!newsManagement.editingNews}
             errors={newsManagement.error ? { general: newsManagement.error } : {}}
-            fieldErrors={newsManagement.fieldErrors}            initialNewsData={newsManagement.initialNewsData}
+            fieldErrors={newsManagement.fieldErrors}
+            initialNewsData={newsManagement.initialNewsData}
           />
         )}
       </div>

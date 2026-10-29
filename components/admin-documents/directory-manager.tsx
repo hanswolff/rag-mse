@@ -1,45 +1,39 @@
-import { FormEvent, ReactNode } from "react";
+import type { ReactNode } from "react";
 import type { DirectoryFilter } from "@/lib/document-utils";
+import type { DocumentDirectoryCrudState } from "@/lib/use-document-directory-crud";
 
 type DirectoryManagerProps = {
   canManage: boolean;
   selectedDirectory: DirectoryFilter;
-  newDirectoryName: string;
-  onNewDirectoryNameChange: (name: string) => void;
-  onCreateDirectory: (event: FormEvent<HTMLFormElement>) => void;
-  isSavingDirectory: boolean;
-  renamingDirectoryId: string | null;
-  renamingDirectoryName: string;
-  onRenamingDirectoryNameChange: (name: string) => void;
-  onSaveRenameDirectory: () => void;
-  onCancelRename: () => void;
+  directoryCrud: DocumentDirectoryCrudState;
 };
 
-export function DirectoryManager({
-  canManage,
-  selectedDirectory,
-  newDirectoryName,
-  onNewDirectoryNameChange,
-  onCreateDirectory,
-  isSavingDirectory,
-  renamingDirectoryId,
-  renamingDirectoryName,
-  onRenamingDirectoryNameChange,
-  onSaveRenameDirectory,
-  onCancelRename,
-}: DirectoryManagerProps): ReactNode {
+export function DirectoryManager({ canManage, selectedDirectory, directoryCrud }: DirectoryManagerProps): ReactNode {
+  const {
+    newDirectoryName,
+    setNewDirectoryName,
+    isSavingDirectory,
+    renamingDirectoryId,
+    renamingDirectoryName,
+    setRenamingDirectoryName,
+    handleCreateDirectory,
+    saveRenameDirectory,
+    cancelRenameDirectory,
+  } = directoryCrud;
+
   if (!canManage) return null;
 
   return (
     <>
       {selectedDirectory === "root" && (
-        <form onSubmit={onCreateDirectory} className="mb-3 flex w-full md:w-auto gap-2">
+        <form onSubmit={(event) => void handleCreateDirectory(event)} className="mb-3 flex w-full md:w-auto gap-2">
           <input
             type="text"
             className="form-input w-full md:w-72"
             placeholder="Neues Verzeichnis"
+            aria-label="Name des neuen Verzeichnisses"
             value={newDirectoryName}
-            onChange={(event) => onNewDirectoryNameChange(event.target.value)}
+            onChange={(event) => setNewDirectoryName(event.target.value)}
             maxLength={120}
             disabled={isSavingDirectory}
           />
@@ -53,7 +47,7 @@ export function DirectoryManager({
         <form
           onSubmit={(event) => {
             event.preventDefault();
-            onSaveRenameDirectory();
+            void saveRenameDirectory();
           }}
           className="mb-3 border border-gray-200 rounded-md bg-white p-3 flex flex-col sm:flex-row gap-2 sm:items-center"
         >
@@ -63,7 +57,7 @@ export function DirectoryManager({
             type="text"
             className="form-input sm:w-80"
             value={renamingDirectoryName}
-            onChange={(event) => onRenamingDirectoryNameChange(event.target.value)}
+            onChange={(event) => setRenamingDirectoryName(event.target.value)}
             maxLength={120}
             disabled={isSavingDirectory}
           />
@@ -73,7 +67,7 @@ export function DirectoryManager({
           <button
             type="button"
             className="btn-outline px-3 py-2 text-sm"
-            onClick={onCancelRename}
+            onClick={cancelRenameDirectory}
             disabled={isSavingDirectory}
           >
             Abbrechen

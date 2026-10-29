@@ -775,7 +775,7 @@ describe("Admin CRUD utilities", () => {
 
       const handler = result.current.createPublishHandler(mockSetSuccess, mockSetError, mockRefresh);
 
-      await handler("/api/admin/events/123", { visible: true }, {
+      await handler("/api/admin/events/123", { visibility: "PUBLIC" }, {
         success: "Termin wurde veröffentlicht",
         error: "Fehler beim Veröffentlichen",
       });
@@ -785,7 +785,7 @@ describe("Admin CRUD utilities", () => {
         expect.objectContaining({
           method: "PUT",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ visible: true }),
+          body: JSON.stringify({ visibility: "PUBLIC" }),
         })
       );
     });
@@ -803,7 +803,7 @@ describe("Admin CRUD utilities", () => {
 
       const handler = result.current.createPublishHandler(mockSetSuccess, mockSetError, mockRefresh);
 
-      await handler("/api/admin/events/123", { visible: true }, {
+      await handler("/api/admin/events/123", { visibility: "PUBLIC" }, {
         success: "Termin wurde veröffentlicht",
         error: "Fehler beim Veröffentlichen",
       });
@@ -824,7 +824,7 @@ describe("Admin CRUD utilities", () => {
 
       const handler = result.current.createPublishHandler(mockSetSuccess, mockSetError, mockRefresh);
 
-      await handler("/api/admin/events/123", { visible: true }, {
+      await handler("/api/admin/events/123", { visibility: "PUBLIC" }, {
         success: "Termin wurde veröffentlicht",
         error: "Fehler beim Veröffentlichen",
       });
@@ -845,7 +845,7 @@ describe("Admin CRUD utilities", () => {
 
       const handler = result.current.createPublishHandler(mockSetSuccess, mockSetError, mockRefresh);
 
-      await handler("/api/admin/events/123", { visible: true }, {
+      await handler("/api/admin/events/123", { visibility: "PUBLIC" }, {
         success: "Termin wurde veröffentlicht",
         error: "Fehler beim Veröffentlichen",
       });
@@ -868,7 +868,7 @@ describe("Admin CRUD utilities", () => {
 
       const handler = result.current.createPublishHandler(mockSetSuccess, mockSetError, mockRefresh);
 
-      await handler("/api/admin/events/123", { visible: true }, {
+      await handler("/api/admin/events/123", { visibility: "PUBLIC" }, {
         success: "Termin wurde veröffentlicht",
         error: "Fehler beim Veröffentlichen",
       });
@@ -886,7 +886,7 @@ describe("Admin CRUD utilities", () => {
 
       const handler = result.current.createPublishHandler(mockSetSuccess, mockSetError, mockRefresh);
 
-      await handler("/api/admin/events/123", { visible: true }, {
+      await handler("/api/admin/events/123", { visibility: "PUBLIC" }, {
         success: "Termin wurde veröffentlicht",
         error: "Fehler beim Veröffentlichen",
       });
@@ -904,7 +904,7 @@ describe("Admin CRUD utilities", () => {
 
       const handler = result.current.createPublishHandler(mockSetSuccess, mockSetError, mockRefresh);
 
-      await handler("/api/admin/events/123", { visible: true }, {
+      await handler("/api/admin/events/123", { visibility: "PUBLIC" }, {
         success: "Termin wurde veröffentlicht",
         error: "Fehler beim Veröffentlichen",
       });

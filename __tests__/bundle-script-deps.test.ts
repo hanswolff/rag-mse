@@ -6,7 +6,7 @@ import path from "path";
 const BUNDLER = path.join(__dirname, "../scripts/bundle-script-deps.mjs");
 
 type PackageSpec = {
-  /** Ablageort relativ zur Auflösungswurzel, z.B. "node_modules/htmlparser2". */
+  /** Ablageort relativ zur Auflösungswurzel, z. B. "node_modules/htmlparser2". */
   at: string;
   version: string;
   dependencies?: Record<string, string>;

@@ -1,6 +1,7 @@
 /**
- * Role checking utilities
- * Pure functions for checking user roles - safe for client components
+ * Rollen-Helfer für Client-Komponenten: reine Weiterleitungen auf die
+ * Permissions-API (lib/permissions.ts) unter deren Namen. Neue Nutzungen
+ * sollten direkt die `can…`-Funktionen verwenden.
  */
 
 import { Permissions } from "./permissions";
@@ -11,106 +12,30 @@ export type UserWithRole = {
   role?: UserRole | string;
 };
 
-/**
- * Check if user has admin role
- * Safe for client components
- */
-export function isAdmin(user?: UserWithRole | null): boolean {
+export function canManageAdminArea(user?: UserWithRole | null): boolean {
   return Permissions.canManageAdminArea(user);
 }
 
-/**
- * Check if user can access admin area (read-only or write)
- * Safe for client components
- */
 export function canAccessAdminArea(user?: UserWithRole | null): boolean {
   return Permissions.canAccessAdminArea(user);
 }
 
-/**
- * Check if user can access member area
- * Safe for client components
- */
-export function isMember(user?: UserWithRole | null): boolean {
+export function canAccessMemberArea(user?: UserWithRole | null): boolean {
   return Permissions.canAccessMemberArea(user);
 }
 
-/**
- * Check if user can manage own profile.
- * Safe for client components
- */
 export function canManageOwnProfile(user?: UserWithRole | null): boolean {
   return Permissions.canManageOwnProfile(user);
 }
 
-/**
- * Check if user can manage own notification settings.
- * Safe for client components
- */
 export function canManageOwnNotifications(user?: UserWithRole | null): boolean {
   return Permissions.canManageOwnNotifications(user);
 }
 
-/**
- * Check if user has a specific role
- * Safe for client components
- */
-export function hasRole(user: UserWithRole | null | undefined, role: UserRole): boolean {
-  return user?.role === role;
-}
-
-/**
- * Check if a role string matches the expected role
- * Safe for client components and middleware
- */
-export function isRole(userRole: UserRole, expectedRole: UserRole): boolean {
-  return userRole === expectedRole;
-}
-
-/**
- * Check if role string is admin
- * Safe for client components and middleware
- */
-export function hasAdminRole(role?: string): boolean {
-  return Permissions.canManageAdminArea(role);
-}
-
-/**
- * Check if role string can access admin area (read-only or write)
- * Safe for client components and middleware
- */
-export function hasAdminAccessRole(role?: string): boolean {
-  return Permissions.canAccessAdminArea(role);
-}
-
-/**
- * Check if role string is member (MEMBER or ADMIN)
- * Safe for client components and middleware
- */
-export function hasMemberRole(role?: string): boolean {
-  return Permissions.canAccessMemberArea(role);
-}
-
-/**
- * Check if role can access profile and own notifications.
- * Safe for client components and middleware
- */
-export function hasSelfServiceRole(role?: string): boolean {
-  return Permissions.canManageOwnProfile(role);
-}
-
-/**
- * Check if user can read member documents.
- * Safe for client components
- */
 export function canReadMemberDocuments(user?: UserWithRole | null): boolean {
   return Permissions.canReadMemberDocuments(user);
 }
 
-/**
- * Check if user can manage member documents.
- * Safe for client components
- */
 export function canManageMemberDocuments(user?: UserWithRole | null): boolean {
   return Permissions.canManageMemberDocuments(user);
 }
@@ -121,4 +46,41 @@ export function canManagePolls(user?: UserWithRole | null): boolean {
 
 export function canVotePolls(user?: UserWithRole | null): boolean {
   return Permissions.canVotePolls(user);
+}
+
+/** @deprecated `Permissions.canManageAdminArea` verwenden. */
+export function hasAdminRole(role?: string): boolean {
+  return Permissions.canManageAdminArea(role);
+}
+
+/** @deprecated `Permissions.canAccessAdminArea` verwenden. */
+export function hasAdminAccessRole(role?: string): boolean {
+  return Permissions.canAccessAdminArea(role);
+}
+
+/** @deprecated `Permissions.canAccessMemberArea` verwenden. */
+export function hasMemberRole(role?: string): boolean {
+  return Permissions.canAccessMemberArea(role);
+}
+
+/** @deprecated `Permissions.canManageOwnProfile` verwenden. */
+export function hasSelfServiceRole(role?: string): boolean {
+  return Permissions.canManageOwnProfile(role);
+}
+
+const ROLE_SORT_ORDER: Record<string, number> = {
+  SITE_ADMINISTRATOR: 0,
+  ADMIN: 1,
+  AUDITOR: 2,
+  MEMBER: 3,
+};
+
+/** Sortiert nach Rollenrang (SITE_ADMINISTRATOR zuerst), innerhalb einer Rolle nach Name. */
+export function sortUsersByRole<T extends { role: string; name: string | null }>(users: T[]): T[] {
+  return users.sort((a, b) => {
+    if (a.role === b.role) {
+      return (a.name ?? "").localeCompare(b.name ?? "", "de");
+    }
+    return ROLE_SORT_ORDER[a.role] - ROLE_SORT_ORDER[b.role];
+  });
 }

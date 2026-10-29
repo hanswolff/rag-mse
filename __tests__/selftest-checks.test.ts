@@ -1,14 +1,7 @@
 import { Role } from "@prisma/client";
-
-jest.mock("@/lib/prisma", () => ({
-  prisma: {
-    $queryRaw: jest.fn(),
-    user: { count: jest.fn() },
-    shootingRange: { count: jest.fn() },
-    outgoingEmail: { count: jest.fn() },
-    document: { findMany: jest.fn() },
-  },
-}));
+jest.mock("@/lib/prisma", () =>
+  jest.requireActual<typeof import("./helpers/prisma-mock")>("./helpers/prisma-mock").prismaModuleMock,
+);
 
 jest.mock("@/lib/document-storage", () => ({
   getDocumentsDirectory: jest.fn(() => "/srv/data/documents"),
@@ -35,7 +28,7 @@ jest.mock("@/lib/email/outbox-worker", () => ({
   createSmtpTransport: jest.fn(),
   isEmailOutboxWorkerRunning: jest.fn(() => true),
 }));
-jest.mock("@/lib/event-reminder-worker", () => ({ isEventReminderWorkerRunning: jest.fn(() => true) }));
+jest.mock("@/lib/reminders/event-reminder-worker", () => ({ isEventReminderWorkerRunning: jest.fn(() => true) }));
 jest.mock("@/lib/config-validation", () => ({ validateProductionConfig: jest.fn() }));
 
 import { promises as fs } from "node:fs";
@@ -44,7 +37,7 @@ import { prisma } from "@/lib/prisma";
 import { isDevModeEnabled } from "@/lib/email/dev-mode";
 import { getSmtpConfig } from "@/lib/email/config";
 import { createSmtpTransport, isEmailOutboxWorkerRunning } from "@/lib/email/outbox-worker";
-import { isEventReminderWorkerRunning } from "@/lib/event-reminder-worker";
+import { isEventReminderWorkerRunning } from "@/lib/reminders/event-reminder-worker";
 import { validateProductionConfig } from "@/lib/config-validation";
 import { dataPresenceChecks } from "@/lib/selftest/checks/data-presence";
 import { documentStorageChecks } from "@/lib/selftest/checks/document-storage";

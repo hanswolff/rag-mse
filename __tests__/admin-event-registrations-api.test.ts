@@ -3,26 +3,9 @@ import { GET, POST, DELETE } from "@/app/api/admin/events/[id]/registrations/rou
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/auth-utils";
 
-jest.mock("@/lib/prisma", () => ({
-  prisma: {
-    event: {
-      findUnique: jest.fn(),
-    },
-    user: {
-      findUnique: jest.fn(),
-      findMany: jest.fn(),
-    },
-    vote: {
-      upsert: jest.fn(),
-      deleteMany: jest.fn(),
-    },
-    guestRegistration: {
-      upsert: jest.fn(),
-      deleteMany: jest.fn(),
-      findMany: jest.fn(),
-    },
-  },
-}));
+jest.mock("@/lib/prisma", () =>
+  jest.requireActual<typeof import("./helpers/prisma-mock")>("./helpers/prisma-mock").prismaModuleMock,
+);
 
 jest.mock("@/lib/auth-utils", () => ({
   requireAdmin: jest.fn(),

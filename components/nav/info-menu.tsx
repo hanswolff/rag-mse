@@ -3,6 +3,7 @@
 import type { RefObject } from "react";
 import Link from "next/link";
 import { ChevronDownIcon } from "../icons";
+import { DropdownItem } from "./dropdown-item";
 import { MenuBadge } from "./menu-badge";
 
 export const AUSSCHREIBUNGEN_HREF = "/ausschreibungen";
@@ -61,37 +62,23 @@ export function DesktopInfoMenu({
       {isOpen && (
         <div className="absolute left-0 mt-2 w-auto min-w-[15rem] bg-white rounded-md shadow-lg py-1 z-dropdown border border-gray-200">
           {TOP_INFO_ITEMS.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              onClick={onItemClick}
-              className="flex items-center justify-between px-4 py-2 text-base text-gray-700 hover:bg-gray-100 transition-colors"
-            >
+            <DropdownItem key={item.href} href={item.href} onClick={onItemClick} layout="flex">
               <span>{item.label}</span>
               {item.href === AUSSCHREIBUNGEN_HREF && (
                 <MenuBadge count={openAusschreibungenCount} label={AUSSCHREIBUNGEN_BADGE_LABEL} />
               )}
-            </Link>
+            </DropdownItem>
           ))}
           {showMemberDocuments && (
-            <Link
-              href={MEMBER_DOCUMENTS_ITEM.href}
-              onClick={onItemClick}
-              className="block px-4 py-2 text-base text-gray-700 hover:bg-gray-100 transition-colors"
-            >
+            <DropdownItem href={MEMBER_DOCUMENTS_ITEM.href} onClick={onItemClick}>
               {MEMBER_DOCUMENTS_ITEM.label}
-            </Link>
+            </DropdownItem>
           )}
           <div className="border-t border-gray-200 my-1" />
           {INFO_ITEMS.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              onClick={onItemClick}
-              className="block px-4 py-2 text-base text-gray-700 hover:bg-gray-100 transition-colors"
-            >
+            <DropdownItem key={item.href} href={item.href} onClick={onItemClick}>
               {item.label}
-            </Link>
+            </DropdownItem>
           ))}
         </div>
       )}

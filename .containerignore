@@ -6,6 +6,14 @@
 .next/**
 !.next/standalone
 !.next/standalone/**
+.next/standalone/.env
+.next/standalone/.env.*
+.next/standalone/.git
+.next/standalone/.git/**
+.next/standalone/data
+.next/standalone/data/**
+.next/standalone/backups
+.next/standalone/backups/**
 !.next/static
 !.next/static/**
 node_modules
@@ -27,3 +35,10 @@ ops/**
 .pnpm-store
 .pnpm-store/**
 *.log
+backups
+backups/**
+data.backup-*
+.scratch
+.scratch/**
+e2e
+e2e/**

@@ -26,22 +26,23 @@ jest.mock("next-auth", () => ({
 }));
 
 jest.mock("next/server", () => {
+  // Echte, case-insensitive Headers (statt Map): lib/csrf-validator.ts liest
+  // z.B. "origin" lowercase — ein Test, der "Origin" setzt, muss gefunden werden.
+  const toHeaders = (init) => (init instanceof Headers ? new Headers(init) : new Headers(init || {}));
+
   const NextResponseImpl = class {
     constructor(body, init) {
       this._body = body;
       this._init = init || {};
       this.status = this._init.status || 200;
-      this.headers = new Map(Object.entries(this._init.headers || {}));
+      this.headers = toHeaders(this._init.headers);
     }
 
     static json(data, init) {
-      const response = new NextResponseImpl(JSON.stringify(data), {
-        ...init,
-        headers: {
-          ...init?.headers,
-          "Content-Type": "application/json",
-        },
-      });
+      const response = new NextResponseImpl(JSON.stringify(data), init);
+      if (!response.headers.has("content-type")) {
+        response.headers.set("Content-Type", "application/json");
+      }
       response._jsonData = data;
       return response;
     }
@@ -71,14 +72,20 @@ jest.mock("next/server", () => {
       this.url = new URL(url);
       this._init = init;
       this.method = init.method || "GET";
-      this.headers = new Map(Object.entries(init.headers || {}));
+      this.headers = toHeaders(init.headers);
     }
 
     async json() {
       return this._init.body ? JSON.parse(this._init.body) : {};
     }
+
+    async text() {
+      return this._init.body ?? "";
+    }
   };
 
+  // jsdom stellt kein globales Request bereit; Tests bauen Requests über
+  // `new Request(...)` (z.B. __tests__/api-utils.test.ts) — Override bleibt nötig.
   global.Request = NextRequestImpl;
 
   return {

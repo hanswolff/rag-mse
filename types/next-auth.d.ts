@@ -21,6 +21,7 @@ declare module "next-auth" {
 
   interface User {
     role: string;
+    passwordUpdatedAt?: number | null;
   }
 }
 
@@ -33,5 +34,6 @@ declare module "next-auth/jwt" {
     impersonatedByRole?: string;
     impersonatedByName?: string;
     impersonatedByEmail?: string;
+    passwordUpdatedAt?: number | null;
   }
 }

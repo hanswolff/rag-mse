@@ -1,27 +1,15 @@
 import { NextResponse } from "next/server";
-import {
-  withApiErrorHandling,
-  BadRequestError,
-  PayloadTooLargeError,
-  parseJsonBody,
-  logApiError,
-  validateRequestBody,
-  validateCsrfHeaders,
-  CsrfError,
-  MAX_REQUEST_BODY_SIZE,
-  getMaxSizeMB,
-  checkTokenRateLimitWithPolicy,
-  recordSuccessfulTokenUsageWithPolicy,
-} from "@/lib/api-utils";
+import { withApiErrorHandling, logApiError } from "@/lib/api-error-handler";
+import { BadRequestError, PayloadTooLargeError, parseJsonBody, validateRequestBody, MAX_REQUEST_BODY_SIZE, getMaxSizeMB } from "@/lib/request-body-parser";
+import { validateCsrfHeaders, CsrfError } from "@/lib/csrf-validator";
+import { checkTokenRateLimitWithPolicy, recordSuccessfulTokenUsageWithPolicy } from "@/lib/api-utils";
 import { TokenRateLimitUnavailableError } from "@/lib/errors";
 import { logError, logWarn } from "@/lib/logger";
 import { checkTokenRateLimit, recordSuccessfulTokenUsage } from "@/lib/rate-limiter";
 
-jest.mock("@/lib/logger", () => ({
-  logError: jest.fn(),
-  logWarn: jest.fn(),
-  logValidationFailure: jest.fn(),
-}));
+jest.mock("@/lib/logger", () =>
+  jest.requireActual<typeof import("./helpers/logger-mock")>("./helpers/logger-mock").mockLogger,
+);
 
 jest.mock("@/lib/rate-limiter", () => ({
   checkTokenRateLimit: jest.fn(),
@@ -120,26 +108,26 @@ describe("withApiErrorHandling", () => {
 
   describe("PayloadTooLargeError handling", () => {
     it("returns 413 status with German message", async () => {
-      const mockHandler = jest.fn().mockRejectedValue(new PayloadTooLargeError("Request body zu groß"));
+      const mockHandler = jest.fn().mockRejectedValue(new PayloadTooLargeError("Request-Body zu groß"));
       const wrappedHandler = withApiErrorHandling(mockHandler, { route: "/test", method: "POST" });
 
       const result = await wrappedHandler();
 
       expect(result.status).toBe(413);
       const data = await result.json();
-      expect(data.error).toBe("Request body zu groß");
+      expect(data.error).toBe("Request-Body zu groß");
     });
 
     it("returns 413 status with message including max size", async () => {
       const maxSizeMB = getMaxSizeMB();
-      const mockHandler = jest.fn().mockRejectedValue(new PayloadTooLargeError(`Request body zu groß (maximal ${maxSizeMB} MB)`));
+      const mockHandler = jest.fn().mockRejectedValue(new PayloadTooLargeError(`Request-Body zu groß (maximal ${maxSizeMB} MB)`));
       const wrappedHandler = withApiErrorHandling(mockHandler, { route: "/test", method: "POST" });
 
       const result = await wrappedHandler();
 
       expect(result.status).toBe(413);
       const data = await result.json();
-      expect(data.error).toContain("Request body zu groß");
+      expect(data.error).toContain("Request-Body zu groß");
       expect(data.error).toContain("maximal");
       expect(data.error).toContain("MB");
     });
@@ -230,7 +218,7 @@ describe("withApiErrorHandling", () => {
       expect(result).toEqual({ allowed: true, attemptCount: 0 });
       expect(logWarn).toHaveBeenCalledWith(
         "token_rate_limit_unavailable",
-        expect.stringContaining("continuing due fail-open policy"),
+        expect.stringContaining("continuing due to fail-open policy"),
         expect.any(Object)
       );
     });
@@ -382,16 +370,10 @@ describe("withApiErrorHandling", () => {
         },
       });
 
-      await expect(parseJsonBody(mockRequest)).rejects.toThrow(PayloadTooLargeError);
-      try {
-        await parseJsonBody(mockRequest);
-      } catch (error) {
-        expect(error).toBeInstanceOf(PayloadTooLargeError);
-        if (error instanceof Error) {
-          expect(error.message).toContain("Request body zu groß");
-          expect(error.message).toContain(`maximal ${maxSizeMB} MB`);
-        }
-      }
+      const error = await parseJsonBody(mockRequest).catch((caught: unknown) => caught);
+      expect(error).toBeInstanceOf(PayloadTooLargeError);
+      expect((error as Error).message).toContain("Request-Body zu groß");
+      expect((error as Error).message).toContain(`maximal ${maxSizeMB} MB`);
     });
 
     it("throws PayloadTooLargeError when parsed JSON exceeds limit", async () => {
@@ -407,16 +389,10 @@ describe("withApiErrorHandling", () => {
         headers: { "content-type": "application/json" },
       });
 
-      await expect(parseJsonBody(mockRequest)).rejects.toThrow(PayloadTooLargeError);
-      try {
-        await parseJsonBody(mockRequest);
-      } catch (error) {
-        expect(error).toBeInstanceOf(PayloadTooLargeError);
-        if (error instanceof Error) {
-          expect(error.message).toContain("Request body zu groß");
-          expect(error.message).toContain(`maximal ${maxSizeMB} MB`);
-        }
-      }
+      const error = await parseJsonBody(mockRequest).catch((caught: unknown) => caught);
+      expect(error).toBeInstanceOf(PayloadTooLargeError);
+      expect((error as Error).message).toContain("Request-Body zu groß");
+      expect((error as Error).message).toContain(`maximal ${maxSizeMB} MB`);
     });
 
     it("accepts body within size limit", async () => {
@@ -889,7 +865,7 @@ describe("withApiErrorHandling", () => {
 
       it("has default message", () => {
         const error = new CsrfError();
-        expect(error.message).toBe("Ungültiger Origin oder Referer Header. Bitte versuchen Sie es erneut.");
+        expect(error.message).toBe("Ungültiger Origin- oder Referer-Header. Bitte versuchen Sie es erneut.");
       });
 
       it("accepts custom message", () => {
@@ -923,7 +899,7 @@ describe("withApiErrorHandling", () => {
 
         expect(result.status).toBe(403);
         const data = await result.json();
-        expect(data.error).toBe("Ungültiger Origin oder Referer Header. Bitte versuchen Sie es erneut.");
+        expect(data.error).toBe("Ungültiger Origin- oder Referer-Header. Bitte versuchen Sie es erneut.");
       });
 
       it("logs CSRF errors as access denied", async () => {
@@ -998,7 +974,7 @@ describe("withApiErrorHandling", () => {
     });
 
     it("should add X-Correlation-Id header to error responses (413)", async () => {
-      const mockHandler = jest.fn().mockRejectedValue(new PayloadTooLargeError("Request body zu groß"));
+      const mockHandler = jest.fn().mockRejectedValue(new PayloadTooLargeError("Request-Body zu groß"));
       const wrappedHandler = withApiErrorHandling(mockHandler, { route: "/test", method: "POST" });
 
       const result = await wrappedHandler();

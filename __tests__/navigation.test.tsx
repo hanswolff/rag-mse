@@ -208,6 +208,7 @@ describe("Navigation", () => {
     await user.click(menuButton);
 
     expect(menuButton).toHaveAttribute("aria-expanded", "true");
+    expect(menuButton).toHaveTextContent("Menü schließen");
 
     await user.click(menuButton);
 
@@ -297,7 +298,7 @@ describe("Navigation", () => {
   it("renders logo with alt text", () => {
     render(<Navigation />);
 
-    const logo = screen.getByAltText("RAG Schießsport Logo");
+    const logo = screen.getByAltText("RAG-Schießsport-Logo");
     expect(logo).toBeInTheDocument();
   });
 

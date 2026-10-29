@@ -1,7 +1,7 @@
 import { logInfo, logError } from "@/lib/logger";
 import { validateProductionConfig, printValidationResults } from "@/lib/config-validation";
-import { startEmailOutboxWorker } from "@/lib/email-sender";
-import { startEventReminderWorker } from "@/lib/event-reminder-worker";
+import { startEmailOutboxWorker } from "@/lib/email/outbox-worker";
+import { startEventReminderWorker } from "@/lib/reminders/event-reminder-worker";
 import { startMaintenanceWorker } from "@/lib/maintenance-worker";
 import { VERSION_INFO } from "@/lib/version-info";
 import { appName } from "@/lib/site-config";
@@ -31,7 +31,9 @@ export function registerNode() {
   }
 
   process.on("unhandledRejection", (reason) => {
-    logError("unhandled_rejection", "Unhandled rejection", { reason });
+    logError("unhandled_rejection", "Unhandled rejection", {
+      reason: reason instanceof Error ? { name: reason.name, message: reason.message, stack: reason.stack } : reason,
+    });
   });
 
   process.on("uncaughtException", (error) => {

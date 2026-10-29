@@ -200,10 +200,6 @@ export function getClientIdentifierFromHeaders(headers: Headers, sourceIp: strin
   return fingerprint;
 }
 
-export function getDirectIp(request: NextRequest): string | null {
-  return request.headers.get("x-real-ip") || null;
-}
-
 export function clearTrustedProxyCache(): void {
   cachedTrustedRanges = null;
   cachedTrustedIps = null;

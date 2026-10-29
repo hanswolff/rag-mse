@@ -18,18 +18,9 @@ jest.mock("@/lib/auth-utils", () => {
   };
 });
 
-jest.mock("@/lib/prisma", () => ({
-  prisma: {
-    ausschreibung: {
-      findMany: jest.fn(),
-      findUnique: jest.fn(),
-      create: jest.fn(),
-      update: jest.fn(),
-      delete: jest.fn(),
-    },
-    $transaction: jest.fn(),
-  },
-}));
+jest.mock("@/lib/prisma", () =>
+  jest.requireActual<typeof import("./helpers/prisma-mock")>("./helpers/prisma-mock").prismaModuleMock,
+);
 
 jest.mock("@/lib/ausschreibung-storage", () => ({
   writeAusschreibungFile: jest.fn(),
@@ -215,6 +206,22 @@ describe("/api/admin/ausschreibungen/[id]", () => {
     const response = await PATCH(request, { params: Promise.resolve({ id: "missing" }) });
 
     expect(response.status).toBe(404);
+  });
+
+  it("rejects an oversized update body before parsing the form data", async () => {
+    (prisma.ausschreibung.findUnique as jest.Mock).mockResolvedValue({ id: "a1", storedFileName: "old-stored.pdf" });
+
+    const request = new NextRequest("http://localhost:3000/api/admin/ausschreibungen/a1", {
+      method: "PATCH",
+      headers: { "content-length": String(1024 * 1024 * 1024) },
+    });
+    const formDataSpy = jest.fn();
+    Object.defineProperty(request, "formData", { value: formDataSpy });
+
+    const response = await PATCH(request, { params: Promise.resolve({ id: "a1" }) });
+
+    expect(response.status).toBe(413);
+    expect(formDataSpy).not.toHaveBeenCalled();
   });
 
   it("updates metadata without touching the file when no new file is provided", async () => {

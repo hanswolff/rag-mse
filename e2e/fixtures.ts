@@ -49,7 +49,7 @@ export async function seedE2eFixtures(databaseUrl: string): Promise<void> {
         timeTo: E2E_TERMIN.timeTo,
         location: E2E_TERMIN.location,
         description: E2E_TERMIN.description,
-        visible: true,
+        visibility: "PUBLIC",
       },
     });
 

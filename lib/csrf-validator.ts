@@ -1,5 +1,5 @@
 export class CsrfError extends Error {
-  constructor(message = "Ungültiger Origin oder Referer Header. Bitte versuchen Sie es erneut.") {
+  constructor(message = "Ungültiger Origin- oder Referer-Header. Bitte versuchen Sie es erneut.") {
     super(message);
     this.name = "CsrfError";
   }
@@ -59,6 +59,6 @@ export function validateCsrfHeaders(request: Request): void {
   const isRefererValid = validateHeader(referer);
 
   if (!isOriginValid && !isRefererValid) {
-    throw new CsrfError("Ungültiger Origin oder Referer Header. Bitte versuchen Sie es erneut.");
+    throw new CsrfError("Ungültiger Origin- oder Referer-Header. Bitte versuchen Sie es erneut.");
   }
 }

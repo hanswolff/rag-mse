@@ -2,10 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/auth-utils";
 import { validateCreateNewsRequest, type CreateNewsRequest } from "@/lib/news-validation";
-import { parseJsonBody, validateRequestBody, withApiErrorHandling, validateCsrfHeaders } from "@/lib/api-utils";
+import { parseAndValidateBody, ValidationError } from "@/lib/request-body-parser";
+import { withApiErrorHandling } from "@/lib/api-error-handler";
+import { validateCsrfHeaders } from "@/lib/csrf-validator";
 import { logInfo, logValidationFailure } from "@/lib/logger";
 import { parseIsoDateOnlyToUtcDate } from "@/lib/date-picker-utils";
 import { parsePageNumber, parsePageSize } from "@/lib/api-pagination";
+
+const ROUTE = "/api/admin/news";
 
 const createNewsSchema = {
   title: { type: "string" as const },
@@ -45,33 +49,19 @@ export const GET = withApiErrorHandling(async (request: NextRequest) => {
       pages: Math.ceil(total / limit),
     },
   });
-}, { route: "/api/admin/news", method: "GET" });
+}, { route: ROUTE, method: "GET" });
 
 export const POST = withApiErrorHandling(async (request: NextRequest) => {
   validateCsrfHeaders(request);
   await requireAdmin("write");
 
-  const body = await parseJsonBody<CreateNewsRequest>(request);
-  const bodyValidation = validateRequestBody(
-    body,
-    createNewsSchema,
-    { route: "/api/admin/news", method: "POST" }
-  );
-  if (!bodyValidation.isValid) {
-    return NextResponse.json(
-      { error: bodyValidation.errors.join(". ") },
-      { status: 400 }
-    );
-  }
+  const body = await parseAndValidateBody<CreateNewsRequest>(request, createNewsSchema, { route: ROUTE, method: "POST" });
 
   const validation = validateCreateNewsRequest(body);
 
   if (!validation.isValid) {
-    logValidationFailure('/api/admin/news', 'POST', validation.errors);
-    return NextResponse.json(
-      { error: validation.errors.join(". "), fieldErrors: validation.fieldErrors },
-      { status: 400 }
-    );
+    logValidationFailure(ROUTE, 'POST', validation.errors);
+    throw new ValidationError(validation.errors, { fieldErrors: validation.fieldErrors });
   }
 
   const { title, content, published, newsDate } = body;
@@ -79,8 +69,8 @@ export const POST = withApiErrorHandling(async (request: NextRequest) => {
 
   const newNews = await prisma.news.create({
     data: {
-      title,
-      content,
+      title: title.trim(),
+      content: content.trim(),
       newsDate: parseNewsDate(newsDate),
       published: publishValue,
     },
@@ -93,4 +83,4 @@ export const POST = withApiErrorHandling(async (request: NextRequest) => {
   });
 
   return NextResponse.json(newNews, { status: 201 });
-}, { route: "/api/admin/news", method: "POST" });
+}, { route: ROUTE, method: "POST" });

@@ -60,7 +60,7 @@ describe("ProfilePage", () => {
 
     render(<ProfilePage />);
 
-    expect(screen.getByText("Laden...")).toBeInTheDocument();
+    expect(screen.getByText("Laden…")).toBeInTheDocument();
   });
 
   it("should display profile form when data is loaded", async () => {

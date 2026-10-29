@@ -1,9 +1,6 @@
 import {
   formatFileSize,
   isViewableDocument,
-  formatDateForInput,
-  formatDateTime,
-  formatDateUtc,
   DOCUMENT_PAGE_SIZE,
   DOCUMENT_UPLOAD_ACCEPT,
   DOCUMENT_UPLOAD_FORMATS_LABEL,
@@ -59,43 +56,6 @@ describe("document-utils", () => {
       expect(isViewableDocument(createDocument("application/vnd.openxmlformats-officedocument.wordprocessingml.document"))).toBe(false);
       expect(isViewableDocument(createDocument("application/zip"))).toBe(false);
       expect(isViewableDocument(createDocument("text/plain"))).toBe(false);
-    });
-  });
-
-  describe("formatDateForInput", () => {
-    it("formats ISO date string for date input", () => {
-      expect(formatDateForInput("2024-01-15T00:00:00.000Z")).toBe("2024-01-15");
-      expect(formatDateForInput("2024-12-31T23:59:59.999Z")).toBe("2024-12-31");
-    });
-
-    it("returns empty string for invalid date", () => {
-      expect(formatDateForInput("invalid")).toBe("");
-      expect(formatDateForInput("")).toBe("");
-    });
-  });
-
-  describe("formatDateTime", () => {
-    it("formats date and time in German locale", () => {
-      const result = formatDateTime("2024-01-15T14:30:00.000Z");
-      expect(result).toMatch(/\d{2}\.\d{2}\.\d{4}/);
-      expect(result).toMatch(/\d{2}:\d{2}/);
-    });
-
-    it("returns original value for invalid date", () => {
-      expect(formatDateTime("invalid")).toBe("invalid");
-      expect(formatDateTime("")).toBe("");
-    });
-  });
-
-  describe("formatDateUtc", () => {
-    it("formats UTC date in German locale", () => {
-      const result = formatDateUtc("2024-01-15T00:00:00.000Z");
-      expect(result).toMatch(/\d{2}\.\d{2}\.\d{4}/);
-    });
-
-    it("returns original value for invalid date", () => {
-      expect(formatDateUtc("invalid")).toBe("invalid");
-      expect(formatDateUtc("")).toBe("");
     });
   });
 

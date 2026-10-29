@@ -6,9 +6,11 @@ import path from "path";
 import Database from "better-sqlite3";
 
 const MIGRATIONS_DIR = path.join(process.cwd(), "prisma", "migrations");
-const BASELINE_SQL_PATH = path.join(process.cwd(), "create_admin.sql");
+const BASELINE_SQL_PATH = path.join(process.cwd(), "prisma", "baseline.sql");
 
-function resolveSqlitePath(databaseUrl: string): string {
+// Exportiert für __tests__/sqlite-path-parity.test.ts (Drift-Wächter gegen die
+// Schwester-Implementierungen in deploy.sh, entrypoint.sh und prisma.config.ts).
+export function resolveSqlitePath(databaseUrl: string): string {
   if (!databaseUrl.startsWith("file:")) {
     throw new Error(`Nur SQLite file:-URLs werden unterstützt: ${databaseUrl}`);
   }
@@ -326,7 +328,7 @@ function applyPendingMigrations(
 
   if (needsBaselineInitialization(db)) {
     applyBaselineSchema(db);
-    log("Baseline-Schema aus create_admin.sql initialisiert.");
+    log("Baseline-Schema aus prisma/baseline.sql initialisiert.");
   }
 
   const appliedStmt = db.prepare('SELECT "name", "checksum" FROM "_AppMigration" WHERE "name" = ?');
@@ -391,5 +393,12 @@ function applyPendingMigrations(
 }
 
 if (typeof require !== "undefined" && require.main === module) {
+  if (!process.env.DATABASE_URL) {
+    console.error(
+      "DATABASE_URL ist nicht gesetzt. Bitte explizit angeben, z. B. " +
+        "DATABASE_URL=file:/tmp/rag-mse-dev.db pnpm run db:migrate"
+    );
+    process.exit(1);
+  }
   runMigrations();
 }

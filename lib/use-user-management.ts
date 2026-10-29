@@ -1,12 +1,11 @@
-import { useState, useCallback, useEffect, useMemo } from "react";
+import { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useAdminAuth } from "./use-admin-auth";
 import { useAdminCrud } from "./use-admin-crud";
-import { useSuccessTimer } from "./use-success-timer";
+import { useAdminEntityManagement } from "./use-admin-entity-management";
 import { normalizeDateInputValue } from "./date-picker-utils";
 import { validateEmail } from "./validation-schema";
 import type { User, NewUser } from "@/types";
-import type { FieldError } from "@/lib/server-error-mapper";
 
 const initialNewUser: NewUser = {
   email: "",
@@ -24,29 +23,52 @@ const initialNewUser: NewUser = {
   adminNotes: "",
 };
 
+function userToFormData(user: User): NewUser {
+  return {
+    email: user.email,
+    name: user.name,
+    address: user.address || "",
+    phone: user.phone || "",
+    role: user.role,
+    memberSince: normalizeDateInputValue(user.memberSince),
+    dateOfBirth: normalizeDateInputValue(user.dateOfBirth),
+    rank: user.rank || "",
+    pk: user.pk || "",
+    reservistsAssociation: user.reservistsAssociation || "",
+    associationMemberNumber: user.associationMemberNumber || "",
+    hasPossessionCard: user.hasPossessionCard || false,
+    adminNotes: user.adminNotes || "",
+  };
+}
+
 export function useUserManagement() {
   const router = useRouter();
   const { status } = useAdminAuth();
-  const { createFetchHandler, createDeleteHandler, createFetchDataHandler } = useAdminCrud();
+  const { createFetchHandler, createFetchDataHandler } = useAdminCrud();
 
   const [users, setUsers] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [isCreatingUser, setIsCreatingUser] = useState(false);
-  const [isDeletingUser, setIsDeletingUser] = useState(false);
-  const [isUpdatingUser, setIsUpdatingUser] = useState(false);
   const [isSendingInvite, setIsSendingInvite] = useState(false);
   const [isResendingInvite, setIsResendingInvite] = useState<string | null>(null);
-  const [error, setError] = useState("");
-  const [fieldErrors, setFieldErrors] = useState<FieldError[]>([]);
-  const [success, setSuccess] = useState("");
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteError, setInviteError] = useState("");
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingUser, setEditingUser] = useState<User | null>(null);
-  const [modalUserData, setModalUserData] = useState<NewUser>(initialNewUser);
-  const [initialUserData, setInitialUserData] = useState<NewUser | undefined>(undefined);
 
-  useSuccessTimer(success, setSuccess);
+  const fetchUsersRef = useRef<() => Promise<void> | void>(() => {});
+
+  const management = useAdminEntityManagement<User, NewUser>({
+    endpoint: "/api/admin/users",
+    emptyForm: initialNewUser,
+    itemToForm: userToFormData,
+    updateMethod: "PATCH",
+    messages: {
+      created: (data) => `Benutzer ${(data as { name: string }).name} wurde erfolgreich erstellt`,
+      updated: (data) => `Benutzer ${(data as { name: string }).name} wurde erfolgreich aktualisiert`,
+      deleted: "Benutzer wurde erfolgreich gelöscht",
+    },
+    refetch: () => fetchUsersRef.current(),
+  });
+
+  const { setError, setSuccess } = management;
 
   const fetchUsers = useMemo(
     () =>
@@ -57,26 +79,18 @@ export function useUserManagement() {
         setIsLoading,
         router
       ),
-    [createFetchDataHandler, router]
+    [createFetchDataHandler, router, setError]
   );
+
+  useEffect(() => {
+    fetchUsersRef.current = fetchUsers;
+  }, [fetchUsers]);
 
   useEffect(() => {
     if (status === "authenticated") {
       fetchUsers();
     }
   }, [status, fetchUsers]);
-
-  const createUser = useMemo(
-    () =>
-      createFetchHandler<NewUser>(
-        "/api/admin/users",
-        "POST",
-        setError,
-        setIsCreatingUser,
-        modalUserData
-      ),
-    [createFetchHandler, modalUserData]
-  );
 
   const sendInvite = useMemo(
     () =>
@@ -87,47 +101,8 @@ export function useUserManagement() {
         setIsSendingInvite,
         { email: inviteEmail }
       ),
-    [createFetchHandler, inviteEmail]
+    [createFetchHandler, inviteEmail, setError]
   );
-
-  const deleteUser = useMemo(
-    () =>
-      createFetchHandler(
-        "/api/admin/users",
-        "DELETE",
-        setError,
-        setIsDeletingUser
-      ),
-    [createFetchHandler]
-  );
-
-  const updateUser = useMemo(
-    () =>
-      createFetchHandler<NewUser>(
-        "/api/admin/users",
-        "PATCH",
-        setError,
-        setIsUpdatingUser,
-        modalUserData
-      ),
-    [createFetchHandler, modalUserData]
-  );
-
-  const handleCreateUser = useCallback(async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    setFieldErrors([]);
-    const result = await createUser();
-    if (result.success && result.data) {
-      setSuccess(`Benutzer ${(result.data as { name: string }).name} wurde erfolgreich erstellt`);
-      setIsModalOpen(false);
-      setModalUserData(initialNewUser);
-      setEditingUser(null);
-      await fetchUsers();
-    } else if (result.fieldErrors) {
-      setFieldErrors(result.fieldErrors);
-    }
-  }, [createUser, fetchUsers]);
 
   const handleSendInvite = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
@@ -152,7 +127,7 @@ export function useUserManagement() {
     }
     setError("");
     setInviteError("Einladung konnte nicht versendet werden. Bitte Eingabe prüfen.");
-  }, [sendInvite, inviteEmail]);
+  }, [sendInvite, inviteEmail, setError, setSuccess]);
 
   const handleResendInvitation = useCallback(async (email: string) => {
     setIsResendingInvite(email);
@@ -174,7 +149,7 @@ export function useUserManagement() {
     } finally {
       setIsResendingInvite(null);
     }
-  }, []);
+  }, [setError, setSuccess]);
 
   const handleInviteEmailChange = useCallback((value: string) => {
     setInviteEmail(value);
@@ -182,76 +157,6 @@ export function useUserManagement() {
       setInviteError("");
     }
   }, [inviteError]);
-
-  const handleDeleteUser = createDeleteHandler(
-    deleteUser,
-    setSuccess,
-    "Benutzer wurde erfolgreich gelöscht",
-    fetchUsers
-  );
-
-  const openCreateModal = useCallback(() => {
-    setModalUserData(initialNewUser);
-    setEditingUser(null);
-    setError("");
-    setFieldErrors([]);
-    setIsModalOpen(true);
-  }, []);
-
-  const openEditModal = useCallback((user: User) => {
-    setEditingUser(user);
-    const userData = {
-      email: user.email,
-      name: user.name,
-      address: user.address || "",
-      phone: user.phone || "",
-      role: user.role,
-      memberSince: normalizeDateInputValue(user.memberSince),
-      dateOfBirth: normalizeDateInputValue(user.dateOfBirth),
-      rank: user.rank || "",
-      pk: user.pk || "",
-      reservistsAssociation: user.reservistsAssociation || "",
-      associationMemberNumber: user.associationMemberNumber || "",
-      hasPossessionCard: user.hasPossessionCard || false,
-      adminNotes: user.adminNotes || "",
-    };
-    setModalUserData(userData);
-    setInitialUserData(userData); // Track initial for unsaved changes
-    setError("");
-    setFieldErrors([]);
-    setIsModalOpen(true);
-  }, []);
-
-  const closeModal = useCallback(() => {
-    setIsModalOpen(false);
-    setModalUserData(initialNewUser);
-    setInitialUserData(undefined); // Clear initial user data
-    setEditingUser(null);
-    setError("");
-    setFieldErrors([]);
-  }, []);
-
-  const handleUpdateUser = useCallback(async (e: React.FormEvent) => {
-    if (!editingUser) return;
-
-    e.preventDefault();
-
-    setFieldErrors([]);
-    const result = await updateUser(editingUser.id);
-    if (result.success && result.data) {
-      setSuccess(`Benutzer ${(result.data as { name: string }).name} wurde erfolgreich aktualisiert`);
-      setIsModalOpen(false);
-      setModalUserData(initialNewUser);
-      setEditingUser(null);
-      await fetchUsers();
-    } else if (result.fieldErrors) {
-      setFieldErrors(result.fieldErrors);
-    }
-  }, [editingUser, updateUser, fetchUsers]);
-
-  const startEditingUser = useCallback((user: User) => {
-    openEditModal(user);
-  }, [openEditModal]);
 
   const canDeleteUser = useCallback((userId: string): boolean => {
     const user = users.find((u) => u.id === userId);
@@ -268,31 +173,31 @@ export function useUserManagement() {
   return {
     users,
     isLoading,
-    isCreatingUser,
-    isDeletingUser,
-    isUpdatingUser,
+    isCreatingUser: management.isCreating,
+    isDeletingUser: management.isDeleting,
+    isUpdatingUser: management.isUpdating,
     isSendingInvite,
-    error,
-    fieldErrors,
-    success,
+    error: management.error,
+    fieldErrors: management.fieldErrors,
+    success: management.success,
     inviteEmail,
     inviteError,
-    modalUserData,
-    setModalUserData,
-    initialUserData,
-    isModalOpen,
-    editingUser,
+    modalUserData: management.modalData,
+    setModalUserData: management.setModalData,
+    initialUserData: management.initialData,
+    isModalOpen: management.isModalOpen,
+    editingUser: management.editingItem,
     isResendingInvite,
     handleResendInvitation,
     setInviteEmail: handleInviteEmailChange,
-    handleCreateUser,
-    handleUpdateUser,
+    handleCreateUser: management.handleCreate,
+    handleUpdateUser: management.handleUpdate,
     handleSendInvite,
-    handleDeleteUser,
-    startEditingUser,
-    openCreateModal,
-    openEditModal,
-    closeModal,
+    handleDeleteUser: management.handleDelete,
+    startEditingUser: management.startEditing,
+    openCreateModal: management.openCreateModal,
+    openEditModal: management.startEditing,
+    closeModal: management.closeModal,
     canDeleteUser,
   };
 }
