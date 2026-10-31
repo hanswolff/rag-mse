@@ -244,7 +244,7 @@ export async function parseCompleteJsonBody<T>(
 ): Promise<T> {
   const body = await parseJsonBody<unknown>(request);
   if (body && typeof body === "object" && !Array.isArray(body)) {
-    const missing = Object.keys(schema).filter((field) => !(field in body));
+    const missing = Object.keys(schema).filter((field) => !schema[field].optional && !(field in body));
     if (missing.length > 0) {
       const fieldErrors = missing.map((field) => ({ field, message: `Pflichtfeld fehlt: ${field}` }));
       const errors = fieldErrors.map((e) => e.message);

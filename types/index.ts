@@ -247,6 +247,12 @@ export interface AbsenceForm {
   timeFrom: string;
   timeTo: string;
   reason: string;
+  userId?: string;
+}
+
+export interface AbsenceOwnerOption {
+  id: string;
+  name: string | null;
 }
 
 export const EMPTY_ABSENCE_FORM: AbsenceForm = {

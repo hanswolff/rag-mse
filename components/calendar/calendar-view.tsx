@@ -10,12 +10,15 @@ import { ExternalEventFormModal } from "@/components/external-event-form-modal";
 import { LoadingButton } from "@/components/loading-button";
 import { LoadingIndicator } from "@/components/loading-indicator";
 import { Modal } from "@/components/modal";
-import { buildCalendarEvents, DEFAULT_CALENDAR_FILTERS, type CalendarEntry, type CalendarFilters } from "@/lib/calendar-entries";
+import { buildCalendarEvents, DEFAULT_CALENDAR_FILTERS, displayUserName, type CalendarEntry, type CalendarFilters } from "@/lib/calendar-entries";
 import type { CalendarAbsence, CalendarFremdtermin, CalendarRange } from "@/lib/calendar-service";
 import { buildCalendarSearch, loadCalendarFilters, saveCalendarFilters } from "@/lib/calendar-view-state";
+import { formatPeriod } from "@/lib/dates";
 import { Permissions } from "@/lib/permissions";
 import { useCalendarData } from "@/lib/use-calendar-data";
 import { useCalendarEditing } from "@/lib/use-calendar-editing";
+import type { AbsenceSource } from "@/lib/use-absence-form";
+import type { AbsenceOwnerOption } from "@/types";
 import { CalendarEntryDialog, type DialogEntry } from "./calendar-entry-dialog";
 import { CalendarSubscribe } from "./calendar-subscribe";
 import type { CalendarNavigation } from "./calendar-canvas";
@@ -36,6 +39,10 @@ const FILTER_OPTIONS: { key: keyof CalendarFilters; label: string; swatch: strin
   { key: "abwesenheiten", label: "Abwesenheiten", swatch: "calendar-swatch-abwesenheit", requiresLogin: true },
 ];
 
+function absenceOwnerOf(absence: AbsenceSource | null, self: AbsenceOwnerOption): AbsenceOwnerOption {
+  return absence?.userId ? { id: absence.userId, name: absence.userName ?? null } : self;
+}
+
 function isSameRange(a: CalendarRange | null, b: CalendarRange) {
   return a?.from === b.from && a?.to === b.to;
 }
@@ -46,11 +53,17 @@ export function CalendarView() {
   const isLoggedIn = Boolean(session?.user);
   const canManageExternalEvents = Permissions.canManageAdminArea(session?.user);
   const canViewCollisions = Permissions.canViewCollisions(session?.user);
+  const sessionUserId = session?.user?.id ?? null;
+  const absenceManagerId = Permissions.canManageAllAbsences(session?.user) ? sessionUserId ?? undefined : undefined;
   const [filters, setFilters] = useState<CalendarFilters>(DEFAULT_CALENDAR_FILTERS);
   const [range, setRange] = useState<CalendarRange | null>(null);
   const [dialogEntry, setDialogEntry] = useState<DialogEntry | null>(null);
-  const { loaded, isLoading, error, reload } = useCalendarData(range, session?.user?.id ?? null);
-  const editing = useCalendarEditing({ reload, canManageExternalEvents });
+  const { loaded, isLoading, error, reload } = useCalendarData(range, sessionUserId);
+  const editing = useCalendarEditing({
+    reload,
+    canManageExternalEvents,
+    absenceOwnerId: absenceManagerId,
+  });
   const { absenceForm, externalEventForm } = editing;
 
   useEffect(() => {
@@ -99,16 +112,33 @@ export function CalendarView() {
     action();
   };
 
-  const ownAbsenceActions = (absence: CalendarAbsence) => (
-    <div className="flex justify-end gap-3">
-      <button type="button" className="btn-outline" onClick={closeDialogThen(() => editing.deleteAbsence(absence))}>
-        Löschen
-      </button>
-      <button type="button" className="btn-primary" onClick={closeDialogThen(() => editing.openAbsenceEdit(absence))}>
-        Bearbeiten
-      </button>
-    </div>
-  );
+  const absenceActions = (absence: CalendarAbsence, inList: boolean) => {
+    const label = inList ? `Abwesenheit von ${displayUserName(absence.userName)}, ${formatPeriod(absence)}` : undefined;
+    return (
+      <div className={inList ? "calendar-absence-actions" : "flex justify-end gap-3"}>
+        <button
+          type="button"
+          className="btn-outline"
+          aria-label={label && `${label} löschen`}
+          onClick={closeDialogThen(() => editing.deleteAbsence(absence))}
+        >
+          Löschen
+        </button>
+        <button
+          type="button"
+          className="btn-primary"
+          aria-label={label && `${label} bearbeiten`}
+          onClick={closeDialogThen(() => editing.openAbsenceEdit(absence))}
+        >
+          Bearbeiten
+        </button>
+      </div>
+    );
+  };
+
+  const currentAbsenceOwner = absenceManagerId
+    ? absenceOwnerOf(absenceForm.editingAbsence, { id: absenceManagerId, name: session?.user?.name ?? null })
+    : undefined;
 
   const fremdterminActions = (fremdtermin: CalendarFremdtermin) => (
     <div className="flex justify-end">
@@ -196,7 +226,8 @@ export function CalendarView() {
       <CalendarEntryDialog
         entry={dialogEntry}
         onClose={() => setDialogEntry(null)}
-        ownAbsenceActions={isLoggedIn ? ownAbsenceActions : undefined}
+        ownAbsenceActions={isLoggedIn ? (absence) => absenceActions(absence, false) : undefined}
+        foreignAbsenceActions={absenceManagerId ? (absence) => absenceActions(absence, true) : undefined}
         fremdterminActions={canManageExternalEvents ? fremdterminActions : undefined}
       />
 
@@ -228,6 +259,8 @@ export function CalendarView() {
           errors={absenceForm.error ? { general: absenceForm.error } : {}}
           fieldErrors={absenceForm.fieldErrors}
           initialData={absenceForm.initialData}
+          currentOwner={currentAbsenceOwner}
+          actorId={absenceManagerId}
         />
       )}
 

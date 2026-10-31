@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 import { Modal } from "@/components/modal";
 import { VisibilityBadge } from "@/components/visibility-badge";
 import { ExternalEventKindBadge } from "@/components/external-event-kind-badge";
-import { describeAbsenceOnDay, type CalendarEntry } from "@/lib/calendar-entries";
+import { describeAbsenceOnDay, describeEnteredBy, displayUserName, type CalendarEntry } from "@/lib/calendar-entries";
 import type { CalendarAbsence, CalendarFremdtermin } from "@/lib/calendar-service";
 import { formatDateUtc, formatPeriod } from "@/lib/dates";
 
@@ -14,6 +14,7 @@ interface CalendarEntryDialogProps {
   entry: DialogEntry | null;
   onClose: () => void;
   ownAbsenceActions?: (absence: CalendarAbsence) => ReactNode;
+  foreignAbsenceActions?: (absence: CalendarAbsence) => ReactNode;
   fremdterminActions?: (fremdtermin: CalendarFremdtermin) => ReactNode;
 }
 
@@ -66,21 +67,35 @@ function FremdterminDetails({ fremdtermin }: { fremdtermin: CalendarFremdtermin 
   );
 }
 
+function EnteredBy({ absence }: { absence: CalendarAbsence }) {
+  const text = describeEnteredBy(absence.enteredBy);
+  return text ? <p className="calendar-entered-by">{text}</p> : null;
+}
+
 function OwnAbsenceDetails({ absence }: { absence: CalendarAbsence }) {
   return (
-    <dl className="calendar-detail-list">
-      <DetailRow label="Zeitraum">{formatPeriod(absence)}</DetailRow>
-      <DetailRow label="Grund">{absence.reason || "Kein Grund angegeben"}</DetailRow>
-    </dl>
+    <div className="space-y-3">
+      <dl className="calendar-detail-list">
+        <DetailRow label="Zeitraum">{formatPeriod(absence)}</DetailRow>
+        <DetailRow label="Grund">{absence.reason || "Kein Grund angegeben"}</DetailRow>
+      </dl>
+      <EnteredBy absence={absence} />
+    </div>
   );
 }
 
-function AbsenceDayList({ date, absences }: { date: string; absences: CalendarAbsence[] }) {
+interface AbsenceDayListProps {
+  date: string;
+  absences: CalendarAbsence[];
+  actions?: (absence: CalendarAbsence) => ReactNode;
+}
+
+function AbsenceDayList({ date, absences, actions }: AbsenceDayListProps) {
   return (
     <ul className="calendar-absence-list">
       {absences.map((absence) => (
         <li key={absence.id} className="calendar-absence-item">
-          <p className="font-semibold text-gray-900">{absence.userName || "Unbekannter Benutzer"}</p>
+          <p className="font-semibold text-gray-900">{displayUserName(absence.userName)}</p>
           <p className="text-gray-700">
             {describeAbsenceOnDay(absence, date)}
             {absence.startDate !== absence.endDate && (
@@ -91,6 +106,8 @@ function AbsenceDayList({ date, absences }: { date: string; absences: CalendarAb
             <span className="text-gray-500">Grund: </span>
             {absence.reason || "–"}
           </p>
+          <EnteredBy absence={absence} />
+          {actions?.(absence)}
         </li>
       ))}
     </ul>
@@ -112,7 +129,7 @@ function getDialogFooter(
   return undefined;
 }
 
-export function CalendarEntryDialog({ entry, onClose, ...actions }: CalendarEntryDialogProps) {
+export function CalendarEntryDialog({ entry, onClose, foreignAbsenceActions, ...actions }: CalendarEntryDialogProps) {
   if (!entry) return null;
 
   const footer = getDialogFooter(entry, actions);
@@ -121,7 +138,9 @@ export function CalendarEntryDialog({ entry, onClose, ...actions }: CalendarEntr
     <Modal isOpen onClose={onClose} title={getDialogTitle(entry)} size="md" footer={footer}>
       {entry.kind === "fremdtermin" && <FremdterminDetails fremdtermin={entry.fremdtermin} />}
       {entry.kind === "abwesenheit" && <OwnAbsenceDetails absence={entry.absence} />}
-      {entry.kind === "abwesenheiten" && <AbsenceDayList date={entry.date} absences={entry.absences} />}
+      {entry.kind === "abwesenheiten" && (
+        <AbsenceDayList date={entry.date} absences={entry.absences} actions={foreignAbsenceActions} />
+      )}
     </Modal>
   );
 }

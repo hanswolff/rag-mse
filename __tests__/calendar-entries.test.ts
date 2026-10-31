@@ -5,6 +5,8 @@ import {
   buildCalendarEvents,
   DEFAULT_CALENDAR_FILTERS,
   describeAbsenceOnDay,
+  describeEnteredBy,
+  displayUserName,
   getSlotRange,
   periodToEventTimes,
 } from "@/lib/calendar-entries";
@@ -33,8 +35,10 @@ function absence(overrides: Partial<CalendarAbsence>): CalendarAbsence {
     timeFrom: null,
     timeTo: null,
     reason: null,
+    userId: "erika",
     userName: "Erika Beispiel",
     isOwn: false,
+    enteredBy: { kind: "self" },
     ...overrides,
   };
 }
@@ -67,6 +71,20 @@ const DATA: CalendarData = {
 };
 
 describe("Kalender-Einträge", () => {
+  it("zeigt fehlende Benutzernamen als „Unbekannter Benutzer“", () => {
+    expect(displayUserName("Erika Beispiel")).toBe("Erika Beispiel");
+    expect(displayUserName(null)).toBe("Unbekannter Benutzer");
+  });
+
+  it.each([
+    [{ kind: "self" } as const, null],
+    [{ kind: "other", name: "Anna Admin" } as const, "Eingetragen von Anna Admin"],
+    [{ kind: "other", name: null } as const, "Eingetragen von einem Administrator"],
+    [{ kind: "removed" } as const, "Eingetragen von einem Administrator"],
+  ])("beschreibt, wer die Abwesenheit eingetragen hat (%j)", (enteredBy, expected) => {
+    expect(describeEnteredBy(enteredBy)).toBe(expected);
+  });
+
   it("rechnet mit ISO-Daten über Monats- und Jahresgrenzen", () => {
     expect(addDaysToIsoDate("2026-12-31", 1)).toBe("2027-01-01");
     expect(addDaysToIsoDate("2026-03-01", -1)).toBe("2026-02-28");

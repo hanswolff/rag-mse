@@ -14,6 +14,7 @@ export const API_ROUTES = {
   POLLS: "/api/polls",
   AUSSCHREIBUNGEN: "/api/ausschreibungen",
   ABSENCES: "/api/abwesenheiten",
+  ABSENCE_OWNERS: "/api/abwesenheiten/benutzer",
   CALENDAR: "/api/kalender",
   ADMIN: {
     EVENTS: "/api/admin/events",

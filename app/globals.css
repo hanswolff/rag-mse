@@ -845,4 +845,12 @@ body {
   .calendar-absence-item {
     @apply py-3 first:pt-0 last:pb-0;
   }
+
+  .calendar-absence-actions {
+    @apply mt-2 flex justify-end gap-3;
+  }
+
+  .calendar-entered-by {
+    @apply text-sm text-gray-500;
+  }
 }

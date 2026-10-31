@@ -3,6 +3,7 @@
 Legende: [ ] offen, [x] erledigt
 
 - [ ] Im ersten Release nach 1.8.0: Spalte `Event.visible` samt Triggern `Event_visible_sync_insert`/`_update` per Migration entfernen und aus `schema.prisma` streichen (bis dahin nur für Image-Rollbacks auf den Stand vor 1.8.0, ADR 0008)
+- [x] Administratoren verwalten Abwesenheiten anderer Benutzer: anlegen, ändern, löschen und umhängen, mit „Eingetragen von“ (`Absence.createdById`), Benutzerauswahl im Kalender und ergänzter Datenschutzerklärung; Prüfer bleibt lesend – siehe `.scratch/abwesenheiten-admin/` (Version 1.8.1)
 - [x] Vereinskalender `/kalender` (Monat, Woche, Liste) mit Sichtbarkeitsstufe für Termine (öffentlich / nur für Mitglieder / verborgen), Fremdterminen (`/admin/fremdtermine`), Abwesenheiten (nur für sich selbst sowie Administratoren und Prüfer sichtbar, Löschung 30 Tage nach Ende), Kollisionshinweisen und öffentlichem iCal-Abo `/kalender.ics` – siehe `.scratch/kalender/` und ADR 0013 (Version 1.8.0)
 - [x] Android-Startbildschirm-Icon über Manifest sowie transparente Launcher- und Maskable-Icons verbessert
 - [x] Termin-Erinnerungen verwenden keinen berechneten Tageswert mehr im Benachrichtigungstext

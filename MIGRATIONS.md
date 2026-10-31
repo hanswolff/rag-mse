@@ -51,6 +51,32 @@ pnpm run db:push
 
 ## Migrationshistorie
 
+### 20261030_absence_created_by
+
+Ergänzt die Tabelle `Absence` (Abwesenheit) um `createdById` („eingetragen von“, nullable,
+`ON DELETE SET NULL`). Prisma-Standardmuster für SQLite: Tabelle neu anlegen, Daten
+kopieren, umbenennen; die Indizes auf `userId`, `startDate` und `endDate` werden neu erzeugt.
+
+**Zweck:** Administratoren können Abwesenheiten für andere Benutzer eintragen; die
+Abwesenheit weist aus, wer sie eingetragen hat (siehe `CONTEXT.md`, Abwesenheit).
+
+**Backfill:** `createdById = userId` für alle bestehenden Abwesenheiten — bisher konnte nur
+der Benutzer selbst eintragen.
+
+**Rollback:** Läuft nach dieser Migration wieder das Image 1.8.0, legt der alte Code
+Abwesenheiten mit `createdById = NULL` an. Nach dem erneuten Vorwärts-Deploy erscheinen sie
+als „Eingetragen von einem Administrator“, obwohl der Benutzer sie selbst eingetragen hat.
+Korrektur nach dem Vorwärts-Deploy (Rollback-Zeitpunkt in UTC einsetzen; `createdAt` steht
+als ISO-8601-Text in UTC in der Datenbank, der Textvergleich ist daher zeitlich korrekt):
+
+```sql
+UPDATE "Absence" SET "createdById" = "userId"
+WHERE "createdById" IS NULL AND "createdAt" >= '2026-11-02T18:00:00';
+```
+
+Achtung: Die Bedingung erfasst auch Abwesenheiten, die ein Administrator in diesem Zeitraum
+eingetragen und deren Konto inzwischen gelöscht wurde (ebenfalls `NULL`) — vorher prüfen.
+
 ### 20261023_news_vereinskalender_text
 
 Reine Datenmigration: korrigiert in der Release-News `news-vereinskalender-1-8-0` den Satz

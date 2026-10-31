@@ -16,6 +16,14 @@ describe("Permissions", () => {
     expect(Permissions.canViewAllAbsences(undefined)).toBe(false);
   });
 
+  it("lets only ADMIN and SITE_ADMINISTRATOR manage absences of other users", () => {
+    expect(Permissions.canManageAllAbsences("ADMIN")).toBe(true);
+    expect(Permissions.canManageAllAbsences("SITE_ADMINISTRATOR")).toBe(true);
+    expect(Permissions.canManageAllAbsences("AUDITOR")).toBe(false);
+    expect(Permissions.canManageAllAbsences("MEMBER")).toBe(false);
+    expect(Permissions.canManageAllAbsences(undefined)).toBe(false);
+  });
+
   it("shows collisions only to ADMIN, SITE_ADMINISTRATOR and AUDITOR", () => {
     expect(Permissions.canViewCollisions("ADMIN")).toBe(true);
     expect(Permissions.canViewCollisions("SITE_ADMINISTRATOR")).toBe(true);

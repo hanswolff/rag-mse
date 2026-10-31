@@ -4,6 +4,7 @@ import { useCallback, useState } from "react";
 import { useConfirmDialog } from "@/components/confirm-dialog";
 import { apiFetch, toDisplayErrorMessage } from "@/lib/api-fetch";
 import { API_ROUTES } from "@/lib/api-routes";
+import { displayUserName } from "@/lib/calendar-entries";
 import type { CalendarAbsence } from "@/lib/calendar-service";
 import type { CalendarSelection } from "@/lib/calendar-view-state";
 import { useAbsenceForm, type AbsenceSaveMode } from "@/lib/use-absence-form";
@@ -17,7 +18,13 @@ const ABSENCE_SAVED_MESSAGES: Record<AbsenceSaveMode, string> = {
 
 export const EXTERNAL_EVENT_LOAD_ERROR = "Der Fremdtermin konnte nicht geladen werden. Bitte versuchen Sie es erneut.";
 
-export function useCalendarEditing({ reload, canManageExternalEvents }: { reload: () => void; canManageExternalEvents: boolean }) {
+interface CalendarEditingOptions {
+  reload: () => void;
+  canManageExternalEvents: boolean;
+  absenceOwnerId?: string;
+}
+
+export function useCalendarEditing({ reload, canManageExternalEvents, absenceOwnerId }: CalendarEditingOptions) {
   const confirm = useConfirmDialog();
   const [success, setSuccess] = useState("");
   const [error, setError] = useState("");
@@ -40,7 +47,10 @@ export function useCalendarEditing({ reload, canManageExternalEvents }: { reload
     setError(message);
   }, []);
 
-  const absenceForm = useAbsenceForm(useCallback((_, mode) => announce(ABSENCE_SAVED_MESSAGES[mode]), [announce]));
+  const absenceForm = useAbsenceForm(
+    useCallback((_, mode) => announce(ABSENCE_SAVED_MESSAGES[mode]), [announce]),
+    absenceOwnerId
+  );
   const externalEventForm = useExternalEventForm(
     useCallback(() => announce(EXTERNAL_EVENT_SAVED_MESSAGE), [announce])
   );
@@ -99,7 +109,9 @@ export function useCalendarEditing({ reload, canManageExternalEvents }: { reload
     clearFeedback();
     const confirmed = await confirm({
       title: "Abwesenheit löschen",
-      message: "Möchten Sie diese Abwesenheit wirklich löschen?",
+      message: absence.isOwn
+        ? "Möchten Sie diese Abwesenheit wirklich löschen?"
+        : `Möchten Sie die Abwesenheit von ${displayUserName(absence.userName)} wirklich löschen?`,
       confirmLabel: "Löschen",
       variant: "danger",
     });

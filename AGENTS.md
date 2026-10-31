@@ -25,7 +25,7 @@
 - Mitglieder-Dokumente (read access for members: `/mitglieder-dokumente`; admin: `/admin/mitglied-dokumente`)
 - Standorte (admin-only shooting range management: `/admin/standorte`)
 - Fremdtermine (admin-managed events of third parties, `ExternalEvent`: `/admin/fremdtermine`)
-- Abwesenheiten (self-entered unavailability periods of any logged-in user, `Absence`: API `/api/abwesenheiten`; only own records writable, foreign ⇒ 404 even for admins; deleted 30 days after their end and with the user)
+- Abwesenheiten (unavailability periods of any logged-in user, `Absence`: API `/api/abwesenheiten`; owner (`userId`) may always edit/delete; ADMIN/SITE_ADMINISTRATOR may also create, edit, delete and reassign foreign ones via `userId`, user picker list `GET /api/abwesenheiten/benutzer` (admins only, id+name of activated users); AUDITOR/MEMBER: foreign IDs ⇒ 404, foreign `userId` ⇒ 403; `createdById` records who entered it („Eingetragen von“, unchanged on edit; on reassigning a self-entered one it becomes the acting admin); deleted 30 days after their end and with the user)
 - Kalender (public view of Termine, Fremdtermine and Abwesenheiten per viewer: `/kalender`, FullCalendar 6.1.22 pinned; read API `/api/kalender?von&bis`, max. 100 days; anonymous responses cacheable, authenticated `no-store`; members never receive foreign Abwesenheiten; Kollisionen only for ADMIN/AUDITOR: `kollisionen` field in the calendar API and `/api/admin/kollisionen?datum&ohneTermin`, pure logic in `lib/collisions.ts`, never blocks saving; public iCal-Abo `/kalender.ics` with only *Öffentlich* Termine and Fremdtermine, −90 days to +1 year, never Abwesenheiten)
 - Benachrichtigungen (member reminder settings: `/benachrichtigungen`; admin history: `/admin/benachrichtigungen`)
 - Kontakt (email form to admins)
@@ -40,12 +40,12 @@ Four roles, consistent with `CONTEXT.md` and `lib/permissions.ts`:
 - `ADMIN`:
   - Full admin-area write access: users, events, news, documents, polls (Umfragen), Ausschreibungen, Fremdtermine, Standorte, invitations
   - Can submit a Teilnahmeanmeldung (Ja/Nein/Vielleicht) and vote in Umfragen
-  - Sees all Abwesenheiten (name, period, reason only); edits only own
+  - Sees all Abwesenheiten (name, period, reason only); may create, edit, delete and reassign them for any user
   - Sees all Termine and Fremdtermine incl. *Verborgen* and Kollisionen in the Kalender
 - `AUDITOR` (read-only):
   - Read access to the admin area (except outgoing emails and admin notifications), including Fremdtermine; no write operations
   - Sees all Termine and Fremdtermine incl. *Verborgen* (admin area and Kalender) and Kollisionen
-  - Sees all Abwesenheiten (name, period, reason only)
+  - Sees all Abwesenheiten (name, period, reason only); writes only own
   - Member-level functions (profile, Teilnahmeanmeldung, Umfrage vote, own Abwesenheiten) available
 - `MEMBER`:
   - Manage own data (name, address, phone, email)

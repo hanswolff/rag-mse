@@ -4,11 +4,16 @@ import { GET as listAbsences, POST as createAbsence } from "@/app/api/abwesenhei
 import { PUT as updateAbsence, DELETE as deleteAbsence } from "@/app/api/abwesenheiten/[id]/route";
 import { DELETE as deleteUserRoute } from "@/app/api/admin/users/[id]/route";
 import { formatDateForStorage, getLocalDateString } from "@/lib/date-picker-utils";
-import { ACTIVE_ABSENCE_LIMIT_ERROR, loadAbsencesInRange, MAX_ACTIVE_ABSENCES_PER_USER } from "@/lib/absence-service";
+import {
+  ACTIVE_ABSENCE_LIMIT_ERROR,
+  activeAbsenceLimitErrorFor,
+  loadAbsencesInRange,
+  MAX_ACTIVE_ABSENCES_PER_USER,
+} from "@/lib/absence-service";
 import { runMaintenanceCleanup } from "@/lib/maintenance-worker";
 import { apiRequest, routeContext } from "./helpers/api";
 import { loginAs, logout } from "./helpers/auth";
-import { createAdmin, createAuditor, createUser } from "./helpers/factories";
+import { createAdmin, createAuditor, createSiteAdministrator, createUser } from "./helpers/factories";
 
 const PATH = "/api/abwesenheiten";
 
@@ -80,9 +85,26 @@ function localDate(isoDate: string): Date {
   return new Date(year, month - 1, day);
 }
 
-function createAbsenceFor(user: User, startDate: string, endDate: string, reason: string | null = null) {
+function createAbsenceFor(
+  user: User,
+  startDate: string,
+  endDate: string,
+  reason: string | null = null,
+  createdById: string | null = user.id
+) {
   return prisma.absence.create({
-    data: { userId: user.id, startDate: localDate(startDate), endDate: localDate(endDate), reason },
+    data: { userId: user.id, createdById, startDate: localDate(startDate), endDate: localDate(endDate), reason },
+  });
+}
+
+function fillActiveAbsences(user: User, count: number) {
+  return prisma.absence.createMany({
+    data: Array.from({ length: count }, (_, index) => ({
+      userId: user.id,
+      createdById: user.id,
+      startDate: localDate(daysFromToday(index)),
+      endDate: localDate(daysFromToday(index)),
+    })),
   });
 }
 
@@ -205,7 +227,7 @@ describe("Abwesenheiten über die API", () => {
 
   it.each([
     ["Mitglied", () => member],
-    ["Administrator", () => admin],
+    ["Prüfer", () => auditor],
   ])("%s erhält 404 für fremde Abwesenheiten, ohne sie zu verändern", async (_role, getUser) => {
     const foreign = await createAbsenceFor(otherMember, "2026-12-01", "2026-12-02", "Schicht");
     loginAs(getUser());
@@ -319,7 +341,8 @@ describe("Abwesenheiten über die API", () => {
 
     it("lehnt falsche Feldtypen und unbekannte Felder ab", async () => {
       expect((await post({ ...VALID_BODY, allDay: "ja" })).status).toBe(400);
-      expect((await post({ ...VALID_BODY, userId: otherMember.id })).status).toBe(400);
+      expect((await post({ ...VALID_BODY, ownerId: otherMember.id })).status).toBe(400);
+      expect((await post({ ...VALID_BODY, userId: 42 })).status).toBe(400);
     });
   });
 });
@@ -362,8 +385,10 @@ describe("loadAbsencesInRange", () => {
         timeFrom: null,
         timeTo: null,
         reason: "Urlaub",
+        userId: rangeMember.id,
         userName: "Rita Reichweite",
         isOwn: true,
+        enteredBy: { kind: "self" },
       },
     ]);
   });
@@ -375,14 +400,368 @@ describe("loadAbsencesInRange", () => {
   ])("liefert %s alle überlappenden Abwesenheiten mit Namen, ohne E-Mail", async (role, getUser) => {
     const result = await loadAbsencesInRange({ id: getUser().id, role }, RANGE);
 
-    expect(result.map((a) => [a.id, a.userName, a.isOwn])).toEqual([
-      [otherId, "Otto Anders", false],
-      [ownId, "Rita Reichweite", false],
+    expect(result.map((a) => [a.id, a.userId, a.userName, a.isOwn])).toEqual([
+      [otherId, rangeOther.id, "Otto Anders", false],
+      [ownId, rangeMember.id, "Rita Reichweite", false],
     ]);
     expect(JSON.stringify(result)).not.toContain("@example.com");
     expect(Object.keys(result[0]).sort()).toEqual(
-      ["allDay", "endDate", "id", "isOwn", "reason", "startDate", "timeFrom", "timeTo", "userName"].sort()
+      ["allDay", "endDate", "enteredBy", "id", "isOwn", "reason", "startDate", "timeFrom", "timeTo", "userId", "userName"].sort()
     );
+  });
+
+  it("weist aus, wer die Abwesenheit eingetragen hat, ohne E-Mail des Eintragenden", async () => {
+    const owner = await createUser({ name: "Olga Eigen" });
+    const enteringAdmin = await createAdmin({ name: "Erich Eintrag", email: "erich@example.com" });
+    const removedAdmin = await createAdmin({ name: "Gerd Gelöscht" });
+    const self = await createAbsenceFor(owner, "2027-05-01", "2027-05-01", null);
+    const byAdmin = await createAbsenceFor(owner, "2027-05-02", "2027-05-02", null, enteringAdmin.id);
+    const byRemoved = await createAbsenceFor(owner, "2027-05-03", "2027-05-03", null, removedAdmin.id);
+    await prisma.user.delete({ where: { id: removedAdmin.id } });
+
+    const range = { from: "2027-05-01", to: "2027-05-03" };
+    const expected = [
+      [self.id, { kind: "self" }],
+      [byAdmin.id, { kind: "other", name: "Erich Eintrag" }],
+      [byRemoved.id, { kind: "removed" }],
+    ];
+    const asOwner = await loadAbsencesInRange({ id: owner.id, role: "MEMBER" }, range);
+    const asAuditor = await loadAbsencesInRange({ id: auditor.id, role: "AUDITOR" }, range);
+
+    expect(asOwner.map((a) => [a.id, a.enteredBy])).toEqual(expected);
+    expect(asAuditor.filter((a) => a.userId === owner.id).map((a) => [a.id, a.enteredBy])).toEqual(expected);
+    expect(JSON.stringify(asOwner)).not.toContain("erich@example.com");
+  });
+});
+
+describe("Abwesenheit für einen anderen Benutzer anlegen", () => {
+  it.each([
+    ["Administrator", () => admin],
+    ["Site-Administrator", () => createSiteAdministrator({ name: "Sina Site" })],
+  ])("%s legt für einen aktivierten Benutzer an und wird als Eintragender vermerkt", async (_role, getActor) => {
+    const actor = await getActor();
+    loginAs(actor);
+
+    const response = await post({ ...VALID_BODY, userId: member.id, reason: "telefonisch abgemeldet" });
+
+    expect(response.status).toBe(201);
+    const { id } = await response.json();
+    expect(await prisma.absence.findUniqueOrThrow({ where: { id } })).toMatchObject({
+      userId: member.id,
+      createdById: actor.id,
+      reason: "telefonisch abgemeldet",
+    });
+  });
+
+  it.each([
+    ["ohne userId", () => ({})],
+    ["mit eigener userId", () => ({ userId: member.id })],
+  ])("eigener Eintrag (%s) vermerkt den Benutzer selbst als Eintragenden", async (_case, extra) => {
+    loginAs(member);
+
+    const response = await post({ ...VALID_BODY, ...extra() });
+
+    expect(response.status).toBe(201);
+    const { id } = await response.json();
+    expect(await prisma.absence.findUniqueOrThrow({ where: { id } })).toMatchObject({
+      userId: member.id,
+      createdById: member.id,
+    });
+  });
+
+  it.each([
+    ["Mitglied", () => member],
+    ["Prüfer", () => auditor],
+  ])("%s darf nicht für andere anlegen (403)", async (_role, getUser) => {
+    loginAs(getUser());
+    const before = await prisma.absence.count();
+
+    expect((await post({ ...VALID_BODY, userId: otherMember.id })).status).toBe(403);
+    expect((await post({ ...VALID_BODY, userId: "gibt-es-nicht" })).status).toBe(403);
+    expect(await prisma.absence.count()).toBe(before);
+  });
+
+  it("lehnt unbekannte und nicht aktivierte Benutzer mit 400 ab", async () => {
+    const invited = await createUser({ name: "Ina Eingeladen", activatedAt: null });
+    loginAs(admin);
+    const before = await prisma.absence.count();
+
+    for (const userId of ["gibt-es-nicht", invited.id]) {
+      const response = await post({ ...VALID_BODY, userId });
+      expect(response.status).toBe(400);
+      expect((await response.json()).fieldErrors).toEqual([
+        { field: "userId", message: "Benutzer nicht gefunden oder nicht aktiviert" },
+      ]);
+    }
+    expect(await prisma.absence.count()).toBe(before);
+  });
+
+  it("zählt das Limit beim Eigentümer und nennt dessen Namen", async () => {
+    const busy = await createUser({ name: "Bea Beschäftigt" });
+    await fillActiveAbsences(busy, MAX_ACTIVE_ABSENCES_PER_USER);
+    const busyAdmin = await createAdmin({ name: "Udo Überlastet" });
+    await fillActiveAbsences(busyAdmin, MAX_ACTIVE_ABSENCES_PER_USER);
+
+    loginAs(busyAdmin);
+    const forBusy = await post({ ...VALID_BODY, userId: busy.id });
+    expect(forBusy.status).toBe(400);
+    const forBusyBody = await forBusy.json();
+    expect(forBusyBody.error).toBe(activeAbsenceLimitErrorFor("Bea Beschäftigt"));
+    expect(forBusyBody.fieldErrors).toEqual([{ field: "userId", message: activeAbsenceLimitErrorFor("Bea Beschäftigt") }]);
+    expect(activeAbsenceLimitErrorFor("Bea Beschäftigt")).toContain("Bea Beschäftigt");
+
+    expect((await post({ ...VALID_BODY, userId: member.id })).status).toBe(201);
+
+    const forSelf = await post({ ...VALID_BODY, userId: busyAdmin.id });
+    expect(forSelf.status).toBe(400);
+    const forSelfBody = await forSelf.json();
+    expect(forSelfBody.error).toBe(ACTIVE_ABSENCE_LIMIT_ERROR);
+    expect(forSelfBody.fieldErrors ?? []).toEqual([]);
+    expect(await prisma.absence.count({ where: { userId: busy.id } })).toBe(MAX_ACTIVE_ABSENCES_PER_USER);
+  });
+
+  it("behält die Abwesenheit, wenn der Eintragende gelöscht wird", async () => {
+    const leavingAdmin = await createAdmin({ name: "Lars Leaving" });
+    loginAs(leavingAdmin);
+    const { id } = await (await post({ ...VALID_BODY, userId: otherMember.id })).json();
+
+    await prisma.user.delete({ where: { id: leavingAdmin.id } });
+
+    expect(await prisma.absence.findUniqueOrThrow({ where: { id } })).toMatchObject({
+      userId: otherMember.id,
+      createdById: null,
+    });
+  });
+
+  it("ändert beim Bearbeiten weder Eigentümer noch Eintragenden", async () => {
+    loginAs(admin);
+    const { id } = await (await post({ ...VALID_BODY, userId: member.id })).json();
+    loginAs(member);
+
+    expect((await put(id, { ...VALID_BODY, reason: "selbst ergänzt" })).status).toBe(200);
+
+    expect(await prisma.absence.findUniqueOrThrow({ where: { id } })).toMatchObject({
+      userId: member.id,
+      createdById: admin.id,
+      reason: "selbst ergänzt",
+    });
+  });
+});
+
+describe("Fremde Abwesenheit bearbeiten, löschen und umhängen", () => {
+  function logLine(spy: jest.SpyInstance, action: string): string | undefined {
+    return spy.mock.calls.map((args) => String(args[0])).find((line) => line.includes(`[${action}]`));
+  }
+
+  it.each([
+    ["Administrator", () => admin],
+    ["Site-Administrator", () => createSiteAdministrator({ name: "Siggi Site" })],
+  ])("%s ändert und löscht eine fremde Abwesenheit, Eigentümer und Eintragender bleiben", async (_role, getActor) => {
+    const actor = await getActor();
+    const foreign = await createAbsenceFor(otherMember, "2026-12-01", "2026-12-02", "Schicht");
+    loginAs(actor);
+    const logSpy = jest.spyOn(console, "log").mockImplementation(() => undefined);
+
+    const updated = await put(foreign.id, { ...VALID_BODY, reason: "verlängert" });
+    const stored = await prisma.absence.findUniqueOrThrow({ where: { id: foreign.id } });
+    const deleted = await remove(foreign.id);
+    const lines = [logLine(logSpy, "absence_updated"), logLine(logSpy, "absence_deleted")];
+    logSpy.mockRestore();
+
+    expect([updated.status, deleted.status]).toEqual([200, 200]);
+    expect(stored).toMatchObject({ userId: otherMember.id, createdById: otherMember.id, reason: "verlängert" });
+    expect(await prisma.absence.findUnique({ where: { id: foreign.id } })).toBeNull();
+    for (const line of lines) {
+      expect(line).toContain(`"actorId":"${actor.id}"`);
+      expect(line).toContain(`"userId":"${otherMember.id}"`);
+    }
+  });
+
+  it.each([
+    ["dem handelnden Administrator", () => admin.id],
+    ["einem anderen Administrator", async () => (await createSiteAdministrator({ name: "Sabine Site" })).id],
+    ["einem gelöschten Administrator", () => null],
+  ])("behält beim Umhängen den Eintragenden, wenn die Abwesenheit von %s eingetragen wurde", async (_label, getCreator) => {
+    const createdById = await getCreator();
+    const absence = await createAbsenceFor(member, "2026-12-05", "2026-12-06", "Verklickt", createdById);
+    loginAs(admin);
+
+    expect((await put(absence.id, { ...VALID_BODY, userId: otherMember.id })).status).toBe(200);
+
+    expect(await prisma.absence.findUniqueOrThrow({ where: { id: absence.id } })).toMatchObject({
+      userId: otherMember.id,
+      createdById,
+    });
+  });
+
+  it("setzt beim Umhängen einer selbst eingetragenen Abwesenheit den Administrator als Eintragenden", async () => {
+    const absence = await createAbsenceFor(member, "2026-12-05", "2026-12-06", "Verklickt");
+    loginAs(admin);
+
+    expect((await put(absence.id, { ...VALID_BODY, userId: otherMember.id })).status).toBe(200);
+
+    expect(await prisma.absence.findUniqueOrThrow({ where: { id: absence.id } })).toMatchObject({
+      userId: otherMember.id,
+      createdById: admin.id,
+    });
+  });
+
+  it("ändert den Eintragenden nicht, wenn der Administrator den bisherigen Eigentümer erneut wählt", async () => {
+    const absence = await createAbsenceFor(member, "2026-12-05", "2026-12-06", "Schicht");
+    loginAs(admin);
+
+    expect((await put(absence.id, { ...VALID_BODY, userId: member.id })).status).toBe(200);
+
+    expect(await prisma.absence.findUniqueOrThrow({ where: { id: absence.id } })).toMatchObject({
+      userId: member.id,
+      createdById: member.id,
+    });
+  });
+
+  it("hängt eine Abwesenheit auf einen anderen Benutzer um und protokolliert beide Eigentümer", async () => {
+    const own = await createAbsenceFor(member, "2026-12-05", "2026-12-06", "Verklickt", admin.id);
+    loginAs(admin);
+    const logSpy = jest.spyOn(console, "log").mockImplementation(() => undefined);
+
+    const response = await put(own.id, { ...VALID_BODY, userId: otherMember.id });
+    const line = logLine(logSpy, "absence_updated");
+    logSpy.mockRestore();
+
+    expect(response.status).toBe(200);
+    expect(await prisma.absence.findUniqueOrThrow({ where: { id: own.id } })).toMatchObject({
+      userId: otherMember.id,
+      createdById: admin.id,
+    });
+    expect(line).toContain(`"userId":"${otherMember.id}"`);
+    expect(line).toContain(`"previousUserId":"${member.id}"`);
+    expect(line).toContain(`"actorId":"${admin.id}"`);
+  });
+
+  it("lehnt das Umhängen auf unbekannte oder nicht aktivierte Benutzer mit 400 ab", async () => {
+    const invited = await createUser({ name: "Ilse Eingeladen", activatedAt: null });
+    const absence = await createAbsenceFor(member, "2026-12-07", "2026-12-07");
+    loginAs(admin);
+
+    for (const userId of ["gibt-es-nicht", invited.id]) {
+      const response = await put(absence.id, { ...VALID_BODY, userId });
+      expect(response.status).toBe(400);
+      expect((await response.json()).fieldErrors).toEqual([
+        { field: "userId", message: "Benutzer nicht gefunden oder nicht aktiviert" },
+      ]);
+    }
+    expect(await prisma.absence.findUniqueOrThrow({ where: { id: absence.id } })).toMatchObject({ userId: member.id });
+  });
+
+  it.each([
+    ["Mitglied", () => member],
+    ["Prüfer", () => auditor],
+  ])("%s darf eigene Abwesenheit nicht an andere übergeben (403), mit eigener userId aber ändern", async (_role, getUser) => {
+    const user = getUser();
+    const absence = await createAbsenceFor(user, "2026-12-08", "2026-12-08", "eigen");
+    loginAs(user);
+
+    expect((await put(absence.id, { ...VALID_BODY, userId: otherMember.id })).status).toBe(403);
+    expect(await prisma.absence.findUniqueOrThrow({ where: { id: absence.id } })).toMatchObject({
+      userId: user.id,
+      reason: "eigen",
+    });
+
+    expect((await put(absence.id, { ...VALID_BODY, userId: user.id, reason: "geändert" })).status).toBe(200);
+    expect(await prisma.absence.findUniqueOrThrow({ where: { id: absence.id } })).toMatchObject({
+      userId: user.id,
+      reason: "geändert",
+    });
+  });
+
+  it("zählt das Limit beim neuen Eigentümer und nennt dessen Namen", async () => {
+    const busy = await createUser({ name: "Berta Belegt" });
+    await fillActiveAbsences(busy, MAX_ACTIVE_ABSENCES_PER_USER);
+    const absence = await createAbsenceFor(member, daysFromToday(10), daysFromToday(10));
+    const busyAbsence = await prisma.absence.findFirstOrThrow({ where: { userId: busy.id } });
+    loginAs(admin);
+
+    const rejected = await put(absence.id, { ...VALID_BODY, startDate: daysFromToday(10), endDate: daysFromToday(10), userId: busy.id });
+    expect(rejected.status).toBe(400);
+    expect(await rejected.json()).toMatchObject({
+      error: activeAbsenceLimitErrorFor("Berta Belegt"),
+      fieldErrors: [{ field: "userId", message: activeAbsenceLimitErrorFor("Berta Belegt") }],
+    });
+    expect(await prisma.absence.findUniqueOrThrow({ where: { id: absence.id } })).toMatchObject({ userId: member.id });
+
+    const ownerUnchanged = await put(busyAbsence.id, { ...VALID_BODY, startDate: daysFromToday(50), endDate: daysFromToday(50) });
+    expect(ownerUnchanged.status).toBe(200);
+  });
+
+  it("nennt beim Ändern ohne Umhängen den Namen des Eigentümers, wenn ein Admin handelt", async () => {
+    const busy = await createUser({ name: "Volker Voll" });
+    await fillActiveAbsences(busy, MAX_ACTIVE_ABSENCES_PER_USER);
+    const past = await createAbsenceFor(busy, daysFromToday(-5), daysFromToday(-2));
+    loginAs(admin);
+
+    const rejected = await put(past.id, { ...VALID_BODY, startDate: daysFromToday(1), endDate: daysFromToday(1) });
+
+    expect(rejected.status).toBe(400);
+    expect(await rejected.json()).toMatchObject({
+      error: activeAbsenceLimitErrorFor("Volker Voll"),
+      fieldErrors: [{ field: "userId", message: activeAbsenceLimitErrorFor("Volker Voll") }],
+    });
+  });
+
+  it("Eigentümer löscht eine vom Administrator eingetragene Abwesenheit selbst", async () => {
+    const byAdmin = await createAbsenceFor(member, "2026-12-09", "2026-12-09", null, admin.id);
+    loginAs(member);
+
+    expect((await remove(byAdmin.id)).status).toBe(200);
+    expect(await prisma.absence.findUnique({ where: { id: byAdmin.id } })).toBeNull();
+  });
+
+  it("überschreitet das Limit auch bei gleichzeitigen Anfragen nicht", async () => {
+    const racer = await createUser({ name: "Rudi Rennen" });
+    await fillActiveAbsences(racer, MAX_ACTIVE_ABSENCES_PER_USER - 1);
+    loginAs(admin);
+
+    const statuses = await Promise.all([1, 2, 3].map(() => post({ ...VALID_BODY, userId: racer.id }).then((r) => r.status)));
+
+    expect(statuses.sort()).toEqual([201, 400, 400]);
+    expect(await prisma.absence.count({ where: { userId: racer.id } })).toBe(MAX_ACTIVE_ABSENCES_PER_USER);
+  });
+
+  it.each([
+    ["Mitglied", () => member],
+    ["Prüfer", () => auditor],
+  ])("%s erhält für fremde IDs auch mit fremder userId 404 statt 403", async (_role, getUser) => {
+    const foreign = await createAbsenceFor(otherMember, "2026-12-10", "2026-12-10", "Schicht");
+    loginAs(getUser());
+
+    expect((await put(foreign.id, { ...VALID_BODY, userId: otherMember.id })).status).toBe(404);
+    expect(await prisma.absence.findUniqueOrThrow({ where: { id: foreign.id } })).toMatchObject({ reason: "Schicht" });
+  });
+
+  it("meldet 404 beim Löschen ohne Prisma-Fehlerprotokoll", async () => {
+    loginAs(member);
+    const output = [jest.spyOn(console, "error"), jest.spyOn(console, "log"), jest.spyOn(process.stdout, "write")];
+    output.forEach((spy) => spy.mockImplementation((() => true) as never));
+
+    const response = await remove("gibt-es-nicht");
+    const printed = output.flatMap((spy) => spy.mock.calls.map((args) => String(args[0])));
+    output.forEach((spy) => spy.mockRestore());
+
+    expect(response.status).toBe(404);
+    expect(printed.join("\n")).not.toContain("prisma:error");
+  });
+
+  it("antwortet 401, wenn der Handelnde vor dem Anlegen gelöscht wurde", async () => {
+    const vanished = await createUser({ name: "Vera Verschwunden" });
+    loginAs(vanished);
+    await prisma.user.delete({ where: { id: vanished.id } });
+
+    expect((await post(VALID_BODY)).status).toBe(401);
+  });
+
+  it("meldet 404, wenn ein Administrator eine unbekannte Abwesenheit ändert oder löscht", async () => {
+    loginAs(admin);
+    expect((await put("gibt-es-nicht", { ...VALID_BODY, userId: member.id })).status).toBe(404);
+    expect((await remove("gibt-es-nicht")).status).toBe(404);
   });
 });
 

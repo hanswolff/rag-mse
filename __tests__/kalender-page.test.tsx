@@ -76,8 +76,10 @@ const DATA: CalendarData = {
       timeFrom: null,
       timeTo: null,
       reason: "Urlaub",
+      userId: "admin",
       userName: "Anna Admin",
       isOwn: true,
+      enteredBy: { kind: "self" },
     },
     {
       id: "o1",
@@ -87,8 +89,10 @@ const DATA: CalendarData = {
       timeFrom: "08:00",
       timeTo: "12:00",
       reason: "Schicht",
+      userId: "erika",
       userName: "Erika Beispiel",
       isOwn: false,
+      enteredBy: { kind: "self" },
     },
     {
       id: "o2",
@@ -98,8 +102,10 @@ const DATA: CalendarData = {
       timeFrom: null,
       timeTo: null,
       reason: null,
+      userId: "max",
       userName: "Max Muster",
       isOwn: false,
+      enteredBy: { kind: "self" },
     },
   ],
 };
@@ -333,10 +339,10 @@ describe("Kalender bearbeiten", () => {
     updatedAt: "",
   };
 
-  function respondTo(handlers: Record<string, () => Response>) {
+  function respondTo(handlers: Record<string, () => Response | Promise<Response>>, calendar: CalendarData = DATA) {
     fetchMock.mockImplementation(async (url: string, init?: RequestInit) => {
       const handler = handlers[`${init?.method ?? "GET"} ${url}`];
-      return handler ? handler() : mockFetchResponse(DATA);
+      return handler ? handler() : mockFetchResponse(calendar);
     });
   }
 
@@ -465,7 +471,9 @@ describe("Kalender bearbeiten", () => {
       return screen.getByRole("dialog", { name: "Abwesenheit löschen" });
     };
 
-    await user.click(within(await openDelete()).getByRole("button", { name: "Abbrechen" }));
+    const ownConfirmation = await openDelete();
+    expect(within(ownConfirmation).getByText("Möchten Sie diese Abwesenheit wirklich löschen?")).toBeInTheDocument();
+    await user.click(within(ownConfirmation).getByRole("button", { name: "Abbrechen" }));
     expect(requestTo("DELETE", "/api/abwesenheiten/own")).toBeUndefined();
 
     const loadsBefore = calendarLoads();
@@ -563,5 +571,339 @@ describe("Kalender bearbeiten", () => {
     const user = await renderPage();
     await user.click(screen.getByRole("button", { name: "RDL Schießausbildung" }));
     expect(within(screen.getByRole("dialog")).queryByRole("button", { name: "Bearbeiten" })).not.toBeInTheDocument();
+  });
+
+  describe("Abwesenheiten anderer Benutzer", () => {
+    const OWNERS = {
+      users: [
+        { id: "u1", name: "Anna Admin" },
+        { id: "erika", name: "Erika Beispiel" },
+        { id: "max", name: "Max Muster" },
+      ],
+    };
+    const OWNERS_ROUTE = "GET /api/abwesenheiten/benutzer";
+
+    function withEnteredBy(enteredBy: Record<string, CalendarData["abwesenheiten"][number]["enteredBy"]>): CalendarData {
+      return {
+        ...DATA,
+        abwesenheiten: DATA.abwesenheiten.map((absence) => ({ ...absence, enteredBy: enteredBy[absence.id] ?? absence.enteredBy })),
+      };
+    }
+
+    async function openDayList(user: ReturnType<typeof userEvent.setup>) {
+      await user.click(screen.getByRole("button", { name: "2 abwesend" }));
+      return screen.getByRole("dialog", { name: "Abwesend am 05.11.2026" });
+    }
+
+    it("lässt Admins beim Eintragen einen Benutzer wählen, vorbelegt mit sich selbst", async () => {
+      loggedIn("ADMIN");
+      respondTo({ [OWNERS_ROUTE]: () => mockFetchResponse(OWNERS), "POST /api/abwesenheiten": () => mockFetchResponse(SAVED_ABSENCE) });
+      const user = await renderPage();
+
+      await user.click(screen.getByRole("button", { name: "Abwesenheit eintragen" }));
+      const dialog = screen.getByRole("dialog", { name: "Abwesenheit eintragen" });
+      const owner = within(dialog).getByLabelText("Benutzer");
+      expect(owner).toHaveValue("u1");
+      await within(dialog).findByRole("option", { name: "Erika Beispiel" });
+      expect(within(owner).getAllByRole("option").map((option) => option.textContent)).toEqual([
+        "Anna Admin",
+        "Erika Beispiel",
+        "Max Muster",
+      ]);
+
+      await user.selectOptions(owner, "erika");
+      await user.type(within(dialog).getByLabelText(/^Von/), "06.11.2026");
+      await user.click(within(dialog).getByRole("button", { name: "Eintragen" }));
+
+      expect(await screen.findByText("Abwesenheit wurde eingetragen.")).toBeInTheDocument();
+      expect(requestTo("POST", "/api/abwesenheiten")).toMatchObject({ startDate: "2026-11-06", userId: "erika" });
+    });
+
+    it("passt den Sichtbarkeitshinweis an, wenn ein Admin einen anderen Benutzer wählt", async () => {
+      loggedIn("ADMIN");
+      respondTo({ [OWNERS_ROUTE]: () => mockFetchResponse(OWNERS) });
+      const user = await renderPage();
+
+      await user.click(screen.getByRole("button", { name: "Abwesenheit eintragen" }));
+      const dialog = screen.getByRole("dialog", { name: "Abwesenheit eintragen" });
+      const owner = within(dialog).getByLabelText("Benutzer");
+      expect(within(dialog).getByText("Sichtbar für Sie sowie Administratoren und Prüfer.")).toBeInTheDocument();
+
+      await within(dialog).findByRole("option", { name: "Erika Beispiel" });
+      await user.selectOptions(owner, "erika");
+      expect(within(dialog).getByText("Sichtbar für den Benutzer sowie Administratoren und Prüfer.")).toBeInTheDocument();
+      expect(within(dialog).queryByText("Sichtbar für Sie sowie Administratoren und Prüfer.")).not.toBeInTheDocument();
+
+      await user.selectOptions(owner, "u1");
+      expect(within(dialog).getByText("Sichtbar für Sie sowie Administratoren und Prüfer.")).toBeInTheDocument();
+    });
+
+    it("zeigt beim Bearbeiten einer fremden Abwesenheit den Hinweis für den Benutzer", async () => {
+      loggedIn("ADMIN");
+      respondTo({ [OWNERS_ROUTE]: () => mockFetchResponse(OWNERS) });
+      const user = await renderPage();
+
+      const list = await openDayList(user);
+      await user.click(within(list).getByRole("button", { name: "Abwesenheit von Erika Beispiel, 05.11.2026, 08:00–12:00 Uhr bearbeiten" }));
+
+      const dialog = screen.getByRole("dialog", { name: "Abwesenheit bearbeiten" });
+      expect(within(dialog).getByText("Sichtbar für den Benutzer sowie Administratoren und Prüfer.")).toBeInTheDocument();
+      await within(dialog).findByRole("option", { name: "Max Muster" });
+    });
+
+    it("zeigt den Feldfehler userId am Auswahlfeld", async () => {
+      loggedIn("ADMIN");
+      const message = "Benutzer nicht gefunden oder nicht aktiviert";
+      respondTo({
+        [OWNERS_ROUTE]: () => mockFetchResponse(OWNERS),
+        "POST /api/abwesenheiten": () => mockFetchResponse({ error: message, fieldErrors: [{ field: "userId", message }] }, false),
+      });
+      const user = await renderPage();
+      select({ startDate: "2026-11-06", endDate: "2026-11-06", allDay: true, timeFrom: "", timeTo: "" });
+      await user.click(within(screen.getByRole("dialog", { name: "Was möchten Sie eintragen?" })).getByRole("button", { name: "Abwesenheit" }));
+      const dialog = screen.getByRole("dialog", { name: "Abwesenheit eintragen" });
+      await user.click(within(dialog).getByRole("button", { name: "Eintragen" }));
+
+      const owner = within(dialog).getByLabelText("Benutzer");
+      await waitFor(() => expect(owner).toHaveAttribute("aria-invalid", "true"));
+      expect(owner).toHaveAccessibleDescription(message);
+    });
+
+    it.each([["Mitglied", "MEMBER"], ["Prüfer", "AUDITOR"]])("zeigt %s kein Benutzerfeld und sendet keine userId", async (_label, role) => {
+      loggedIn(role);
+      respondTo({ "POST /api/abwesenheiten": () => mockFetchResponse(SAVED_ABSENCE) });
+      const user = await renderPage();
+
+      await user.click(screen.getByRole("button", { name: "Abwesenheit eintragen" }));
+      const dialog = screen.getByRole("dialog", { name: "Abwesenheit eintragen" });
+      expect(within(dialog).queryByLabelText("Benutzer")).not.toBeInTheDocument();
+      await user.type(within(dialog).getByLabelText(/^Von/), "06.11.2026");
+      await user.click(within(dialog).getByRole("button", { name: "Eintragen" }));
+
+      expect(await screen.findByText("Abwesenheit wurde eingetragen.")).toBeInTheDocument();
+      expect(requestTo("POST", "/api/abwesenheiten")).not.toHaveProperty("userId");
+      expect(fetchMock).not.toHaveBeenCalledWith("/api/abwesenheiten/benutzer", expect.anything());
+    });
+
+    it("bietet Admins in der Tagesliste Bearbeiten an, vorbelegt mit dem Eigentümer, und hängt um", async () => {
+      loggedIn("ADMIN");
+      respondTo({ [OWNERS_ROUTE]: () => mockFetchResponse(OWNERS), "PUT /api/abwesenheiten/o1": () => mockFetchResponse({ ...SAVED_ABSENCE, id: "o1" }) });
+      const user = await renderPage();
+
+      const list = await openDayList(user);
+      await user.click(within(list).getByRole("button", { name: "Abwesenheit von Erika Beispiel, 05.11.2026, 08:00–12:00 Uhr bearbeiten" }));
+
+      const dialog = screen.getByRole("dialog", { name: "Abwesenheit bearbeiten" });
+      const owner = within(dialog).getByLabelText("Benutzer");
+      expect(owner).toHaveValue("erika");
+      expect(within(dialog).getByLabelText("Grund")).toHaveValue("Schicht");
+      await within(dialog).findByRole("option", { name: "Max Muster" });
+      await user.selectOptions(owner, "max");
+      const loadsBefore = calendarLoads();
+      await user.click(within(dialog).getByRole("button", { name: "Aktualisieren" }));
+
+      expect(await screen.findByText("Abwesenheit wurde aktualisiert.")).toBeInTheDocument();
+      expect(requestTo("PUT", "/api/abwesenheiten/o1")).toMatchObject({ reason: "Schicht", userId: "max" });
+      await waitFor(() => expect(calendarLoads()).toBe(loadsBefore + 1));
+    });
+
+    it("löscht als Admin eine fremde Abwesenheit erst nach Bestätigung", async () => {
+      loggedIn("SITE_ADMINISTRATOR");
+      respondTo({ "DELETE /api/abwesenheiten/o2": () => mockFetchResponse({ success: true }) });
+      const user = await renderPage();
+
+      await user.click(within(await openDayList(user)).getByRole("button", { name: "Abwesenheit von Max Muster, 05.11.2026 – 06.11.2026 löschen" }));
+      await user.click(within(screen.getByRole("dialog", { name: "Abwesenheit löschen" })).getByRole("button", { name: "Abbrechen" }));
+      expect(requestTo("DELETE", "/api/abwesenheiten/o2")).toBeUndefined();
+
+      const loadsBefore = calendarLoads();
+      await user.click(within(await openDayList(user)).getByRole("button", { name: "Abwesenheit von Max Muster, 05.11.2026 – 06.11.2026 löschen" }));
+      const confirmation = screen.getByRole("dialog", { name: "Abwesenheit löschen" });
+      expect(within(confirmation).getByText("Möchten Sie die Abwesenheit von Max Muster wirklich löschen?")).toBeInTheDocument();
+      await user.click(within(confirmation).getByRole("button", { name: "Löschen" }));
+
+      expect(await screen.findByText("Abwesenheit wurde gelöscht.")).toBeInTheDocument();
+      expect(fetchMock).toHaveBeenCalledWith("/api/abwesenheiten/o2", expect.objectContaining({ method: "DELETE" }));
+      await waitFor(() => expect(calendarLoads()).toBe(loadsBefore + 1));
+    });
+
+    it("bietet Prüfern in der Tagesliste weder Bearbeiten noch Löschen an", async () => {
+      loggedIn("AUDITOR");
+      const user = await renderPage();
+      const list = await openDayList(user);
+      expect(within(list).getByText("Erika Beispiel")).toBeInTheDocument();
+      expect(within(list).queryByRole("button", { name: /bearbeiten|löschen/i })).not.toBeInTheDocument();
+    });
+
+    it("zeigt in der Tagesliste, wer eine Abwesenheit eingetragen hat", async () => {
+      loggedIn("AUDITOR");
+      respondTo({}, withEnteredBy({ o1: { kind: "other", name: "Anna Admin" }, o2: { kind: "removed" } }));
+      const user = await renderPage();
+      const items = within(await openDayList(user)).getAllByRole("listitem");
+      expect(items[0]).toHaveTextContent("Eingetragen von Anna Admin");
+      expect(items[1]).toHaveTextContent("Eingetragen von einem Administrator");
+    });
+
+    it.each([
+      [{ kind: "other", name: "Anna Admin" } as const, "Eingetragen von Anna Admin"],
+      [{ kind: "removed" } as const, "Eingetragen von einem Administrator"],
+    ])("zeigt in den Details der eigenen Abwesenheit den Hinweis %j", async (enteredBy, text) => {
+      loggedIn("MEMBER");
+      respondTo({}, withEnteredBy({ own: enteredBy }));
+      const user = await renderPage();
+      await user.click(screen.getByRole("button", { name: "Abwesend: Urlaub" }));
+      expect(within(screen.getByRole("dialog", { name: "Eigene Abwesenheit" })).getByText(text)).toBeInTheDocument();
+    });
+
+    it("zeigt bei selbst eingetragenen Abwesenheiten keinen Hinweis", async () => {
+      loggedIn("ADMIN");
+      const user = await renderPage();
+      await user.click(screen.getByRole("button", { name: "Abwesend: Urlaub" }));
+      expect(within(screen.getByRole("dialog")).queryByText(/Eingetragen von/)).not.toBeInTheDocument();
+      await user.keyboard("{Escape}");
+      expect(within(await openDayList(user)).queryByText(/Eingetragen von/)).not.toBeInTheDocument();
+    });
+
+    function deferred() {
+      let resolve: (response: Response) => void = () => {};
+      const promise = new Promise<Response>((done) => {
+        resolve = done;
+      });
+      return { promise, resolve };
+    }
+
+    function ownerRequests() {
+      return fetchMock.mock.calls.filter(([url]) => url === "/api/abwesenheiten/benutzer").length;
+    }
+
+    it("unterscheidet die Aktionen zweier Teilzeit-Abwesenheiten desselben Benutzers am selben Tag", async () => {
+      loggedIn("ADMIN");
+      const erika = DATA.abwesenheiten[1];
+      const calendar = {
+        ...DATA,
+        abwesenheiten: [
+          erika,
+          { ...erika, id: "o3", timeFrom: "14:00", timeTo: "16:00", reason: "Arzt" },
+        ],
+      };
+      respondTo({ [OWNERS_ROUTE]: () => mockFetchResponse(OWNERS) }, calendar);
+      const user = await renderPage();
+
+      await user.click(screen.getByRole("button", { name: "2 abwesend" }));
+      const list = screen.getByRole("dialog", { name: "Abwesend am 05.11.2026" });
+      expect(within(list).getByRole("button", { name: "Abwesenheit von Erika Beispiel, 05.11.2026, 08:00–12:00 Uhr löschen" })).toBeInTheDocument();
+      await user.click(within(list).getByRole("button", { name: "Abwesenheit von Erika Beispiel, 05.11.2026, 14:00–16:00 Uhr bearbeiten" }));
+
+      expect(within(screen.getByRole("dialog", { name: "Abwesenheit bearbeiten" })).getByLabelText("Grund")).toHaveValue("Arzt");
+    });
+
+    it("zeigt die Limit-Meldung mit Namen am Feld „Benutzer“, nicht an „Bis“ oder „Grund“", async () => {
+      loggedIn("ADMIN");
+      const message =
+        "Für Anna Bischof-Grundmann sind bereits 100 laufende oder künftige Abwesenheiten eingetragen. Bitte löschen Sie nicht mehr benötigte Einträge, bevor Sie weitere anlegen.";
+      respondTo({
+        [OWNERS_ROUTE]: () => mockFetchResponse(OWNERS),
+        "PUT /api/abwesenheiten/o1": () => mockFetchResponse({ error: message, fieldErrors: [{ field: "userId", message }] }, false),
+      });
+      const user = await renderPage();
+
+      await user.click(within(await openDayList(user)).getByRole("button", { name: /Erika Beispiel.*bearbeiten/ }));
+      const dialog = screen.getByRole("dialog", { name: "Abwesenheit bearbeiten" });
+      await user.click(within(dialog).getByRole("button", { name: "Aktualisieren" }));
+
+      const owner = within(dialog).getByLabelText("Benutzer");
+      await waitFor(() => expect(owner).toHaveAttribute("aria-invalid", "true"));
+      expect(owner).toHaveAccessibleDescription(message);
+      expect(within(dialog).getByLabelText(/^Bis/)).not.toHaveAttribute("aria-invalid", "true");
+      expect(within(dialog).getByLabelText("Grund")).not.toHaveAttribute("aria-invalid", "true");
+    });
+
+    it("meldet Laden und Fehler der Benutzerliste in einer Live-Region und lädt auf Wunsch erneut", async () => {
+      loggedIn("ADMIN");
+      const first = deferred();
+      let attempt = 0;
+      respondTo({
+        [OWNERS_ROUTE]: () => {
+          attempt += 1;
+          return attempt === 1 ? first.promise : mockFetchResponse(OWNERS);
+        },
+      });
+      const user = await renderPage();
+
+      await user.click(screen.getByRole("button", { name: "Abwesenheit eintragen" }));
+      const dialog = screen.getByRole("dialog", { name: "Abwesenheit eintragen" });
+      const status = within(dialog).getByRole("status");
+      expect(status).toHaveTextContent("Benutzer werden geladen…");
+      expect(within(dialog).getByLabelText("Benutzer")).not.toHaveAttribute("aria-busy");
+
+      await act(async () => first.resolve(mockFetchResponse({ error: "kaputt" }, false)));
+      expect(status).toHaveTextContent("Benutzer konnten nicht geladen werden");
+      expect(within(dialog).getByLabelText("Benutzer")).toHaveValue("u1");
+
+      await user.click(within(dialog).getByRole("button", { name: "Erneut laden" }));
+      expect(await within(dialog).findByRole("option", { name: "Max Muster" })).toBeInTheDocument();
+      expect(status).toHaveTextContent("");
+      expect(within(dialog).queryByRole("button", { name: "Erneut laden" })).not.toBeInTheDocument();
+      expect(ownerRequests()).toBe(2);
+    });
+
+    it("ignoriert eine verspätete Antwort nach dem Schließen", async () => {
+      loggedIn("ADMIN");
+      const first = deferred();
+      const second = deferred();
+      let attempt = 0;
+      respondTo({
+        [OWNERS_ROUTE]: () => {
+          attempt += 1;
+          return attempt === 1 ? first.promise : second.promise;
+        },
+      });
+      const user = await renderPage();
+
+      await user.click(screen.getByRole("button", { name: "Abwesenheit eintragen" }));
+      await user.click(within(screen.getByRole("dialog", { name: "Abwesenheit eintragen" })).getByRole("button", { name: "Abbrechen" }));
+      await user.click(screen.getByRole("button", { name: "Abwesenheit eintragen" }));
+      await act(async () => first.resolve(mockFetchResponse(OWNERS)));
+
+      const dialog = screen.getByRole("dialog", { name: "Abwesenheit eintragen" });
+      expect(within(dialog).getByRole("status")).toHaveTextContent("Benutzer werden geladen…");
+      expect(within(within(dialog).getByLabelText("Benutzer")).getAllByRole("option").map((o) => o.textContent)).toEqual(["Anna Admin"]);
+
+      await act(async () => second.resolve(mockFetchResponse(OWNERS)));
+      expect(within(dialog).getByRole("option", { name: "Max Muster" })).toBeInTheDocument();
+    });
+
+    it("stellt einen in der Liste fehlenden Eigentümer voran", async () => {
+      loggedIn("ADMIN");
+      respondTo({ [OWNERS_ROUTE]: () => mockFetchResponse({ users: OWNERS.users.filter((owner) => owner.id !== "erika") }) });
+      const user = await renderPage();
+
+      await user.click(within(await openDayList(user)).getByRole("button", { name: /Erika Beispiel.*bearbeiten/ }));
+      const dialog = screen.getByRole("dialog", { name: "Abwesenheit bearbeiten" });
+      const owner = within(dialog).getByLabelText("Benutzer");
+      await within(dialog).findByRole("option", { name: "Max Muster" });
+      expect(within(owner).getAllByRole("option").map((option) => option.textContent)).toEqual([
+        "Erika Beispiel",
+        "Anna Admin",
+        "Max Muster",
+      ]);
+      expect(owner).toHaveValue("erika");
+    });
+
+    it("belegt nach dem Bearbeiten eines fremden Eintrags beim erneuten Eintragen wieder sich selbst vor", async () => {
+      loggedIn("ADMIN");
+      respondTo({ [OWNERS_ROUTE]: () => mockFetchResponse(OWNERS) });
+      const user = await renderPage();
+
+      await user.click(within(await openDayList(user)).getByRole("button", { name: /Erika Beispiel.*bearbeiten/ }));
+      let dialog = screen.getByRole("dialog", { name: "Abwesenheit bearbeiten" });
+      expect(within(dialog).getByLabelText("Benutzer")).toHaveValue("erika");
+      await user.click(within(dialog).getByRole("button", { name: "Abbrechen" }));
+
+      await user.click(screen.getByRole("button", { name: "Abwesenheit eintragen" }));
+      dialog = screen.getByRole("dialog", { name: "Abwesenheit eintragen" });
+      await within(dialog).findByRole("option", { name: "Max Muster" });
+      expect(within(dialog).getByLabelText("Benutzer")).toHaveValue("u1");
+    });
   });
 });

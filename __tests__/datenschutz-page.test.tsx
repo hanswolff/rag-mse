@@ -11,7 +11,7 @@ describe("DatenschutzPage", () => {
 
   it("renders the last updated date", () => {
     render(<DatenschutzPage />);
-    expect(screen.getByText("Zuletzt geändert: 19. Oktober 2026")).toBeInTheDocument();
+    expect(screen.getByText("Zuletzt geändert: 30. Oktober 2026")).toBeInTheDocument();
   });
 
   it("renders data protection overview section", () => {
@@ -109,6 +109,15 @@ describe("DatenschutzPage", () => {
     expect(section).toHaveTextContent(/Administratoren und Prüfer/);
     expect(section).toHaveTextContent(/30 Tage nach ihrem Ende automatisch gelöscht/);
     expect(section).toHaveTextContent(/Löschung Ihres Benutzerkontos/);
+  });
+
+  it("explains that administrators can enter absences on behalf of users", () => {
+    render(<DatenschutzPage />);
+    const section = screen.getByRole("heading", { name: "7. Abwesenheiten" }).closest("section");
+    expect(section).toHaveTextContent(
+      "Auf Ihre Mitteilung hin können Administratoren Abwesenheiten auch für Sie eintragen, ändern oder löschen; der Eintrag zeigt dann, wer ihn eingetragen hat."
+    );
+    expect(section).toHaveTextContent(/sowie das Benutzerkonto, von dem der Eintrag vorgenommen wurde/);
   });
 
   it("names the absence retention in the storage duration section", () => {

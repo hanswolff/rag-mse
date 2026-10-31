@@ -1,5 +1,5 @@
 import { spawnSync } from "child_process";
-import { mkdtempSync, rmSync } from "fs";
+import { mkdtempSync, readFileSync, rmSync } from "fs";
 import os from "os";
 import path from "path";
 import Database from "better-sqlite3";
@@ -141,6 +141,31 @@ describe("run-db-migrations helpers", () => {
     expect(db.prepare(`SELECT "activatedAt" FROM "User" WHERE "id" = 'u2'`).get()).toEqual({
       activatedAt: null,
     });
+    db.close();
+  });
+
+  it("backfills Absence.createdById with the owner and nulls it when the creator is deleted", () => {
+    const migrationSql = (name: string) =>
+      readFileSync(path.join(__dirname, "..", "prisma", "migrations", name, "migration.sql"), "utf8");
+    const db = new Database(":memory:");
+    db.exec(`CREATE TABLE "User" ("id" TEXT NOT NULL PRIMARY KEY);`);
+    db.exec(migrationSql("20261021_add_absence"));
+    db.exec(`
+      INSERT INTO "User" ("id") VALUES ('owner'), ('admin');
+      INSERT INTO "Absence" ("id", "userId", "startDate", "endDate", "reason", "updatedAt")
+        VALUES ('a1', 'owner', '2026-11-01', '2026-11-02', 'Urlaub', '2026-10-30');
+    `);
+
+    db.exec(migrationSql("20261030_absence_created_by"));
+
+    expect(db.prepare(`SELECT "userId", "createdById", "reason" FROM "Absence"`).all()).toEqual([
+      { userId: "owner", createdById: "owner", reason: "Urlaub" },
+    ]);
+    db.pragma("foreign_keys = ON");
+    db.exec(`UPDATE "Absence" SET "createdById" = 'admin'; DELETE FROM "User" WHERE "id" = 'admin';`);
+    expect(db.prepare(`SELECT "userId", "createdById" FROM "Absence"`).all()).toEqual([
+      { userId: "owner", createdById: null },
+    ]);
     db.close();
   });
 

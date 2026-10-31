@@ -136,10 +136,23 @@ beforeAll(async () => {
 
   await prisma.absence.createMany({
     data: [
-      { userId: viewers.Mitglied.id, startDate: localDate("2026-11-03"), endDate: localDate("2026-11-04"), reason: "Urlaub" },
-      { userId: otherMember.id, startDate: localDate("2026-11-03"), endDate: localDate("2026-11-03"), reason: "Schicht" },
+      {
+        userId: viewers.Mitglied.id,
+        createdById: viewers.Administrator.id,
+        startDate: localDate("2026-11-03"),
+        endDate: localDate("2026-11-04"),
+        reason: "Urlaub",
+      },
+      {
+        userId: otherMember.id,
+        createdById: otherMember.id,
+        startDate: localDate("2026-11-03"),
+        endDate: localDate("2026-11-03"),
+        reason: "Schicht",
+      },
       {
         userId: viewers.Administrator.id,
+        createdById: viewers.Administrator.id,
         startDate: localDate("2026-11-20"),
         endDate: localDate("2026-11-20"),
         allDay: false,
@@ -203,11 +216,19 @@ describe("GET /api/kalender – Abwesenheiten", () => {
     actAs("Mitglied");
     const { abwesenheiten } = await fetchBody();
     expect(abwesenheiten).toHaveLength(1);
-    expect(abwesenheiten[0]).toMatchObject({ reason: "Urlaub", isOwn: true, startDate: "2026-11-03", endDate: "2026-11-04" });
+    expect(abwesenheiten[0]).toMatchObject({
+      reason: "Urlaub",
+      isOwn: true,
+      startDate: "2026-11-03",
+      endDate: "2026-11-04",
+      userId: viewers.Mitglied.id,
+      enteredBy: { kind: "other", name: "Anna Admin" },
+    });
     expect(JSON.stringify(abwesenheiten)).not.toContain("Schicht");
+    expect(JSON.stringify(abwesenheiten)).not.toContain("@example.com");
   });
 
-  it.each(["Administrator", "Prüfer"] as const)("%s erhält alle Abwesenheiten mit Namen, aber ohne E-Mail und userId", async (role) => {
+  it.each(["Administrator", "Prüfer"] as const)("%s erhält alle Abwesenheiten mit Namen, Eigentümer-ID und Eintragendem, aber ohne E-Mail", async (role) => {
     actAs(role);
     const { abwesenheiten } = await fetchBody();
     expect(abwesenheiten.map((absence: { userName: string }) => absence.userName).sort()).toEqual(
@@ -217,10 +238,17 @@ describe("GET /api/kalender – Abwesenheiten", () => {
     expect(Boolean(own)).toBe(role === "Administrator");
     for (const absence of abwesenheiten) {
       expect(Object.keys(absence).sort()).toEqual(
-        ["allDay", "endDate", "id", "isOwn", "reason", "startDate", "timeFrom", "timeTo", "userName"]
+        ["allDay", "endDate", "enteredBy", "id", "isOwn", "reason", "startDate", "timeFrom", "timeTo", "userId", "userName"]
       );
       expect(JSON.stringify(absence)).not.toContain("@example.com");
     }
+    expect(
+      abwesenheiten.map((absence: { userName: string; enteredBy: unknown }) => [absence.userName, absence.enteredBy]).sort()
+    ).toEqual([
+      ["Anna Admin", { kind: "self" }],
+      ["Erika Beispiel", { kind: "self" }],
+      ["Max Muster", { kind: "other", name: "Anna Admin" }],
+    ]);
   });
 });
 

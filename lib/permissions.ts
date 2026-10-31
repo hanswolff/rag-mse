@@ -114,6 +114,10 @@ export class Permissions {
     return this.canAccessAdminArea(userOrRole);
   }
 
+  static canManageAllAbsences(userOrRole: UserWithRole | string | undefined): boolean {
+    return this.canManageAdminArea(userOrRole);
+  }
+
   static canViewCollisions(userOrRole: UserWithRole | string | undefined): boolean {
     return this.canAccessAdminArea(userOrRole);
   }

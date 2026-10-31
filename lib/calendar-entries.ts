@@ -52,6 +52,17 @@ export function aggregateAbsencesPerDay(absences: CalendarAbsence[], range: Cale
     .map(([date, dayAbsences]) => ({ date, absences: dayAbsences }));
 }
 
+const UNKNOWN_USER_NAME = "Unbekannter Benutzer";
+
+export function displayUserName(name: string | null): string {
+  return name || UNKNOWN_USER_NAME;
+}
+
+export function describeEnteredBy(enteredBy: CalendarAbsence["enteredBy"]): string | null {
+  if (enteredBy.kind === "self") return null;
+  return `Eingetragen von ${(enteredBy.kind === "other" && enteredBy.name) || "einem Administrator"}`;
+}
+
 export function describeAbsenceOnDay(absence: Period, date: string): string {
   if (absence.allDay || !absence.timeFrom || !absence.timeTo) return "ganztägig";
   const startsToday = absence.startDate === date;

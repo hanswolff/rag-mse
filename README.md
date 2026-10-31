@@ -827,8 +827,9 @@ TZ="Europe/Berlin"                             # Default: Europe/Berlin
 ### Abwesenheiten
 
 - Eingeloggte Benutzer (alle Rollen) tragen eigene Abwesenheiten ein: Zeitraum von–bis, ganztägig oder mit Uhrzeit, optional kurzer Grund (max. 200 Zeichen)
-- API `/api/abwesenheiten` (GET eigene, POST) und `/api/abwesenheiten/[id]` (PUT, DELETE) — nur eigene, fremde ⇒ 404, auch für Admins
-- Sichtbar nur für den Ersteller sowie ADMIN/SITE_ADMINISTRATOR und AUDITOR (mit Name, ohne weitere Kontaktdaten)
+- ADMIN/SITE_ADMINISTRATOR können Abwesenheiten auch für andere Benutzer anlegen, ändern, löschen und einem anderen Benutzer zuordnen (z. B. nach telefonischer Abmeldung); der Eintrag zeigt dann „Eingetragen von <Name>“ (`createdById`, bleibt beim Bearbeiten unverändert; hängt ein Admin einen selbst eingetragenen Eintrag um, gilt er als Eintragender). Der Benutzer selbst darf solche Einträge weiterhin ändern und löschen
+- API `/api/abwesenheiten` (GET eigene, POST, optional `userId`) und `/api/abwesenheiten/[id]` (PUT inkl. Umhängen per `userId`, DELETE); `GET /api/abwesenheiten/benutzer` liefert Admins die aktivierten Benutzer (id, Name) zur Auswahl. AUDITOR/MEMBER: fremde IDs ⇒ 404, fremde `userId` ⇒ 403
+- Sichtbar nur für den betroffenen Benutzer (Eigentümer) sowie ADMIN/SITE_ADMINISTRATOR und AUDITOR (mit Name, ohne weitere Kontaktdaten)
 - Automatische Löschung 30 Tage nach Ende durch den Maintenance-Worker; beim Löschen des Benutzers sofort (Cascade)
 
 ### Kalender
@@ -912,6 +913,7 @@ Die Anwendung verwendet ein rollenbasiertes Zugriffskontrollsystem mit vier Roll
 | Eigenes Profil verwalten | ✓ | ✓ | ✓ | ✓ |
 | Eigene Abwesenheiten verwalten | ✓ | ✓ | ✓ | ✓ |
 | Abwesenheiten aller Benutzer sehen | ✗ | ✓ | ✓ | ✓ |
+| Abwesenheiten für andere Benutzer verwalten | ✗ | ✗ | ✓ | ✓ |
 
 **Hinweis:** Die Rolle `SITE_ADMINISTRATOR` kann nicht über die Benutzeroberfläche vergeben werden. Sie wird ausschließlich über Datenbank-Migrationen oder direkte Datenbankänderungen gesetzt.
 

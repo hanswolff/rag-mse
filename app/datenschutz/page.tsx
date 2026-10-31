@@ -10,7 +10,7 @@ export default function DatenschutzPage() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
         <div className="card">
           <h1 className="text-2xl sm:text-3xl font-bold text-center mb-6 sm:mb-8 text-gray-900">Datenschutzerklärung</h1>
-          <p className="text-center text-sm text-gray-600 -mt-3 mb-6 sm:mb-8">Zuletzt geändert: 19. Oktober 2026</p>
+          <p className="text-center text-sm text-gray-600 -mt-3 mb-6 sm:mb-8">Zuletzt geändert: 30. Oktober 2026</p>
 
           <section className="mb-6 sm:mb-8">
             <h2 className="text-lg sm:text-xl font-semibold mb-3 sm:mb-4 text-gray-900">1. Datenschutz auf einen Blick</h2>
@@ -129,9 +129,10 @@ export default function DatenschutzPage() {
             </p>
             <p className="mb-4 text-base sm:text-base text-gray-800">
               Dabei verarbeiten wir den Zeitraum (Start- und Enddatum, ganztägig oder mit Uhrzeit), einen optionalen
-              kurzen Grund sowie die Zuordnung zu Ihrem Benutzerkonto. Die Angabe ist freiwillig; ohne sie entstehen
-              Ihnen keine Nachteile. Bitte machen Sie im Grund keine Gesundheits- oder sonstigen sensiblen Angaben –
-              &bdquo;Urlaub&ldquo; oder &bdquo;verhindert&ldquo; genügt.
+              kurzen Grund, die Zuordnung zu Ihrem Benutzerkonto sowie das Benutzerkonto, von dem der Eintrag
+              vorgenommen wurde. Die Angabe ist freiwillig; ohne sie entstehen Ihnen keine Nachteile. Bitte machen Sie
+              im Grund keine Gesundheits- oder sonstigen sensiblen Angaben – &bdquo;Urlaub&ldquo; oder
+              &bdquo;verhindert&ldquo; genügt.
             </p>
             <p className="mb-4 text-base sm:text-base text-gray-800">
               Ihre Abwesenheiten sehen nur Sie selbst sowie die Administratoren und Prüfer des Vereins (mit Ihrem Namen,
@@ -139,8 +140,9 @@ export default function DatenschutzPage() {
             </p>
             <p className="text-base sm:text-base text-gray-800">
               Abwesenheiten werden 30 Tage nach ihrem Ende automatisch gelöscht, bei Löschung Ihres Benutzerkontos
-              sofort. Sie können eigene Abwesenheiten jederzeit selbst ändern oder löschen. Rechtsgrundlage ist
-              Art. 6 Abs. 1 lit. b DSGVO (Mitgliedschaft/Organisation).
+              sofort. Sie können eigene Abwesenheiten jederzeit selbst ändern oder löschen. Auf Ihre Mitteilung hin
+              können Administratoren Abwesenheiten auch für Sie eintragen, ändern oder löschen; der Eintrag zeigt dann,
+              wer ihn eingetragen hat. Rechtsgrundlage ist Art. 6 Abs. 1 lit. b DSGVO (Mitgliedschaft/Organisation).
             </p>
           </section>
 

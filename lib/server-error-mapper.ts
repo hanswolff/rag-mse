@@ -105,6 +105,11 @@ export const ABSENCE_FIELD_KEYWORDS: Record<string, string[]> = {
   reason: ["Grund"],
 };
 
+export const ABSENCE_WITH_OWNER_FIELD_KEYWORDS: Record<string, string[]> = {
+  ...ABSENCE_FIELD_KEYWORDS,
+  userId: ["Benutzer"],
+};
+
 export const NEWS_FIELD_KEYWORDS: Record<string, string[]> = {
   newsDate: ["Datum"],
   title: ["Titel"],

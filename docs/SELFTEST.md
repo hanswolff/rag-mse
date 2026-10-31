@@ -32,7 +32,7 @@ JSON-Report mit Gesamtstatus und einer Liste isolierter Einzelprüfungen:
 {
   "status": "ok",            // "ok" | "warn" | "error"
   "timestamp": "2026-06-20T03:30:00.000Z",
-  "version": "1.8.0",
+  "version": "1.8.1",
   "durationMs": 142,
   "checks": [
     { "name": "database.connectivity", "component": "Datenbank", "status": "ok", "durationMs": 3 }

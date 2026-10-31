@@ -71,4 +71,34 @@ describe("useAbsenceForm", () => {
     expect(result.current.isOpen).toBe(true);
     expect(result.current.fieldErrors).toEqual(fieldErrors);
   });
+
+  it("sendet für Nicht-Admins keine userId", async () => {
+    respond(200, saved);
+    const { result } = renderHook(() => useAbsenceForm(jest.fn()));
+
+    act(() => result.current.openEdit({ ...saved, userId: "u1" }));
+    await act(() => result.current.handleSubmit(submitEvent));
+
+    expect(JSON.parse(String(jest.mocked(global.fetch).mock.calls[0][1]?.body))).not.toHaveProperty("userId");
+  });
+
+  it("belegt für Admins den Benutzer mit sich selbst bzw. dem Eigentümer vor und sendet userId", async () => {
+    respond(201, saved);
+    const { result } = renderHook(() => useAbsenceForm(jest.fn(), "admin"));
+
+    act(() => result.current.openCreate({ startDate: "2026-11-06", endDate: "2026-11-06" }));
+    expect(result.current.data.userId).toBe("admin");
+    await act(() => result.current.handleSubmit(submitEvent));
+    expect(JSON.parse(String(jest.mocked(global.fetch).mock.calls[0][1]?.body))).toMatchObject({ userId: "admin" });
+
+    respond(200, saved);
+    act(() => result.current.openEdit({ ...saved, userId: "erika" }));
+    expect(result.current.data.userId).toBe("erika");
+    expect(result.current.initialData?.userId).toBe("erika");
+    act(() => result.current.setData({ ...result.current.data, userId: "max" }));
+    await act(() => result.current.handleSubmit(submitEvent));
+    const [url, init] = jest.mocked(global.fetch).mock.calls[0];
+    expect(url).toBe("/api/abwesenheiten/a1");
+    expect(JSON.parse(String(init?.body))).toMatchObject({ userId: "max" });
+  });
 });

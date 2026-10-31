@@ -1,12 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
 import { requireMember } from "@/lib/auth-utils";
 import { getAuthNoCacheHeaders, withApiErrorHandling } from "@/lib/api-error-handler";
 import { validateCsrfHeaders } from "@/lib/csrf-validator";
 import { logInfo, logResourceNotFound } from "@/lib/logger";
 import { parseAbsenceRequest, serializeAbsence } from "@/lib/absence-request";
-import { assertActiveAbsenceCapacity } from "@/lib/absence-service";
-import { isPrismaErrorCode } from "@/lib/prisma-errors";
+import { deleteAbsence, updateAbsence } from "@/lib/absence-service";
 
 const ROUTE = "/api/abwesenheiten/[id]";
 
@@ -24,23 +22,18 @@ export const PUT = withApiErrorHandling(async (
   const { id } = await ctx.params;
 
   const routeInfo = { route: ROUTE, method: "PUT" };
-  const data = await parseAbsenceRequest(request, routeInfo);
-  if (!(await prisma.absence.findFirst({ where: { id, userId: user.id }, select: { id: true } }))) {
+  const result = await updateAbsence(user, id, await parseAbsenceRequest(request, routeInfo), routeInfo);
+  if (!result) {
     return notFound(id, "PUT", user.id);
   }
-  await assertActiveAbsenceCapacity(user.id, { endDate: data.endDate, excludeId: id }, routeInfo);
 
-  let absence;
-  try {
-    absence = await prisma.absence.update({ where: { id, userId: user.id }, data });
-  } catch (error) {
-    if (isPrismaErrorCode(error, "P2025")) {
-      return notFound(id, "PUT", user.id);
-    }
-    throw error;
-  }
-
-  logInfo("absence_updated", "Absence updated", { userId: user.id, absenceId: id });
+  const { absence, previousUserId } = result;
+  logInfo("absence_updated", "Absence updated", {
+    userId: absence.userId,
+    actorId: user.id,
+    absenceId: id,
+    ...(previousUserId !== absence.userId ? { previousUserId } : {}),
+  });
 
   return NextResponse.json(serializeAbsence(absence), { headers: getAuthNoCacheHeaders() });
 }, { route: ROUTE, method: "PUT" });
@@ -53,12 +46,12 @@ export const DELETE = withApiErrorHandling(async (
   const user = await requireMember();
   const { id } = await ctx.params;
 
-  const { count } = await prisma.absence.deleteMany({ where: { id, userId: user.id } });
-  if (count === 0) {
+  const deleted = await deleteAbsence(user, id);
+  if (!deleted) {
     return notFound(id, "DELETE", user.id);
   }
 
-  logInfo("absence_deleted", "Absence deleted", { userId: user.id, absenceId: id });
+  logInfo("absence_deleted", "Absence deleted", { userId: deleted.userId, actorId: user.id, absenceId: id });
 
   return NextResponse.json({ success: true }, { headers: getAuthNoCacheHeaders() });
 }, { route: ROUTE, method: "DELETE" });

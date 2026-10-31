@@ -187,12 +187,17 @@ Die optionale Einordnung eines [[Fremdtermin]]s: **RDL** (Reservistendienstleist
 
 ### Abwesenheit
 
-Ein von einem [[Benutzer]] selbst eingetragener Zeitraum, in dem er **nicht verfügbar**
-ist (Urlaub, Schicht, Wettkampf anderswo): mehrtägig möglich, ganztägig oder mit
-Uhrzeit, optional mit kurzem Grund. Sie dient Administratoren als Kollisionshinweis
-bei der Terminplanung und ist nur für den Ersteller sowie Administratoren und Prüfer
-sichtbar. 30 Tage nach ihrem Ende wird sie automatisch gelöscht.
+Ein Zeitraum, in dem ein [[Benutzer]] **nicht verfügbar** ist (Urlaub, Schicht,
+Wettkampf anderswo): mehrtägig möglich, ganztägig oder mit Uhrzeit, optional mit kurzem
+Grund. Sie dient Administratoren als Kollisionshinweis bei der Terminplanung und ist nur
+für den betroffenen Benutzer sowie Administratoren und Prüfer sichtbar. 30 Tage nach
+ihrem Ende wird sie automatisch gelöscht.
 
+- Die Abwesenheit **gehört dem Benutzer, für den sie gilt**, unabhängig davon, wer sie
+  eingetragen hat. Er kann sie jederzeit selbst ändern oder löschen.
+- Normalerweise trägt der Benutzer sie selbst ein. Administratoren (nicht Prüfer) können
+  Abwesenheiten auch **für andere Benutzer** anlegen, ändern, löschen und einem anderen
+  Benutzer zuordnen. Die Abwesenheit weist dann aus, **wer sie eingetragen hat**.
 - Eine Abwesenheit ist **kein** [[Termin]] und hat keine [[Teilnahmeanmeldung]].
 - _Code:_ Prisma-Modell `Absence`.
 - _Vermeiden:_ „eigener Termin“, „privater Termin“, „Verhinderung“, „Urlaub“.

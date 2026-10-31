@@ -11,6 +11,7 @@ interface AbsenceRequestBody {
   timeFrom: string | null;
   timeTo: string | null;
   reason: string | null;
+  userId?: string;
 }
 
 const optionalText = { type: "string" as const, nullable: true };
@@ -22,14 +23,20 @@ const BODY_SCHEMA = {
   timeFrom: optionalText,
   timeTo: optionalText,
   reason: optionalText,
+  userId: { type: "string" as const, optional: true },
 };
 
 export type AbsenceData = StoredPeriod & { reason: string | null };
 
+export interface AbsenceRequest {
+  data: AbsenceData;
+  userId?: string;
+}
+
 export async function parseAbsenceRequest(
   request: Request,
   routeInfo: { route: string; method: string }
-): Promise<AbsenceData> {
+): Promise<AbsenceRequest> {
   const body = await parseCompleteJsonBody<AbsenceRequestBody>(request, BODY_SCHEMA, routeInfo);
 
   const result = absenceFormSchema.safeParse({
@@ -46,7 +53,10 @@ export async function parseAbsenceRequest(
     failValidation(routeInfo, validation.errors, validation.fieldErrors ?? []);
   }
 
-  return { ...periodToStorage(result.data), reason: result.data.reason || null };
+  return {
+    data: { ...periodToStorage(result.data), reason: result.data.reason || null },
+    userId: body.userId,
+  };
 }
 
 export function serializeAbsence(absence: Absence): AbsenceItem {
